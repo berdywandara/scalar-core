@@ -1,0 +1,17 @@
+[package]
+name = "scalar-crypto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pqcrypto-sphincsplus.workspace = true
+pqcrypto-traits = "0.3"
+blake3.workspace = true
+ml-kem.workspace = true
+thiserror.workspace = true
+rand_core = "0.6" # Fix untuk ML-KEM
+
+[dev-dependencies]
+hex = "0.4"

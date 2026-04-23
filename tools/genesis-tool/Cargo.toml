@@ -1,0 +1,11 @@
+[package]
+name = "genesis-tool"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors = ["Berdy Wandara"]
+
+[dependencies]
+scalar-crypto = { path = "../../crates/scalar-crypto" }
+hex = "0.4"
