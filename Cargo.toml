@@ -1,0 +1,49 @@
+# Cargo.toml (workspace root)
+[workspace]
+members = [
+    "crates/scalar-crypto",
+    "crates/scalar-stark",
+    "crates/scalar-nullifier",
+    "crates/scalar-network",
+    "crates/scalar-node",
+    "crates/scalar-wallet-core",
+    "tools/circuit-bench",
+    "tools/genesis-tool",
+]
+
+resolver = "2"
+
+[workspace.dependencies]
+# Cryptographic primitives
+pqcrypto-sphincsplus = "0.6"      # SPHINCS+
+blake3 = "1.5"                    # BLAKE3
+sha3 = "0.10"                     # SHA-3
+ml-kem = "0.2"                    # ML-KEM (FIPS 203)
+chacha20poly1305 = "0.10"         # ChaCha20-Poly1305
+
+# ZK Proving
+winterfell = "0.9"                # STARK prover/verifier
+
+# Data structures
+
+# Networking
+libp2p = { version = "0.54", features = ["tcp", "noise", "yamux"] }
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+bincode = "1"                     # Binary encoding
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# WASM support
+wasm-bindgen = "0.2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Berdy Wandara"]
+license = "MIT OR Apache-2.0"     
+rust-version = "1.82.0"

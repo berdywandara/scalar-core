@@ -1,0 +1,11 @@
+[package]
+name = "scalar-nullifier"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+scalar-crypto = { path = "../scalar-crypto" }
+blake3.workspace = true
+thiserror.workspace = true

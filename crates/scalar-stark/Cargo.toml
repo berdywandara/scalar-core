@@ -1,0 +1,12 @@
+[package]
+name = "scalar-stark"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+scalar-crypto = { path = "../scalar-crypto" }
+scalar-nullifier = { path = "../scalar-nullifier" }
+winterfell.workspace = true
+thiserror.workspace = true

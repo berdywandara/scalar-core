@@ -1,0 +1,18 @@
+[package]
+name = "scalar-wallet-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+scalar-crypto = { path = "../scalar-crypto" }
+scalar-nullifier = { path = "../scalar-nullifier" }
+scalar-stark = { path = "../scalar-stark" }
+
+bip39 = "2.0"       
+hmac = "0.12"       
+sha2 = "0.10"       
+rand_core = { version = "0.6", features = ["getrandom"] } # Solusi keamanan OS
+wasm-bindgen.workspace = true
+thiserror.workspace = true
