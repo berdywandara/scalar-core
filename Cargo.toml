@@ -8,7 +8,7 @@ members = [
     "crates/scalar-node",
     "crates/scalar-wallet-core",
     "tools/circuit-bench",
-    "tools/genesis-tool",
+    "tools/genesis-tool", "crates/scalar-governance", "crates/scalar-consensus",
 ]
 
 resolver = "2"
@@ -17,9 +17,7 @@ resolver = "2"
 # Cryptographic primitives
 pqcrypto-sphincsplus = "0.6"      # SPHINCS+
 blake3 = "1.5"                    # BLAKE3
-sha3 = "0.10"                     # SHA-3
 ml-kem = "0.2"                    # ML-KEM (FIPS 203)
-chacha20poly1305 = "0.10"         # ChaCha20-Poly1305
 
 # ZK Proving
 winterfell = "0.9"                # STARK prover/verifier
@@ -29,10 +27,6 @@ winterfell = "0.9"                # STARK prover/verifier
 # Networking
 libp2p = { version = "0.54", features = ["tcp", "noise", "yamux"] }
 tokio = { version = "1", features = ["full"] }
-
-# Serialization
-serde = { version = "1", features = ["derive"] }
-bincode = "1"                     # Binary encoding
 
 # Error handling
 thiserror = "1"

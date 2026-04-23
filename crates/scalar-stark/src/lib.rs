@@ -1,7 +1,7 @@
 pub mod air;
+pub mod constraints;
 pub mod prover;
 pub mod verifier;
-pub mod constraints;
 
 #[derive(thiserror::Error, Debug)]
 pub enum StarkError {

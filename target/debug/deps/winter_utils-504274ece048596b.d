@@ -1,0 +1,10 @@
+/workspaces/scalar-core/target/debug/deps/winter_utils-504274ece048596b.d: /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/lib.rs /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/iterators.rs /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/serde/mod.rs /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/serde/byte_reader.rs /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/serde/byte_writer.rs /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/errors.rs
+
+/workspaces/scalar-core/target/debug/deps/libwinter_utils-504274ece048596b.rmeta: /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/lib.rs /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/iterators.rs /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/serde/mod.rs /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/serde/byte_reader.rs /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/serde/byte_writer.rs /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/errors.rs
+
+/home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/lib.rs:
+/home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/iterators.rs:
+/home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/serde/mod.rs:
+/home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/serde/byte_reader.rs:
+/home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/serde/byte_writer.rs:
+/home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winter-utils-0.9.3/src/errors.rs:

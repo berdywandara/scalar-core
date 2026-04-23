@@ -1,6 +1,6 @@
+pub mod coin_selection;
 pub mod key_management;
 pub mod transaction;
-pub mod coin_selection;
 
 #[derive(thiserror::Error, Debug)]
 pub enum WalletError {

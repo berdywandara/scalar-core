@@ -13,3 +13,4 @@ scalar-network = { path = "../scalar-network" }
 
 tokio.workspace = true
 anyhow.workspace = true
+argon2 = "0.5.3"

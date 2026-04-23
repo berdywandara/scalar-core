@@ -1,5 +1,5 @@
 //! Cryptographic primitives for Scalar Network.
-//! 
+//!
 //! Implements post-quantum secure signatures, KEMs, and ZK-friendly hash functions.
 
 pub mod blake3;

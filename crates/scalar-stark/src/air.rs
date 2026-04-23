@@ -1,38 +1,50 @@
+//! Algebraic Intermediate Representation (AIR) untuk Scalar STARK
+//! Menerjemahkan Statement S_scalar menjadi konstrain polinomial.
+
 use winterfell::{
-    Air, AirContext, Assertion, EvaluationFrame, ProofOptions, TraceInfo,
-    math::{FieldElement, ToElements, fields::f64::BaseElement as Felt},
-    TransitionConstraintDegree,
+    math::{fields::f64::BaseElement as Felt, FieldElement, ToElements},
+    Air, AirContext, Assertion, EvaluationFrame, TraceInfo, TransitionConstraintDegree, ProofOptions
 };
 
+/// Public Inputs (Diketahui semua orang di jaringan - Sesuai Dokumen Concept 1, Hal 28)
+#[derive(Clone)]
 pub struct PublicInputs {
-    pub genesis_root: [u8; 32],
-    pub nullifiers: Vec<[u8; 32]>,
+    pub genesis_smt_root: [u8; 32],
+    pub current_nullifier_smt_root: [u8; 32],
+    pub input_commitments: Vec<[u8; 32]>,
+    pub output_commitments: Vec<[u8; 32]>,
+    pub input_nullifiers: Vec<[u8; 32]>,
+    pub fee_value: u64,
+    pub timestamp: u64,
 }
 
+// Wajib agar Public Inputs bisa dikonversi menjadi elemen matematika
 impl ToElements<Felt> for PublicInputs {
     fn to_elements(&self) -> Vec<Felt> {
-        vec![]
+        // TODO: Konversi hash 32-byte menjadi array Felt
+        vec![] 
     }
 }
 
 pub struct ScalarAir {
     context: AirContext<Felt>,
-    inputs: PublicInputs,
+    pub inputs: PublicInputs,
 }
 
 impl Air for ScalarAir {
     type BaseField = Felt;
     type PublicInputs = PublicInputs;
-    // Tambahkan dua baris ini untuk memenuhi requirement Winterfell 0.9+
+    
+    // Konfigurasi tambahan wajib dari API Winterfell terbaru
     type GkrProof = ();
     type GkrVerifier = ();
 
     fn new(trace_info: TraceInfo, pub_inputs: PublicInputs, options: ProofOptions) -> Self {
-        let degrees = vec![TransitionConstraintDegree::new(7)];
-        let context = AirContext::new(trace_info, degrees, 1, options);
+        // Mendefinisikan derajat konstrain (Constraint C5: Value Conservation)
+        let degrees = vec![TransitionConstraintDegree::new(1)];
         
         Self {
-            context,
+            context: AirContext::new(trace_info, degrees, 1, options),
             inputs: pub_inputs,
         }
     }
@@ -43,10 +55,17 @@ impl Air for ScalarAir {
 
     fn evaluate_transition<E: FieldElement<BaseField = Self::BaseField>>(
         &self,
-        _frame: &EvaluationFrame<E>,
+        frame: &EvaluationFrame<E>,
         _periodic_values: &[E],
-        _result: &mut [E],
+        result: &mut [E],
     ) {
+        // Eksekusi Constraint C5: Value Conservation
+        // Sigma(input_values) = Sigma(output_values) + fee_value
+        let current_state = frame.current();
+        
+        // Memastikan tidak ada koin yang tercipta dari ketiadaan (Hukum Fisika Jaringan)
+        // Jika input = output + fee, maka result[0] akan menjadi 0 (Valid)
+        result[0] = current_state[0] - (current_state[1] + current_state[2]);
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
