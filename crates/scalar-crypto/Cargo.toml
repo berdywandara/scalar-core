@@ -9,6 +9,6 @@ pqcrypto-sphincsplus = "0.7"
 blake3 = "1.5"
 chacha20poly1305 = "0.10"
 rand = "0.8"
-ml-kem.workspace = true
 rand_core = "0.10.1"
 zeroize = { version = "1.8.2", features = ["derive"] }
+pqcrypto-kyber = "0.8.1"
