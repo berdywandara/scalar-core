@@ -1,25 +1,21 @@
-//! GAP B-005: Gossip Broadcast Protocol
-
-use crate::message::{ScalarMessage, MsgType};
+//! Real Libp2p Gossipsub Integration
+use libp2p::gossipsub;
+use crate::message::ScalarMessage;
 
 pub struct GossipProtocol;
 
 impl GossipProtocol {
-    /// Broadcast ScalarGossipMessage ke seluruh peers (Step 1-3)
-    pub fn broadcast_delta(msg: &ScalarMessage) -> Result<(), &'static str> {
-        // 1. Validasi Tipe Pesan
-        if msg.msg_type != MsgType::NullifierAnnouncement && msg.msg_type != MsgType::SmtRootBroadcast {
-            return Err("Invalid message type for delta broadcast");
-        }
-        
-        // 2. Validate (Verify SPHINCS+ -> Verify STARK -> Cek Nullifier)
+    /// Relay ke peer menggunakan implementasi libp2p gossipsub sejati
+    pub fn broadcast_delta(
+        gossip_behaviour: &mut gossipsub::Behaviour,
+        topic: &gossipsub::IdentTopic,
+        msg: &ScalarMessage
+    ) -> Result<gossipsub::MessageId, &'static str> {
         if msg.signature.is_empty() {
             return Err("SPHINCS+ Signature missing");
         }
-
-        // 3. Relay to Peers (Diimplementasikan dengan libp2p gossipsub)
-        // 4. Root Reconciliation: Jika SMT Root beda -> request delta
         
-        Ok(())
+        let payload_bytes = serde_json::to_vec(msg).map_err(|_| "Gagal serialisasi message")?;
+        gossip_behaviour.publish(topic.clone(), payload_bytes).map_err(|_| "Gagal relay ke gossipsub peers")
     }
 }
