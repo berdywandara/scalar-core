@@ -1,3 +1,4 @@
+pub mod transaction;
 pub mod hw_wallet;
 pub mod key_management;
 pub mod coin_selection;

@@ -14,10 +14,7 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-# Cryptographic primitives
-pqcrypto-sphincsplus = "0.6"      # SPHINCS+
 blake3 = "1.5"                    # BLAKE3
-ml-kem = "0.2"                    # ML-KEM (FIPS 203)
 
 # ZK Proving
 winterfell = "0.9"                # STARK prover/verifier

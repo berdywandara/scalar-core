@@ -1,0 +1,11 @@
+/workspaces/scalar-core/target/debug/deps/scalar_wallet_core-cbf90f5100d3b9e5.d: crates/scalar-wallet-core/src/lib.rs crates/scalar-wallet-core/src/transaction.rs crates/scalar-wallet-core/src/hw_wallet.rs crates/scalar-wallet-core/src/key_management.rs crates/scalar-wallet-core/src/coin_selection.rs crates/scalar-wallet-core/src/physical_security.rs crates/scalar-wallet-core/src/hardware.rs
+
+/workspaces/scalar-core/target/debug/deps/libscalar_wallet_core-cbf90f5100d3b9e5.rmeta: crates/scalar-wallet-core/src/lib.rs crates/scalar-wallet-core/src/transaction.rs crates/scalar-wallet-core/src/hw_wallet.rs crates/scalar-wallet-core/src/key_management.rs crates/scalar-wallet-core/src/coin_selection.rs crates/scalar-wallet-core/src/physical_security.rs crates/scalar-wallet-core/src/hardware.rs
+
+crates/scalar-wallet-core/src/lib.rs:
+crates/scalar-wallet-core/src/transaction.rs:
+crates/scalar-wallet-core/src/hw_wallet.rs:
+crates/scalar-wallet-core/src/key_management.rs:
+crates/scalar-wallet-core/src/coin_selection.rs:
+crates/scalar-wallet-core/src/physical_security.rs:
+crates/scalar-wallet-core/src/hardware.rs:
