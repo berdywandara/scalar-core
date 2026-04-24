@@ -1,76 +1,40 @@
-use bip39::{Language, Mnemonic};
-use hmac::{Hmac, Mac};
-use rand_core::{OsRng, RngCore};
-use sha2::Sha512;
-use thiserror::Error;
+//! GAP C-001 & C-003: Hierarchical Key Derivation & ViewKey
+//! Derivasi 4 tipe kunci dari Seed menggunakan BLAKE3 KDF
 
-#[derive(Error, Debug)]
-pub enum KeyError {
-    #[error("Invalid mnemonic phrase")]
-    InvalidMnemonic,
-    #[error("Incompatible Bitcoin mnemonic detected")]
-    BitcoinMnemonicDetected,
+use scalar_crypto::blake3;
+
+pub struct SpendKey(pub [u8; 32]);
+pub struct ViewKey(pub [u8; 32]);
+pub struct NodeKey(pub [u8; 32]);
+pub struct DuressKey(pub [u8; 32]);
+
+pub struct WalletKeys {
+    pub spend_key: SpendKey,
+    pub view_key: ViewKey,
+    pub node_key: NodeKey,
+    pub duress_1: DuressKey,
+    pub duress_2: DuressKey,
 }
 
-pub const SCALAR_DOMAIN_SEPARATOR: &str = "scalar_v1";
-pub const SCALAR_PREFIX_WORD: &str = "scalar";
+impl WalletKeys {
+    /// Menghasilkan hierarki kunci deterministik dari master seed
+    /// Kata pertama mnemonic harus divalidasi "scalar" di layer UI
+    pub fn derive_from_seed(seed: &[u8]) -> Self {
+        // Domain Separators (scalar_v1)
+        let spend_seed = blake3::derive_key("scalar_v1_spend", seed);
+        let view_seed = blake3::derive_key("scalar_v1_view", seed);
+        let node_seed = blake3::derive_key("scalar_v1_node", seed);
+        
+        // Multi-level Duress (Decoy wallets)
+        let duress_1_seed = blake3::derive_key("scalar_v1_duress_1", seed);
+        let duress_2_seed = blake3::derive_key("scalar_v1_duress_2", seed);
 
-pub struct SpendKey(pub Vec<u8>);
-pub struct ViewKey(pub Vec<u8>);
-pub struct NodeKey(pub Vec<u8>);
-pub struct DuressKey(pub Vec<u8>);
-
-pub fn generate_mnemonic() -> String {
-    // 32 bytes = 256 bits entropi (dibutuhkan untuk 24 kata BIP-39)
-    let mut entropy = [0u8; 32];
-    OsRng.fill_bytes(&mut entropy);
-
-    // Hasilkan mnemonic dari entropi aman kita
-    let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy)
-        .expect("Entropy generation failed")
-        .to_string();
-
-    // Paksa kata pertama menjadi 'scalar' untuk mencegah cross-import
-    let mut words: Vec<&str> = mnemonic.split_whitespace().collect();
-    words[0] = SCALAR_PREFIX_WORD;
-    words.join(" ")
-}
-
-pub fn derive_seed(mnemonic_phrase: &str, passphrase: &str) -> Result<Vec<u8>, KeyError> {
-    let words: Vec<&str> = mnemonic_phrase.split_whitespace().collect();
-
-    if words.is_empty() || words[0] != SCALAR_PREFIX_WORD {
-        return Err(KeyError::BitcoinMnemonicDetected);
-    }
-
-    let salt = format!("{}{}", SCALAR_DOMAIN_SEPARATOR, passphrase);
-    let mut mac =
-        Hmac::<Sha512>::new_from_slice(salt.as_bytes()).expect("HMAC can take key of any size");
-
-    mac.update(mnemonic_phrase.as_bytes());
-    Ok(mac.finalize().into_bytes().to_vec())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_mnemonic_generation_has_scalar_prefix() {
-        let phrase = generate_mnemonic();
-        assert!(
-            phrase.starts_with(SCALAR_PREFIX_WORD),
-            "Kata pertama harus 'scalar'"
-        );
-    }
-
-    #[test]
-    fn test_bitcoin_mnemonic_rejection() {
-        let btc_phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-        let result = derive_seed(btc_phrase, "");
-        assert!(
-            matches!(result, Err(KeyError::BitcoinMnemonicDetected)),
-            "Harus menolak mnemonic BTC"
-        );
+        Self {
+            spend_key: SpendKey(spend_seed),
+            view_key: ViewKey(view_seed),     // Read-only balance
+            node_key: NodeKey(node_seed),     // Identity P2P node
+            duress_1: DuressKey(duress_1_seed), // Fake wallet 1
+            duress_2: DuressKey(duress_2_seed), // Fake wallet 2
+        }
     }
 }

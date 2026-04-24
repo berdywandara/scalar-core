@@ -1,0 +1,5 @@
+/workspaces/scalar-core/target/debug/deps/winterfell-a8048f3ba8d81bf0.d: /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winterfell-0.9.0/src/lib.rs
+
+/workspaces/scalar-core/target/debug/deps/libwinterfell-a8048f3ba8d81bf0.rmeta: /home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winterfell-0.9.0/src/lib.rs
+
+/home/codespace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/winterfell-0.9.0/src/lib.rs:

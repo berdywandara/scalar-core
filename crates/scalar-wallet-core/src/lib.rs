@@ -1,11 +1,7 @@
-pub mod coin_selection;
+pub mod hw_wallet;
 pub mod key_management;
-pub mod transaction;
+pub mod coin_selection;
+pub mod physical_security;
+pub mod hardware;
 
-#[derive(thiserror::Error, Debug)]
-pub enum WalletError {
-    #[error("Insufficient funds")]
-    InsufficientFunds,
-    #[error("Proof generation timeout")]
-    ProvingTimeout,
-}
+// Modul lain akan ditambahkan seiring pengembangan arsitektur dompet

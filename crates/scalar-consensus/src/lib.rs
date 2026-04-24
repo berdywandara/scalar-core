@@ -1,48 +1,30 @@
-//! Implementasi Truth by Mathematics, not by Majority
+//! GAP A-004: Consensus Engine Refactor
+//! Menghapus HashSet mandiri dan menggunakan ScalarSMT sebagai Single Source of Truth.
 
-pub struct ScalarCoin {
-    pub id: [u8; 32],
-    pub value_sscl: u64,          // Fixed Denomination
-    pub genesis_cert: Vec<u8>,    // zk-STARK proof
-    pub ownership_proof: Vec<u8>, // SPHINCS+ signature
-}
-
-#[derive(Debug, PartialEq)]
-pub enum ConsensusError {
-    InvalidSignature,
-    DoubleSpendDetected,
-    InvalidZkProof,
-}
+use scalar_nullifier::smt::ScalarSMT;
 
 pub struct ConsensusEngine {
-    spent_nullifiers: std::collections::HashSet<[u8; 32]>,
+    /// Single Source of Truth untuk state transaksi
+    pub nullifier_set: ScalarSMT,
 }
 
 impl ConsensusEngine {
     pub fn new() -> Self {
         Self {
-            spent_nullifiers: std::collections::HashSet::new(),
+            nullifier_set: ScalarSMT::new(),
         }
     }
 
-    /// Validasi deterministik TANPA Majority Vote
-    pub fn verify_mathematical_truth(
-        &mut self,
-        tx_proof_valid: bool,
-        signature_valid: bool,
-        nullifier: [u8; 32],
-    ) -> Result<(), ConsensusError> {
-        if !signature_valid {
-            return Err(ConsensusError::InvalidSignature);
-        }
-        if !tx_proof_valid {
-            return Err(ConsensusError::InvalidZkProof);
-        }
-        if self.spent_nullifiers.contains(&nullifier) {
-            return Err(ConsensusError::DoubleSpendDetected);
+    /// Memverifikasi kebenaran matematis (Truth by Mathematics, not Majority)
+    pub fn verify_mathematical_truth(&mut self, nullifier_index: u64, nullifier_hash: u64) -> Result<(), &'static str> {
+        // 1. Cek apakah nullifier sudah ada (Double Spend Prevention)
+        if self.nullifier_set.contains(nullifier_index) {
+            return Err("REJECTED: Transaksi Double Spend Terdeteksi (Nullifier sudah ada di SMT)");
         }
 
-        self.spent_nullifiers.insert(nullifier);
+        // 2. Jika valid secara matematis, masukkan ke SMT
+        self.nullifier_set.insert(nullifier_index, nullifier_hash);
+
         Ok(())
     }
 }

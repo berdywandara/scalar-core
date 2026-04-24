@@ -8,7 +8,7 @@ members = [
     "crates/scalar-node",
     "crates/scalar-wallet-core",
     "tools/circuit-bench",
-    "tools/genesis-tool", "crates/scalar-governance", "crates/scalar-consensus",
+    "tools/genesis-tool", "crates/scalar-governance", "crates/scalar-consensus", "crates/scalar-ffi",
 ]
 
 resolver = "2"

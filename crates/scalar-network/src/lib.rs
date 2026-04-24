@@ -1,13 +1,14 @@
+pub mod onion;
+pub mod config;
 pub mod gossip;
-pub mod peer_discovery;
+pub mod routing;
+pub mod time;
 pub mod transport;
+pub mod tor;
+pub mod peer_discovery;
+pub mod state_machine;
+pub mod message;
 
-#[derive(thiserror::Error, Debug)]
-pub enum NetworkError {
-    #[error("Failed to establish connection")]
-    ConnectionFailed,
-    #[error("Message propagation failed")]
-    PropagationError,
-    #[error("Invalid transport selected")]
-    TransportNotSupported,
-}
+pub use gossip::GossipProtocol;
+pub use routing::{SphinxRouter, OnionPacketSize};
+pub use message::ScalarMessage;

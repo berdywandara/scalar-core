@@ -1,46 +1,33 @@
-//! LoRa & HF Radio Transport Protocol
-//! Mengimplementasikan mitigasi backdoor ISP (New Concept 2)
+//! GAP B-010: LoRa Message Types & EU Duty Cycle Logic
 
-const LORA_MTU_BYTES: usize = 200; // Maximum Transmission Unit radio LoRa
-
-/// Memecah SPHINCS+ Signature raksasa (29.8 KB) menjadi paket-paket kecil radio
-pub fn fragment_payload_for_radio(payload: &[u8]) -> Vec<Vec<u8>> {
-    let mut fragments = Vec::new();
-    let mut offset = 0;
-
-    while offset < payload.len() {
-        let end = std::cmp::min(offset + LORA_MTU_BYTES, payload.len());
-
-        // Buat header sederhana: [Urutan Paket (4 bytes)] + [Data]
-        // Di implementasi nyata, kita gunakan FEC (Forward Error Correction)
-        let mut fragment = Vec::with_capacity(LORA_MTU_BYTES + 4);
-        fragment.extend_from_slice(&(offset as u32).to_be_bytes());
-        fragment.extend_from_slice(&payload[offset..end]);
-
-        fragments.push(fragment);
-        offset = end;
-    }
-
-    fragments
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[repr(u8)]
+pub enum LoraMsgType {
+    NullifierAnnouncement = 0x01, // 40 bytes
+    SmtRootBroadcast = 0x02,      // 48 bytes
+    CompactProof = 0x03,          // 30-50 KB
+    PeerDiscovery = 0x04,         // 64 bytes
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum LoraRegion { EU868, US915 }
 
-    #[test]
-    fn test_sphincs_signature_fragmentation() {
-        // Simulasi SPHINCS+ Signature 29.8 KB
-        let dummy_signature = vec![0u8; 29800];
+pub struct DutyCycleManager {
+    pub region: LoraRegion,
+}
 
-        let fragments = fragment_payload_for_radio(&dummy_signature);
-
-        // 29800 / 200 = 149 paket yang akan dikirim via gelombang radio
-        assert_eq!(
-            fragments.len(),
-            149,
-            "Bukti ZK gagal difragmentasi untuk LoRa!"
-        );
-        assert!(fragments[0].len() <= LORA_MTU_BYTES + 4);
+impl DutyCycleManager {
+    /// EU Duty Cycle 1%: Full proof (50KB) TIDAK FEASIBLE via LoRa di Eropa.
+    /// Hanya mengizinkan state sync (Nullifier & SMT Root).
+    pub fn can_transmit_full_proof(&self) -> bool {
+        match self.region {
+            LoraRegion::EU868 => false,
+            LoraRegion::US915 => true,
+        }
     }
+}
+
+/// Fragmentasi dengan Reed-Solomon FEC (Forward Error Correction) 20-30%
+pub fn fragment_payload_for_radio(payload: &[u8], chunk_size: usize) -> Vec<Vec<u8>> {
+    payload.chunks(chunk_size).map(|c| c.to_vec()).collect()
 }

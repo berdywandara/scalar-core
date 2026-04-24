@@ -1,7 +1,11 @@
 pub mod lora;
+pub mod optimization;
+pub mod radio;
+pub mod internet;
 
 pub enum CommunicationLayer {
-    Internet, // Primary Transport
-    LoRaMesh, // Backup Transport
-    HFRadio,  // Emergency Transport
+    Internet,
+    LoRaMesh,
+    HFRadio,
+    Adjacent, // Bluetooth/WiFi Direct
 }
