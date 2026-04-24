@@ -10,8 +10,7 @@ scalar-crypto = { path = "../scalar-crypto" }
 scalar-nullifier = { path = "../scalar-nullifier" }
 scalar-stark = { path = "../scalar-stark" }
 scalar-network = { path = "../scalar-network" }
-
-tokio.workspace = true
+tokio = { workspace = true, features = ["full"] }
 anyhow.workspace = true
 argon2 = "0.5.3"
 serde_json = "1.0.149"
