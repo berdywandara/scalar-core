@@ -1,0 +1,13 @@
+[package]
+name = "scalar-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# cdylib = untuk Android (.so) / Linux / Windows (.dll)
+# staticlib = untuk iOS (.a)
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+# Nanti kita akan panggil scalar-crypto di sini
+# scalar-crypto = { path = "../scalar-crypto" }
