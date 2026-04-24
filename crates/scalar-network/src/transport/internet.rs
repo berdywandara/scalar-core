@@ -54,21 +54,21 @@ impl InternetTransport {
             let pt_manager = PluggableTransportManager::start_obfs4();
             let proxy_addr = pt_manager.local_proxy_addr;
             
-            // FIXED: Menggunakan .and_then() untuk mengembalikan Future dan mengeksekusi .await sejati
             tcp_transport
                 .and_then(move |stream, endpoint| async move {
                     println!("[PTv2 ROUTING] Melakukan SOCKS5 handshake asinkron ke proxy {}", proxy_addr);
                     
-                    // Eksekusi await NYATA pada tokio-socks
-                    // Di node nyata, target_addr diekstrak dari Multiaddr endpoint. 
-                    // Kita gunakan target dummy agar routing proxy bisa melewati kompilasi libp2p
                     let target_addr = ("0.0.0.0", 0);
                     
-                    match Socks5Stream::connect_with_socket(stream, proxy_addr, target_addr).await {
+                    // FIXED: Buka wrapper libp2p untuk mengekstrak raw tokio::net::TcpStream
+                    let raw_socket = stream.0;
+                    
+                    // FIXED: connect_with_socket hanya menerima 2 argumen: socket & target
+                    match Socks5Stream::connect_with_socket(raw_socket, target_addr).await {
                         Ok(socks_stream) => {
                             println!("[PTv2 ROUTING] Handshake sukses menuju {:?}", endpoint);
-                            // Ekstrak kembali stream TCP murni yang sudah melewati pipa proxy
-                            Ok(socks_stream.into_inner())
+                            // FIXED: Bungkus kembali raw soket ke dalam struktur tcp::tokio::TcpStream milik libp2p
+                            Ok(tcp::tokio::TcpStream(socks_stream.into_inner()))
                         },
                         Err(e) => {
                             Err(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, e.to_string()))
