@@ -7,6 +7,7 @@ members = [
     "crates/scalar-network",
     "crates/scalar-node",
     "crates/scalar-wallet-core",
+    "crates/scalar-emission",
     "tools/circuit-bench",
     "tools/genesis-tool", "crates/scalar-governance", "crates/scalar-consensus", "crates/scalar-ffi",
 ]
