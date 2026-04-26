@@ -2629,6 +2629,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "scalar-fees"
+version = "0.1.0"
+dependencies = [
+ "scalar-crypto",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "scalar-ffi"
 version = "0.1.0"
 
@@ -2686,6 +2694,7 @@ name = "scalar-stark"
 version = "0.1.0"
 dependencies = [
  "scalar-crypto",
+ "scalar-emission",
  "scalar-nullifier",
  "thiserror 1.0.69",
  "winterfell",
