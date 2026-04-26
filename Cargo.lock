@@ -2619,6 +2619,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "scalar-emission"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "scalar-crypto",
+ "scalar-nullifier",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "scalar-ffi"
 version = "0.1.0"
 
