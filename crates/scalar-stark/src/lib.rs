@@ -10,3 +10,5 @@ pub enum StarkError {
     #[error("Proof verification failed")]
     VerifierError,
 }
+
+pub mod mint;
