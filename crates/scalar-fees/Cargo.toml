@@ -1,0 +1,11 @@
+[package]
+name = "scalar-fees"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+scalar-crypto  = { path = "../scalar-crypto" }
+thiserror.workspace = true
