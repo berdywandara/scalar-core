@@ -15,6 +15,7 @@ pub mod liveness;
 pub mod mint_nullifier;
 pub mod accumulator;
 pub mod manifest;
+pub mod epoch;
 
 /// Error type untuk seluruh crate scalar-emission
 #[derive(Debug, thiserror::Error)]
