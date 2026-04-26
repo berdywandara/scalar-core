@@ -24,7 +24,7 @@ pub struct NodeReward {
 }
 
 /// EpochRewardManifest — sesuai §B.3.1 field-by-field.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpochRewardManifest {
     pub epoch_id:               u64,
     pub accepted_liveness_root: [u8; 32],
