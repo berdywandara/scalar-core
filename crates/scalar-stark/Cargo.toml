@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+scalar-emission = { path = "../scalar-emission" }
 scalar-crypto = { path = "../scalar-crypto" }
 scalar-nullifier = { path = "../scalar-nullifier" }
 winterfell.workspace = true
