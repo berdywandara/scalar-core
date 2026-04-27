@@ -136,7 +136,7 @@ pub fn step2b_fee_adequacy_check(
     // (prioritas: denominasi terkecil yang menutup shortfall)
     let mut pool: Vec<u64> = available_coins
         .iter()
-        .flat_map(|c| std::iter::repeat(c.value).take(c.count as usize))
+        .flat_map(|c| std::iter::repeat_n(c.value, c.count as usize))
         .collect();
     pool.sort_unstable();
 

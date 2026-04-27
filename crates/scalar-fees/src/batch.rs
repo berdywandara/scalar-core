@@ -65,7 +65,7 @@ pub fn compute_score_fp(tx: &TxForBatch) -> u128 {
 
 /// Sort transaksi dalam batch: score tertinggi di depan.
 /// Tx dengan score sama: tx_id lebih kecil di depan (tie-break deterministik).
-pub fn sort_batch_by_score(txs: &mut Vec<TxForBatch>) {
+pub fn sort_batch_by_score(txs: &mut [TxForBatch]) {
     txs.sort_unstable_by(|a, b| {
         let score_a = compute_score_fp(a);
         let score_b = compute_score_fp(b);
@@ -128,7 +128,7 @@ pub fn is_fairness_slot(batch_number: u32, fairness_n: u32) -> bool {
 
 /// Untuk fairness slot: kembalikan tx dengan score terendah dari pool.
 /// Tx ini WAJIB disertakan dalam batch.
-pub fn fairness_tx<'a>(tx_pool: &'a [TxForBatch]) -> Option<&'a TxForBatch> {
+pub fn fairness_tx(tx_pool: &[TxForBatch]) -> Option<&TxForBatch> {
     tx_pool.iter().min_by_key(|tx| compute_score_fp(tx))
 }
 

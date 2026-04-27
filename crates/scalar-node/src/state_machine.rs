@@ -15,6 +15,12 @@ pub struct NodeStateMachine {
     pub is_smt_synced: bool,
 }
 
+impl Default for NodeStateMachine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NodeStateMachine {
     pub fn new() -> Self {
         Self {

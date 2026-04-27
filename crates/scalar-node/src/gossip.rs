@@ -45,7 +45,7 @@ impl ScalarGossipMessage {
     /// 1. Akses ke NullifierSet lokal
     /// 2. STARK verifier untuk spend_proof
     /// 3. SPHINCS+ verifier untuk sender_signature
-    /// Return true jika pesan valid dan layak di-relay
+    ///    Return true jika pesan valid dan layak di-relay
     pub fn validate_and_relay(&self) -> bool {
         // Validasi dasar: pesan tidak boleh kosong
         if self.delta_nullifiers.is_empty() {

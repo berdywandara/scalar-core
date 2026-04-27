@@ -12,6 +12,12 @@ pub struct PeerDiscovery {
     pub bootstrap_nodes: Vec<BootstrapPeer>,
 }
 
+impl Default for PeerDiscovery {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PeerDiscovery {
     /// Menghasilkan 50 Hardcoded Bootstrap Nodes yang tersebar di 10 yurisdiksi
     /// untuk memastikan ketahanan desentralisasi tingkat negara (Concept 2).

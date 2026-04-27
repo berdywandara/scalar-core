@@ -13,6 +13,12 @@ pub struct ScalarStateMachine {
     pub current_state: NodeState,
 }
 
+impl Default for ScalarStateMachine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ScalarStateMachine {
     pub fn new() -> Self {
         Self {

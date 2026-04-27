@@ -53,7 +53,7 @@ pub struct ShamirSecretSharing {
 
 impl ShamirSecretSharing {
     /// Simulasi pemecahan kunci (Di produksi menggunakan polinomial GF(256))
-    pub fn split_secret(_secret: &[u8], threshold: u8, total_shares: u8) -> Vec<Vec<u8>> {
+    pub fn split_secret(_secret: &[u8], _threshold: u8, total_shares: u8) -> Vec<Vec<u8>> {
         let mut shares = Vec::new();
         for i in 0..total_shares {
             // Dummy shares
