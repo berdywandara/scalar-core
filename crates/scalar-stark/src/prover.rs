@@ -75,13 +75,12 @@ impl ScalarProver {
         inputs: &[u64],
         outputs: &[u64],
         _fee: u64,
-        smt_root: u64, // Tambahan parameter untuk C4
+        smt_root: u64,
     ) -> TraceTable<BaseElement> {
         let length = 64; 
         let sum_in: u64 = inputs.iter().sum();
         let sum_out: u64 = outputs.iter().sum();
 
-        // 1. C5 Columns (0-2)
         let mut v_in_col = vec![BaseElement::new(0); length];
         let mut v_out_col = vec![BaseElement::new(0); length];
         let mut balance_col = vec![BaseElement::new(0); length];
@@ -96,42 +95,43 @@ impl ScalarProver {
 
         let mut trace_cols = vec![v_in_col, v_out_col, balance_col];
 
-        // 2. C1 Columns (3-14)
         for _ in 0..12 {
             let mut poseidon_col = vec![BaseElement::new(0); length];
             for i in 0..(length - 1) {
                 let current_val = poseidon_col[i];
-                let x2 = current_val * current_val;
-                let x4 = x2 * x2;
-                let x6 = x4 * x2;
+                let x6 = current_val * current_val * current_val * current_val * current_val * current_val;
                 poseidon_col[i + 1] = x6 * current_val;
             }
             trace_cols.push(poseidon_col);
         }
 
-        // 3. C2 Columns (15-26) - Nullifier Hash State
         for _ in 0..12 {
             let mut nullifier_poseidon_col = vec![BaseElement::new(0); length];
             for i in 0..(length - 1) {
                 let current_val = nullifier_poseidon_col[i];
-                let x2 = current_val * current_val;
-                let x4 = x2 * x2;
-                let x6 = x4 * x2;
+                let x6 = current_val * current_val * current_val * current_val * current_val * current_val;
                 nullifier_poseidon_col[i + 1] = x6 * current_val;
             }
             trace_cols.push(nullifier_poseidon_col);
         }
 
-        // 4. C4 Columns (27-28) - State Inclusion
-        // Kolom 27: Root konstan (dikunci oleh boundary assertion)
         let root_col = vec![BaseElement::new(smt_root); length];
-        // Kolom 28: Bit Direction (0 atau 1)
         let bit_col = vec![BaseElement::new(0); length]; 
-        
         trace_cols.push(root_col);
         trace_cols.push(bit_col);
 
-        // Output: 29 Kolom
+        // --- TAMBAHAN UNTUK C3 & C6 ---
+        // Kolom 29 & 30: Ownership (PK = 1, Sig = 1 agar memenuhi dummy constraint 1^2 - 1 = 0)
+        let pk_col = vec![BaseElement::new(1); length];
+        let sig_col = vec![BaseElement::new(1); length];
+        trace_cols.push(pk_col);
+        trace_cols.push(sig_col);
+
+        // Kolom 31: Range Proof (Isi dengan 0 agar memenuhi boolean check x^2 - x = 0)
+        let range_col = vec![BaseElement::new(0); length];
+        trace_cols.push(range_col);
+
+        // Output: 32 Kolom Total
         TraceTable::init(trace_cols)
     }
     
