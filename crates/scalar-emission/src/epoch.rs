@@ -52,7 +52,7 @@ pub struct EpochOutput {
 /// Pemanggil bertanggung jawab untuk:
 ///   1. Memanggil `EmissionAccumulator::commit_epoch(emission_amount)`
 ///   2. Mereset `FeeAccumulator` untuk epoch berikutnya
-/// Kedua langkah ini hanya dilakukan setelah gate ≥67% terpenuhi (Step 6).
+///      Kedua langkah ini hanya dilakukan setelah gate ≥67% terpenuhi (Step 6).
 pub fn compute_epoch_rewards(input: &EpochInput) -> Result<EpochOutput, EmissionError> {
     // ── Step 4a: Hitung E(k) dari M_E sebelumnya ─────────────────────
     let e_k = input.emission_acc.emission_this_epoch();

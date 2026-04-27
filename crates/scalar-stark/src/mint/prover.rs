@@ -13,7 +13,7 @@ use scalar_crypto::poseidon2::hash_2_to_1;
 use scalar_emission::accumulator::S_E_SSCL;
 use winterfell::{
     crypto::hashers::Blake3_256, crypto::DefaultRandomCoin, math::fields::f64::BaseElement,
-    math::FieldElement, matrix::ColMatrix, ProofOptions, Prover, TraceTable,
+    matrix::ColMatrix, ProofOptions, Prover, TraceTable,
 };
 
 pub struct MintClaimPrivateInputs {

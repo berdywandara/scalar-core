@@ -17,7 +17,7 @@ use winterfell::math::fields::f64::BaseElement;
 /// Pemanggil HARUS sudah memverifikasi gate §B.5.1 Step 6:
 ///   - manifest_acceptance_fraction ≥ 0.67
 ///   - EmissionAccumulator sudah di-update
-/// sebelum memanggil fungsi ini.
+///     sebelum memanggil fungsi ini.
 pub fn verify_mint_proof(
     proof_bytes: &[u8],
     pub_inputs: MintClaimPublicInputs,
