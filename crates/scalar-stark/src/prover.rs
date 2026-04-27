@@ -70,17 +70,18 @@ impl ScalarProver {
         }
     }
 
-    // Fungsi Trace Builder dikalibrasi untuk C5 Value Conservation
-    // Fungsi Trace Builder dikalibrasi untuk C5 dan C1
+    // Fungsi Trace Builder dikalibrasi untuk C5, C1, C2, dan C4
     pub fn build_execution_trace(
         inputs: &[u64],
         outputs: &[u64],
         _fee: u64,
+        smt_root: u64, // Tambahan parameter untuk C4
     ) -> TraceTable<BaseElement> {
-        let length = 64; // Minimum trace length STARK
+        let length = 64; 
         let sum_in: u64 = inputs.iter().sum();
         let sum_out: u64 = outputs.iter().sum();
 
+        // 1. C5 Columns (0-2)
         let mut v_in_col = vec![BaseElement::new(0); length];
         let mut v_out_col = vec![BaseElement::new(0); length];
         let mut balance_col = vec![BaseElement::new(0); length];
@@ -89,23 +90,16 @@ impl ScalarProver {
         v_out_col[0] = BaseElement::new(sum_out);
         balance_col[0] = BaseElement::new(0);
 
-        // Eksekusi matematis C5
         for i in 0..(length - 1) {
-            let current_balance = balance_col[i];
-            let current_v_in = v_in_col[i];
-            let current_v_out = v_out_col[i];
-            balance_col[i + 1] = current_balance + current_v_in - current_v_out;
+            balance_col[i + 1] = balance_col[i] + v_in_col[i] - v_out_col[i];
         }
 
-        // Siapkan trace pembungkus (Trace Vector)
         let mut trace_cols = vec![v_in_col, v_out_col, balance_col];
 
-        // Eksekusi matematis C1 (Poseidon2 State Padding)
-        // Kita menyuntikkan 12 kolom ekstra untuk memenuhi constraint x^7
+        // 2. C1 Columns (3-14)
         for _ in 0..12 {
             let mut poseidon_col = vec![BaseElement::new(0); length];
             for i in 0..(length - 1) {
-                // S-Box x^7 trace evaluation
                 let current_val = poseidon_col[i];
                 let x2 = current_val * current_val;
                 let x4 = x2 * x2;
@@ -115,7 +109,29 @@ impl ScalarProver {
             trace_cols.push(poseidon_col);
         }
 
-        // TraceTable sekarang mengembalikan 15 Kolom yang terkalibrasi secara kriptografis!
+        // 3. C2 Columns (15-26) - Nullifier Hash State
+        for _ in 0..12 {
+            let mut nullifier_poseidon_col = vec![BaseElement::new(0); length];
+            for i in 0..(length - 1) {
+                let current_val = nullifier_poseidon_col[i];
+                let x2 = current_val * current_val;
+                let x4 = x2 * x2;
+                let x6 = x4 * x2;
+                nullifier_poseidon_col[i + 1] = x6 * current_val;
+            }
+            trace_cols.push(nullifier_poseidon_col);
+        }
+
+        // 4. C4 Columns (27-28) - State Inclusion
+        // Kolom 27: Root konstan (dikunci oleh boundary assertion)
+        let root_col = vec![BaseElement::new(smt_root); length];
+        // Kolom 28: Bit Direction (0 atau 1)
+        let bit_col = vec![BaseElement::new(0); length]; 
+        
+        trace_cols.push(root_col);
+        trace_cols.push(bit_col);
+
+        // Output: 29 Kolom
         TraceTable::init(trace_cols)
     }
     

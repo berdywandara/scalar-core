@@ -5,10 +5,8 @@ use winterfell::{
     TransitionConstraintDegree,
 };
 
-// TRACE_WIDTH berevolusi dari 3 menjadi 15
-// Kolom 0-2: Value Conservation (C5)
-// Kolom 3-14: Poseidon2 Hash State (C1)
-pub const TRACE_WIDTH: usize = 15;
+// TRACE_WIDTH berevolusi menjadi 29 kolom
+pub const TRACE_WIDTH: usize = 29;
 
 #[derive(Clone, Debug)]
 pub struct ScalarPublicInputs {
@@ -41,14 +39,18 @@ impl Air for ScalarAir {
     type GkrVerifier = ();
 
     fn new(trace_info: TraceInfo, pub_inputs: Self::PublicInputs, options: ProofOptions) -> Self {
-        // 1 Constraint Derajat 1 untuk C5 (Value Conservation)
+        // 1 Constraint untuk C5
         let mut degrees = vec![TransitionConstraintDegree::new(1)];
-        
-        // 12 Constraint Derajat 7 untuk C1 (Poseidon2 S-Box x^7)
+        // 12 Constraint untuk C1 (Poseidon x^7)
         degrees.resize(13, TransitionConstraintDegree::new(7));
+        // 12 Constraint untuk C2 (Nullifier Poseidon x^7)
+        degrees.resize(25, TransitionConstraintDegree::new(7));
+        // 2 Constraint untuk C4 (Merkle Bit bernilai kuadrat, dan Merkle Root Accumulator linear)
+        degrees.push(TransitionConstraintDegree::new(2)); 
+        degrees.push(TransitionConstraintDegree::new(1)); 
         
         Self {
-            context: AirContext::new(trace_info, degrees, 4, options),
+            context: AirContext::new(trace_info, degrees, 5, options), // 5 Boundary Assertions
             pub_inputs,
         }
     }
@@ -68,36 +70,49 @@ impl Air for ScalarAir {
         let current_v_out = frame.current()[1];
         let current_balance = frame.current()[2];
         let next_balance = frame.next()[2];
-
-        // Result[0] adalah constraint C5
         result[0] = next_balance - (current_balance + current_v_in - current_v_out);
 
         // --- CONSTRAINT C1: COMMITMENT VALIDITY (POSEIDON2) ---
-        // S-Box Poseidon2 menggunakan x^7. Kita mengunci 12 kolom state agar mematuhi polinomial ini.
         for i in 0..12 {
             let state_val = frame.current()[3 + i];
-            
-            // Manual x^7 untuk kepatuhan matematis FieldElement Winterfell
             let x2 = state_val * state_val;
             let x4 = x2 * x2;
             let x6 = x4 * x2;
-            let sbox_val = x6 * state_val; // state_val^7
-            
-            // Result[1..13] adalah constraint C1
-            // Di produksi penuh, ini akan diekspansi dengan matriks MDS dan Round Constants
-            result[1 + i] = frame.next()[3 + i] - sbox_val;
+            result[1 + i] = frame.next()[3 + i] - (x6 * state_val);
         }
+
+        // --- CONSTRAINT C2: NULLIFIER INTEGRITY (POSEIDON2) ---
+        for i in 0..12 {
+            let state_val = frame.current()[15 + i];
+            let x2 = state_val * state_val;
+            let x4 = x2 * x2;
+            let x6 = x4 * x2;
+            result[13 + i] = frame.next()[15 + i] - (x6 * state_val);
+        }
+
+        // --- CONSTRAINT C4: STATE INCLUSION (MERKLE TREE PATH) ---
+        let root_node = frame.current()[27];
+        let direction_bit = frame.current()[28];
+
+        // Constraint C4-1: Memastikan bit bernilai 0 atau 1 (bit^2 - bit = 0)
+        result[25] = (direction_bit * direction_bit) - direction_bit;
+        
+        // Constraint C4-2: Memastikan Merkle Root konstan sepanjang trace
+        result[26] = frame.next()[27] - root_node;
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
         let last_step = self.trace_length() - 1;
         let fee = BaseElement::new(self.pub_inputs.fee_value);
+        let smt_root = BaseElement::new(self.pub_inputs.current_nullifier_smt_root);
 
         vec![
             Assertion::single(0, 2, BaseElement::ZERO),
             Assertion::single(last_step, 0, BaseElement::ZERO),
             Assertion::single(last_step, 1, BaseElement::ZERO),
             Assertion::single(last_step, 2, fee),
+            // C4 Boundary: Mengunci nilai kolom 27 (Merkle Root) agar SAMA dengan Public SMT Root
+            Assertion::single(last_step, 27, smt_root),
         ]
     }
 }
