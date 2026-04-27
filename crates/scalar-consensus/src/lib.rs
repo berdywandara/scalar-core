@@ -8,6 +8,12 @@ pub struct ConsensusEngine {
     pub nullifier_set: ScalarSMT,
 }
 
+impl Default for ConsensusEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConsensusEngine {
     pub fn new() -> Self {
         Self {

@@ -9,7 +9,7 @@ impl UrEncoder {
     /// Untuk proof 50KB, menghasilkan ~250-300 frame. Pada 8fps = ~35 detik scan.
     pub fn encode_to_animated_qr(payload: &[u8]) -> Vec<String> {
         let max_fragment_size = 200; // Limit payload per QR frame
-        let total_frames = (payload.len() + max_fragment_size - 1) / max_fragment_size;
+        let total_frames = payload.len().div_ceil(max_fragment_size);
 
         let mut frames = Vec::with_capacity(total_frames);
         for (index, chunk) in payload.chunks(max_fragment_size).enumerate() {

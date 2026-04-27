@@ -78,7 +78,7 @@ mod tests {
         // floor=40, premium=100, padding=5 (approx) → fee_total ∈ [140, 150]
         let fee = compute_fee_total_with_padding(40, 100, 128);
         assert!(
-            fee >= 140 && fee <= 150,
+            (140..=150).contains(&fee),
             "fee_total={fee} harus dalam [140,150]"
         );
     }

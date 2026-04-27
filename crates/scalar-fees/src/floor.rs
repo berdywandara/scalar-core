@@ -151,6 +151,6 @@ mod tests {
         // Genesis FLOOR value = 100 sSCL (Layer 2 default)
         assert_eq!(FLOOR_GENESIS_VALUE, 100);
         // Genesis value harus ≥ FLOOR_MIN_ABSOLUTE
-        assert!(FLOOR_GENESIS_VALUE >= FLOOR_MIN_ABSOLUTE);
+        const { assert!(FLOOR_GENESIS_VALUE >= FLOOR_MIN_ABSOLUTE);}
     }
 }

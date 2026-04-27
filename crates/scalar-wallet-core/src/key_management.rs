@@ -82,7 +82,7 @@ impl WalletKeys {
 
     /// Backward-compat helpers — akses duress key by index.
     pub fn duress_1(&self) -> Option<&DuressKey> {
-        self.duress_keys.get(0)
+        self.duress_keys.first()
     }
 
     pub fn duress_2(&self) -> Option<&DuressKey> {
