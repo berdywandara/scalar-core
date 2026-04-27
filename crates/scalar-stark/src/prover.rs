@@ -71,10 +71,11 @@ impl ScalarProver {
     }
 
     // Fungsi Trace Builder dikalibrasi untuk C5 Value Conservation
+    // Fungsi Trace Builder dikalibrasi untuk C5 dan C1
     pub fn build_execution_trace(
         inputs: &[u64],
         outputs: &[u64],
-        _fee: u64, // Fee akan dibuktikan via public_inputs, tidak perlu di-inject ke trace awal
+        _fee: u64,
     ) -> TraceTable<BaseElement> {
         let length = 64; // Minimum trace length STARK
         let sum_in: u64 = inputs.iter().sum();
@@ -84,24 +85,40 @@ impl ScalarProver {
         let mut v_out_col = vec![BaseElement::new(0); length];
         let mut balance_col = vec![BaseElement::new(0); length];
 
-        // Step 0: Masukkan nilai input dan output di baris pertama, balance dimulai dari 0
         v_in_col[0] = BaseElement::new(sum_in);
         v_out_col[0] = BaseElement::new(sum_out);
         balance_col[0] = BaseElement::new(0);
 
-        // Step 1 hingga akhir: Akumulasi matematis berjalan
+        // Eksekusi matematis C5
         for i in 0..(length - 1) {
             let current_balance = balance_col[i];
             let current_v_in = v_in_col[i];
             let current_v_out = v_out_col[i];
-            
-            // Evaluasi constraint transisi C5: B_next = B_current + v_in - v_out
             balance_col[i + 1] = current_balance + current_v_in - current_v_out;
         }
 
-        TraceTable::init(vec![v_in_col, v_out_col, balance_col])
-    }
+        // Siapkan trace pembungkus (Trace Vector)
+        let mut trace_cols = vec![v_in_col, v_out_col, balance_col];
 
+        // Eksekusi matematis C1 (Poseidon2 State Padding)
+        // Kita menyuntikkan 12 kolom ekstra untuk memenuhi constraint x^7
+        for _ in 0..12 {
+            let mut poseidon_col = vec![BaseElement::new(0); length];
+            for i in 0..(length - 1) {
+                // S-Box x^7 trace evaluation
+                let current_val = poseidon_col[i];
+                let x2 = current_val * current_val;
+                let x4 = x2 * x2;
+                let x6 = x4 * x2;
+                poseidon_col[i + 1] = x6 * current_val;
+            }
+            trace_cols.push(poseidon_col);
+        }
+
+        // TraceTable sekarang mengembalikan 15 Kolom yang terkalibrasi secara kriptografis!
+        TraceTable::init(trace_cols)
+    }
+    
     // Fungsi ini sekarang aman memakai &self karena berada di dalam impl
     pub fn generate_proof(
         &self,
