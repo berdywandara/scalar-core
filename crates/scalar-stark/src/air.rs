@@ -5,7 +5,10 @@ use winterfell::{
     TransitionConstraintDegree,
 };
 
-pub const TRACE_WIDTH: usize = 3;
+// TRACE_WIDTH berevolusi dari 3 menjadi 15
+// Kolom 0-2: Value Conservation (C5)
+// Kolom 3-14: Poseidon2 Hash State (C1)
+pub const TRACE_WIDTH: usize = 15;
 
 #[derive(Clone, Debug)]
 pub struct ScalarPublicInputs {
@@ -38,10 +41,12 @@ impl Air for ScalarAir {
     type GkrVerifier = ();
 
     fn new(trace_info: TraceInfo, pub_inputs: Self::PublicInputs, options: ProofOptions) -> Self {
-        // PR-CS-04: C5 Value Conservation membutuhkan 1 Transition Constraint dengan derajat (degree) 1
-        let degrees = vec![TransitionConstraintDegree::new(1)];
+        // 1 Constraint Derajat 1 untuk C5 (Value Conservation)
+        let mut degrees = vec![TransitionConstraintDegree::new(1)];
         
-        // Kita mendefinisikan 4 Boundary Assertions untuk mengunci awal dan akhir transaksi
+        // 12 Constraint Derajat 7 untuk C1 (Poseidon2 S-Box x^7)
+        degrees.resize(13, TransitionConstraintDegree::new(7));
+        
         Self {
             context: AirContext::new(trace_info, degrees, 4, options),
             pub_inputs,
@@ -59,20 +64,29 @@ impl Air for ScalarAir {
         result: &mut [E],
     ) {
         // --- CONSTRAINT C5: VALUE CONSERVATION ---
-        // Menjamin tidak ada koin SCL yang diciptakan dari ketiadaan atau lenyap tanpa jejak.
-        // Kolom 0: Input Values (v_in)
-        // Kolom 1: Output Values (v_out)
-        // Kolom 2: Running Balance (B)
-        
         let current_v_in = frame.current()[0];
         let current_v_out = frame.current()[1];
         let current_balance = frame.current()[2];
-        
         let next_balance = frame.next()[2];
 
-        // Polinomial harus mengevaluasi ke 0 agar STARK Proof valid:
-        // B_next = B_current + v_in - v_out
+        // Result[0] adalah constraint C5
         result[0] = next_balance - (current_balance + current_v_in - current_v_out);
+
+        // --- CONSTRAINT C1: COMMITMENT VALIDITY (POSEIDON2) ---
+        // S-Box Poseidon2 menggunakan x^7. Kita mengunci 12 kolom state agar mematuhi polinomial ini.
+        for i in 0..12 {
+            let state_val = frame.current()[3 + i];
+            
+            // Manual x^7 untuk kepatuhan matematis FieldElement Winterfell
+            let x2 = state_val * state_val;
+            let x4 = x2 * x2;
+            let x6 = x4 * x2;
+            let sbox_val = x6 * state_val; // state_val^7
+            
+            // Result[1..13] adalah constraint C1
+            // Di produksi penuh, ini akan diekspansi dengan matriks MDS dan Round Constants
+            result[1 + i] = frame.next()[3 + i] - sbox_val;
+        }
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
@@ -80,16 +94,9 @@ impl Air for ScalarAir {
         let fee = BaseElement::new(self.pub_inputs.fee_value);
 
         vec![
-            // 1. Initial State: Saldo akumulasi harus dimulai dari 0
             Assertion::single(0, 2, BaseElement::ZERO),
-            
-            // 2. Padding Constraint: Step terakhir tidak boleh memiliki input nilai baru
             Assertion::single(last_step, 0, BaseElement::ZERO),
-            
-            // 3. Padding Constraint: Step terakhir tidak boleh memiliki output nilai baru
             Assertion::single(last_step, 1, BaseElement::ZERO),
-            
-            // 4. THE ABSOLUTE TRUTH: Total Balance di akhir trace HARUS sama dengan Fee
             Assertion::single(last_step, 2, fee),
         ]
     }
