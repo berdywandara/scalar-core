@@ -32,7 +32,7 @@ pub extern "C" fn scalar_verify_domain_separator(phrase_ptr: *const c_char) -> b
 pub extern "C" fn scalar_generate_address() -> *mut c_char {
     // Di dunia nyata, ini akan memanggil SPHINCS+ dari scalar-crypto
     let address = "scl1_postquantum_address_stub_9x8c7";
-    
+
     // Konversi string Rust menjadi string C agar bisa dibaca Flutter
     let c_string = CString::new(address).unwrap();
     c_string.into_raw()
@@ -42,7 +42,9 @@ pub extern "C" fn scalar_generate_address() -> *mut c_char {
 /// Wajib dipanggil oleh Flutter setelah selesai membaca string untuk mencegah Memory Leak!
 #[no_mangle]
 pub extern "C" fn scalar_free_string(s: *mut c_char) {
-    if s.is_null() { return; }
+    if s.is_null() {
+        return;
+    }
     unsafe {
         let _ = CString::from_raw(s);
     };

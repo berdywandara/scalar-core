@@ -1,9 +1,9 @@
+use winterfell::math::fields::f64::BaseElement;
+use winterfell::math::{FieldElement, ToElements};
 use winterfell::{
     Air, AirContext, Assertion, EvaluationFrame, ProofOptions, TraceInfo,
     TransitionConstraintDegree,
 };
-use winterfell::math::fields::f64::BaseElement;
-use winterfell::math::{FieldElement, ToElements};
 
 pub const TRACE_WIDTH: usize = 3;
 
@@ -45,15 +45,22 @@ impl Air for ScalarAir {
         }
     }
 
-    fn context(&self) -> &AirContext<Self::BaseField> { &self.context }
+    fn context(&self) -> &AirContext<Self::BaseField> {
+        &self.context
+    }
 
     fn evaluate_transition<E: FieldElement<BaseField = Self::BaseField>>(
-        &self, frame: &EvaluationFrame<E>, _periodic_values: &[E], result: &mut [E],
+        &self,
+        frame: &EvaluationFrame<E>,
+        _periodic_values: &[E],
+        result: &mut [E],
     ) {
         for i in 0..TRACE_WIDTH {
             result[i] = frame.next()[i] - frame.current()[i];
         }
     }
 
-    fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> { vec![] }
+    fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
+        vec![]
+    }
 }

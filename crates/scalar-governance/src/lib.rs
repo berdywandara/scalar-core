@@ -8,5 +8,9 @@ pub mod circuit;
 pub fn calculate_effective_weight(scl_held: u64) -> f64 {
     let cap = 144.9;
     let weight = (scl_held as f64).sqrt();
-    if weight > cap { cap } else { weight }
+    if weight > cap {
+        cap
+    } else {
+        weight
+    }
 }

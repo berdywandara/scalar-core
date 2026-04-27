@@ -1,10 +1,10 @@
 //! Internet Transport dengan DHT Kademlia dan Obfs4/Snowflake Pluggable Transports
 //! Sesuai Concept 2 Fase 4C.2.2 Defense 3: obfs4/Snowflake pluggable transport anti-censorship.
-use libp2p::{kad, gossipsub, core::upgrade, identity, noise, tcp, yamux, Transport};
 use libp2p::core::multiaddr::Protocol;
 use libp2p::swarm::NetworkBehaviour;
-use std::process::{Command, Child, Stdio};
+use libp2p::{core::upgrade, gossipsub, identity, kad, noise, tcp, yamux, Transport};
 use std::net::SocketAddr;
+use std::process::{Child, Command, Stdio};
 use tokio_socks::tcp::Socks5Stream;
 
 /// Perilaku Jaringan Kombinasi (Unified Network Behaviour)
@@ -57,8 +57,8 @@ fn extract_host_port(multiaddr: &libp2p::Multiaddr) -> Option<(String, u16)> {
         match proto {
             Protocol::Ip4(addr) => host = Some(addr.to_string()),
             Protocol::Ip6(addr) => host = Some(addr.to_string()),
-            Protocol::Tcp(p)    => port = Some(p),
-            _                   => {}
+            Protocol::Tcp(p) => port = Some(p),
+            _ => {}
         }
     }
 
@@ -82,7 +82,8 @@ impl InternetTransport {
     pub fn build(
         local_key: &identity::Keypair,
         use_obfs4_fallback: bool,
-    ) -> libp2p::core::transport::Boxed<(libp2p::PeerId, libp2p::core::muxing::StreamMuxerBox)> {
+    ) -> libp2p::core::transport::Boxed<(libp2p::PeerId, libp2p::core::muxing::StreamMuxerBox)>
+    {
         let noise_config = noise::Config::new(local_key).expect("Noise key setup gagal");
         let yamux_config = yamux::Config::default();
         let tcp_transport = tcp::tokio::Transport::new(tcp::Config::default().nodelay(true));
@@ -97,11 +98,12 @@ impl InternetTransport {
                     // ConnectedPoint::get_remote_address() → &Multiaddr
                     let remote_multiaddr = endpoint.get_remote_address();
 
-                    let (host, port) = extract_host_port(remote_multiaddr)
-                        .ok_or_else(|| std::io::Error::new(
+                    let (host, port) = extract_host_port(remote_multiaddr).ok_or_else(|| {
+                        std::io::Error::new(
                             std::io::ErrorKind::InvalidInput,
                             format!("Multiaddr tidak valid: {}", remote_multiaddr),
-                        ))?;
+                        )
+                    })?;
 
                     println!(
                         "[PTv2] SOCKS5 tunnel → {}:{} via proxy {}",
@@ -112,10 +114,8 @@ impl InternetTransport {
                     let raw_socket = stream.0;
 
                     // SOCKS5 handshake nyata ke alamat peer yang sebenarnya
-                    match Socks5Stream::connect_with_socket(
-                        raw_socket,
-                        (host.as_str(), port),
-                    ).await {
+                    match Socks5Stream::connect_with_socket(raw_socket, (host.as_str(), port)).await
+                    {
                         Ok(socks_stream) => {
                             println!("[PTv2] Tunnel sukses ke {}:{}", host, port);
                             // Bungkus kembali ke TcpStream libp2p untuk Noise/Yamux

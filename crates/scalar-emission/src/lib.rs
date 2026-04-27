@@ -11,12 +11,12 @@
 //! - [`accumulator::FeeAccumulator`]      — counter fee per epoch
 //! - [`manifest::EpochRewardManifest`]    — struktur manifest reward
 
-pub mod liveness;
-pub mod mint_nullifier;
 pub mod accumulator;
-pub mod manifest;
-pub mod epoch;
 pub mod consensus;
+pub mod epoch;
+pub mod liveness;
+pub mod manifest;
+pub mod mint_nullifier;
 
 /// Error type untuk seluruh crate scalar-emission
 #[derive(Debug, thiserror::Error)]

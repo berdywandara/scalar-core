@@ -14,7 +14,7 @@ use crate::EmissionError;
 /// S_E dalam sSCL. OSSIFIED.
 pub const S_E_SSCL: u64 = 18_900_000 * 100_000_000;
 /// E₀ dalam sSCL. OSSIFIED.
-pub const E0_SSCL:  u64 = 126_000    * 100_000_000;
+pub const E0_SSCL: u64 = 126_000 * 100_000_000;
 /// S_max dalam sSCL. OSSIFIED.
 pub const S_MAX_SSCL: u64 = 21_000_000 * 100_000_000;
 
@@ -26,7 +26,9 @@ pub struct EmissionAccumulator {
 }
 
 impl EmissionAccumulator {
-    pub fn new() -> Self { Self { total_minted: 0 } }
+    pub fn new() -> Self {
+        Self { total_minted: 0 }
+    }
 
     /// ρ(k) = M_E(k) / S_E dalam fixed-point basis 10^9.
     pub fn rho_fp(&self) -> u128 {
@@ -38,24 +40,29 @@ impl EmissionAccumulator {
 
     /// E(k) = E₀ × (1 − ρ(k))² — full integer arithmetic. OSSIFIED.
     pub fn emission_this_epoch(&self) -> u64 {
-        let rho_fp         = self.rho_fp();
-        let one_minus_rho  = 1_000_000_000u128.saturating_sub(rho_fp);
-        let omr_sq         = one_minus_rho
+        let rho_fp = self.rho_fp();
+        let one_minus_rho = 1_000_000_000u128.saturating_sub(rho_fp);
+        let omr_sq = one_minus_rho
             .saturating_mul(one_minus_rho)
             .checked_div(1_000_000_000)
             .unwrap_or(0);
-        ((E0_SSCL as u128).saturating_mul(omr_sq)
+        ((E0_SSCL as u128)
+            .saturating_mul(omr_sq)
             .checked_div(1_000_000_000)
             .unwrap_or(0)) as u64
     }
 
     /// Verifikasi supply cap sebelum mint (§B.2.2 MC3).
     pub fn check_supply_cap(&self, reward: u64) -> Result<(), EmissionError> {
-        let new_total = self.total_minted.checked_add(reward)
+        let new_total = self
+            .total_minted
+            .checked_add(reward)
             .ok_or(EmissionError::Overflow)?;
         if new_total > S_E_SSCL {
             return Err(EmissionError::SupplyCapExceeded {
-                minted: self.total_minted, reward, cap: S_E_SSCL,
+                minted: self.total_minted,
+                reward,
+                cap: S_E_SSCL,
             });
         }
         Ok(())
@@ -65,7 +72,8 @@ impl EmissionAccumulator {
     /// Jika epoch DEFERRED: JANGAN panggil fungsi ini (§B.5.2).
     pub fn commit_epoch(&mut self, emission_amount: u64) -> Result<(), EmissionError> {
         self.check_supply_cap(emission_amount)?;
-        self.total_minted = self.total_minted
+        self.total_minted = self
+            .total_minted
             .checked_add(emission_amount)
             .ok_or(EmissionError::Overflow)?;
         Ok(())
@@ -73,11 +81,13 @@ impl EmissionAccumulator {
 
     /// R_i(k) = E(k) × w_i / W(k). Sesuai §B.1.4.
     /// w_i dan W dalam fixed-point basis 1_000_000.
-    pub fn reward_for_node(e_k: u64, w_i_fp: u64, w_total_fp: u64)
-        -> Result<u64, EmissionError>
-    {
-        if w_total_fp == 0 { return Err(EmissionError::ZeroTotalWeight); }
-        if w_i_fp     == 0 { return Err(EmissionError::BelowUptimeThreshold); }
+    pub fn reward_for_node(e_k: u64, w_i_fp: u64, w_total_fp: u64) -> Result<u64, EmissionError> {
+        if w_total_fp == 0 {
+            return Err(EmissionError::ZeroTotalWeight);
+        }
+        if w_i_fp == 0 {
+            return Err(EmissionError::BelowUptimeThreshold);
+        }
         Ok(((e_k as u128)
             .saturating_mul(w_i_fp as u128)
             .checked_div(w_total_fp as u128)
@@ -86,7 +96,9 @@ impl EmissionAccumulator {
 }
 
 impl Default for EmissionAccumulator {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── FeeAccumulator ───────────────────────────────────────────────────
@@ -97,10 +109,14 @@ pub struct FeeAccumulator {
 }
 
 impl FeeAccumulator {
-    pub fn new() -> Self { Self { total_fee: 0 } }
+    pub fn new() -> Self {
+        Self { total_fee: 0 }
+    }
 
     pub fn add_fee(&mut self, fee: u64) -> Result<(), EmissionError> {
-        self.total_fee = self.total_fee.checked_add(fee)
+        self.total_fee = self
+            .total_fee
+            .checked_add(fee)
             .ok_or(EmissionError::Overflow)?;
         Ok(())
     }
@@ -108,18 +124,22 @@ impl FeeAccumulator {
     /// Return (relay=70%, aggregator=25%, security=5%).
     /// Sisa pembulatan masuk ke relay.
     pub fn distribution(&self) -> (u64, u64, u64) {
-        let t   = self.total_fee as u128;
+        let t = self.total_fee as u128;
         let agg = (t * 25 / 100) as u64;
-        let sec = (t *  5 / 100) as u64;
+        let sec = (t * 5 / 100) as u64;
         let rel = self.total_fee.saturating_sub(agg).saturating_sub(sec);
         (rel, agg, sec)
     }
 
-    pub fn reset(&mut self) { self.total_fee = 0; }
+    pub fn reset(&mut self) {
+        self.total_fee = 0;
+    }
 }
 
 impl Default for FeeAccumulator {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
@@ -178,7 +198,7 @@ mod tests {
     fn test_reward_proportional() {
         let e_k = 1_000_000_000_000u64;
         let r_full = EmissionAccumulator::reward_for_node(e_k, 1_000_000, 1_700_000).unwrap();
-        let r_70   = EmissionAccumulator::reward_for_node(e_k,   700_000, 1_700_000).unwrap();
+        let r_70 = EmissionAccumulator::reward_for_node(e_k, 700_000, 1_700_000).unwrap();
         assert!(r_full > r_70);
         assert!(r_full + r_70 <= e_k);
     }

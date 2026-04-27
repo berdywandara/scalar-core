@@ -23,7 +23,7 @@ fn precompute_empty_nodes() -> Vec<NodeHash> {
     let mut empty_nodes = vec![0u64; SMT_DEPTH + 1];
     empty_nodes[0] = empty_leaf();
     for i in 1..=SMT_DEPTH {
-        empty_nodes[i] = hash_2_to_1(empty_nodes[i-1], empty_nodes[i-1]);
+        empty_nodes[i] = hash_2_to_1(empty_nodes[i - 1], empty_nodes[i - 1]);
     }
     empty_nodes
 }
@@ -65,7 +65,11 @@ impl ScalarSMT {
     fn compute_node(&self, depth: usize, index: u64) -> NodeHash {
         if depth == 0 {
             // Leaf level
-            return self.leaves.get(&index).copied().unwrap_or(self.empty_nodes[0]);
+            return self
+                .leaves
+                .get(&index)
+                .copied()
+                .unwrap_or(self.empty_nodes[0]);
         }
         let left = self.compute_node(depth - 1, index * 2);
         let right = self.compute_node(depth - 1, index * 2 + 1);
@@ -179,8 +183,15 @@ mod tests {
         let root = smt.root();
 
         // Nullifier belum ada → harus bisa buat non-membership proof
-        let proof = smt.prove_non_membership(42).expect("harus bisa prove non-membership");
-        assert!(ScalarSMT::verify_non_membership(42, &proof, &root, &empty_nodes));
+        let proof = smt
+            .prove_non_membership(42)
+            .expect("harus bisa prove non-membership");
+        assert!(ScalarSMT::verify_non_membership(
+            42,
+            &proof,
+            &root,
+            &empty_nodes
+        ));
     }
 
     #[test]

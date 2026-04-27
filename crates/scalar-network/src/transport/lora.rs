@@ -10,7 +10,10 @@ pub enum LoraMsgType {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum LoraRegion { EU868, US915 }
+pub enum LoraRegion {
+    EU868,
+    US915,
+}
 
 pub struct DutyCycleManager {
     pub region: LoraRegion,

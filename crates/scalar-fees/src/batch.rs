@@ -34,11 +34,11 @@ const SCORE_FP_BASIS: u128 = 1_000_000;
 /// Representasi transaksi dalam batch untuk scoring.
 #[derive(Debug, Clone)]
 pub struct TxForBatch {
-    pub tx_id:       [u8; 32],
-    pub premium:     u64,  // sSCL
-    pub num_inputs:  u32,
+    pub tx_id: [u8; 32],
+    pub premium: u64, // sSCL
+    pub num_inputs: u32,
     pub num_outputs: u32,
-    pub fee_total:   u64,  // untuk batch_value computation
+    pub fee_total: u64, // untuk batch_value computation
 }
 
 /// Hitung intra-batch priority score untuk satu transaksi.
@@ -70,9 +70,7 @@ pub fn sort_batch_by_score(txs: &mut Vec<TxForBatch>) {
         let score_a = compute_score_fp(a);
         let score_b = compute_score_fp(b);
         // Descending score, ascending tx_id untuk tie-break
-        score_b
-            .cmp(&score_a)
-            .then_with(|| a.tx_id.cmp(&b.tx_id))
+        score_b.cmp(&score_a).then_with(|| a.tx_id.cmp(&b.tx_id))
     });
 }
 
@@ -92,8 +90,8 @@ pub struct BatchAnnouncement {
     /// Merkle root semua tx dalam batch
     pub batch_root: [u8; 32],
     /// NodeID aggregator
-    pub node_id:    [u8; 32],
-    pub timestamp:  u64,
+    pub node_id: [u8; 32],
+    pub timestamp: u64,
 }
 
 /// Hitung tie-breaking score untuk satu aggregator.
@@ -104,7 +102,7 @@ pub struct BatchAnnouncement {
 /// OSSIFIED: formula ini tidak bisa diubah tanpa fork (§B.6).
 pub fn tiebreak_score(ann: &BatchAnnouncement) -> u64 {
     let batch_root_lo = u64::from_le_bytes(ann.batch_root[0..8].try_into().unwrap());
-    let node_id_lo    = u64::from_le_bytes(ann.node_id[0..8].try_into().unwrap());
+    let node_id_lo = u64::from_le_bytes(ann.node_id[0..8].try_into().unwrap());
     hash_2_to_1(batch_root_lo, node_id_lo)
 }
 
@@ -144,12 +142,11 @@ pub fn fairness_tx<'a>(tx_pool: &'a [TxForBatch]) -> Option<&'a TxForBatch> {
 /// Untuk implementasi produksi: K_hardware_ref dari genesis benchmark.
 /// Di sini menggunakan estimasi sederhana per tx.
 pub fn compute_batch_timeout_secs(
-    batch_size:          u32,
+    batch_size: u32,
     prove_time_per_tx_ms: u64,
-    multiplier:          u32,
+    multiplier: u32,
 ) -> u64 {
-    let prove_time_secs = (batch_size as u64 * prove_time_per_tx_ms)
-        .saturating_add(999) / 1000; // ceiling division
+    let prove_time_secs = (batch_size as u64 * prove_time_per_tx_ms).saturating_add(999) / 1000; // ceiling division
     prove_time_secs.saturating_mul(multiplier as u64)
 }
 
@@ -158,20 +155,27 @@ mod tests {
     use super::*;
 
     fn tx(id_byte: u8, premium: u64, inputs: u32, outputs: u32) -> TxForBatch {
-        let mut tx_id = [0u8; 32]; tx_id[0] = id_byte;
+        let mut tx_id = [0u8; 32];
+        tx_id[0] = id_byte;
         TxForBatch {
             tx_id,
             premium,
-            num_inputs:  inputs,
+            num_inputs: inputs,
             num_outputs: outputs,
-            fee_total:   40 + premium,
+            fee_total: 40 + premium,
         }
     }
 
     fn ann(batch_byte: u8, node_byte: u8) -> BatchAnnouncement {
-        let mut batch_root = [0u8; 32]; batch_root[0] = batch_byte;
-        let mut node_id    = [0u8; 32]; node_id[0]    = node_byte;
-        BatchAnnouncement { batch_root, node_id, timestamp: 0 }
+        let mut batch_root = [0u8; 32];
+        batch_root[0] = batch_byte;
+        let mut node_id = [0u8; 32];
+        node_id[0] = node_byte;
+        BatchAnnouncement {
+            batch_root,
+            node_id,
+            timestamp: 0,
+        }
     }
 
     // ── Score ─────────────────────────────────────────────────────────
@@ -184,7 +188,7 @@ mod tests {
 
     #[test]
     fn test_score_higher_premium_higher_score() {
-        let s_low  = compute_score_fp(&tx(1, 100, 2, 2));
+        let s_low = compute_score_fp(&tx(1, 100, 2, 2));
         let s_high = compute_score_fp(&tx(2, 500, 2, 2));
         assert!(s_high > s_low);
     }
@@ -192,19 +196,17 @@ mod tests {
     #[test]
     fn test_score_complex_tx_lower_score_same_premium() {
         // Tx kompleks (10in/10out) vs sederhana (1in/1out), premium sama
-        let s_simple  = compute_score_fp(&tx(1, 100, 1, 1));
+        let s_simple = compute_score_fp(&tx(1, 100, 1, 1));
         let s_complex = compute_score_fp(&tx(2, 100, 10, 10));
-        assert!(s_simple > s_complex,
-            "Tx sederhana harus punya score lebih tinggi untuk premium yang sama");
+        assert!(
+            s_simple > s_complex,
+            "Tx sederhana harus punya score lebih tinggi untuk premium yang sama"
+        );
     }
 
     #[test]
     fn test_sort_batch_by_score_descending() {
-        let mut batch = vec![
-            tx(1, 50, 2, 2),
-            tx(2, 200, 2, 2),
-            tx(3, 10, 2, 2),
-        ];
+        let mut batch = vec![tx(1, 50, 2, 2), tx(2, 200, 2, 2), tx(3, 10, 2, 2)];
         sort_batch_by_score(&mut batch);
         // Urutan: premium 200, 50, 10 (score tertinggi di depan)
         assert_eq!(batch[0].premium, 200);
@@ -255,10 +257,10 @@ mod tests {
     #[test]
     fn test_fairness_slot_every_n() {
         // N=10: batch 10, 20, 30 adalah fairness slot
-        assert!( is_fairness_slot(10, 10));
-        assert!( is_fairness_slot(20, 10));
+        assert!(is_fairness_slot(10, 10));
+        assert!(is_fairness_slot(20, 10));
         assert!(!is_fairness_slot(11, 10));
-        assert!(!is_fairness_slot(9,  10));
+        assert!(!is_fairness_slot(9, 10));
     }
 
     #[test]
@@ -271,11 +273,14 @@ mod tests {
     fn test_fairness_tx_picks_lowest_score() {
         let pool = vec![
             tx(1, 500, 2, 2),
-            tx(2, 10,  2, 2), // score terendah
+            tx(2, 10, 2, 2), // score terendah
             tx(3, 200, 2, 2),
         ];
         let fairness = fairness_tx(&pool).unwrap();
-        assert_eq!(fairness.premium, 10, "Fairness tx harus yang score terendah");
+        assert_eq!(
+            fairness.premium, 10,
+            "Fairness tx harus yang score terendah"
+        );
     }
 
     #[test]

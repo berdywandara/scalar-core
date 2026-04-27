@@ -21,10 +21,10 @@ pub const MIN_UPTIME_RATIO_FP: u64 = 300_000;
 /// Heartbeat yang dikirim node setiap 10 menit.
 /// Signature SPHINCS+ diverifikasi di luar struct ini (publik, seperti C8).
 pub struct NodeHeartbeat {
-    pub node_id:   [u8; 32],
+    pub node_id: [u8; 32],
     pub timestamp: u64,
-    pub smt_root:  [u8; 32],
-    pub epoch_id:  u64,
+    pub smt_root: [u8; 32],
+    pub epoch_id: u64,
     /// SPHINCS+ signature — 29.8 KB, disimpan sebagai Vec<u8>
     pub signature: Vec<u8>,
 }
@@ -52,14 +52,14 @@ impl NodeHeartbeat {
 /// LivenessSMT — menyimpan heartbeat node yang valid per epoch.
 /// Identik dengan NullifierSet — gossip + root reconciliation (§B.3).
 pub struct LivenessSMT {
-    entries:          HashMap<u64, u64>,
+    entries: HashMap<u64, u64>,
     heartbeat_counts: HashMap<(u64, u64), u64>, // (node_id_lo, epoch_id) → count
 }
 
 impl LivenessSMT {
     pub fn new() -> Self {
         Self {
-            entries:          HashMap::new(),
+            entries: HashMap::new(),
             heartbeat_counts: HashMap::new(),
         }
     }
@@ -67,8 +67,8 @@ impl LivenessSMT {
     /// Tambahkan heartbeat yang sudah terverifikasi SPHINCS+ ke SMT.
     pub fn insert_heartbeat(&mut self, hb: &NodeHeartbeat) {
         let node_id_lo = u64::from_le_bytes(hb.node_id[0..8].try_into().unwrap());
-        let count_key  = (node_id_lo, hb.epoch_id);
-        let index      = *self.heartbeat_counts.get(&count_key).unwrap_or(&0);
+        let count_key = (node_id_lo, hb.epoch_id);
+        let index = *self.heartbeat_counts.get(&count_key).unwrap_or(&0);
         self.entries.insert(hb.smt_key(index), hb.smt_value());
         self.heartbeat_counts.insert(count_key, index + 1);
     }
@@ -76,25 +76,31 @@ impl LivenessSMT {
     /// Jumlah heartbeat valid milik node pada epoch tertentu.
     pub fn count_heartbeats(&self, node_id: &[u8; 32], epoch_id: u64) -> u64 {
         let node_id_lo = u64::from_le_bytes(node_id[0..8].try_into().unwrap());
-        *self.heartbeat_counts.get(&(node_id_lo, epoch_id)).unwrap_or(&0)
+        *self
+            .heartbeat_counts
+            .get(&(node_id_lo, epoch_id))
+            .unwrap_or(&0)
     }
 
     /// Uptime weight w_i(k) dalam fixed-point basis 1_000_000.
     /// Return 0 jika di bawah threshold 30% (§B.1.4).
     pub fn compute_uptime_weight_fp(&self, node_id: &[u8; 32], epoch_id: u64) -> u64 {
-        let actual   = self.count_heartbeats(node_id, epoch_id);
+        let actual = self.count_heartbeats(node_id, epoch_id);
         let ratio_fp = (actual as u128)
             .saturating_mul(1_000_000)
             .checked_div(EXPECTED_HEARTBEATS_PER_EPOCH as u128)
             .unwrap_or(0) as u64;
-        if ratio_fp < MIN_UPTIME_RATIO_FP { 0 } else { ratio_fp }
+        if ratio_fp < MIN_UPTIME_RATIO_FP {
+            0
+        } else {
+            ratio_fp
+        }
     }
 
     /// Root deterministik dari seluruh isi SMT.
     /// Produksi: integrasikan dengan ScalarSMT depth-32 (Fase 3).
     pub fn root(&self) -> [u8; 32] {
-        let mut pairs: Vec<(u64, u64)> =
-            self.entries.iter().map(|(&k, &v)| (k, v)).collect();
+        let mut pairs: Vec<(u64, u64)> = self.entries.iter().map(|(&k, &v)| (k, v)).collect();
         pairs.sort_unstable_by_key(|&(k, _)| k);
         let mut acc: u64 = 0;
         for (k, v) in pairs {
@@ -104,12 +110,18 @@ impl LivenessSMT {
         *hash.as_bytes()
     }
 
-    pub fn len(&self)      -> usize { self.entries.len() }
-    pub fn is_empty(&self) -> bool  { self.entries.is_empty() }
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 }
 
 impl Default for LivenessSMT {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
@@ -119,7 +131,13 @@ mod tests {
     fn dummy_hb(node_byte: u8, epoch_id: u64, timestamp: u64) -> NodeHeartbeat {
         let mut node_id = [0u8; 32];
         node_id[0] = node_byte;
-        NodeHeartbeat { node_id, timestamp, smt_root: [0u8; 32], epoch_id, signature: vec![] }
+        NodeHeartbeat {
+            node_id,
+            timestamp,
+            smt_root: [0u8; 32],
+            epoch_id,
+            signature: vec![],
+        }
     }
 
     #[test]
@@ -145,8 +163,11 @@ mod tests {
         node_id[0] = 3;
         for i in 0..EXPECTED_HEARTBEATS_PER_EPOCH {
             smt.insert_heartbeat(&NodeHeartbeat {
-                node_id, timestamp: i * 600, smt_root: [0u8; 32],
-                epoch_id: 0, signature: vec![],
+                node_id,
+                timestamp: i * 600,
+                smt_root: [0u8; 32],
+                epoch_id: 0,
+                signature: vec![],
             });
         }
         assert_eq!(smt.compute_uptime_weight_fp(&node_id, 0), 1_000_000);

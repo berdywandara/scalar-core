@@ -41,13 +41,13 @@ pub const MAX_IO: u32 = 10;
 ///
 /// Sesuai §B.4.1.
 pub fn compute_floor(
-    num_inputs:       u32,
-    num_outputs:      u32,
+    num_inputs: u32,
+    num_outputs: u32,
     complexity_weight: u64,
 ) -> Result<u64, FeeError> {
     if num_inputs > MAX_IO || num_outputs > MAX_IO {
         return Err(FeeError::ExceedsMaxIO {
-            inputs:  num_inputs,
+            inputs: num_inputs,
             outputs: num_outputs,
         });
     }
@@ -61,9 +61,9 @@ pub fn compute_floor(
 
 /// Verifikasi bahwa fee_total memenuhi FLOOR minimum.
 pub fn verify_fee_above_floor(
-    fee_total:        u64,
-    num_inputs:       u32,
-    num_outputs:      u32,
+    fee_total: u64,
+    num_inputs: u32,
+    num_outputs: u32,
     complexity_weight: u64,
 ) -> Result<(), FeeError> {
     let floor = compute_floor(num_inputs, num_outputs, complexity_weight)?;
@@ -77,9 +77,9 @@ pub fn verify_fee_above_floor(
 /// PREMIUM = fee_total - FLOOR
 /// (termasuk PADDING_random yang tidak bisa dipisahkan)
 pub fn extract_premium(
-    fee_total:        u64,
-    num_inputs:       u32,
-    num_outputs:      u32,
+    fee_total: u64,
+    num_inputs: u32,
+    num_outputs: u32,
     complexity_weight: u64,
 ) -> Result<u64, FeeError> {
     let floor = compute_floor(num_inputs, num_outputs, complexity_weight)?;

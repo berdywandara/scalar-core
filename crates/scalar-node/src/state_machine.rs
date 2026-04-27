@@ -33,19 +33,31 @@ impl NodeStateMachine {
     fn evaluate_transitions(&mut self) {
         match self.current_state {
             NodeState::Bootstrapping => {
-                if self.is_internet_available { self.current_state = NodeState::Syncing; }
-            },
+                if self.is_internet_available {
+                    self.current_state = NodeState::Syncing;
+                }
+            }
             NodeState::Syncing => {
-                if self.is_smt_synced { self.current_state = NodeState::Active; }
-                if !self.is_internet_available { self.current_state = NodeState::Partitioned; }
-            },
+                if self.is_smt_synced {
+                    self.current_state = NodeState::Active;
+                }
+                if !self.is_internet_available {
+                    self.current_state = NodeState::Partitioned;
+                }
+            }
             NodeState::Active => {
-                if !self.is_internet_available { self.current_state = NodeState::Partitioned; }
-                if !self.is_smt_synced { self.current_state = NodeState::Syncing; }
-            },
+                if !self.is_internet_available {
+                    self.current_state = NodeState::Partitioned;
+                }
+                if !self.is_smt_synced {
+                    self.current_state = NodeState::Syncing;
+                }
+            }
             NodeState::Partitioned => {
-                if self.is_internet_available { self.current_state = NodeState::Syncing; }
-            },
+                if self.is_internet_available {
+                    self.current_state = NodeState::Syncing;
+                }
+            }
         }
     }
 }

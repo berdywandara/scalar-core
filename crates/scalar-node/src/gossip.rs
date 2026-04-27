@@ -40,7 +40,7 @@ impl ScalarGossipMessage {
     /// a. Verify spend_proof (zk-STARK) = TRUE
     /// b. Verify nullifier ∉ local_NullifierSet
     /// c. Verify new_commitment format valid
-    /// 
+    ///
     /// PENTING: Implementasi lengkap membutuhkan:
     /// 1. Akses ke NullifierSet lokal
     /// 2. STARK verifier untuk spend_proof

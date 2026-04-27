@@ -15,26 +15,45 @@ pub struct ScalarStateMachine {
 
 impl ScalarStateMachine {
     pub fn new() -> Self {
-        Self { current_state: NodeState::Bootstrapping }
+        Self {
+            current_state: NodeState::Bootstrapping,
+        }
     }
 
     /// Evaluasi transisi state berdasarkan kondisi sensor jaringan
-    pub fn evaluate_transitions(&mut self, internet_down: bool, is_synced: bool, peers_found: bool) {
+    pub fn evaluate_transitions(
+        &mut self,
+        internet_down: bool,
+        is_synced: bool,
+        peers_found: bool,
+    ) {
         match self.current_state {
             NodeState::Bootstrapping => {
-                if peers_found { self.current_state = NodeState::Syncing; }
-            },
+                if peers_found {
+                    self.current_state = NodeState::Syncing;
+                }
+            }
             NodeState::Syncing => {
-                if is_synced { self.current_state = NodeState::Active; }
-                if internet_down { self.current_state = NodeState::Partitioned; }
-            },
+                if is_synced {
+                    self.current_state = NodeState::Active;
+                }
+                if internet_down {
+                    self.current_state = NodeState::Partitioned;
+                }
+            }
             NodeState::Active => {
-                if internet_down { self.current_state = NodeState::Partitioned; }
-                if !is_synced { self.current_state = NodeState::Syncing; }
-            },
+                if internet_down {
+                    self.current_state = NodeState::Partitioned;
+                }
+                if !is_synced {
+                    self.current_state = NodeState::Syncing;
+                }
+            }
             NodeState::Partitioned => {
-                if !internet_down { self.current_state = NodeState::Syncing; }
-            },
+                if !internet_down {
+                    self.current_state = NodeState::Syncing;
+                }
+            }
         }
     }
 }

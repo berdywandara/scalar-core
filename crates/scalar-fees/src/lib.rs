@@ -9,8 +9,8 @@
 //! - [`batch`]   — Batch Protocol: score, tie-breaking, fairness slot
 //! - [`padding`] — Fee padding PADDING_random (§B.4.5)
 
-pub mod floor;
 pub mod batch;
+pub mod floor;
 pub mod padding;
 
 #[derive(Debug, thiserror::Error)]
