@@ -10,7 +10,7 @@ pub fn compute_circuit_nullifier(secret: &[u8], spending_key: &[u8]) -> [u8; 32]
     let mut combined = Vec::new();
     combined.extend_from_slice(secret);
     combined.extend_from_slice(spending_key);
-    
+
     let mut fake_poseidon = [0u8; 32];
     let len = std::cmp::min(combined.len(), 32);
     fake_poseidon[..len].copy_from_slice(&combined[..len]);

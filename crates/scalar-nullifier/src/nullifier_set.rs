@@ -1,5 +1,5 @@
 //! GAP A-004: NullifierSet Integration dengan ScalarSMT
-use crate::smt::{ScalarSMT, NodeHash};
+use crate::smt::{NodeHash, ScalarSMT};
 use crate::NullifierError;
 
 pub struct NullifierSet {
@@ -26,7 +26,7 @@ impl NullifierSet {
         if self.tree.contains(index) {
             return Err(NullifierError::AlreadyExists);
         }
-        
+
         let node_hash = nullifier_to_node_hash(nullifier);
         self.tree.insert(index, node_hash);
         Ok(())

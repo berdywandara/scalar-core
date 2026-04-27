@@ -1,8 +1,8 @@
 //! Otak Eksekusi Scalar Core Node
 //! Menggabungkan State Machine, RPC Server, dan P2P Network dalam satu runtime asinkron.
 
-use scalar_node::state_machine::NodeStateMachine;
 use scalar_node::api::LocalRpcServer;
+use scalar_node::state_machine::NodeStateMachine;
 use std::sync::{Arc, Mutex};
 use tokio::time::{sleep, Duration};
 
@@ -34,12 +34,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         // Simulasi detak jantung node (Heartbeat) setiap 5 detik
         sleep(Duration::from_secs(5)).await;
-        
+
         let mut sm = state_machine.lock().unwrap();
         // Simulasi update sensor jaringan (Internet OK, Sync OK)
         sm.update_network_sensor(true, true);
-        
+
         // Membungkam compiler dari warning dead code dengan memanggil fungsi internal
-        drop(sm); 
+        drop(sm);
     }
 }

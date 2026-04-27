@@ -10,11 +10,16 @@ impl UrEncoder {
     pub fn encode_to_animated_qr(payload: &[u8]) -> Vec<String> {
         let max_fragment_size = 200; // Limit payload per QR frame
         let total_frames = (payload.len() + max_fragment_size - 1) / max_fragment_size;
-        
+
         let mut frames = Vec::with_capacity(total_frames);
         for (index, chunk) in payload.chunks(max_fragment_size).enumerate() {
             // Simulasi struktur Fountain Code UR (ur:bytes/1-250/payload...)
-            let frame = format!("ur:bytes/{}-{}/{}", index + 1, total_frames, hex::encode(chunk));
+            let frame = format!(
+                "ur:bytes/{}-{}/{}",
+                index + 1,
+                total_frames,
+                hex::encode(chunk)
+            );
             frames.push(frame);
         }
         frames
@@ -28,7 +33,9 @@ impl UrDecoder {
     pub fn decode_from_animated_qr(frames: &[String]) -> Result<Vec<u8>, &'static str> {
         // Di produksi, ini menggunakan library UR-Fountain code (Fountain decoder)
         // Placeholder untuk validasi arsitektur
-        if frames.is_empty() { return Err("No frames provided"); }
+        if frames.is_empty() {
+            return Err("No frames provided");
+        }
         Ok(vec![0xAA; 50000]) // Mengembalikan reconstructed signature/proof
     }
 }

@@ -14,7 +14,12 @@ pub struct DuressVault {
 }
 
 impl DuressVault {
-    pub fn new(main_seed: [u8; 32], duress_seed: [u8; 32], main_pass: &str, duress_pass: &str) -> Self {
+    pub fn new(
+        main_seed: [u8; 32],
+        duress_seed: [u8; 32],
+        main_pass: &str,
+        duress_pass: &str,
+    ) -> Self {
         Self {
             main_seed,
             duress_seed,
@@ -28,7 +33,7 @@ impl DuressVault {
     /// Penyerang tidak akan tahu bahwa ini adalah dompet umpan.
     pub fn unlock(&self, password_input: &str) -> Result<[u8; 32], &'static str> {
         let input_hash = format!("hashed_{}", password_input);
-        
+
         if input_hash == self.main_password_hash {
             Ok(self.main_seed)
         } else if input_hash == self.duress_password_hash {

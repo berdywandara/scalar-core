@@ -25,9 +25,23 @@ pub const MAX_INPUTS: usize = 10;
 /// Denominasi fixed Scalar dalam sSCL (17 denominasi, §A.2).
 /// Diurutkan ascending untuk coin selection.
 pub const DENOMINATIONS: [u64; 17] = [
-    1, 5, 10, 50, 100, 500,
-    1_000, 5_000, 10_000, 50_000, 100_000, 500_000,
-    1_000_000, 5_000_000, 10_000_000, 50_000_000, 100_000_000,
+    1,
+    5,
+    10,
+    50,
+    100,
+    500,
+    1_000,
+    5_000,
+    10_000,
+    50_000,
+    100_000,
+    500_000,
+    1_000_000,
+    5_000_000,
+    10_000_000,
+    50_000_000,
+    100_000_000,
 ];
 
 /// Index denominasi d1–d6 (1–500 sSCL) untuk fee reserve.
@@ -62,22 +76,16 @@ pub enum CoinSelectionResult {
         change_value: u64,
     },
     /// Perlu konsolidasi coin kecil sebelum transaksi ini bisa dilakukan.
-    RequiresConsolidation {
-        message: &'static str,
-    },
+    RequiresConsolidation { message: &'static str },
     /// Saldo tidak mencukupi untuk fee.
-    InsufficientBalance {
-        message: &'static str,
-    },
+    InsufficientBalance { message: &'static str },
 }
 
 /// Status fee reserve wallet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FeeReserveStatus {
     /// Fee reserve mencukupi.
-    Adequate {
-        total_reserve: u64,
-    },
+    Adequate { total_reserve: u64 },
     /// Fee reserve di bawah threshold notifikasi.
     Low {
         total_reserve: u64,
@@ -101,9 +109,9 @@ pub enum FeeReserveStatus {
 /// Return: CoinSelectionResult dengan coins final atau error.
 pub fn step2b_fee_adequacy_check(
     selected_so_far: Vec<u64>,
-    available_coins:  &[WalletCoin],
-    target_value:     u64,
-    fee_total:        u64,
+    available_coins: &[WalletCoin],
+    target_value: u64,
+    fee_total: u64,
 ) -> CoinSelectionResult {
     let total_needed = target_value.saturating_add(fee_total);
 
@@ -216,7 +224,10 @@ mod tests {
     use super::*;
 
     fn coins(pairs: &[(u64, u32)]) -> Vec<WalletCoin> {
-        pairs.iter().map(|&(value, count)| WalletCoin { value, count }).collect()
+        pairs
+            .iter()
+            .map(|&(value, count)| WalletCoin { value, count })
+            .collect()
     }
 
     // ── Step 2b: Fee adequacy ─────────────────────────────────────────
@@ -229,7 +240,11 @@ mod tests {
         let result = step2b_fee_adequacy_check(selected, &available, 10_000, 100);
 
         match result {
-            CoinSelectionResult::Ok { selected_coins, change_value, .. } => {
+            CoinSelectionResult::Ok {
+                selected_coins,
+                change_value,
+                ..
+            } => {
                 assert_eq!(selected_coins.len(), 2);
                 assert_eq!(change_value, 4_900); // 15_000 - 10_000 - 100
             }
@@ -246,7 +261,11 @@ mod tests {
         let result = step2b_fee_adequacy_check(selected, &available, 10_000, 100);
 
         match result {
-            CoinSelectionResult::Ok { selected_coins, change_value, .. } => {
+            CoinSelectionResult::Ok {
+                selected_coins,
+                change_value,
+                ..
+            } => {
                 assert!(selected_coins.contains(&100));
                 assert_eq!(change_value, 0); // tepat
             }
@@ -265,7 +284,8 @@ mod tests {
         match result {
             CoinSelectionResult::Ok { selected_coins, .. } => {
                 // Coin yang ditambahkan harus 100, bukan 500
-                let added: Vec<u64> = selected_coins.iter()
+                let added: Vec<u64> = selected_coins
+                    .iter()
                     .filter(|&&v| v != 10_000)
                     .copied()
                     .collect();
@@ -310,7 +330,11 @@ mod tests {
         let result = step2b_fee_adequacy_check(selected, &available, 10_000, 150);
 
         match result {
-            CoinSelectionResult::Ok { selected_coins, change_value, .. } => {
+            CoinSelectionResult::Ok {
+                selected_coins,
+                change_value,
+                ..
+            } => {
                 let count_50 = selected_coins.iter().filter(|&&v| v == 50).count();
                 assert_eq!(count_50, 3, "Harus 3 coin 50 sSCL");
                 assert_eq!(change_value, 0); // 10_000 + 150 = 10_150, selected = 10_150
@@ -352,14 +376,20 @@ mod tests {
     fn test_fee_reserve_low_notification() {
         // 5 coin × 100 sSCL = 500 sSCL < threshold 1_000
         let wallet = coins(&[(100, 5)]);
-        assert!(matches!(check_fee_reserve(&wallet), FeeReserveStatus::Low { .. }));
+        assert!(matches!(
+            check_fee_reserve(&wallet),
+            FeeReserveStatus::Low { .. }
+        ));
     }
 
     #[test]
     fn test_fee_reserve_empty() {
         // Tidak ada coin kecil sama sekali
         let wallet = coins(&[(1_000_000, 5)]); // hanya coin besar (d7+)
-        assert!(matches!(check_fee_reserve(&wallet), FeeReserveStatus::Empty));
+        assert!(matches!(
+            check_fee_reserve(&wallet),
+            FeeReserveStatus::Empty
+        ));
     }
 
     #[test]
@@ -375,13 +405,13 @@ mod tests {
     fn test_fee_reserve_mixed_denominations() {
         // Mix d1–d6: 1×10 + 5×10 + 10×10 + 50×5 + 100×3 + 500×2
         // = 10 + 50 + 100 + 250 + 300 + 1000 = 1710 sSCL
-        let wallet = coins(&[
-            (1, 10), (5, 10), (10, 10),
-            (50, 5), (100, 3), (500, 2),
-        ]);
+        let wallet = coins(&[(1, 10), (5, 10), (10, 10), (50, 5), (100, 3), (500, 2)]);
         assert_eq!(total_fee_reserve(&wallet), 1_710);
         // 1_710 > 1_000 threshold → Adequate
-        assert!(matches!(check_fee_reserve(&wallet), FeeReserveStatus::Adequate { .. }));
+        assert!(matches!(
+            check_fee_reserve(&wallet),
+            FeeReserveStatus::Adequate { .. }
+        ));
     }
 
     #[test]
@@ -420,7 +450,10 @@ impl CoinSelector {
         // Konversi HashMap ke Vec<WalletCoin> ascending by value
         let mut available: Vec<WalletCoin> = wallet_coins
             .iter()
-            .map(|(&value, &count)| WalletCoin { value, count: count as u32 })
+            .map(|(&value, &count)| WalletCoin {
+                value,
+                count: count as u32,
+            })
             .collect();
         available.sort_unstable_by_key(|c| c.value);
 

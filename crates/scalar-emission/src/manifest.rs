@@ -19,21 +19,21 @@ pub enum EpochStatus {
 /// Reward satu node dalam manifest.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeReward {
-    pub node_id:       [u8; 32],
+    pub node_id: [u8; 32],
     pub reward_amount: u64,
 }
 
 /// EpochRewardManifest — sesuai §B.3.1 field-by-field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpochRewardManifest {
-    pub epoch_id:               u64,
+    pub epoch_id: u64,
     pub accepted_liveness_root: [u8; 32],
-    pub total_uptime_weight:    u64,
-    pub emission_amount:        u64,
-    pub fee_total:              u64,
-    pub reward_root:            [u8; 32],
+    pub total_uptime_weight: u64,
+    pub emission_amount: u64,
+    pub fee_total: u64,
+    pub reward_root: [u8; 32],
     pub previous_emission_total: u64,
-    pub status:                 EpochStatus,
+    pub status: EpochStatus,
 }
 
 impl EpochRewardManifest {
@@ -41,13 +41,13 @@ impl EpochRewardManifest {
     pub fn deferred(epoch_id: u64, previous_emission_total: u64) -> Self {
         Self {
             epoch_id,
-            accepted_liveness_root:  [0u8; 32],
-            total_uptime_weight:     0,
-            emission_amount:         0,
-            fee_total:               0,
-            reward_root:             [0u8; 32],
+            accepted_liveness_root: [0u8; 32],
+            total_uptime_weight: 0,
+            emission_amount: 0,
+            fee_total: 0,
+            reward_root: [0u8; 32],
             previous_emission_total,
-            status:                  EpochStatus::Deferred,
+            status: EpochStatus::Deferred,
         }
     }
 
@@ -62,17 +62,24 @@ impl EpochRewardManifest {
         if rewards.is_empty() {
             return [0u8; 32];
         }
-        let mut hashes: Vec<u64> = rewards.iter().map(|r| {
-            let lo = u64::from_le_bytes(r.node_id[0..8].try_into().unwrap());
-            hash_2_to_1(lo, r.reward_amount)
-        }).collect();
+        let mut hashes: Vec<u64> = rewards
+            .iter()
+            .map(|r| {
+                let lo = u64::from_le_bytes(r.node_id[0..8].try_into().unwrap());
+                hash_2_to_1(lo, r.reward_amount)
+            })
+            .collect();
 
         while hashes.len() > 1 {
             let mut next = Vec::new();
             let mut i = 0;
             while i < hashes.len() {
-                let left  = hashes[i];
-                let right = if i + 1 < hashes.len() { hashes[i + 1] } else { hashes[i] };
+                let left = hashes[i];
+                let right = if i + 1 < hashes.len() {
+                    hashes[i + 1]
+                } else {
+                    hashes[i]
+                };
                 next.push(hash_2_to_1(left, right));
                 i += 2;
             }
@@ -104,8 +111,12 @@ mod tests {
     use super::*;
 
     fn nr(b: u8, amount: u64) -> NodeReward {
-        let mut node_id = [0u8; 32]; node_id[0] = b;
-        NodeReward { node_id, reward_amount: amount }
+        let mut node_id = [0u8; 32];
+        node_id[0] = b;
+        NodeReward {
+            node_id,
+            reward_amount: amount,
+        }
     }
 
     #[test]
@@ -119,8 +130,8 @@ mod tests {
 
     #[test]
     fn test_reward_root_order_sensitive() {
-        let asc  = vec![nr(1, 1000), nr(2, 800)];
-        let desc = vec![nr(2,  800), nr(1, 1000)];
+        let asc = vec![nr(1, 1000), nr(2, 800)];
+        let desc = vec![nr(2, 800), nr(1, 1000)];
         assert_ne!(
             EpochRewardManifest::compute_reward_root(&asc),
             EpochRewardManifest::compute_reward_root(&desc)
@@ -152,13 +163,13 @@ mod tests {
         let root = EpochRewardManifest::compute_reward_root(&[nr(1, 500_000_000)]);
         let m = EpochRewardManifest {
             epoch_id: 0,
-            accepted_liveness_root:  [1u8; 32],
-            total_uptime_weight:     1_000_000,
-            emission_amount:         500_000_000,
-            fee_total:               0,
-            reward_root:             root,
+            accepted_liveness_root: [1u8; 32],
+            total_uptime_weight: 1_000_000,
+            emission_amount: 500_000_000,
+            fee_total: 0,
+            reward_root: root,
             previous_emission_total: 0,
-            status:                  EpochStatus::Finalized,
+            status: EpochStatus::Finalized,
         };
         assert!(m.verify_arithmetic_invariants());
     }
@@ -167,13 +178,13 @@ mod tests {
     fn test_finalized_invariant_cap_exceeded() {
         let m = EpochRewardManifest {
             epoch_id: 0,
-            accepted_liveness_root:  [1u8; 32],
-            total_uptime_weight:     1_000_000,
-            emission_amount:         1,
-            fee_total:               0,
-            reward_root:             [1u8; 32],
+            accepted_liveness_root: [1u8; 32],
+            total_uptime_weight: 1_000_000,
+            emission_amount: 1,
+            fee_total: 0,
+            reward_root: [1u8; 32],
             previous_emission_total: crate::accumulator::S_E_SSCL,
-            status:                  EpochStatus::Finalized,
+            status: EpochStatus::Finalized,
         };
         assert!(!m.verify_arithmetic_invariants());
     }

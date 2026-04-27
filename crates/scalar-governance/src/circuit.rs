@@ -8,9 +8,11 @@ impl GovernanceTallyCircuit {
         // Constraint 1: Validitas Proof Individual (Semua inner proofs valid)
         // Constraint 2: Tally akumulasi benar
         // Constraint 3: Anti-Flash-Loan (Lock SCL harus pre-date proposal_timestamp)
-        
-        if aggregated_proof.is_empty() { return false; }
-        
+
+        if aggregated_proof.is_empty() {
+            return false;
+        }
+
         // Simulasi sukses untuk arsitektur
         true
     }

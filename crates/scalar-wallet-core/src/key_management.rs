@@ -1,6 +1,6 @@
 // crates/scalar-wallet-core/src/key_management.rs
 //! Hierarchical Key Derivation — sesuai NC5 §5.7 Layer 9
-//! 
+//!
 //! Chain derivasi yang benar (NC5 final):
 //!   seed
 //!     → MasterKey  = BLAKE3(seed ∥ "scalar_master")
@@ -33,10 +33,10 @@ pub struct DuressKey(pub [u8; 32]);
 //   - derive_from_seed menambahkan account_index parameter.
 
 pub struct WalletKeys {
-    pub spend_key:   SpendKey,
-    pub view_key:    ViewKey,
-    pub node_key:    NodeKey,
-    pub duress_keys: Vec<DuressKey>,  // index 0 = duress_1, index 1 = duress_2, dst.
+    pub spend_key: SpendKey,
+    pub view_key: ViewKey,
+    pub node_key: NodeKey,
+    pub duress_keys: Vec<DuressKey>, // index 0 = duress_1, index 1 = duress_2, dst.
 }
 
 impl WalletKeys {
@@ -57,8 +57,8 @@ impl WalletKeys {
 
         // ── Step 3: Purpose keys = BLAKE3(AccountKey ∥ domain) ──────
         let spend_key = SpendKey(blake3_concat(&account_key, b"spend"));
-        let view_key  = ViewKey(blake3_concat(&account_key, b"view"));
-        let node_key  = NodeKey(blake3_concat(&account_key, b"node"));
+        let view_key = ViewKey(blake3_concat(&account_key, b"view"));
+        let node_key = NodeKey(blake3_concat(&account_key, b"node"));
 
         // ── Step 4: DuressKey = BLAKE3(AccountKey ∥ "duress" ∥ i) ──
         // Default: 2 level duress (index 0 dan 1), sesuai impl original.

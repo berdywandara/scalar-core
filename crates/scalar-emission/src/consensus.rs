@@ -16,13 +16,13 @@
 //! - Epoch boundary: tegas, no grace window
 //! - DEFERRED → no makeup policy
 
-use std::collections::HashMap;
 use crate::{
     accumulator::{EmissionAccumulator, FeeAccumulator},
     epoch::{compute_epoch_rewards, EpochInput},
     liveness::LivenessSMT,
     manifest::{EpochRewardManifest, EpochStatus},
 };
+use std::collections::HashMap;
 
 // ── Konstanta ossified (§B.5.3 + §B.6) ─────────────────────────────
 
@@ -46,10 +46,10 @@ pub const T_EXTEND_SECS_DEFAULT: u64 = 30 * 60;
 /// announcement dimasukkan ke pool.
 #[derive(Debug, Clone)]
 pub struct LivenessRootAnnouncement {
-    pub epoch_id:       u64,
-    pub liveness_root:  [u8; 32],
-    pub node_id:        [u8; 32],
-    pub timestamp:      u64,
+    pub epoch_id: u64,
+    pub liveness_root: [u8; 32],
+    pub node_id: [u8; 32],
+    pub timestamp: u64,
     /// SPHINCS+ signature atas (epoch_id ∥ liveness_root ∥ node_id ∥ timestamp)
     /// Verifikasi dilakukan di luar struct ini (publik, seperti C8).
     pub node_signature: Vec<u8>,
@@ -73,13 +73,9 @@ pub enum ConsensusResult {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MintClaimGate {
     /// Gate terbuka — MINT_CLAIM_CIRCUIT boleh dijalankan
-    Open {
-        manifest: EpochRewardManifest,
-    },
+    Open { manifest: EpochRewardManifest },
     /// Gate tertutup — epoch DEFERRED, tidak ada claim selamanya
-    Closed {
-        reason: &'static str,
-    },
+    Closed { reason: &'static str },
 }
 
 // ── Step 1: Epoch Close ──────────────────────────────────────────────
@@ -105,9 +101,7 @@ pub fn step1_epoch_close(liveness_smt: &LivenessSMT) -> [u8; 32] {
 /// Jika tidak → Deferred (setelah T_extend juga gagal)
 ///
 /// OSSIFIED: threshold 67% tidak bisa diubah tanpa fork (§B.5.3).
-pub fn step3_compute_consensus(
-    announcements: &[LivenessRootAnnouncement],
-) -> ConsensusResult {
+pub fn step3_compute_consensus(announcements: &[LivenessRootAnnouncement]) -> ConsensusResult {
     if announcements.is_empty() {
         return ConsensusResult::Deferred;
     }
@@ -129,9 +123,7 @@ pub fn step3_compute_consensus(
 
     // Threshold: winner_count / total ≥ 67/100
     // Integer arithmetic: winner_count * 100 ≥ total * 67
-    if winner_count * LIVENESS_CONSENSUS_THRESHOLD_DEN
-        >= total * LIVENESS_CONSENSUS_THRESHOLD_NUM
-    {
+    if winner_count * LIVENESS_CONSENSUS_THRESHOLD_DEN >= total * LIVENESS_CONSENSUS_THRESHOLD_NUM {
         let fraction_pct = (winner_count * 100) / total;
         ConsensusResult::Accepted {
             accepted_liveness_root: winner_root,
@@ -151,12 +143,12 @@ pub fn step3_compute_consensus(
 ///
 /// Return Ok(()) jika manifest valid, Err jika mismatch.
 pub fn step5_verify_manifest(
-    received_manifest:      &EpochRewardManifest,
+    received_manifest: &EpochRewardManifest,
     accepted_liveness_root: [u8; 32],
-    active_node_ids:        &[[u8; 32]],
-    liveness_smt:           &LivenessSMT,
-    emission_acc:           &EmissionAccumulator,
-    fee_acc:                &FeeAccumulator,
+    active_node_ids: &[[u8; 32]],
+    liveness_smt: &LivenessSMT,
+    emission_acc: &EmissionAccumulator,
+    fee_acc: &FeeAccumulator,
 ) -> Result<(), &'static str> {
     // Manifest DEFERRED: reward_root harus NULL ([0u8; 32])
     if received_manifest.status == EpochStatus::Deferred {
@@ -168,7 +160,7 @@ pub fn step5_verify_manifest(
 
     // Recompute manifest dari accepted_liveness_root
     let input = EpochInput {
-        epoch_id:               received_manifest.epoch_id,
+        epoch_id: received_manifest.epoch_id,
         accepted_liveness_root,
         active_node_ids,
         liveness_smt,
@@ -176,8 +168,8 @@ pub fn step5_verify_manifest(
         fee_acc,
     };
 
-    let recomputed = compute_epoch_rewards(&input)
-        .map_err(|_| "Step5: gagal recompute manifest")?;
+    let recomputed =
+        compute_epoch_rewards(&input).map_err(|_| "Step5: gagal recompute manifest")?;
 
     // Bandingkan reward_root — harus identik (deterministik)
     if recomputed.manifest.reward_root != received_manifest.reward_root {
@@ -206,12 +198,12 @@ pub fn step5_verify_manifest(
 ///
 /// Jika DEFERRED: EmissionAccumulator TIDAK berubah (§B.5.2).
 pub fn step6_mint_claim_gate(
-    consensus:              ConsensusResult,
-    epoch_id:               u64,
-    active_node_ids:        &[[u8; 32]],
-    liveness_smt:           &LivenessSMT,
-    emission_acc:           &mut EmissionAccumulator,
-    fee_acc:                &FeeAccumulator,
+    consensus: ConsensusResult,
+    epoch_id: u64,
+    active_node_ids: &[[u8; 32]],
+    liveness_smt: &LivenessSMT,
+    emission_acc: &mut EmissionAccumulator,
+    fee_acc: &FeeAccumulator,
 ) -> MintClaimGate {
     match consensus {
         ConsensusResult::Deferred => {
@@ -222,7 +214,10 @@ pub fn step6_mint_claim_gate(
             }
         }
 
-        ConsensusResult::Accepted { accepted_liveness_root, .. } => {
+        ConsensusResult::Accepted {
+            accepted_liveness_root,
+            ..
+        } => {
             // Step 4: Compute manifest
             let input = EpochInput {
                 epoch_id,
@@ -234,10 +229,12 @@ pub fn step6_mint_claim_gate(
             };
 
             let output = match compute_epoch_rewards(&input) {
-                Ok(o)  => o,
-                Err(_) => return MintClaimGate::Closed {
-                    reason: "Step4: gagal compute epoch rewards",
-                },
+                Ok(o) => o,
+                Err(_) => {
+                    return MintClaimGate::Closed {
+                        reason: "Step4: gagal compute epoch rewards",
+                    }
+                }
             };
 
             // Step 6: Update EmissionAccumulator SEBELUM gate dibuka
@@ -261,12 +258,12 @@ pub fn step6_mint_claim_gate(
 /// Dalam produksi, Step 2 dan 3 bersifat async dengan timeout T_collect
 /// dan T_extend. Di sini semua announcements sudah tersedia.
 pub fn run_epoch_consensus_protocol(
-    epoch_id:               u64,
-    liveness_smt:           &LivenessSMT,
-    announcements:          &[LivenessRootAnnouncement],
-    active_node_ids:        &[[u8; 32]],
-    emission_acc:           &mut EmissionAccumulator,
-    fee_acc:                &FeeAccumulator,
+    epoch_id: u64,
+    liveness_smt: &LivenessSMT,
+    announcements: &[LivenessRootAnnouncement],
+    active_node_ids: &[[u8; 32]],
+    emission_acc: &mut EmissionAccumulator,
+    fee_acc: &FeeAccumulator,
 ) -> MintClaimGate {
     // Step 1
     let _my_root = step1_epoch_close(liveness_smt);
@@ -293,7 +290,9 @@ mod tests {
     use crate::liveness::{LivenessSMT, NodeHeartbeat, EXPECTED_HEARTBEATS_PER_EPOCH};
 
     fn node(b: u8) -> [u8; 32] {
-        let mut id = [0u8; 32]; id[0] = b; id
+        let mut id = [0u8; 32];
+        id[0] = b;
+        id
     }
 
     fn announcement(epoch_id: u64, node_id: [u8; 32], root: [u8; 32]) -> LivenessRootAnnouncement {
@@ -334,7 +333,11 @@ mod tests {
         }
         let result = step3_compute_consensus(&anns);
         assert!(matches!(result, ConsensusResult::Accepted { .. }));
-        if let ConsensusResult::Accepted { accepted_liveness_root, fraction_pct } = result {
+        if let ConsensusResult::Accepted {
+            accepted_liveness_root,
+            fraction_pct,
+        } = result
+        {
             assert_eq!(accepted_liveness_root, root_a);
             assert_eq!(fraction_pct, 67);
         }
@@ -358,13 +361,14 @@ mod tests {
     #[test]
     fn test_consensus_100_percent_agreement() {
         let root = [9u8; 32];
-        let anns: Vec<_> = (0..50u8)
-            .map(|i| announcement(0, node(i), root))
-            .collect();
+        let anns: Vec<_> = (0..50u8).map(|i| announcement(0, node(i), root)).collect();
         let result = step3_compute_consensus(&anns);
         assert!(matches!(
             result,
-            ConsensusResult::Accepted { fraction_pct: 100, .. }
+            ConsensusResult::Accepted {
+                fraction_pct: 100,
+                ..
+            }
         ));
     }
 
@@ -377,7 +381,10 @@ mod tests {
     fn test_consensus_single_announcement() {
         // 1 dari 1 = 100% → Accepted
         let anns = vec![announcement(0, node(1), [5u8; 32])];
-        assert!(matches!(step3_compute_consensus(&anns), ConsensusResult::Accepted { .. }));
+        assert!(matches!(
+            step3_compute_consensus(&anns),
+            ConsensusResult::Accepted { .. }
+        ));
     }
 
     // ── Step 5: Manifest Verification ────────────────────────────────
@@ -385,13 +392,11 @@ mod tests {
     #[test]
     fn test_step5_deferred_manifest_valid() {
         let deferred = EpochRewardManifest::deferred(0, 0);
-        let smt      = LivenessSMT::new();
-        let acc      = EmissionAccumulator::new();
-        let fee_acc  = FeeAccumulator::new();
+        let smt = LivenessSMT::new();
+        let acc = EmissionAccumulator::new();
+        let fee_acc = FeeAccumulator::new();
 
-        let result = step5_verify_manifest(
-            &deferred, [0u8; 32], &[], &smt, &acc, &fee_acc,
-        );
+        let result = step5_verify_manifest(&deferred, [0u8; 32], &[], &smt, &acc, &fee_acc);
         assert!(result.is_ok());
     }
 
@@ -401,13 +406,11 @@ mod tests {
         // Manipulasi: set reward_root non-zero pada manifest DEFERRED
         deferred.reward_root = [1u8; 32];
 
-        let smt     = LivenessSMT::new();
-        let acc     = EmissionAccumulator::new();
+        let smt = LivenessSMT::new();
+        let acc = EmissionAccumulator::new();
         let fee_acc = FeeAccumulator::new();
 
-        let result = step5_verify_manifest(
-            &deferred, [0u8; 32], &[], &smt, &acc, &fee_acc,
-        );
+        let result = step5_verify_manifest(&deferred, [0u8; 32], &[], &smt, &acc, &fee_acc);
         assert!(result.is_err());
     }
 
@@ -415,14 +418,12 @@ mod tests {
 
     #[test]
     fn test_step6_deferred_closes_gate() {
-        let smt     = LivenessSMT::new();
-        let mut acc     = EmissionAccumulator::new();
+        let smt = LivenessSMT::new();
+        let mut acc = EmissionAccumulator::new();
         let fee_acc = FeeAccumulator::new();
 
-        let gate = step6_mint_claim_gate(
-            ConsensusResult::Deferred,
-            0, &[], &smt, &mut acc, &fee_acc,
-        );
+        let gate =
+            step6_mint_claim_gate(ConsensusResult::Deferred, 0, &[], &smt, &mut acc, &fee_acc);
 
         assert!(matches!(gate, MintClaimGate::Closed { .. }));
         // EmissionAccumulator tidak berubah (no-makeup policy)
@@ -436,9 +437,9 @@ mod tests {
         fill_smt(&mut smt, n1, EXPECTED_HEARTBEATS_PER_EPOCH, 0);
 
         let liveness_root = smt.root();
-        let mut acc   = EmissionAccumulator::new();
-        let fee_acc   = FeeAccumulator::new();
-        let nodes     = [n1];
+        let mut acc = EmissionAccumulator::new();
+        let fee_acc = FeeAccumulator::new();
+        let nodes = [n1];
 
         let gate = step6_mint_claim_gate(
             ConsensusResult::Accepted {
@@ -457,8 +458,10 @@ mod tests {
 
         // EmissionAccumulator harus sudah di-commit dengan E(0) = E₀
         use crate::accumulator::E0_SSCL;
-        assert_eq!(acc.total_minted, E0_SSCL,
-            "EmissionAccumulator harus di-commit sebelum gate dibuka");
+        assert_eq!(
+            acc.total_minted, E0_SSCL,
+            "EmissionAccumulator harus di-commit sebelum gate dibuka"
+        );
     }
 
     // ── Full Protocol ─────────────────────────────────────────────────
@@ -472,9 +475,9 @@ mod tests {
         fill_smt(&mut smt, n2, EXPECTED_HEARTBEATS_PER_EPOCH, 0);
 
         let liveness_root = smt.root();
-        let mut acc   = EmissionAccumulator::new();
-        let fee_acc   = FeeAccumulator::new();
-        let nodes     = [n1, n2];
+        let mut acc = EmissionAccumulator::new();
+        let fee_acc = FeeAccumulator::new();
+        let nodes = [n1, n2];
 
         // 80% setuju pada root yang sama (>67%) → Accepted
         let mut anns = Vec::new();
@@ -485,21 +488,23 @@ mod tests {
             anns.push(announcement(0, node(i + 90), [0xABu8; 32]));
         }
 
-        let gate = run_epoch_consensus_protocol(
-            0, &smt, &anns, &nodes, &mut acc, &fee_acc,
+        let gate = run_epoch_consensus_protocol(0, &smt, &anns, &nodes, &mut acc, &fee_acc);
+
+        assert!(
+            matches!(gate, MintClaimGate::Open { .. }),
+            "Happy path harus menghasilkan gate Open"
         );
 
-        assert!(matches!(gate, MintClaimGate::Open { .. }),
-            "Happy path harus menghasilkan gate Open");
-
         // Emission sudah di-commit
-        assert!(acc.total_minted > 0,
-            "EmissionAccumulator harus di-update setelah gate dibuka");
+        assert!(
+            acc.total_minted > 0,
+            "EmissionAccumulator harus di-update setelah gate dibuka"
+        );
     }
 
     #[test]
     fn test_full_protocol_no_consensus_deferred() {
-        let smt   = LivenessSMT::new();
+        let smt = LivenessSMT::new();
         let mut acc = EmissionAccumulator::new();
         let fee_acc = FeeAccumulator::new();
 
@@ -512,16 +517,18 @@ mod tests {
             anns.push(announcement(0, node(i), [2u8; 32]));
         }
 
-        let gate = run_epoch_consensus_protocol(
-            0, &smt, &anns, &[], &mut acc, &fee_acc,
+        let gate = run_epoch_consensus_protocol(0, &smt, &anns, &[], &mut acc, &fee_acc);
+
+        assert!(
+            matches!(gate, MintClaimGate::Closed { .. }),
+            "Split 50/50 harus menghasilkan DEFERRED"
         );
 
-        assert!(matches!(gate, MintClaimGate::Closed { .. }),
-            "Split 50/50 harus menghasilkan DEFERRED");
-
         // EmissionAccumulator tidak berubah
-        assert_eq!(acc.total_minted, 0,
-            "DEFERRED: EmissionAccumulator tidak boleh berubah");
+        assert_eq!(
+            acc.total_minted, 0,
+            "DEFERRED: EmissionAccumulator tidak boleh berubah"
+        );
     }
 
     #[test]
@@ -532,8 +539,11 @@ mod tests {
         use crate::accumulator::E0_SSCL;
 
         let acc_after_deferred = EmissionAccumulator::new(); // M_E = 0 (tidak berubah)
-        // E(1) = E₀ × (1 - 0)² = E₀ — normal, bukan kompensasi
-        assert_eq!(acc_after_deferred.emission_this_epoch(), E0_SSCL,
-            "Epoch setelah DEFERRED harus hitung normal dari M_E yang tidak berubah");
+                                                             // E(1) = E₀ × (1 - 0)² = E₀ — normal, bukan kompensasi
+        assert_eq!(
+            acc_after_deferred.emission_this_epoch(),
+            E0_SSCL,
+            "Epoch setelah DEFERRED harus hitung normal dari M_E yang tidak berubah"
+        );
     }
 }

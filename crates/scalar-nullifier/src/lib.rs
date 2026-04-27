@@ -1,8 +1,8 @@
 //! Core Nullifier & SMT Management for Scalar Network
 
-pub mod smt;
 pub mod delta_sync;
 pub mod nullifier_set;
+pub mod smt;
 
 #[derive(Debug, PartialEq)]
 pub enum NullifierError {
@@ -11,6 +11,6 @@ pub enum NullifierError {
     NotFound,
 }
 
-pub use smt::{ScalarSMT, NodeHash};
-pub use nullifier_set::NullifierSet;
 pub use delta_sync::DeltaSyncMessage;
+pub use nullifier_set::NullifierSet;
+pub use smt::{NodeHash, ScalarSMT};

@@ -2,7 +2,7 @@
 //! Dirancang untuk ketahanan infrastruktur di luar internet.
 
 // LoRa MTU (Maximum Transmission Unit) standar dibatasi agar tidak meluap
-pub const LORA_MTU: usize = 200; 
+pub const LORA_MTU: usize = 200;
 
 #[derive(Debug, PartialEq)]
 pub struct RadioPacket {
@@ -16,13 +16,15 @@ impl RadioPacket {
     pub fn fragment_proof(proof_data: &[u8]) -> Vec<RadioPacket> {
         let chunks: Vec<&[u8]> = proof_data.chunks(LORA_MTU).collect();
         let total = chunks.len() as u32;
-        
-        chunks.into_iter().enumerate().map(|(i, chunk)| {
-            RadioPacket {
+
+        chunks
+            .into_iter()
+            .enumerate()
+            .map(|(i, chunk)| RadioPacket {
                 packet_id: i as u32,
                 total_packets: total,
                 payload_chunk: chunk.to_vec(),
-            }
-        }).collect()
+            })
+            .collect()
     }
 }

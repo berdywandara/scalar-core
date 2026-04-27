@@ -1,9 +1,9 @@
 //! Local RPC API untuk komunikasi wallet ↔ node (port 7777)
 //! Protokol: HTTP/1.1 sederhana agar bisa ditest dengan curl dan dipakai wallet UI.
 
-use std::net::{TcpListener, TcpStream};
-use std::io::{BufRead, BufReader, Write};
 use serde::{Deserialize, Serialize};
+use std::io::{BufRead, BufReader, Write};
+use std::net::{TcpListener, TcpStream};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RpcRequest {
@@ -109,12 +109,17 @@ impl LocalRpcServer {
             },
             _ => RpcResponse {
                 result: None,
-                error: Some(format!("Method '{}' tidak dikenal. Tersedia: get_status, get_smt_root, get_node_state", method)),
+                error: Some(format!(
+                    "Method '{}' tidak dikenal. Tersedia: get_status, get_smt_root, get_node_state",
+                    method
+                )),
             },
         }
     }
 }
 
 impl Default for LocalRpcServer {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }

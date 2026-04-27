@@ -16,7 +16,11 @@ impl ConsensusEngine {
     }
 
     /// Memverifikasi kebenaran matematis (Truth by Mathematics, not Majority)
-    pub fn verify_mathematical_truth(&mut self, nullifier_index: u64, nullifier_hash: u64) -> Result<(), &'static str> {
+    pub fn verify_mathematical_truth(
+        &mut self,
+        nullifier_index: u64,
+        nullifier_hash: u64,
+    ) -> Result<(), &'static str> {
         // 1. Cek apakah nullifier sudah ada (Double Spend Prevention)
         if self.nullifier_set.contains(nullifier_index) {
             return Err("REJECTED: Transaksi Double Spend Terdeteksi (Nullifier sudah ada di SMT)");

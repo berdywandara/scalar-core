@@ -26,7 +26,7 @@ impl PeerDiscovery {
                 ip_or_onion: format!("scalar-seed-{}.onion", i),
                 port: 4001 + (i as u16),
                 // Pubkey generik representasi arsitektural
-                pubkey: [(i % 255) as u8; 32], 
+                pubkey: [(i % 255) as u8; 32],
                 jurisdiction: jurisdictions[j_idx].to_string(),
                 transports: vec!["tor".to_string(), "tcp".to_string()],
             });

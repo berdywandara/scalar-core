@@ -34,11 +34,7 @@ pub fn apply_padding(premium_intended: u64, random_byte: u8) -> u64 {
 /// fee_total = FLOOR + PREMIUM_intended + PADDING_random
 ///
 /// Pemanggil sudah memiliki FLOOR dari `floor::compute_floor()`.
-pub fn compute_fee_total_with_padding(
-    floor:             u64,
-    premium_intended:  u64,
-    random_byte:       u8,
-) -> u64 {
+pub fn compute_fee_total_with_padding(floor: u64, premium_intended: u64, random_byte: u8) -> u64 {
     let premium_padded = apply_padding(premium_intended, random_byte);
     floor.saturating_add(premium_padded)
 }
@@ -61,7 +57,11 @@ mod tests {
 
     #[test]
     fn test_padding_zero_byte_gives_zero() {
-        assert_eq!(apply_padding(100, 0), 100, "byte=0 harus menghasilkan padding=0");
+        assert_eq!(
+            apply_padding(100, 0),
+            100,
+            "byte=0 harus menghasilkan padding=0"
+        );
     }
 
     #[test]
@@ -77,7 +77,10 @@ mod tests {
     fn test_fee_total_with_padding() {
         // floor=40, premium=100, padding=5 (approx) → fee_total ∈ [140, 150]
         let fee = compute_fee_total_with_padding(40, 100, 128);
-        assert!(fee >= 140 && fee <= 150, "fee_total={fee} harus dalam [140,150]");
+        assert!(
+            fee >= 140 && fee <= 150,
+            "fee_total={fee} harus dalam [140,150]"
+        );
     }
 
     #[test]
@@ -88,6 +91,9 @@ mod tests {
         let fee2 = compute_fee_total_with_padding(40, 100, 200);
         // fee_total berbeda untuk random_byte berbeda
         // Observer tidak bisa tentukan mana PREMIUM_intended
-        assert_ne!(fee1, fee2, "Padding berbeda harus menghasilkan fee_total berbeda");
+        assert_ne!(
+            fee1, fee2,
+            "Padding berbeda harus menghasilkan fee_total berbeda"
+        );
     }
 }

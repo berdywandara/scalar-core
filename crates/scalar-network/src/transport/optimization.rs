@@ -1,6 +1,6 @@
 //! Modul Optimasi Transmisi & Regulasi Spektrum Radio
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy)]
 pub enum LoraRegion {
@@ -22,9 +22,9 @@ impl OptimizedPayload {
                 // Di Eropa, tidak boleh kirim file 50KB via LoRa (Melanggar Duty Cycle)
                 let mut hash = [0u8; 32];
                 let len = std::cmp::min(raw_proof.len(), 32);
-                hash[..len].copy_from_slice(&raw_proof[..len]); 
+                hash[..len].copy_from_slice(&raw_proof[..len]);
                 Self::ReferenceOnly(hash)
-            },
+            }
             LoraRegion::US915 => {
                 // Di region bebas, kirim full proof dengan kompresi biner (Zlib simulasi)
                 Self::FullCompressed(raw_proof.to_vec())
