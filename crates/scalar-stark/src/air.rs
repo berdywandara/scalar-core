@@ -5,8 +5,8 @@ use winterfell::{
     TransitionConstraintDegree,
 };
 
-// TRACE_WIDTH berevolusi menjadi 29 kolom
-pub const TRACE_WIDTH: usize = 29;
+// TRACE_WIDTH berevolusi menjadi 32 kolom untuk mengakomodasi C3 & C6
+pub const TRACE_WIDTH: usize = 32;
 
 #[derive(Clone, Debug)]
 pub struct ScalarPublicInputs {
@@ -39,18 +39,20 @@ impl Air for ScalarAir {
     type GkrVerifier = ();
 
     fn new(trace_info: TraceInfo, pub_inputs: Self::PublicInputs, options: ProofOptions) -> Self {
-        // 1 Constraint untuk C5
-        let mut degrees = vec![TransitionConstraintDegree::new(1)];
-        // 12 Constraint untuk C1 (Poseidon x^7)
-        degrees.resize(13, TransitionConstraintDegree::new(7));
-        // 12 Constraint untuk C2 (Nullifier Poseidon x^7)
-        degrees.resize(25, TransitionConstraintDegree::new(7));
-        // 2 Constraint untuk C4 (Merkle Bit bernilai kuadrat, dan Merkle Root Accumulator linear)
-        degrees.push(TransitionConstraintDegree::new(2)); 
-        degrees.push(TransitionConstraintDegree::new(1)); 
+        let mut degrees = vec![TransitionConstraintDegree::new(1)]; // C5
+        degrees.resize(13, TransitionConstraintDegree::new(7)); // C1
+        degrees.resize(25, TransitionConstraintDegree::new(7)); // C2
+        
+        degrees.push(TransitionConstraintDegree::new(2)); // C4-1
+        degrees.push(TransitionConstraintDegree::new(1)); // C4-2
+        
+        // Tambahan untuk C3 (Ownership) & C6 (Range Proof)
+        degrees.push(TransitionConstraintDegree::new(2)); // C3-1: Signature Check
+        degrees.push(TransitionConstraintDegree::new(1)); // C3-2: PK Constant
+        degrees.push(TransitionConstraintDegree::new(2)); // C6: Boolean Bit Check
         
         Self {
-            context: AirContext::new(trace_info, degrees, 5, options), // 5 Boundary Assertions
+            context: AirContext::new(trace_info, degrees, 5, options),
             pub_inputs,
         }
     }
@@ -65,40 +67,42 @@ impl Air for ScalarAir {
         _periodic_values: &[E],
         result: &mut [E],
     ) {
-        // --- CONSTRAINT C5: VALUE CONSERVATION ---
+        // --- CONSTRAINT C5 ---
         let current_v_in = frame.current()[0];
         let current_v_out = frame.current()[1];
         let current_balance = frame.current()[2];
-        let next_balance = frame.next()[2];
-        result[0] = next_balance - (current_balance + current_v_in - current_v_out);
+        result[0] = frame.next()[2] - (current_balance + current_v_in - current_v_out);
 
-        // --- CONSTRAINT C1: COMMITMENT VALIDITY (POSEIDON2) ---
+        // --- CONSTRAINT C1 & C2 ---
         for i in 0..12 {
-            let state_val = frame.current()[3 + i];
-            let x2 = state_val * state_val;
-            let x4 = x2 * x2;
-            let x6 = x4 * x2;
-            result[1 + i] = frame.next()[3 + i] - (x6 * state_val);
+            // C1
+            let state_val_c1 = frame.current()[3 + i];
+            let x6_c1 = state_val_c1 * state_val_c1 * state_val_c1 * state_val_c1 * state_val_c1 * state_val_c1;
+            result[1 + i] = frame.next()[3 + i] - (x6_c1 * state_val_c1);
+            
+            // C2
+            let state_val_c2 = frame.current()[15 + i];
+            let x6_c2 = state_val_c2 * state_val_c2 * state_val_c2 * state_val_c2 * state_val_c2 * state_val_c2;
+            result[13 + i] = frame.next()[15 + i] - (x6_c2 * state_val_c2);
         }
 
-        // --- CONSTRAINT C2: NULLIFIER INTEGRITY (POSEIDON2) ---
-        for i in 0..12 {
-            let state_val = frame.current()[15 + i];
-            let x2 = state_val * state_val;
-            let x4 = x2 * x2;
-            let x6 = x4 * x2;
-            result[13 + i] = frame.next()[15 + i] - (x6 * state_val);
-        }
-
-        // --- CONSTRAINT C4: STATE INCLUSION (MERKLE TREE PATH) ---
+        // --- CONSTRAINT C4 ---
         let root_node = frame.current()[27];
         let direction_bit = frame.current()[28];
-
-        // Constraint C4-1: Memastikan bit bernilai 0 atau 1 (bit^2 - bit = 0)
         result[25] = (direction_bit * direction_bit) - direction_bit;
-        
-        // Constraint C4-2: Memastikan Merkle Root konstan sepanjang trace
         result[26] = frame.next()[27] - root_node;
+
+        // --- CONSTRAINT C3: OWNERSHIP VALIDITY ---
+        let pk_col = frame.current()[29];
+        let sig_col = frame.current()[30];
+        // Simulasi validasi signature kuadratik (PK^2 = Sig)
+        result[27] = (pk_col * pk_col) - sig_col;
+        result[28] = frame.next()[29] - pk_col;
+
+        // --- CONSTRAINT C6: RANGE PROOF ---
+        let range_bit = frame.current()[31];
+        // Memaksa kolom range decomposition agar murni biner (x^2 - x = 0)
+        result[29] = (range_bit * range_bit) - range_bit;
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
@@ -111,7 +115,6 @@ impl Air for ScalarAir {
             Assertion::single(last_step, 0, BaseElement::ZERO),
             Assertion::single(last_step, 1, BaseElement::ZERO),
             Assertion::single(last_step, 2, fee),
-            // C4 Boundary: Mengunci nilai kolom 27 (Merkle Root) agar SAMA dengan Public SMT Root
             Assertion::single(last_step, 27, smt_root),
         ]
     }
