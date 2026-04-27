@@ -14,6 +14,12 @@ fn nullifier_to_node_hash(nullifier: &[u8; 32]) -> NodeHash {
     u64::from_le_bytes(bytes)
 }
 
+impl Default for NullifierSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NullifierSet {
     pub fn new() -> Self {
         Self {

@@ -238,7 +238,7 @@ pub fn step6_mint_claim_gate(
             };
 
             // Step 6: Update EmissionAccumulator SEBELUM gate dibuka
-            if let Err(_) = emission_acc.commit_epoch(output.emission_amount) {
+            if emission_acc.commit_epoch(output.emission_amount).is_err() {
                 return MintClaimGate::Closed {
                     reason: "Step6: supply cap terlampaui saat commit emission",
                 };
