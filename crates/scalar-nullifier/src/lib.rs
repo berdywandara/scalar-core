@@ -1,16 +1,7 @@
-//! Core Nullifier & SMT Management for Scalar Network
+// File: crates/scalar-nullifier/src/lib.rs
 
-pub mod delta_sync;
-pub mod nullifier_set;
+pub mod bloom;
+pub mod hierarchical;
 pub mod smt;
 
-#[derive(Debug, PartialEq)]
-pub enum NullifierError {
-    AlreadyExists,
-    InvalidProof,
-    NotFound,
-}
-
-pub use delta_sync::DeltaSyncMessage;
-pub use nullifier_set::NullifierSet;
-pub use smt::{NodeHash, ScalarSMT};
+pub use hierarchical::{HierarchicalNullifierSet, NullifierLookupResult};
