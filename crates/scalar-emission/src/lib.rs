@@ -36,3 +36,5 @@ pub enum EmissionError {
     #[error("Node tidak memenuhi threshold uptime minimum (30%)")]
     BelowUptimeThreshold,
 }
+pub mod equity_boost;
+pub mod longevity;
