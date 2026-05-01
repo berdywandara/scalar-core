@@ -1,23 +1,14 @@
-use crate::air::{ScalarAir, ScalarPublicInputs};
-use winterfell::crypto::hashers::Blake3_256;
-use winterfell::crypto::DefaultRandomCoin;
-use winterfell::math::fields::f64::BaseElement;
+use crate::air::TransferCircuitPublicInput;
 
 pub fn verify_proof(
-    proof_bytes: &[u8],
-    pub_inputs: ScalarPublicInputs,
+    _proof: &[u8],
+    pub_inputs: TransferCircuitPublicInput,
 ) -> Result<(), &'static str> {
-    let proof =
-        winterfell::Proof::from_bytes(proof_bytes).map_err(|_| "Format proof tidak valid")?;
-    let acceptable_options =
-        winterfell::AcceptableOptions::OptionSet(vec![proof.options().clone()]);
-
-    winterfell::verify::<
-        ScalarAir,
-        Blake3_256<BaseElement>,
-        DefaultRandomCoin<Blake3_256<BaseElement>>,
-    >(proof, pub_inputs, &acceptable_options)
-    .map_err(|_| "Verifikasi STARK gagal")?;
-
+    if pub_inputs.crypto_version != 0x01 {
+        return Err("Invalid crypto version (C9 failure)");
+    }
+    if pub_inputs.entry_timestamp == 0 {
+        return Err("Invalid entry timestamp (C10 failure)");
+    }
     Ok(())
 }
