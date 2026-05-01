@@ -21,3 +21,4 @@ pub use hybrid_hash::{compute_circuit_nullifier, compute_network_nullifier};
 pub use ml_kem::{decapsulate_ml_kem, encapsulate_ml_kem, MlKemKeyPair};
 pub use poseidon2::hash_2_to_1;
 pub use sphincs::{generate_keypair, sign_message, verify_signature, ScalarKeyPair};
+pub mod version;
