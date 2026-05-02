@@ -1,13 +1,10 @@
 {
   "name": "Scalar Network Core",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
-  },
+  "image": "mcr.microsoft.com/devcontainers/rust:latest",
   "features": {
     "ghcr.io/devcontainers/features/rust:1": {
-      "version": "1.82.0",
-      "profile": "minimal"
+      "version": "stable",
+      "profile": "default"
     }
   },
   "customizations": {
