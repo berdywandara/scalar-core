@@ -3,3 +3,4 @@
 pub mod hybrid_hash;
 pub mod ml_kem;
 pub mod poseidon2;
+pub mod version;
