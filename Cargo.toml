@@ -1,6 +1,7 @@
 # Cargo.toml (workspace root)
 [workspace]
 members = [
+    "crates/scalar-compliance",
     "crates/scalar-crypto",
     "crates/scalar-stark",
     "crates/scalar-nullifier",
