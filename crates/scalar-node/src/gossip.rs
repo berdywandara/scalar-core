@@ -34,8 +34,8 @@ pub struct ScalarGossipMessage {
     pub sender_signature: Vec<u8>,
 }
 
-use scalar_stark::verifier::verify_proof;
 use scalar_stark::air::ScalarPublicInputs;
+use scalar_stark::verifier::verify_proof;
 
 // Helper untuk konversi byte ke u64 (Goldilocks Field compatible)
 fn bytes_to_u64_le(bytes: &[u8; 32]) -> u64 {
@@ -56,11 +56,11 @@ impl ScalarGossipMessage {
         // 2. Persiapkan Public Inputs untuk STARK Verifier
         // SMT Root dari pesan digunakan sebagai jangkar validasi (Anchor)
         let current_root_u64 = bytes_to_u64_le(&self.smt_root);
-        
+
         let pub_inputs = ScalarPublicInputs {
             genesis_smt_root: 0, // Placeholder: Di produksi diisi genesis root asli
             current_nullifier_smt_root: current_root_u64,
-            fee_value: 0,        // Placeholder: Diambil dari metadata transaksi jika ada
+            fee_value: 0, // Placeholder: Diambil dari metadata transaksi jika ada
             timestamp: self.timestamp,
         };
 

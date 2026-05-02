@@ -1,9 +1,9 @@
 //! Otak Eksekusi Scalar Core Node
 //! Menggabungkan State Machine, Consensus, RPC Server, dan P2P Network dalam satu runtime asinkron.
 
+use scalar_consensus::ConsensusEngine;
 use scalar_node::api::LocalRpcServer;
 use scalar_node::state_machine::NodeStateMachine;
-use scalar_consensus::ConsensusEngine;
 use std::sync::{Arc, Mutex};
 use tokio::time::{sleep, Duration};
 
@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("==================================================");
 
     // 5. Siklus Hidup Abadi (The Event Loop)
-    // Di produksi penuh, ini akan menggunakan `tokio::select!` untuk 
+    // Di produksi penuh, ini akan menggunakan `tokio::select!` untuk
     // menangkap I/O dari P2P swarm (Gossip) dan RPC secara konkuren.
     loop {
         // Simulasi detak jantung node (Heartbeat) setiap 5 detik
@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut sm = state_machine.lock().unwrap();
         // Update status bahwa node terhubung ke internet dan berhasil sinkronisasi
         sm.update_network_sensor(true, true);
-        
+
         /* * ---------------------------------------------------------
          * ALUR EKSEKUSI GOSSIP PROTOCOL & STARK VERIFICATION (PR-CS-09)
          * ---------------------------------------------------------

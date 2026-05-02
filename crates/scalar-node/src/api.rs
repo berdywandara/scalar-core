@@ -37,8 +37,8 @@ impl LocalRpcServer {
 
         // Loop blocking — ini dijalankan dari spawn_blocking sehingga aman
         for stream in listener.incoming().flatten() {
-                // Setiap koneksi ditangani di thread terpisah agar server tidak blocking
-                std::thread::spawn(|| Self::handle_http(stream));
+            // Setiap koneksi ditangani di thread terpisah agar server tidak blocking
+            std::thread::spawn(|| Self::handle_http(stream));
         }
     }
 
