@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 scalar-emission = { path = "../scalar-emission" }
 scalar-fees = { path = "../scalar-fees" }
+scalar-wallet-core = { path = "../scalar-wallet-core" }
