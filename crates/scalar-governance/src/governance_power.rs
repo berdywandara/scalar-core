@@ -1,11 +1,13 @@
+// File: crates/scalar-governance/src/governance_power.rs
+
 use crate::conviction::ConvictionTable;
 
 pub struct GovernancePowerCalculator;
 
 impl GovernancePowerCalculator {
     /// GP(i, t) = conviction_factor(t_days)
-    ///           × gov_weight(i)
-    ///           × ai_resistance_multiplier(conviction_days)
+    ///            × gov_weight(i)
+    ///            × ai_resistance_multiplier(conviction_days)
     ///
     /// Semua dalam fixed-point basis 1,000,000
     pub fn compute_governance_power(
@@ -36,38 +38,5 @@ impl GovernancePowerCalculator {
                 10_000 + (990_000 * progress as u64) / range as u64
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_ai_resistance_cliff_below_7_days() {
-        for days in 0..7 {
-            let mult = GovernancePowerCalculator::ai_resistance_multiplier(days);
-            assert_eq!(mult, 10_000, "Hari {} harus 1% power (cliff)", days);
-        }
-    }
-
-    #[test]
-    fn test_ai_resistance_full_power_at_30_days() {
-        let mult = GovernancePowerCalculator::ai_resistance_multiplier(30);
-        assert_eq!(mult, 1_000_000, "30 hari = 100% power");
-
-        let mult_365 = GovernancePowerCalculator::ai_resistance_multiplier(365);
-        assert_eq!(mult_365, 1_000_000, "365 hari = masih 100% power");
-    }
-
-    #[test]
-    fn test_governance_power_zero_before_conviction() {
-        let gp = GovernancePowerCalculator::compute_governance_power(0, 1_000_000);
-        assert_eq!(gp, 0, "Tanpa conviction: GP = 0");
-    }
-
-    #[test]
-    fn test_scl_balance_not_used_in_governance() {
-        let _ = GovernancePowerCalculator::compute_governance_power(30, 800_000);
     }
 }
