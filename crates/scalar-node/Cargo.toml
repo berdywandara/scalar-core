@@ -5,6 +5,11 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+[features]
+# production: aktifkan Argon2id 4 GB RAM sesuai spec §2.1
+# JANGAN aktifkan di Codespace — akan OOM crash
+production = []
+
 [dependencies]
 scalar-crypto = { path = "../scalar-crypto" }
 scalar-nullifier = { path = "../scalar-nullifier" }
