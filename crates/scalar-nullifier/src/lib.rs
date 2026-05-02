@@ -2,6 +2,6 @@
 
 pub mod bloom;
 pub mod hierarchical;
+pub mod nullifier_set;
+pub mod recursive;
 pub mod smt;
-
-pub use hierarchical::{HierarchicalNullifierSet, NullifierLookupResult};
