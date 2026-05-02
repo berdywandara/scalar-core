@@ -11,3 +11,4 @@ scalar-crypto = { path = "../scalar-crypto" }
 scalar-nullifier = { path = "../scalar-nullifier" }
 winterfell.workspace = true
 thiserror.workspace = true
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
