@@ -53,7 +53,23 @@ The constraints were real. The vision was equally real. One did not cancel the o
 
 ### Role in This Project
 
-Berdy's role in Scalar Network is **Visionary and System Architect**. He designed the conceptual framework, the cryptographic protocol decisions, the network architecture, the wallet UX philosophy, and the governance model. The implementation was carried out by a development team working from his specifications.
+Berdy's role in Scalar Network is **Visionary, System Architect, and Solo Developer**. He designed the conceptual framework, the cryptographic protocol decisions, the network architecture, the wallet UX philosophy, and the governance model — and then built it himself.
+
+There was no development team. Every line of specification, every architectural decision, and every implementation was the work of one person, working alone, leveraging AI as a force multiplier — not as a replacement for engineering judgment, but as a tool to close the gap between a solo developer's time and the scope of what needed to be built. The protocol design remained entirely his. The AI executed. He directed, reviewed, and owned every decision.
+
+This is what it looks like when individual leverage meets a problem that actually needs solving.
+
+> *"Truth by Mathematics, Not by Majority."*
+>
+> This is not a slogan. It is the answer to the question I started with:
+> how do you build something that does not require you to trust anyone —
+> not the founder, not the validators, not the majority — and holds
+> that property mathematically, permanently, regardless of who runs it?
+> The answer is a system where validity is proven, not agreed upon.
+> Where the mathematics speaks for itself. Where no key exists
+> that anyone — including me — can use to override it.
+>
+> — **Berdy Wandara**
 
 Per the leaderless principle embedded in Scalar's design, this attribution is purely historical. Berdy holds no founder allocation, no protocol-level privilege, and no veto over future governance. The network, once live, belongs to its mathematics — not to any individual.
 
@@ -61,17 +77,34 @@ Per the leaderless principle embedded in Scalar's design, this attribution is pu
 
 ### Attribution Notice
 
-```
-Scalar Network — original concept, architecture, and design:
-  Berdy Wandara, Indonesia, 2024–2025
+    Scalar Network — original concept, architecture, and design:
+      Berdy Wandara, Indonesia, 2024-2026
 
-"The most dangerous assumption in cryptography
- is that the hard problem you rely on will stay hard."
-                                        — Berdy Wandara
-```
+    "The most dangerous assumption in cryptography
+     is that the hard problem you rely on will stay hard."
+                                            — Berdy Wandara
 
 ---
 
-*Per the leaderless principle of the Scalar Network protocol, this attribution
-is purely historical and confers no special allocation or privilege within
-the running network. Zero percent founder allocation.*
+## Contributors
+
+Contributors are individuals who have submitted code, tests, documentation, or tooling
+that has been merged into this repository. All merged contributions are credited here.
+
+*This section will be updated as contributions are received.*
+
+---
+
+## Security Researchers
+
+The following individuals have responsibly disclosed security vulnerabilities
+in Scalar Network and are credited for their contribution to the protocol's integrity.
+See SECURITY.md for the responsible disclosure policy.
+
+*This section will be updated as verified disclosures are received.*
+
+---
+
+*Per the leaderless principle of the Scalar Network protocol, all attributions in this
+file are purely historical and confer no special allocation or privilege within the
+running network. Zero percent founder allocation.*
