@@ -3,6 +3,7 @@
 // Parameter OSSIFIED v5.0 berdasarkan Scalar_Master_Technical_Spec v5.0.
 // Parameter ini bersifat final dan tidak dapat diubah tanpa hard fork.
 // Sumber kebenaran: §2.6, §4.4, §6, §7, §9, §12, §18.1
+use scalar_emission::liveness::{W_MATURE_EPOCHS, W_MATURE, EXPECTED_HEARTBEATS_PER_EPOCH};
 
 // ── §2.6 CryptoVersion Registry ─────────────────────────────────────
 /// T_TRANSITION_EPOCHS: selama 2 epoch, kedua versi (lama+baru) valid.
@@ -109,4 +110,30 @@ mod tests {
     fn test_v5_e0_sscl() {
         assert_eq!(V5_E0_SSCL, 12_600_000_000_000u64);
     }
+}
+
+// ── §7.4 Maturity Constants ───────────────────────────────────────────────────
+
+#[test]
+fn test_w_mature_epochs_ossified() {
+    // Spec §7.4: W_MATURE_EPOCHS = 6. OSSIFIED.
+    assert_eq!(W_MATURE_EPOCHS, 6u64);
+}
+
+#[test]
+fn test_w_mature_value_ossified() {
+    // Spec §7.4: W_MATURE = 6 × 4_320 × 1_000_000 = 25_920_000_000. OSSIFIED.
+    assert_eq!(
+        W_MATURE,
+        25_920_000_000u64
+    );
+}
+
+#[test]
+fn test_expected_heartbeats_per_epoch_ossified() {
+    // Spec §7.7: EXPECTED_HEARTBEATS_PER_EPOCH = 4_320. OSSIFIED.
+    assert_eq!(
+        EXPECTED_HEARTBEATS_PER_EPOCH,
+        4_320u32
+    );
 }
