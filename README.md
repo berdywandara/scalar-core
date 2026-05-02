@@ -7,6 +7,13 @@ Scalar Network is post-quantum digital cash designed to last 100 years. No block
 
 ---
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE-MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE-APACHE)
+
+[README](README.md) · [AUTHORS](AUTHORS.md) · [CONTRIBUTING](CONTRIBUTING.md) · [SECURITY](SECURITY.md) · [LICENSE](LICENSE)
+
+---
+
 ## What Makes Scalar Different
 
 | Property | How It Works |
