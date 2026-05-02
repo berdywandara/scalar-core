@@ -1,22 +1,8 @@
 [package]
 name = "scalar-wallet-core"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-rust-version.workspace = true
+version = "0.1.0"
+edition = "2021"
 
 [dependencies]
-scalar-crypto = { path = "../scalar-crypto" }
-scalar-nullifier = { path = "../scalar-nullifier" }
-scalar-stark = { version = "0.1.0", path = "../scalar-stark" }
-
-bip39 = "2.0"       
-hmac = "0.12"       
-sha2 = "0.10"       
-rand_core = { version = "0.6", features = ["getrandom"] } # Solusi keamanan OS
-wasm-bindgen.workspace = true
-thiserror.workspace = true
-rand = "0.9.4"
-hex = "0.4.3"
-scalar-network = { version = "0.1.0", path = "../scalar-network" }
-winterfell = "0.9.0"
+blake3 = "1.8.4"
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
