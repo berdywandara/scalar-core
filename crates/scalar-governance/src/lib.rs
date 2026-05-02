@@ -1,5 +1,6 @@
 // File: crates/scalar-governance/src/lib.rs
 
+pub mod ai_resistance;
 pub mod conviction;
 pub mod governance_id;
 pub mod governance_power;
