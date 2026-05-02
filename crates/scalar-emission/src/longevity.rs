@@ -1,39 +1,34 @@
 // File: crates/scalar-emission/src/longevity.rs
 
-pub struct LongevityCalculator {
-    epochs_per_year: u64,
-    max_boost_fp: u64,
+pub const FIXED_POINT_BASIS: u64 = 1_000_000;
+pub const MAX_LONGEVITY_YEARS: u64 = 50;
+
+pub fn compute_longevity_multiplier(years: u64) -> u64 {
+    let capped_years = years.min(MAX_LONGEVITY_YEARS);
+    // 1 tahun = 1% bonus (10_000 dalam fixed point)
+    let bonus = capped_years * 10_000;
+    FIXED_POINT_BASIS + bonus
 }
 
-impl LongevityCalculator {
-    pub fn new() -> Self {
-        Self {
-            epochs_per_year: 12,
-            max_boost_fp: 500_000, // 50%
-        }
-    }
-
-    pub fn compute_longevity_years(&self, current_epoch: u64, registration_epoch: u64) -> u64 {
-        if current_epoch < registration_epoch {
-            return 0;
-        }
-        (current_epoch - registration_epoch) / self.epochs_per_year
-    }
-
-    pub fn compute_longevity_boost_factor(&self, longevity_years: u64) -> u64 {
-        let boost = longevity_years * 10_000;
-        boost.min(self.max_boost_fp)
-    }
-
-    pub fn compute_longevity_boost_sscl(&self, base_pou_sscl: u64, longevity_years: u64) -> u64 {
-        let boost_factor = self.compute_longevity_boost_factor(longevity_years);
-        (base_pou_sscl * boost_factor) / 1_000_000
-    }
+pub struct LongevityResult {
+    pub base_reward: u64,
+    pub longevity_bonus: u64,
+    pub remaining_fee_pool: u64,
 }
 
-impl Default for LongevityCalculator {
-    fn default() -> Self {
-        Self::new()
+pub fn apply_longevity_bonus(base_reward: u64, fee_pool: u64, years: u64) -> LongevityResult {
+    let multiplier = compute_longevity_multiplier(years);
+    let bonus_ratio = multiplier.saturating_sub(FIXED_POINT_BASIS);
+
+    let target_bonus = (base_reward * bonus_ratio) / FIXED_POINT_BASIS;
+    let actual_bonus = target_bonus.min(fee_pool); // Memastikan diambil dari fee pool
+
+    let remaining_fee_pool = fee_pool.saturating_sub(actual_bonus);
+
+    LongevityResult {
+        base_reward,
+        longevity_bonus: actual_bonus,
+        remaining_fee_pool,
     }
 }
 
@@ -43,25 +38,30 @@ mod tests {
 
     #[test]
     fn test_longevity_5_years_gives_5_percent() {
-        let calc = LongevityCalculator::new();
-        let boost_factor = calc.compute_longevity_boost_factor(5);
-        assert_eq!(boost_factor, 50_000);
+        let multiplier = compute_longevity_multiplier(5);
+        assert_eq!(multiplier, 1_050_000); // 1.05x (5%)
     }
 
     #[test]
     fn test_longevity_50_years_capped_at_50_percent() {
-        let calc = LongevityCalculator::new();
-        let boost_50 = calc.compute_longevity_boost_factor(50);
-        let boost_100 = calc.compute_longevity_boost_factor(100);
-        assert_eq!(boost_50, 500_000);
-        assert_eq!(boost_100, 500_000);
+        let multiplier_50 = compute_longevity_multiplier(50);
+        let multiplier_100 = compute_longevity_multiplier(100);
+
+        assert_eq!(multiplier_50, 1_500_000); // 1.50x
+        assert_eq!(multiplier_100, 1_500_000); // Capped di 1.50x
     }
 
     #[test]
     fn test_longevity_from_fee_pool_not_new_supply() {
-        let base_pou = 1_000_000u64;
-        let calc = LongevityCalculator::new();
-        let boost = calc.compute_longevity_boost_sscl(base_pou, 50);
-        assert_eq!(boost, 500_000);
+        let base_reward = 100_000;
+        let fee_pool = 2_000; // Fee pool tidak cukup untuk bayar seluruh bonus (target 5_000)
+        let years = 5; // 5% bonus target
+
+        let result = apply_longevity_bonus(base_reward, fee_pool, years);
+
+        assert_eq!(result.base_reward, 100_000);
+        // Bonus harus mentok di sisa fee_pool agar tidak mencetak token baru
+        assert_eq!(result.longevity_bonus, 2_000);
+        assert_eq!(result.remaining_fee_pool, 0);
     }
 }
