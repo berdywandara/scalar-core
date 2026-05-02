@@ -6,3 +6,4 @@ pub mod liveness;
 pub mod longevity;
 pub mod manifest;
 pub mod pou;
+pub mod slashing;
