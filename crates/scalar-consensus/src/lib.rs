@@ -1,11 +1,13 @@
-//! GAP A-004: Consensus Engine Refactor
-//! Menghapus HashSet mandiri dan menggunakan ScalarSMT sebagai Single Source of Truth.
+// File: crates/scalar-consensus/src/lib.rs
+//
+// Consensus Engine — Spec §10
+// Single Source of Truth: SparseMerkleTree sebagai NullifierSet.
 
-use scalar_nullifier::smt::ScalarSMT;
+use scalar_nullifier::smt::SparseMerkleTree;
 
 pub struct ConsensusEngine {
     /// Single Source of Truth untuk state transaksi
-    pub nullifier_set: ScalarSMT,
+    pub nullifier_set: SparseMerkleTree,
 }
 
 impl Default for ConsensusEngine {
@@ -17,24 +19,49 @@ impl Default for ConsensusEngine {
 impl ConsensusEngine {
     pub fn new() -> Self {
         Self {
-            nullifier_set: ScalarSMT::new(),
+            nullifier_set: SparseMerkleTree::new(),
         }
     }
 
-    /// Memverifikasi kebenaran matematis (Truth by Mathematics, not Majority)
-    pub fn verify_mathematical_truth(
-        &mut self,
-        nullifier_index: u64,
-        nullifier_hash: u64,
-    ) -> Result<(), &'static str> {
-        // 1. Cek apakah nullifier sudah ada (Double Spend Prevention)
-        if self.nullifier_set.contains(nullifier_index) {
-            return Err("REJECTED: Transaksi Double Spend Terdeteksi (Nullifier sudah ada di SMT)");
+    /// Verifikasi kebenaran matematis (Truth by Mathematics, not Majority).
+    /// nullifier: N_network = BLAKE3(N_circuit) dalam format [u8; 32].
+    pub fn verify_mathematical_truth(&mut self, nullifier: &[u8; 32]) -> Result<(), &'static str> {
+        // 1. Cek double spend — nullifier sudah ada?
+        if self.nullifier_set.contains(nullifier) {
+            return Err("REJECTED: Double Spend — nullifier sudah ada di SMT");
         }
 
-        // 2. Jika valid secara matematis, masukkan ke SMT
-        self.nullifier_set.insert(nullifier_index, nullifier_hash);
+        // 2. Valid secara matematis — insert ke SMT
+        self.nullifier_set.insert(nullifier);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_first_nullifier_accepted() {
+        let mut engine = ConsensusEngine::new();
+        let nullifier = [1u8; 32];
+        assert!(engine.verify_mathematical_truth(&nullifier).is_ok());
+    }
+
+    #[test]
+    fn test_double_spend_rejected() {
+        let mut engine = ConsensusEngine::new();
+        let nullifier = [2u8; 32];
+        engine.verify_mathematical_truth(&nullifier).unwrap();
+        assert!(engine.verify_mathematical_truth(&nullifier).is_err());
+    }
+
+    #[test]
+    fn test_different_nullifiers_accepted() {
+        let mut engine = ConsensusEngine::new();
+        assert!(engine.verify_mathematical_truth(&[1u8; 32]).is_ok());
+        assert!(engine.verify_mathematical_truth(&[2u8; 32]).is_ok());
+        assert!(engine.verify_mathematical_truth(&[3u8; 32]).is_ok());
     }
 }
