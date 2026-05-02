@@ -11,6 +11,7 @@ pub const RHO: u64 = 3_000; // Evaporation rate 0.003 per detik
 pub struct PheromoneState {
     /// Pheromone level per candidate root (Semua kalkulasi fixed-point u64)
     pheromones: HashMap<[u8; 32], u64>,
+    #[allow(dead_code)]
     last_update: std::time::Instant,
 
     // Mock waktu untuk testing deterministik (evaporation tanpa delay sungguhan)
