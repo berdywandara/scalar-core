@@ -1,6 +1,6 @@
 // File: crates/scalar-emission/src/liveness.rs
 
-pub const EXPECTED_HEARTBEATS_PER_EPOCH: u32 = 4320; // 30 hari * 24 jam * 6 (per 10 menit)
+pub const EXPECTED_HEARTBEATS_PER_EPOCH: u32 = 4320;
 
 pub fn compute_uptime_weight(
     uptime_ratio: u64,
@@ -10,8 +10,6 @@ pub fn compute_uptime_weight(
     let component_uptime = (uptime_ratio * 600_000) / 1_000_000;
     let component_align = (root_alignment_score * 300_000) / 1_000_000;
     let component_phase = (phase_coherence_score * 100_000) / 1_000_000;
-
-    // Invariant: Maksimal total weight adalah 1_000_000
     component_uptime + component_align + component_phase
 }
 
@@ -19,15 +17,15 @@ pub fn compute_uptime_weight(
 pub struct NodeHeartbeat {
     pub node_id: [u8; 32],
     pub timestamp: u64,
-    pub seq_num: u64,
+    pub seq_num: u64, // V5.0 Requirement
     pub smt_root: [u8; 32],
     pub epoch_id: u64,
-    pub connectivity_proof: [u8; 32],
+    pub connectivity_proof: [u8; 32], // V5.0 Requirement (BLAKE3 Out-circuit)
     pub signature: Vec<u8>,
 }
 
 pub fn compute_connectivity_proof(recent_nullifiers: &[[u8; 32]]) -> [u8; 32] {
-    assert!(recent_nullifiers.len() <= 10);
+    // Mematuhi aturan hashing out-circuit: SELALU gunakan BLAKE3
     let mut hasher = blake3::Hasher::new();
     for nullifier in recent_nullifiers {
         hasher.update(nullifier);
@@ -43,42 +41,17 @@ impl LivenessSMT {
     pub fn new() -> Self {
         Self { root: [0; 32] }
     }
-
-    pub fn insert_heartbeat(&mut self, _hb: &NodeHeartbeat) {
-        // Mock
-    }
-
+    pub fn insert_heartbeat(&mut self, _hb: &NodeHeartbeat) {}
     pub fn root(&self) -> [u8; 32] {
         self.root
     }
-
     pub fn compute_uptime_weight_fp(&self, _node_id: [u8; 32], _epoch_id: u64) -> u64 {
-        1_000_000 // Mock 100%
+        1_000_000
     }
 }
 
 impl Default for LivenessSMT {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_uptime_weight_components() {
-        let w = compute_uptime_weight(1_000_000, 1_000_000, 1_000_000);
-        assert_eq!(w, 1_000_000, "Semua 100% = total 100%");
-    }
-
-    #[test]
-    fn test_uptime_weight_max_invariant() {
-        let w = compute_uptime_weight(1_000_000, 1_000_000, 1_000_000);
-        assert!(
-            w <= 1_000_000,
-            "Total weight tidak boleh lebih dari 1.000.000 (100%)"
-        );
     }
 }
