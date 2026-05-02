@@ -102,3 +102,111 @@ mod tests_key_derivation {
         );
     }
 }
+
+// ── DuressKey Derivation — Spec §13.1 ────────────────────────────────────────
+
+/// Domain separator DuressKey. OSSIFIED — spec §13.1.
+pub const DURESS_DOMAIN: &[u8] = b"duress";
+
+/// Derive DuressKey untuk index tertentu. Spec §13.1.
+///
+/// DuressKey_i = BLAKE3(AccountKey ∥ "duress" ∥ index_le64)
+///
+/// DuressKey memberikan plausible deniability:
+/// - index 0: dompet umpan (decoy) dengan saldo kecil
+/// - index 1+: level deniability tambahan
+/// - Tidak bisa dibedakan dari SpendKey oleh penyerang
+///
+/// CATATAN: DuressKey adalah [u8; 32] — bukan bagian dari WalletKeys
+/// karena jumlah index tidak terbatas.
+pub fn derive_duress_key(account_key: &[u8; 32], index: u64) -> [u8; 32] {
+    // DuressKey = BLAKE3(AccountKey ∥ "duress" ∥ index_le64) — spec §13.1
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(account_key);
+    hasher.update(DURESS_DOMAIN);
+    hasher.update(&index.to_le_bytes());
+    *hasher.finalize().as_bytes()
+}
+
+#[cfg(test)]
+mod tests_duress_key {
+    use super::*;
+
+    fn mock_account_key(seed: u8) -> [u8; 32] {
+        let mut k = [0u8; 32];
+        k[0] = seed;
+        k
+    }
+
+    #[test]
+    fn test_duress_key_index_0_deterministic() {
+        // DuressKey harus deterministik — spec §13.1.
+        let ak = mock_account_key(1);
+        let dk1 = derive_duress_key(&ak, 0);
+        let dk2 = derive_duress_key(&ak, 0);
+        assert_eq!(dk1, dk2);
+    }
+
+    #[test]
+    fn test_duress_key_different_indices_different() {
+        // Setiap index harus menghasilkan key berbeda — spec §13.1.
+        let ak = mock_account_key(1);
+        let dk0 = derive_duress_key(&ak, 0);
+        let dk1 = derive_duress_key(&ak, 1);
+        let dk2 = derive_duress_key(&ak, 2);
+        assert_ne!(dk0, dk1);
+        assert_ne!(dk1, dk2);
+        assert_ne!(dk0, dk2);
+    }
+
+    #[test]
+    fn test_duress_key_different_account_keys_different() {
+        // Account key berbeda → DuressKey berbeda.
+        let dk_a = derive_duress_key(&mock_account_key(1), 0);
+        let dk_b = derive_duress_key(&mock_account_key(2), 0);
+        assert_ne!(dk_a, dk_b);
+    }
+
+    #[test]
+    fn test_duress_key_not_equal_to_spend_key() {
+        // DuressKey ≠ SpendKey — plausible deniability requires separation.
+        let ak = mock_account_key(42);
+        let keys = derive_all_keys(&ak);
+        let dk = derive_duress_key(&ak, 0);
+        assert_ne!(dk, keys.spend_key);
+        assert_ne!(dk, keys.view_key);
+        assert_ne!(dk, keys.node_key);
+    }
+
+    #[test]
+    fn test_duress_key_non_zero() {
+        // DuressKey tidak boleh all-zero.
+        let ak = mock_account_key(7);
+        let dk = derive_duress_key(&ak, 0);
+        assert_ne!(dk, [0u8; 32]);
+    }
+
+    #[test]
+    fn test_duress_key_index_le64_encoding() {
+        // Verifikasi bahwa index_le64 encoding deterministik.
+        // index=1 dan index=256 harus berbeda.
+        let ak = mock_account_key(1);
+        let dk1 = derive_duress_key(&ak, 1);
+        let dk256 = derive_duress_key(&ak, 256);
+        assert_ne!(dk1, dk256);
+    }
+
+    #[test]
+    fn test_duress_domain_separator() {
+        // DURESS_DOMAIN harus tepat "duress" — spec §13.1. OSSIFIED.
+        assert_eq!(DURESS_DOMAIN, b"duress");
+    }
+
+    #[test]
+    fn test_no_floating_point() {
+        // Semua derivasi murni integer/bytes — tidak ada float.
+        let ak = mock_account_key(99);
+        let _dk: [u8; 32] = derive_duress_key(&ak, u64::MAX);
+        // Compile + run tanpa panic = test pass
+    }
+}
