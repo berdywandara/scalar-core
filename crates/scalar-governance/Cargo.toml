@@ -4,6 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-scalar-crypto = { path = "../scalar-crypto" }
 blake3 = "1.8.4"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }

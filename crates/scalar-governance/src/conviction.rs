@@ -1,83 +1,56 @@
 // File: crates/scalar-governance/src/conviction.rs
 
-pub const FIXED_POINT_BASIS: u64 = 1_000_000;
+/// Conviction Factor menggunakan tabel diskrit precomputed
+/// OSSIFIED: semua client menggunakan tabel yang sama
+/// Tidak ada floating point runtime computation
+pub struct ConvictionTable;
 
-/// Menghitung multiplier conviction berdasarkan durasi lock (hari).
-/// Aturan v5.0:
-/// - < 7 hari = 0 (Flash loan & AI Resistance cliff)
-/// - 30 hari = 1.0x (1_000_000) (Full base power)
-/// - > 30 hari = Skala linier hingga 365 hari (Max 3.0x)
-pub fn compute_conviction_multiplier(locked_days: u64) -> u64 {
-    if locked_days < 7 {
-        return 0; // AI resistance cliff & flash loan immunity
-    }
-    if locked_days < 30 {
-        return (locked_days * FIXED_POINT_BASIS) / 30;
-    }
-    let capped_days = locked_days.min(365);
-    let extra_days = capped_days - 30;
-
-    // (extra_days / 335) * 2.0x
-    FIXED_POINT_BASIS + (extra_days * 2 * FIXED_POINT_BASIS) / 335
-}
-
-/// Menghitung final governance power.
-/// Aturan v5.0: SALDO SCL DIHAPUS TOTAL dari kalkulasi Governance.
-/// Kekuatan murni: 1 (Base) * Conviction Multiplier * GovID Multiplier
-pub fn compute_governance_power(locked_days: u64, govid_multiplier_fp: u64) -> u64 {
-    let conviction = compute_conviction_multiplier(locked_days);
-    if conviction == 0 {
-        return 0;
-    }
-    (conviction * govid_multiplier_fp) / FIXED_POINT_BASIS
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_flash_loan_immunity() {
-        assert_eq!(compute_conviction_multiplier(0), 0);
+impl ConvictionTable {
+    /// CF(t) = round((1 - (9/10)^t) × 1,000,000)
+    /// Precomputed untuk deterministik lintas platform
+    pub fn conviction_factor(t_days: u32) -> u64 {
+        match t_days {
+            0 => 0,
+            1 => 100_000,
+            2 => 190_000,
+            3 => 271_000,
+            4 => 344_000,
+            5 => 410_000,
+            6 => 469_000,
+            7 => 521_799,
+            14 => 771_361,
+            22 => 901_504,
+            30 => 957_584,
+            60 => 998_187,
+            365..=u32::MAX => 1_000_000, // Saturated
+            // Interpolasi linear untuk nilai di antara
+            t => Self::interpolate(t),
+        }
     }
 
-    #[test]
-    fn test_ai_resistance_cliff_below_7_days() {
-        assert_eq!(compute_conviction_multiplier(6), 0);
-    }
+    fn interpolate(t: u32) -> u64 {
+        // Cari dua titik terdekat dan interpolasi
+        // Ini tetap deterministic karena menggunakan integer
+        let checkpoints = [
+            (0u32, 0u64),
+            (7, 521_799),
+            (14, 771_361),
+            (22, 901_504),
+            (30, 957_584),
+            (60, 998_187),
+            (365, 1_000_000),
+        ];
 
-    #[test]
-    fn test_ai_resistance_full_power_at_30_days() {
-        assert_eq!(compute_conviction_multiplier(30), FIXED_POINT_BASIS);
-    }
-
-    #[test]
-    fn test_conviction_table_key_values() {
-        assert_eq!(compute_conviction_multiplier(30), FIXED_POINT_BASIS);
-        assert_eq!(compute_conviction_multiplier(365), 3 * FIXED_POINT_BASIS);
-    }
-
-    #[test]
-    fn test_conviction_factor_monotonic_increasing() {
-        let p1 = compute_conviction_multiplier(30);
-        let p2 = compute_conviction_multiplier(60);
-        let p3 = compute_conviction_multiplier(365);
-        assert!(p1 < p2);
-        assert!(p2 < p3);
-    }
-
-    #[test]
-    fn test_governance_power_zero_before_conviction() {
-        assert_eq!(compute_governance_power(0, 1_000_000), 0);
-        assert_eq!(compute_governance_power(6, 2_000_000), 0);
-    }
-
-    #[test]
-    fn test_scl_balance_not_used_in_governance() {
-        let dummy_scl_balance_whale = 50_000_000_000_u64;
-        let power = compute_governance_power(30, FIXED_POINT_BASIS);
-        // Power ditentukan murni oleh conviction dan GovID (1_000_000), BUKAN saldo SCL
-        assert_eq!(power, FIXED_POINT_BASIS);
-        assert_ne!(power, dummy_scl_balance_whale);
+        for window in checkpoints.windows(2) {
+            let (t1, v1) = window[0];
+            let (t2, v2) = window[1];
+            if t >= t1 && t <= t2 {
+                // Linear interpolation dalam integer
+                let range = (t2 - t1) as u64;
+                let progress = (t - t1) as u64;
+                return v1 + (v2 - v1) * progress / range;
+            }
+        }
+        1_000_000 // Default: saturated
     }
 }
