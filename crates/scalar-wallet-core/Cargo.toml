@@ -4,5 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+pbkdf2 = { version = "0.12", features = ["hmac"] }
+sha3 = "0.10"
+hmac = "0.12"
 blake3 = "1.8.4"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
