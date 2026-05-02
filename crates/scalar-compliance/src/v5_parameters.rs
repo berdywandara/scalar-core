@@ -162,3 +162,35 @@ fn test_fee_split_sums_to_100_ossified() {
         100u64
     );
 }
+
+// ── §3.3 Denomination Constants ───────────────────────────────────────────────
+
+#[test]
+fn test_denomination_count_ossified() {
+    // Spec §3.3: tepat 17 denominasi. OSSIFIED.
+    assert_eq!(
+        scalar_wallet_core::denomination::DENOMINATION_COUNT,
+        17usize
+    );
+}
+
+#[test]
+fn test_d1_ossified() {
+    // Spec §3.3: d1 = 1 sSCL. OSSIFIED.
+    assert_eq!(scalar_wallet_core::denomination::D1_SSCL, 1u64);
+}
+
+#[test]
+fn test_d17_ossified() {
+    // Spec §3.3: d17 = 100_000_000 sSCL = 1.0 SCL. OSSIFIED.
+    assert_eq!(scalar_wallet_core::denomination::D17_SSCL, 100_000_000u64);
+}
+
+#[test]
+fn test_scl_to_sscl_ossified() {
+    // Spec §3.2: 1 SCL = 10^8 sSCL. OSSIFIED.
+    assert_eq!(
+        scalar_wallet_core::denomination::SCL_TO_SSCL,
+        100_000_000u64
+    );
+}
