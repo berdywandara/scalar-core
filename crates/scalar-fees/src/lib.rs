@@ -12,6 +12,7 @@
 pub mod batch;
 pub mod distribution;
 pub mod floor;
+pub mod inclusion_proof;
 pub mod padding;
 
 #[derive(Debug, thiserror::Error)]
