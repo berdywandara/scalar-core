@@ -1,6 +1,5 @@
 // File: crates/scalar-emission/src/epoch.rs
 
-use crate::liveness::NodeHeartbeat;
 use std::collections::HashMap;
 
 /// STEP 1.5: Verifikasi konektivitas jaringan.
@@ -45,6 +44,7 @@ pub fn verify_step_3_5_slashing(announcements: &[Announcement]) -> Vec<[u8; 32]>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::liveness::NodeHeartbeat;
 
     #[test]
     fn test_step_1_5_connected_with_67_percent_agreement() {
@@ -104,8 +104,7 @@ mod tests {
 
     #[test]
     fn test_node_heartbeat_v5_has_required_fields() {
-        // Cek struktur Heartbeat v5.0 dari liveness.rs yang diimport
-        let hb = crate::liveness::NodeHeartbeat {
+        let hb = NodeHeartbeat {
             node_id: [0; 32],
             timestamp: 1000,
             seq_num: 42,
