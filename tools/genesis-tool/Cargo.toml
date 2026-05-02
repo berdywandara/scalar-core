@@ -10,3 +10,5 @@ authors = ["Berdy Wandara"]
 blake3 = "1.5"
 scalar-crypto = { path = "../../crates/scalar-crypto" }
 hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
