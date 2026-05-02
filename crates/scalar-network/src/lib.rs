@@ -2,6 +2,7 @@
 
 pub mod dandelion;
 pub mod eclipse;
+pub mod fork;
 pub mod gossip;
 pub mod reconciliation;
 pub mod relay;
