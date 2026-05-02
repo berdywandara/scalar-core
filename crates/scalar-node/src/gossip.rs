@@ -62,6 +62,8 @@ impl ScalarGossipMessage {
             current_nullifier_smt_root: current_root_u64,
             fee_value: 0, // Placeholder: Diambil dari metadata transaksi jika ada
             timestamp: self.timestamp,
+            entry_timestamp: self.timestamp.saturating_sub(60_000), // placeholder
+            crypto_version: 0x01,
         };
 
         // 3. Loop Validasi untuk setiap Delta (Atomic Verification)
