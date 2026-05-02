@@ -2,6 +2,7 @@
 
 pub mod epoch;
 pub mod equity;
+pub mod institutional;
 pub mod liveness;
 pub mod longevity;
 pub mod manifest;
