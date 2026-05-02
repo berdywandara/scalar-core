@@ -4,4 +4,5 @@ pub mod epoch;
 pub mod equity;
 pub mod liveness;
 pub mod longevity;
+pub mod manifest;
 pub mod pou;
