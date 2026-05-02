@@ -13,9 +13,7 @@ use std::os::raw::c_char;
 /// - `phrase_ptr` menunjuk ke string C yang valid dan null-terminated
 /// - String tetap valid selama fungsi ini berjalan
 #[no_mangle]
-pub unsafe extern "C" fn scalar_verify_domain_separator(
-    phrase_ptr: *const c_char,
-) -> bool {
+pub unsafe extern "C" fn scalar_verify_domain_separator(phrase_ptr: *const c_char) -> bool {
     // Pastikan pointer tidak kosong (null)
     if phrase_ptr.is_null() {
         return false;
