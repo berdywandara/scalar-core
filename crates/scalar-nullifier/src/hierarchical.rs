@@ -24,7 +24,7 @@ impl HierarchicalNullifierSet {
     pub fn new() -> Self {
         Self {
             hot: SparseMerkleTree::new(),
-            warm: DeterministicBloomFilter::new(10_000_000),
+            warm: DeterministicBloomFilter::new_warm(10_000_000),
             cold: HashSet::new(),
             arch: ArchCheckpoint::new(),
         }
