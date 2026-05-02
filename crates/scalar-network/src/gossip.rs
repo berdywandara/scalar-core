@@ -1,293 +1,106 @@
 // File: crates/scalar-network/src/gossip.rs
 
 use std::collections::HashMap;
-use tokio::sync::RwLock;
 
-pub const MAX_MSG_RATE: u32 = 10; // Layer 2 CONSTRAINED: 10 per menit
-pub const MAX_FANOUT: usize = 15; // OSSIFIED
+pub const MAX_FANOUT: usize = 15; // OSSIFIED — tidak bisa lebih dari ini
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct DeltaNullifier {
-    pub nullifier: [u8; 32],
-    pub spend_proof: Vec<u8>,
-    pub new_commitment: [u8; 32],
-    pub entry_timestamp: u64, // BARU - untuk C10 enforcement
-}
+/// Hitung fanout yang tepat berdasarkan order parameter Kuramoto
+/// r → 1: sinkronisasi baik, fanout rendah (hemat bandwidth)
+/// r → 0: sinkronisasi buruk, fanout tinggi (aggressive sync)
+pub fn compute_adaptive_fanout(order_parameter_r: u64) -> usize {
+    // r dalam fixed-point basis 1,000,000
+    // r > 950,000 (0.95): fanout = 3  (maintenance mode)
+    // r > 800,000 (0.80): fanout = 5  (normal)
+    // r > 670,000 (0.67): fanout = 7  (mulai diverge)
+    // r > 500,000 (0.50): fanout = 10 (crisis)
+    // r ≤ 500,000:        fanout = 15 (emergency — MAX)
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct ScalarGossipMessage {
-    pub sender_node_id: [u8; 32],
-    pub timestamp: u64,
-    pub seq_num: u64, // BARU - monotonic, anti-replay
-    pub smt_root: [u8; 32],
-    pub delta_nullifiers: Vec<DeltaNullifier>,
-    pub connectivity_proof: [u8; 32], // BARU - BLAKE3(10 nullifiers terbaru)
-    pub sender_signature: Vec<u8>,
-}
-
-pub struct RateLimiter {
-    count: u32,
-    max_rate: u32,
-    window_secs: u64,
-    last_reset_timestamp: u64,
-}
-
-impl RateLimiter {
-    pub fn new(max_rate: u32, window_secs: u64, current_timestamp: u64) -> Self {
-        Self {
-            count: 0,
-            max_rate,
-            window_secs,
-            last_reset_timestamp: current_timestamp,
-        }
-    }
-
-    pub fn check(&mut self, current_timestamp: u64) -> bool {
-        // Jika waktu melompat lebih dari window_secs, reset count
-        if current_timestamp.saturating_sub(self.last_reset_timestamp) > self.window_secs {
-            self.count = 0;
-            self.last_reset_timestamp = current_timestamp;
-        }
-
-        if self.count < self.max_rate {
-            self.count += 1;
-            true
-        } else {
-            false
-        }
+    match order_parameter_r {
+        r if r > 950_000 => 3,
+        r if r > 800_000 => 5,
+        r if r > 670_000 => 7,
+        r if r > 500_000 => 10,
+        _ => MAX_FANOUT, // 15
     }
 }
 
-pub struct NodeMessageTracker {
-    // State per NodeID: last_seen_seq_num
-    pub last_seq_num: HashMap<[u8; 32], u64>,
-    // Rate limiter: pesan per menit per NodeID
-    pub message_rate: HashMap<[u8; 32], RateLimiter>,
-    // Counter for testing logic
-    pub phase2_execution_count: u32,
-}
+/// Helper: Mencari nilai fase mayoritas (mode)
+fn compute_mode_phase(phases: &[u64]) -> u64 {
+    let mut counts = HashMap::new();
+    let mut max_count = 0;
+    let mut mode = 0;
 
-impl NodeMessageTracker {
-    pub fn new() -> Self {
-        Self {
-            last_seq_num: HashMap::new(),
-            message_rate: HashMap::new(),
-            phase2_execution_count: 0,
+    for &p in phases {
+        let count = counts.entry(p).or_insert(0);
+        *count += 1;
+        if *count > max_count {
+            max_count = *count;
+            mode = p;
         }
     }
+    mode
 }
 
-impl Default for NodeMessageTracker {
-    fn default() -> Self {
-        Self::new()
+/// Hitung Kuramoto order parameter dari fase peer
+/// r = |(1/N) × Σ e^(iθⱼ)| (simplified integer approximation)
+pub fn compute_order_parameter(phases: &[u64], // fase setiap peer dalam basis 1,000,000
+) -> u64 {
+    if phases.is_empty() {
+        return 0;
     }
-}
+    // Simplified: r ≈ agreement_fraction
+    // Node yang "setuju" = yang punya smt_root mayoritas
+    // Untuk sekarang: hitung fraksi yang aligned
+    let n = phases.len() as u64;
+    let mode = compute_mode_phase(phases);
+    let aligned = phases.iter().filter(|&&p| p == mode).count() as u64;
 
-#[derive(Debug)]
-pub enum RelayError {
-    ReplayDetected {
-        sender: [u8; 32],
-        received_seq: u64,
-        expected_min: u64,
-    },
-    RateLimitExceeded {
-        sender: [u8; 32],
-        limit: u32,
-    },
-    // Error lainnya disederhanakan untuk scope ini
-}
-
-pub struct GossipNode {
-    pub tracker: RwLock<NodeMessageTracker>,
-}
-
-impl Default for GossipNode {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl GossipNode {
-    pub fn new() -> Self {
-        Self {
-            tracker: RwLock::new(NodeMessageTracker::new()),
-        }
-    }
-
-    pub async fn validate_and_relay(&self, msg: &ScalarGossipMessage) -> Result<(), RelayError> {
-        // ═══════════════════════════════
-        // PHASE 1: CHEAP CHECK
-        // ═══════════════════════════════
-
-        // BARU (v5.0) — 1f. seq_num monotonic check
-        {
-            let tracker = self.tracker.read().await;
-            if let Some(&last_seq) = tracker.last_seq_num.get(&msg.sender_node_id) {
-                if msg.seq_num <= last_seq {
-                    // Anti-replay: seq_num harus selalu naik
-                    return Err(RelayError::ReplayDetected {
-                        sender: msg.sender_node_id,
-                        received_seq: msg.seq_num,
-                        expected_min: last_seq + 1,
-                    });
-                }
-            }
-        }
-
-        // BARU (v5.0) — 1g. Rate limit check
-        {
-            let mut tracker = self.tracker.write().await;
-            let current_ts = msg.timestamp; // Menggunakan timestamp dari pesan
-
-            let limiter = tracker
-                .message_rate
-                .entry(msg.sender_node_id)
-                .or_insert_with(|| RateLimiter::new(MAX_MSG_RATE, 60, current_ts));
-
-            if !limiter.check(current_ts) {
-                return Err(RelayError::RateLimitExceeded {
-                    sender: msg.sender_node_id,
-                    limit: MAX_MSG_RATE,
-                });
-            }
-        }
-
-        // ═══════════════════════════════
-        // PHASE 2: EXPENSIVE CHECK (Mocked execution for spec demonstration)
-        // ═══════════════════════════════
-        {
-            let mut tracker = self.tracker.write().await;
-            tracker.phase2_execution_count += 1;
-        }
-
-        // Pheromone update HANYA terjadi setelah Phase 2 lolos.
-        // Update seq_num tracker setelah semua check lolos
-        {
-            let mut tracker = self.tracker.write().await;
-            tracker.last_seq_num.insert(msg.sender_node_id, msg.seq_num);
-        }
-
-        Ok(())
-    }
-
-    pub async fn phase2_execution_count(&self) -> u32 {
-        self.tracker.read().await.phase2_execution_count
-    }
+    (aligned * 1_000_000) / n
 }
 
 #[cfg(test)]
-mod tests_seq_num_ratelimit {
+mod tests_adaptive_fanout {
     use super::*;
 
-    async fn create_test_node() -> GossipNode {
-        GossipNode::new()
+    #[test]
+    fn test_fanout_in_sync_network() {
+        // r = 0.97 → fanout = 3 (maintenance mode)
+        assert_eq!(compute_adaptive_fanout(970_000), 3);
     }
 
-    fn random_node_id() -> [u8; 32] {
-        [42; 32]
+    #[test]
+    fn test_fanout_in_normal_network() {
+        // r = 0.85 → fanout = 5
+        assert_eq!(compute_adaptive_fanout(850_000), 5);
     }
 
-    fn build_valid_gossip_message(seq_num: u64) -> ScalarGossipMessage {
-        build_valid_gossip_message_ts(random_node_id(), seq_num, 1000)
+    #[test]
+    fn test_fanout_in_crisis_network() {
+        // r = 0.55 → fanout = 10
+        assert_eq!(compute_adaptive_fanout(550_000), 10);
     }
 
-    fn build_valid_gossip_message_ts(
-        sender_node_id: [u8; 32],
-        seq_num: u64,
-        timestamp: u64,
-    ) -> ScalarGossipMessage {
-        ScalarGossipMessage {
-            sender_node_id,
-            timestamp,
-            seq_num,
-            smt_root: [0; 32],
-            delta_nullifiers: vec![],
-            connectivity_proof: [0; 32],
-            sender_signature: vec![],
-        }
+    #[test]
+    fn test_fanout_in_emergency_never_exceeds_max() {
+        // r = 0.10 → fanout = MAX_FANOUT = 15
+        assert_eq!(compute_adaptive_fanout(100_000), MAX_FANOUT);
+        assert_eq!(MAX_FANOUT, 15, "MAX_FANOUT harus 15 — OSSIFIED");
     }
 
-    #[tokio::test]
-    async fn test_replay_rejected_same_seq_num() {
-        let node = create_test_node().await;
-        let msg = build_valid_gossip_message(42);
-
-        assert!(node.validate_and_relay(&msg).await.is_ok());
-
-        let result = node.validate_and_relay(&msg).await;
-        assert!(matches!(result, Err(RelayError::ReplayDetected { .. })));
-    }
-
-    #[tokio::test]
-    async fn test_replay_rejected_lower_seq_num() {
-        let node = create_test_node().await;
-
-        let msg_100 = build_valid_gossip_message(100);
-        node.validate_and_relay(&msg_100).await.unwrap();
-
-        let msg_99 = build_valid_gossip_message(99);
-        let result = node.validate_and_relay(&msg_99).await;
-        assert!(matches!(result, Err(RelayError::ReplayDetected { .. })));
-    }
-
-    #[tokio::test]
-    async fn test_monotonic_seq_num_accepted() {
-        let node = create_test_node().await;
-        for seq in 1..=20 {
-            // Majukan timestamp sebesar 10 detik per pesan agar tidak terkena rate limit
-            let ts = 1000 + (seq * 10);
-            let msg = build_valid_gossip_message_ts(random_node_id(), seq, ts);
+    #[test]
+    fn test_max_fanout_is_ossified_at_15() {
+        // Verifikasi konstanta sesuai spec
+        assert_eq!(MAX_FANOUT, 15);
+        // Fanout tidak boleh melebihi 15 dalam kondisi apapun
+        for r in 0..=1_000_000u64 {
+            let fanout = compute_adaptive_fanout(r);
             assert!(
-                node.validate_and_relay(&msg).await.is_ok(),
-                "seq={} harus diterima",
-                seq
+                fanout <= MAX_FANOUT,
+                "Fanout {} melebihi MAX {} pada r={}",
+                fanout,
+                MAX_FANOUT,
+                r
             );
         }
-    }
-
-    #[tokio::test]
-    async fn test_rate_limit_enforced_at_10_per_minute() {
-        let node = create_test_node().await;
-        let sender = random_node_id();
-
-        for i in 1..=10 {
-            let msg = build_valid_gossip_message_ts(sender, i, 1000);
-            assert!(node.validate_and_relay(&msg).await.is_ok());
-        }
-
-        let msg_11 = build_valid_gossip_message_ts(sender, 11, 1000);
-        let result = node.validate_and_relay(&msg_11).await;
-        assert!(matches!(result, Err(RelayError::RateLimitExceeded { .. })));
-    }
-
-    #[tokio::test]
-    async fn test_rate_limit_resets_after_one_minute() {
-        let node = create_test_node().await;
-        let sender = random_node_id();
-
-        for i in 1..=10 {
-            let msg = build_valid_gossip_message_ts(sender, i, 1000);
-            node.validate_and_relay(&msg).await.unwrap();
-        }
-
-        // Kirim pesan ke-11 dengan timestamp 61 detik lebih maju
-        let msg = build_valid_gossip_message_ts(sender, 11, 1061);
-        assert!(node.validate_and_relay(&msg).await.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_phase2_still_not_run_if_phase1_fails() {
-        let node = create_test_node().await;
-        let msg_replay = build_valid_gossip_message(1);
-        node.validate_and_relay(&msg_replay).await.unwrap();
-        let phase2_count_before = node.phase2_execution_count().await;
-
-        let _ = node.validate_and_relay(&msg_replay).await;
-        let phase2_count_after = node.phase2_execution_count().await;
-
-        assert_eq!(
-            phase2_count_before, phase2_count_after,
-            "Phase 2 tidak boleh dijalankan jika Phase 1 gagal"
-        );
     }
 }
