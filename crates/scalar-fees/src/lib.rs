@@ -10,6 +10,7 @@
 //! - [`padding`] — Fee padding PADDING_random (§B.4.5)
 
 pub mod batch;
+pub mod distribution;
 pub mod floor;
 pub mod padding;
 
