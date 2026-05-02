@@ -2,3 +2,4 @@
 
 pub mod denomination;
 pub mod key_management;
+pub mod seed;
