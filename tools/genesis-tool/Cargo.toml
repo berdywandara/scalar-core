@@ -7,5 +7,6 @@ rust-version.workspace = true
 authors = ["Berdy Wandara"]
 
 [dependencies]
+blake3 = "1.5"
 scalar-crypto = { path = "../../crates/scalar-crypto" }
 hex = "0.4"
