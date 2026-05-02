@@ -2,6 +2,7 @@
 
 pub mod ai_resistance;
 pub mod conviction;
+pub mod fork_governance;
 pub mod governance_id;
 pub mod governance_power;
 
