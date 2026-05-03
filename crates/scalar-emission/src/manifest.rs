@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn test_no_floating_point_in_any_calculation() {
         // Semua kalkulasi harus integer fixed-point — spec §1 (no floating point)
-        let _w = compute_uptime_weight(600_000, 300_000, 100_000);
+        let _w = compute_uptime_weight(600_000, 300_000);
         let _g = compute_gini(&[100, 200, 300]);
         let _m = compute_longevity_multiplier(10);
         let _b = apply_longevity_bonus(1_000_000, 50_000, 10);

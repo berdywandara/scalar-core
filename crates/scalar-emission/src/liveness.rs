@@ -1,6 +1,6 @@
 //! Liveness — Uptime Weight, Maturity, Gov Weight
 //!
-//! Spec §7.3: w_i(k) = 0.60×uptime_ratio + 0.30×root_alignment + 0.10×phase_coherence
+//! Spec §7.4 v6.0: w_i(k) = 0.70×uptime_ratio + 0.30×root_alignment_score
 //! Spec §7.4: maturity(j,k) = Σ_{epoch=k-W_MATURE_EPOCHS}^{k} w_j(epoch)
 //!            gov_weight(j,k) = min(maturity(j,k) / W_MATURE, 1_000_000)
 //!
@@ -30,15 +30,11 @@ pub const W_MATURE: u64 =
 
 /// Hitung uptime weight dari 3 komponen. Spec §7.3.
 /// Semua input dan output dalam fixed-point basis 1_000_000.
-pub fn compute_uptime_weight(
-    uptime_ratio: u64,
-    root_alignment_score: u64,
-    phase_coherence_score: u64,
-) -> u64 {
-    let component_uptime = (uptime_ratio * 600_000) / FIXED_POINT_BASIS;
+pub fn compute_uptime_weight(uptime_ratio: u64, root_alignment_score: u64) -> u64 {
+    // Spec §7.4 v6.0: 0.70×uptime + 0.30×alignment. Phase coherence dihapus.
+    let component_uptime = (uptime_ratio * 700_000) / FIXED_POINT_BASIS;
     let component_align = (root_alignment_score * 300_000) / FIXED_POINT_BASIS;
-    let component_phase = (phase_coherence_score * 100_000) / FIXED_POINT_BASIS;
-    component_uptime + component_align + component_phase
+    component_uptime + component_align
 }
 
 // ── NodeHeartbeat §7.7 ────────────────────────────────────────────────────────
@@ -200,19 +196,19 @@ mod tests {
 
     #[test]
     fn test_uptime_weight_full() {
-        let w = compute_uptime_weight(1_000_000, 1_000_000, 1_000_000);
+        let w = compute_uptime_weight(1_000_000, 1_000_000);
         assert_eq!(w, 1_000_000);
     }
 
     #[test]
     fn test_uptime_weight_only_uptime() {
-        let w = compute_uptime_weight(1_000_000, 0, 0);
-        assert_eq!(w, 600_000); // 60% dari basis
+        let w = compute_uptime_weight(1_000_000, 0);
+        assert_eq!(w, 700_000); // 70% dari basis — spec §7.4 v6.0
     }
 
     #[test]
     fn test_uptime_weight_zero() {
-        assert_eq!(compute_uptime_weight(0, 0, 0), 0);
+        assert_eq!(compute_uptime_weight(0, 0), 0);
     }
 
     // ── Maturity accumulation §7.4 ────────────────────────────────────────────
@@ -372,8 +368,8 @@ mod tests {
     #[test]
     fn test_no_floating_point() {
         // Semua kalkulasi harus pure integer — jika ada f32/f64 kode tidak kompil
-        let w = compute_uptime_weight(750_000, 600_000, 400_000);
-        // 0.60×750k + 0.30×600k + 0.10×400k = 450k + 180k + 40k = 670k
-        assert_eq!(w, 670_000u64);
+        let w = compute_uptime_weight(750_000, 600_000);
+        // 0.70×750k + 0.30×600k = 525k + 180k = 705k — spec §7.4 v6.0
+        assert_eq!(w, 705_000u64);
     }
 }
