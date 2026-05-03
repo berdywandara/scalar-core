@@ -1,8 +1,21 @@
 // File: crates/scalar-emission/src/manifest.rs
 //
-// EpochRewardManifest v5.0 — Spec §8
-// Field connectivity_summary sudah ada sesuai spec §8.
-// Fix: hapus referensi LongevityCalculator yang tidak ada.
+// EpochRewardManifest v6.0 — Spec §8 v6.0
+// +spec_version: u8 = 0x02 (breaking change dari v5.0)
+// +sync_health_summary: [u8;32] — BLAKE3(nshs_value||sample_count||epoch_id)
+
+/// Versi spec manifest v6.0. OSSIFIED — spec §8.1 v6.0.
+pub const SPEC_VERSION_V6: u8 = 0x02;
+
+/// Hitung sync_health_summary = BLAKE3(nshs_value_le64 || sample_count_le32 || epoch_id_le64).
+/// Spec §8.1 v6.0.
+pub fn compute_sync_health_summary(nshs_value: u64, sample_count: u32, epoch_id: u64) -> [u8; 32] {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&nshs_value.to_le_bytes());
+    hasher.update(&sample_count.to_le_bytes());
+    hasher.update(&epoch_id.to_le_bytes());
+    *hasher.finalize().as_bytes()
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EpochStatus {
@@ -23,10 +36,14 @@ pub struct NodeReward {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EpochRewardManifest {
     pub epoch_id: u64,
+    /// Versi spec manifest. OSSIFIED — spec §8.1 v6.0. Nilai: 0x02.
+    pub spec_version: u8,
     /// Root SMT liveness yang diterima (≥67% consensus). Spec §8.
     pub accepted_liveness_root: [u8; 32],
     /// BLAKE3 summary dari connectivity_proofs semua node. Spec §8.
     pub connectivity_summary: [u8; 32],
+    /// BLAKE3(nshs_value_le64 || sample_count_le32 || epoch_id_le64). Spec §8.1 v6.0.
+    pub sync_health_summary: [u8; 32],
     pub total_uptime_weight: u64,
     pub emission_amount: u64,
     /// Gini coefficient dalam fixed-point basis 1_000_000. Spec §7.
@@ -46,8 +63,10 @@ impl EpochRewardManifest {
     pub fn deferred(epoch_id: u64, previous_emission_total: u64) -> Self {
         Self {
             epoch_id,
+            spec_version: SPEC_VERSION_V6,
             accepted_liveness_root: [0; 32],
             connectivity_summary: [0; 32],
+            sync_health_summary: [0; 32],
             total_uptime_weight: 0,
             emission_amount: 0,
             equity_gini: 0,
