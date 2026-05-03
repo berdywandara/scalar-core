@@ -1,10 +1,11 @@
 // File: crates/scalar-network/src/gossip.rs
 //
-// ScalarGossipMessage v5.0 — Spec §12
-// Delta dari v3.0 (DELTA-05, DELTA-09):
-//   + seq_num: u64             — monotonic anti-replay
-//   + connectivity_proof: [u8;32] — BLAKE3(10 nullifiers terbaru)
-//   DeltaNullifier + entry_timestamp — untuk C10 enforcement
+// ScalarGossipMessage v6.0 — Spec §12 v6.0
+// Kuramoto dihapus. Adaptive fanout berbasis GSS.
+// Delta dari v5.0 (KUR-DELTA-02):
+//   + peer_sync_summary: [u8;32] — BLAKE3 commit ke GSS state
+//   - compute_order_parameter (Kuramoto) DIHAPUS
+//   ~ compute_adaptive_fanout: trigger GSS-based (bukan r)
 
 pub const MAX_FANOUT: usize = 15; // OSSIFIED §12
 pub const MAX_MSG_RATE: u32 = 10; // per menit, Layer 2 CONSTRAINED
@@ -29,6 +30,8 @@ pub struct ScalarGossipMessage {
     pub delta_nullifiers: Vec<DeltaNullifier>,
     /// BLAKE3(10 nullifiers terbaru) — Step 1.5 Epoch Consensus. DELTA-09.
     pub connectivity_proof: [u8; 32],
+    /// BLAKE3 commit ke GSS state — spec §12.3 v6.0.
+    pub peer_sync_summary: [u8; 32],
     pub sender_signature: Vec<u8>,
 }
 
@@ -42,32 +45,16 @@ pub fn compute_connectivity_proof(recent_nullifiers: &[[u8; 32]]) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Hitung Kuramoto order parameter dari fase peer.
-/// r = fraksi peer aligned ke smt_root mayoritas.
-/// r dalam fixed-point basis 1_000_000.
-pub fn compute_order_parameter(phases: &[u64]) -> u64 {
-    if phases.is_empty() {
-        return 0;
-    }
-    let n = phases.len() as u64;
-    let mut counts = std::collections::HashMap::new();
-    for &p in phases {
-        *counts.entry(p).or_insert(0u64) += 1;
-    }
-    let max_count = counts.values().copied().max().unwrap_or(0);
-    (max_count * 1_000_000) / n
-}
-
-/// Hitung adaptive fanout berdasarkan Kuramoto order parameter r.
-/// r dalam fixed-point basis 1_000_000.
-/// Spec §12: adaptive 3–15, MAX = 15 OSSIFIED.
-pub fn compute_adaptive_fanout(order_parameter_r: u64) -> usize {
-    match order_parameter_r {
-        r if r > 950_000 => 3,
-        r if r > 800_000 => 5,
-        r if r > 670_000 => 7,
-        r if r > 500_000 => 10,
-        _ => MAX_FANOUT,
+/// Hitung adaptive fanout berdasarkan GSS_fp. Spec §12.5 v6.0.
+/// GSS_fp dalam fixed-point basis 1_000_000.
+/// MAX_FANOUT = 15 OSSIFIED §12.
+pub fn compute_adaptive_fanout(gss_fp: u64) -> usize {
+    match gss_fp {
+        g if g > 900_000 => 3,  // sync excellent
+        g if g > 750_000 => 5,  // sync good
+        g if g > 600_000 => 7,  // sync degrading
+        g if g > 400_000 => 10, // sync poor
+        _ => MAX_FANOUT,        // sync critical — emergency mode
     }
 }
 
@@ -78,11 +65,11 @@ mod tests {
     #[test]
     fn test_max_fanout_ossified_at_15() {
         assert_eq!(MAX_FANOUT, 15, "MAX_FANOUT harus 15 — OSSIFIED");
-        for r in [0u64, 100_000, 500_000, 670_000, 800_000, 950_000, 1_000_000] {
+        for gss in [0u64, 100_000, 500_000, 670_000, 800_000, 950_000, 1_000_000] {
             assert!(
-                compute_adaptive_fanout(r) <= MAX_FANOUT,
-                "fanout melebihi MAX pada r={}",
-                r
+                compute_adaptive_fanout(gss) <= MAX_FANOUT,
+                "fanout melebihi MAX pada gss={}",
+                gss
             );
         }
     }
@@ -115,6 +102,7 @@ mod tests {
             smt_root: [1u8; 32],
             delta_nullifiers: vec![],
             connectivity_proof: [0u8; 32],
+            peer_sync_summary: [0u8; 32],
             sender_signature: vec![],
         };
         assert_eq!(msg.seq_num, 42);
@@ -128,6 +116,7 @@ mod tests {
             smt_root: [0u8; 32],
             delta_nullifiers: vec![],
             connectivity_proof: [9u8; 32],
+            peer_sync_summary: [0u8; 32],
             sender_signature: vec![],
         };
         assert_eq!(msg.connectivity_proof, [9u8; 32]);
@@ -164,22 +153,5 @@ mod tests {
         let p1 = compute_connectivity_proof(&[[1u8; 32]]);
         let p2 = compute_connectivity_proof(&[[2u8; 32]]);
         assert_ne!(p1, p2);
-    }
-
-    #[test]
-    fn test_order_parameter_full_consensus() {
-        let phases = vec![100u64; 10];
-        assert_eq!(compute_order_parameter(&phases), 1_000_000);
-    }
-
-    #[test]
-    fn test_order_parameter_50_50_split() {
-        let phases = vec![1u64, 1, 2, 2];
-        assert_eq!(compute_order_parameter(&phases), 500_000);
-    }
-
-    #[test]
-    fn test_order_parameter_empty() {
-        assert_eq!(compute_order_parameter(&[]), 0);
     }
 }

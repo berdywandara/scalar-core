@@ -5,6 +5,7 @@ pub mod dandelion;
 pub mod eclipse;
 pub mod fork;
 pub mod gossip;
+pub mod gss;
 pub mod reconciliation;
 pub mod relay;
 pub mod sync;
