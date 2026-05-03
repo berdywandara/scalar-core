@@ -3,7 +3,6 @@
 // Parameter OSSIFIED v5.0 berdasarkan Scalar_Master_Technical_Spec v5.0.
 // Parameter ini bersifat final dan tidak dapat diubah tanpa hard fork.
 // Sumber kebenaran: §2.6, §4.4, §6, §7, §9, §12, §18.1
-use scalar_emission::liveness::{EXPECTED_HEARTBEATS_PER_EPOCH, W_MATURE, W_MATURE_EPOCHS};
 
 // ── §2.6 CryptoVersion Registry ─────────────────────────────────────
 /// T_TRANSITION_EPOCHS: selama 2 epoch, kedua versi (lama+baru) valid.
@@ -112,85 +111,79 @@ mod tests {
     }
 }
 
-// ── §7.4 Maturity Constants ───────────────────────────────────────────────────
+#[cfg(test)]
+mod tests_compliance {
+    use scalar_emission::liveness::{EXPECTED_HEARTBEATS_PER_EPOCH, W_MATURE, W_MATURE_EPOCHS};
 
-#[test]
-fn test_w_mature_epochs_ossified() {
-    // Spec §7.4: W_MATURE_EPOCHS = 6. OSSIFIED.
-    assert_eq!(W_MATURE_EPOCHS, 6u64);
-}
+    // ── §7.4 Maturity Constants ───────────────────────────────────────────
 
-#[test]
-fn test_w_mature_value_ossified() {
-    // Spec §7.4: W_MATURE = 6 × 4_320 × 1_000_000 = 25_920_000_000. OSSIFIED.
-    assert_eq!(W_MATURE, 25_920_000_000u64);
-}
+    #[test]
+    fn test_w_mature_epochs_ossified() {
+        assert_eq!(W_MATURE_EPOCHS, 6u64);
+    }
 
-#[test]
-fn test_expected_heartbeats_per_epoch_ossified() {
-    // Spec §7.7: EXPECTED_HEARTBEATS_PER_EPOCH = 4_320. OSSIFIED.
-    assert_eq!(EXPECTED_HEARTBEATS_PER_EPOCH, 4_320u32);
-}
+    #[test]
+    fn test_w_mature_value_ossified() {
+        assert_eq!(W_MATURE, 25_920_000_000u64);
+    }
 
-// ── §9.2 Fee Distribution Constants ──────────────────────────────────────────
+    #[test]
+    fn test_expected_heartbeats_per_epoch_ossified() {
+        assert_eq!(EXPECTED_HEARTBEATS_PER_EPOCH, 4_320u32);
+    }
 
-#[test]
-fn test_relay_percent_ossified() {
-    // Spec §9.2: relay pool = 70%. OSSIFIED.
-    assert_eq!(scalar_fees::distribution::RELAY_PERCENT, 70u64);
-}
+    // ── §9.2 Fee Distribution Constants ──────────────────────────────────
 
-#[test]
-fn test_aggregator_percent_ossified() {
-    // Spec §9.2: aggregator pool = 25%. OSSIFIED.
-    assert_eq!(scalar_fees::distribution::AGGREGATOR_PERCENT, 25u64);
-}
+    #[test]
+    fn test_relay_percent_ossified() {
+        assert_eq!(scalar_fees::distribution::RELAY_PERCENT, 70u64);
+    }
 
-#[test]
-fn test_security_fund_percent_ossified() {
-    // Spec §9.2: security fund = 5%. OSSIFIED.
-    assert_eq!(scalar_fees::distribution::SECURITY_FUND_PERCENT, 5u64);
-}
+    #[test]
+    fn test_aggregator_percent_ossified() {
+        assert_eq!(scalar_fees::distribution::AGGREGATOR_PERCENT, 25u64);
+    }
 
-#[test]
-fn test_fee_split_sums_to_100_ossified() {
-    // Spec §9.2: 70 + 25 + 5 = 100. OSSIFIED.
-    assert_eq!(
-        scalar_fees::distribution::RELAY_PERCENT
-            + scalar_fees::distribution::AGGREGATOR_PERCENT
-            + scalar_fees::distribution::SECURITY_FUND_PERCENT,
-        100u64
-    );
-}
+    #[test]
+    fn test_security_fund_percent_ossified() {
+        assert_eq!(scalar_fees::distribution::SECURITY_FUND_PERCENT, 5u64);
+    }
 
-// ── §3.3 Denomination Constants ───────────────────────────────────────────────
+    #[test]
+    fn test_fee_split_sums_to_100_ossified() {
+        assert_eq!(
+            scalar_fees::distribution::RELAY_PERCENT
+                + scalar_fees::distribution::AGGREGATOR_PERCENT
+                + scalar_fees::distribution::SECURITY_FUND_PERCENT,
+            100u64
+        );
+    }
 
-#[test]
-fn test_denomination_count_ossified() {
-    // Spec §3.3: tepat 17 denominasi. OSSIFIED.
-    assert_eq!(
-        scalar_wallet_core::denomination::DENOMINATION_COUNT,
-        17usize
-    );
-}
+    // ── §3.3 Denomination Constants ───────────────────────────────────────
 
-#[test]
-fn test_d1_ossified() {
-    // Spec §3.3: d1 = 1 sSCL. OSSIFIED.
-    assert_eq!(scalar_wallet_core::denomination::D1_SSCL, 1u64);
-}
+    #[test]
+    fn test_denomination_count_ossified() {
+        assert_eq!(
+            scalar_wallet_core::denomination::DENOMINATION_COUNT,
+            17usize
+        );
+    }
 
-#[test]
-fn test_d17_ossified() {
-    // Spec §3.3: d17 = 100_000_000 sSCL = 1.0 SCL. OSSIFIED.
-    assert_eq!(scalar_wallet_core::denomination::D17_SSCL, 100_000_000u64);
-}
+    #[test]
+    fn test_d1_ossified() {
+        assert_eq!(scalar_wallet_core::denomination::D1_SSCL, 1u64);
+    }
 
-#[test]
-fn test_scl_to_sscl_ossified() {
-    // Spec §3.2: 1 SCL = 10^8 sSCL. OSSIFIED.
-    assert_eq!(
-        scalar_wallet_core::denomination::SCL_TO_SSCL,
-        100_000_000u64
-    );
+    #[test]
+    fn test_d17_ossified() {
+        assert_eq!(scalar_wallet_core::denomination::D17_SSCL, 100_000_000u64);
+    }
+
+    #[test]
+    fn test_scl_to_sscl_ossified() {
+        assert_eq!(
+            scalar_wallet_core::denomination::SCL_TO_SSCL,
+            100_000_000u64
+        );
+    }
 }
