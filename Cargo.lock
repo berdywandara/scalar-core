@@ -824,8 +824,11 @@ dependencies = [
 name = "genesis-tool"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "hex",
  "scalar-crypto",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2571,6 +2574,12 @@ dependencies = [
 [[package]]
 name = "scalar-compliance"
 version = "0.1.0"
+dependencies = [
+ "scalar-emission",
+ "scalar-fees",
+ "scalar-network",
+ "scalar-wallet-core",
+]
 
 [[package]]
 name = "scalar-consensus"
@@ -2590,6 +2599,7 @@ dependencies = [
  "pqcrypto-traits",
  "rand 0.8.6",
  "rand_core 0.10.1",
+ "thiserror 1.0.69",
  "zeroize",
 ]
 
@@ -2607,6 +2617,7 @@ dependencies = [
 name = "scalar-fees"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "scalar-crypto",
  "thiserror 1.0.69",
 ]
@@ -2614,6 +2625,11 @@ dependencies = [
 [[package]]
 name = "scalar-ffi"
 version = "0.1.0"
+dependencies = [
+ "blake3",
+ "scalar-wallet-core",
+ "zeroize",
+]
 
 [[package]]
 name = "scalar-governance"
@@ -2628,6 +2644,7 @@ name = "scalar-network"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "blake3",
  "flate2",
  "libp2p",
  "rand 0.9.4",
@@ -2681,6 +2698,7 @@ dependencies = [
 name = "scalar-wallet-core"
 version = "0.1.0"
 dependencies = [
+ "argon2",
  "blake3",
  "zeroize",
 ]
