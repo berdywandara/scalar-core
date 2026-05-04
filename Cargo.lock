@@ -2683,6 +2683,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "scalar-sdk"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "scalar-crypto",
+ "scalar-emission",
+ "scalar-fees",
+ "scalar-nullifier",
+ "scalar-stark",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "scalar-stark"
 version = "0.1.0"
 dependencies = [

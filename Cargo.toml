@@ -2,6 +2,7 @@
 [workspace]
 members = [
     "crates/scalar-compliance",
+    "crates/scalar-sdk",
     "crates/scalar-crypto",
     "crates/scalar-stark",
     "crates/scalar-nullifier",
