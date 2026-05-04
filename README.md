@@ -170,8 +170,9 @@ Three-layer governance with strong anti-AI-attack safeguards:
 ## Wallet Key Derivation
 
 ```
-seed          = PBKDF2-HMAC-SHA3(mnemonic, "scalar_v1", 2048)
+seed          = Argon2id(mnemonic, salt=b"scalar_v2"||genesis_hash, m=65536 KiB, t=3, p=1, len=64)
                 (first word MUST be "scalar" — BIP-39 wallets reject this)
+                (SCL-SPEC-SEED-001 §3.1 — replaces PBKDF2-HMAC-SHA3 v7.0)
 MasterKey     = BLAKE3(seed ∥ "scalar_master")
 AccountKey_i  = BLAKE3(MasterKey ∥ "account" ∥ i_le64)
 
