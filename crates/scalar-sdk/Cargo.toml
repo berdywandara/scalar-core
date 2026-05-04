@@ -1,0 +1,14 @@
+[package]
+name = "scalar-sdk"
+version = "0.1.0"
+edition = "2021"
+description = "Scalar Network client SDK — boundary crate antara protocol layer dan client-utility layer. Spec §21.2."
+
+[dependencies]
+scalar-crypto  = { path = "../scalar-crypto" }
+scalar-nullifier = { path = "../scalar-nullifier" }
+scalar-emission  = { path = "../scalar-emission" }
+scalar-stark     = { path = "../scalar-stark" }
+scalar-fees      = { path = "../scalar-fees" }
+blake3 = "1.8.4"
+thiserror = "1"
