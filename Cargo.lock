@@ -2649,6 +2649,7 @@ dependencies = [
  "libp2p",
  "rand 0.9.4",
  "scalar-crypto",
+ "scalar-emission",
  "scalar-nullifier",
  "scalar-stark",
  "serde",

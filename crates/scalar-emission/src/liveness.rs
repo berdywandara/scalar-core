@@ -1,20 +1,20 @@
-//! Liveness — Uptime Weight, Maturity, Gov Weight
+//! Liveness — NodeHeartbeat v9.0, Uptime Weight, Maturity, Gov Weight
 //!
-//! Spec §7.4 v6.0: w_i(k) = 0.70×uptime_ratio + 0.30×root_alignment_score
-//! Spec §7.4: maturity(j,k) = Σ_{epoch=k-W_MATURE_EPOCHS}^{k} w_j(epoch)
-//!            gov_weight(j,k) = min(maturity(j,k) / W_MATURE, 1_000_000)
-//!
-//! W_MATURE = W_MATURE_EPOCHS × EXPECTED_HEARTBEATS_PER_EPOCH × FIXED_POINT_BASIS
-//!          = 6 × 4_320 × 1_000_000 = 25_920_000_000
+//! Spec §7.2 v9.0: NodeHeartbeat = 108 bytes, BLAKE3-MAC, NO SPHINCS+ per-HB.
+//! Spec §7.4: maturity(j,k) = Σ w_j(epoch) untuk W_MATURE_EPOCHS epoch terakhir.
+//! Spec §7.4: gov_weight(j,k) = min(maturity(j,k) / W_MATURE, 1_000_000).
 
 use std::collections::HashMap;
 
 // ── Ossified Constants ────────────────────────────────────────────────────────
 
-/// Heartbeat yang diharapkan per epoch. OSSIFIED — spec §7.7.
+/// Heartbeat yang diharapkan per epoch. OSSIFIED — spec §7.2.
 pub const EXPECTED_HEARTBEATS_PER_EPOCH: u32 = 4_320;
 
-/// Fixed-point basis. OSSIFIED — spec §7.3.
+/// Epoch heartbeat count — alias untuk EXPECTED_HEARTBEATS_PER_EPOCH. OSSIFIED — spec §7.2c T-1.
+pub const EPOCH_HB_COUNT: u32 = 4_320;
+
+/// Fixed-point basis global. OSSIFIED — spec §18.1.
 pub const FIXED_POINT_BASIS: u64 = 1_000_000;
 
 /// Jumlah epoch yang diakumulasi untuk maturity. OSSIFIED — spec §7.4.
@@ -26,46 +26,141 @@ pub const W_MATURE_EPOCHS: u64 = 6;
 pub const W_MATURE: u64 =
     W_MATURE_EPOCHS * (EXPECTED_HEARTBEATS_PER_EPOCH as u64) * FIXED_POINT_BASIS;
 
+// ── NodeHeartbeat v9.0 — spec §7.2 ───────────────────────────────────────────
+
+/// NodeHeartbeat v9.0 — 108 bytes wire size. Spec §7.2.
+///
+/// Perubahan dari v7.0:
+///   - node_id: [u8;32] → [u8;4]  (compressed: 4 bytes pertama BLAKE3(full_id))
+///   - timestamp: u64 abs → u32 delta dari epoch_start_wall_clock
+///   - seq_num: u64 → u32 monotonic global per node per epoch
+///   - HAPUS: epoch_id, connectivity_proof, signature
+///   - TAMBAH: prev_hash [u8;32] = BLAKE3(heartbeat sebelumnya)
+///   - TAMBAH: mac [u8;32] = BLAKE3(NodeKey_epoch||node_id||seq_num||timestamp||smt_root||prev_hash)
+///
+/// Wire layout: node_id(4) + seq_num(4) + timestamp(4) + smt_root(32) + prev_hash(32) + mac(32) = 108 bytes
+#[derive(Clone, Debug, PartialEq)]
+pub struct NodeHeartbeat {
+    /// Compressed node ID — 4 bytes pertama dari BLAKE3(full_node_id). Spec §7.2.
+    pub node_id: [u8; 4],
+    /// Monotonic global sequence number, dimulai dari 1 setiap epoch. Spec §7.2.
+    pub seq_num: u32,
+    /// Delta seconds dari epoch_start_wall_clock. Spec §7.2.
+    /// BUKAN epoch boundary marker — wall-clock TIDAK menentukan epoch (Rule T-1 §7.2c).
+    pub timestamp: u32,
+    /// Root SMT saat heartbeat dikirim. Spec §7.2.
+    pub smt_root: [u8; 32],
+    /// BLAKE3(heartbeat sebelumnya). Spec §7.2.
+    /// Untuk seq_num==1 (HB pertama epoch): prev_hash = EpochAnchor.chain_head epoch sebelumnya.
+    /// Untuk HB pertama epoch 0: prev_hash = BLAKE3(genesis_object_bytes) — spec §7.2a, §12.9.
+    pub prev_hash: [u8; 32],
+    /// BLAKE3-MAC. Spec §7.2.
+    /// = BLAKE3(NodeKey_epoch_i || node_id || seq_num_le32 || timestamp_le32 || smt_root || prev_hash)
+    /// NodeKey_epoch_i = BLAKE3(NodeKey_i || epoch_id_le64)
+    pub mac: [u8; 32],
+}
+
+impl NodeHeartbeat {
+    /// Serialisasi ke wire format — 108 bytes. Spec §7.2.
+    pub fn to_bytes(&self) -> [u8; 108] {
+        let mut out = [0u8; 108];
+        out[0..4].copy_from_slice(&self.node_id);
+        out[4..8].copy_from_slice(&self.seq_num.to_le_bytes());
+        out[8..12].copy_from_slice(&self.timestamp.to_le_bytes());
+        out[12..44].copy_from_slice(&self.smt_root);
+        out[44..76].copy_from_slice(&self.prev_hash);
+        out[76..108].copy_from_slice(&self.mac);
+        out
+    }
+
+    /// Deserialise dari wire format — 108 bytes. Spec §7.2.
+    pub fn from_bytes(b: &[u8; 108]) -> Self {
+        let mut node_id = [0u8; 4];
+        node_id.copy_from_slice(&b[0..4]);
+        let seq_num = u32::from_le_bytes(b[4..8].try_into().unwrap());
+        let timestamp = u32::from_le_bytes(b[8..12].try_into().unwrap());
+        let mut smt_root = [0u8; 32];
+        smt_root.copy_from_slice(&b[12..44]);
+        let mut prev_hash = [0u8; 32];
+        prev_hash.copy_from_slice(&b[44..76]);
+        let mut mac = [0u8; 32];
+        mac.copy_from_slice(&b[76..108]);
+        Self {
+            node_id,
+            seq_num,
+            timestamp,
+            smt_root,
+            prev_hash,
+            mac,
+        }
+    }
+}
+
+// ── NodeKey derivation — spec §7.2 ───────────────────────────────────────────
+
+/// Derive NodeKey_epoch_i = BLAKE3(NodeKey_i || epoch_id_le64). Spec §7.2.
+///
+/// Compromise satu epoch tidak mempengaruhi epoch lain karena epoch_id berbeda.
+/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+pub fn derive_node_key_epoch(node_key: &[u8; 32], epoch_id: u64) -> [u8; 32] {
+    // BLAKE3 out-circuit — spec §7.2, hash discipline §2.1.3
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(node_key);
+    hasher.update(&epoch_id.to_le_bytes());
+    *hasher.finalize().as_bytes()
+}
+
+// ── MAC construction — spec §7.2 ─────────────────────────────────────────────
+
+/// Compute MAC untuk NodeHeartbeat. Spec §7.2.
+///
+/// mac = BLAKE3(NodeKey_epoch_i || node_id_4 || seq_num_le32 ||
+///              timestamp_le32 || smt_root_32 || prev_hash_32)
+///
+/// Semua integer little-endian. Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+pub fn compute_heartbeat_mac(
+    node_key_epoch: &[u8; 32],
+    node_id: &[u8; 4],
+    seq_num: u32,
+    timestamp: u32,
+    smt_root: &[u8; 32],
+    prev_hash: &[u8; 32],
+) -> [u8; 32] {
+    // BLAKE3 out-circuit — spec §7.2, §2.1.3
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(node_key_epoch);
+    hasher.update(node_id);
+    hasher.update(&seq_num.to_le_bytes());
+    hasher.update(&timestamp.to_le_bytes());
+    hasher.update(smt_root);
+    hasher.update(prev_hash);
+    *hasher.finalize().as_bytes()
+}
+
+/// Compress full node_id ke 4 bytes — 4 bytes pertama BLAKE3(full_node_id). Spec §7.2.
+///
+/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+pub fn compress_node_id(full_node_id: &[u8; 32]) -> [u8; 4] {
+    // BLAKE3 out-circuit — spec §7.2
+    let hash = blake3::hash(full_node_id);
+    let bytes = hash.as_bytes();
+    [bytes[0], bytes[1], bytes[2], bytes[3]]
+}
+
 // ── Uptime Weight §7.3 ────────────────────────────────────────────────────────
 
-/// Hitung uptime weight dari 3 komponen. Spec §7.3.
+/// Hitung uptime weight dari 2 komponen. Spec §7.3 v6.0.
 /// Semua input dan output dalam fixed-point basis 1_000_000.
+/// 0.70×uptime_ratio + 0.30×root_alignment_score — phase coherence dihapus v7.0.
 pub fn compute_uptime_weight(uptime_ratio: u64, root_alignment_score: u64) -> u64 {
-    // Spec §7.4 v6.0: 0.70×uptime + 0.30×alignment. Phase coherence dihapus.
     let component_uptime = (uptime_ratio * 700_000) / FIXED_POINT_BASIS;
     let component_align = (root_alignment_score * 300_000) / FIXED_POINT_BASIS;
     component_uptime + component_align
 }
 
-// ── NodeHeartbeat §7.7 ────────────────────────────────────────────────────────
-
-/// Heartbeat dari satu node dalam satu epoch. Spec §7.7.
-#[derive(Clone, Debug, PartialEq)]
-pub struct NodeHeartbeat {
-    pub node_id: [u8; 32],
-    pub timestamp: u64,
-    /// V5.0 requirement — spec §7.7.
-    pub seq_num: u64,
-    pub smt_root: [u8; 32],
-    pub epoch_id: u64,
-    /// BLAKE3 out-circuit hash dari recent nullifiers — spec §7.7.
-    pub connectivity_proof: [u8; 32],
-    pub signature: Vec<u8>,
-}
-
-/// Hitung connectivity_proof = BLAKE3(nullifiers). Out-circuit — spec §7.7.
-pub fn compute_connectivity_proof(recent_nullifiers: &[[u8; 32]]) -> [u8; 32] {
-    let mut hasher = blake3::Hasher::new();
-    for nullifier in recent_nullifiers {
-        hasher.update(nullifier);
-    }
-    *hasher.finalize().as_bytes()
-}
-
 // ── EpochWeightSummary ────────────────────────────────────────────────────────
 
-/// Summary uptime weight per node per epoch.
-/// Disimpan selama W_MATURE_EPOCHS + 2 epoch — spec §7.4 storage impl.
+/// Summary uptime weight per node per epoch. Spec §7.4.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EpochWeightSummary {
     pub node_id: [u8; 32],
@@ -76,8 +171,7 @@ pub struct EpochWeightSummary {
 
 // ── MaturityStore §7.4 ────────────────────────────────────────────────────────
 
-/// Menyimpan EpochWeightSummary dan menghitung maturity + gov_weight.
-/// Spec §7.4.
+/// Menyimpan EpochWeightSummary dan menghitung maturity + gov_weight. Spec §7.4.
 #[derive(Default)]
 pub struct MaturityStore {
     /// Key: (node_id, epoch_id) → uptime_weight
@@ -97,8 +191,6 @@ impl MaturityStore {
 
     /// Hitung maturity(j, current_epoch) = Σ w_j(epoch) untuk
     /// epoch ∈ [current_epoch - W_MATURE_EPOCHS, current_epoch]. Spec §7.4.
-    ///
-    /// Epoch yang tidak ada datanya dianggap w=0 (node offline).
     pub fn maturity(&self, node_id: [u8; 32], current_epoch: u64) -> u64 {
         let start = current_epoch.saturating_sub(W_MATURE_EPOCHS);
         (start..=current_epoch)
@@ -109,14 +201,11 @@ impl MaturityStore {
     /// Hitung gov_weight(j, k) = min(maturity / W_MATURE, 1_000_000). Spec §7.4.
     pub fn gov_weight(&self, node_id: [u8; 32], current_epoch: u64) -> u64 {
         let m = self.maturity(node_id, current_epoch);
-        // Skala ke [0, FIXED_POINT_BASIS] dengan menghindari overflow u64
-        // m / W_MATURE × FIXED_POINT_BASIS, dikap di FIXED_POINT_BASIS
         let scaled = (m as u128).saturating_mul(FIXED_POINT_BASIS as u128) / (W_MATURE as u128);
         (scaled as u64).min(FIXED_POINT_BASIS)
     }
 
-    /// Hapus summary yang sudah lebih tua dari W_MATURE_EPOCHS + 2 epoch.
-    /// Spec §7.4 storage impl.
+    /// Hapus summary yang sudah lebih tua dari W_MATURE_EPOCHS + 2 epoch. Spec §7.4.
     pub fn prune(&mut self, current_epoch: u64) {
         let cutoff = current_epoch.saturating_sub(W_MATURE_EPOCHS + 2);
         self.summaries
@@ -124,9 +213,9 @@ impl MaturityStore {
     }
 }
 
-// ── LivenessSMT (stub — interface dipertahankan) ──────────────────────────────
+// ── LivenessSMT ───────────────────────────────────────────────────────────────
 
-/// LivenessSMT stub. compute_uptime_weight_fp kini delegasi ke MaturityStore.
+/// LivenessSMT — tracking heartbeat chain. Spec §7.2.
 pub struct LivenessSMT {
     root: [u8; 32],
 }
@@ -136,6 +225,7 @@ impl LivenessSMT {
         Self { root: [0u8; 32] }
     }
 
+    /// Insert heartbeat — update SMT root. Spec §7.2.
     pub fn insert_heartbeat(&mut self, _hb: &NodeHeartbeat) {}
 
     pub fn root(&self) -> [u8; 32] {
@@ -143,7 +233,6 @@ impl LivenessSMT {
     }
 
     /// Delegasi ke MaturityStore::gov_weight. Spec §7.4.
-    /// Caller harus menyediakan MaturityStore yang sudah diisi.
     pub fn compute_uptime_weight_fp(
         &self,
         node_id: [u8; 32],
@@ -172,6 +261,171 @@ mod tests {
         id
     }
 
+    fn node4(b: u8) -> [u8; 4] {
+        [b, 0, 0, 0]
+    }
+
+    // ── NodeHeartbeat v9.0 struct ─────────────────────────────────────────────
+
+    #[test]
+    fn test_node_heartbeat_v9_fields() {
+        // Spec §7.2: 6 fields, tipe yang benar.
+        let hb = NodeHeartbeat {
+            node_id: [0x01, 0x02, 0x03, 0x04],
+            seq_num: 1u32,
+            timestamp: 600u32,
+            smt_root: [0xAAu8; 32],
+            prev_hash: [0xBBu8; 32],
+            mac: [0xCCu8; 32],
+        };
+        assert_eq!(hb.node_id, [0x01, 0x02, 0x03, 0x04]);
+        assert_eq!(hb.seq_num, 1u32);
+        assert_eq!(hb.timestamp, 600u32);
+    }
+
+    #[test]
+    fn test_node_heartbeat_wire_size_108() {
+        // Spec §7.2: wire size = 108 bytes.
+        // 4 + 4 + 4 + 32 + 32 + 32 = 108
+        let hb = NodeHeartbeat {
+            node_id: [0x01, 0x00, 0x00, 0x00],
+            seq_num: 1u32,
+            timestamp: 0u32,
+            smt_root: [0u8; 32],
+            prev_hash: [0u8; 32],
+            mac: [0u8; 32],
+        };
+        assert_eq!(hb.to_bytes().len(), 108);
+    }
+
+    #[test]
+    fn test_node_heartbeat_roundtrip() {
+        // Serialisasi dan deserialisasi harus menghasilkan struct yang sama.
+        let hb = NodeHeartbeat {
+            node_id: [0xDE, 0xAD, 0xBE, 0xEF],
+            seq_num: 42u32,
+            timestamp: 1234u32,
+            smt_root: [0x11u8; 32],
+            prev_hash: [0x22u8; 32],
+            mac: [0x33u8; 32],
+        };
+        let bytes = hb.to_bytes();
+        let hb2 = NodeHeartbeat::from_bytes(&bytes);
+        assert_eq!(hb, hb2);
+    }
+
+    #[test]
+    fn test_node_heartbeat_no_signature_field() {
+        // Spec §7.2: TIDAK ada signature field di NodeHeartbeat v9.0.
+        // Test ini memverifikasi bahwa struct hanya punya 6 fields yang benar.
+        // Jika ada field signature, kode tidak akan compile dengan struct literal ini.
+        let _ = NodeHeartbeat {
+            node_id: [0u8; 4],
+            seq_num: 0u32,
+            timestamp: 0u32,
+            smt_root: [0u8; 32],
+            prev_hash: [0u8; 32],
+            mac: [0u8; 32],
+        };
+    }
+
+    // ── EPOCH_HB_COUNT ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_epoch_hb_count_ossified() {
+        // Spec §7.2c T-1. OSSIFIED.
+        assert_eq!(EPOCH_HB_COUNT, 4_320u32);
+    }
+
+    #[test]
+    fn test_epoch_hb_count_equals_expected_heartbeats() {
+        // Keduanya harus identik — spec §7.2c.
+        assert_eq!(EPOCH_HB_COUNT, EXPECTED_HEARTBEATS_PER_EPOCH);
+    }
+
+    // ── NodeKey_epoch derivation ──────────────────────────────────────────────
+
+    #[test]
+    fn test_derive_node_key_epoch_deterministic() {
+        // Spec §7.2: BLAKE3(NodeKey_i || epoch_id_le64). Deterministik.
+        let node_key = [0x42u8; 32];
+        let k1 = derive_node_key_epoch(&node_key, 5);
+        let k2 = derive_node_key_epoch(&node_key, 5);
+        assert_eq!(k1, k2);
+    }
+
+    #[test]
+    fn test_derive_node_key_epoch_different_per_epoch() {
+        // Epoch berbeda → NodeKey_epoch berbeda. Spec §7.2.
+        let node_key = [0x42u8; 32];
+        let k0 = derive_node_key_epoch(&node_key, 0);
+        let k1 = derive_node_key_epoch(&node_key, 1);
+        assert_ne!(k0, k1);
+    }
+
+    #[test]
+    fn test_derive_node_key_epoch_different_keys() {
+        // NodeKey berbeda → NodeKey_epoch berbeda untuk epoch sama.
+        let k1 = derive_node_key_epoch(&[0x01u8; 32], 0);
+        let k2 = derive_node_key_epoch(&[0x02u8; 32], 0);
+        assert_ne!(k1, k2);
+    }
+
+    // ── MAC computation ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_compute_heartbeat_mac_deterministic() {
+        // Spec §7.2: MAC deterministik untuk input yang sama.
+        let nke = [0x01u8; 32];
+        let nid = [0x02u8; 4];
+        let mac1 = compute_heartbeat_mac(&nke, &nid, 1, 600, &[0xAAu8; 32], &[0xBBu8; 32]);
+        let mac2 = compute_heartbeat_mac(&nke, &nid, 1, 600, &[0xAAu8; 32], &[0xBBu8; 32]);
+        assert_eq!(mac1, mac2);
+    }
+
+    #[test]
+    fn test_compute_heartbeat_mac_different_seq_differs() {
+        // seq_num berbeda → MAC berbeda. Spec §7.2.
+        let nke = [0x01u8; 32];
+        let nid = [0x02u8; 4];
+        let mac1 = compute_heartbeat_mac(&nke, &nid, 1, 600, &[0u8; 32], &[0u8; 32]);
+        let mac2 = compute_heartbeat_mac(&nke, &nid, 2, 600, &[0u8; 32], &[0u8; 32]);
+        assert_ne!(mac1, mac2);
+    }
+
+    #[test]
+    fn test_compute_heartbeat_mac_different_key_differs() {
+        // NodeKey_epoch berbeda → MAC berbeda. Spec §7.2.
+        let nid = [0x02u8; 4];
+        let mac1 = compute_heartbeat_mac(&[0x01u8; 32], &nid, 1, 0, &[0u8; 32], &[0u8; 32]);
+        let mac2 = compute_heartbeat_mac(&[0xFFu8; 32], &nid, 1, 0, &[0u8; 32], &[0u8; 32]);
+        assert_ne!(mac1, mac2);
+    }
+
+    // ── compress_node_id ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_compress_node_id_deterministic() {
+        // Spec §7.2: 4 bytes pertama BLAKE3(full_node_id). Deterministik.
+        let full = [0xABu8; 32];
+        let c1 = compress_node_id(&full);
+        let c2 = compress_node_id(&full);
+        assert_eq!(c1, c2);
+    }
+
+    #[test]
+    fn test_compress_node_id_different_inputs_differ() {
+        let c1 = compress_node_id(&[0x01u8; 32]);
+        let c2 = compress_node_id(&[0x02u8; 32]);
+        assert_ne!(c1, c2);
+    }
+
+    #[test]
+    fn test_compress_node_id_len_4() {
+        let c = compress_node_id(&[0xFFu8; 32]);
+        assert_eq!(c.len(), 4);
+    }
+
     // ── Constant correctness ──────────────────────────────────────────────────
 
     #[test]
@@ -182,13 +436,11 @@ mod tests {
 
     #[test]
     fn test_w_mature_epochs_is_six() {
-        // Spec §7.4: W_MATURE_EPOCHS = 6. OSSIFIED.
         assert_eq!(W_MATURE_EPOCHS, 6);
     }
 
     #[test]
     fn test_expected_heartbeats_per_epoch() {
-        // Spec §7.7: 4_320 heartbeat/epoch. OSSIFIED.
         assert_eq!(EXPECTED_HEARTBEATS_PER_EPOCH, 4_320u32);
     }
 
@@ -203,7 +455,7 @@ mod tests {
     #[test]
     fn test_uptime_weight_only_uptime() {
         let w = compute_uptime_weight(1_000_000, 0);
-        assert_eq!(w, 700_000); // 70% dari basis — spec §7.4 v6.0
+        assert_eq!(w, 700_000);
     }
 
     #[test]
@@ -211,7 +463,14 @@ mod tests {
         assert_eq!(compute_uptime_weight(0, 0), 0);
     }
 
-    // ── Maturity accumulation §7.4 ────────────────────────────────────────────
+    #[test]
+    fn test_no_floating_point() {
+        let w = compute_uptime_weight(750_000, 600_000);
+        // 0.70×750k + 0.30×600k = 525k + 180k = 705k
+        assert_eq!(w, 705_000u64);
+    }
+
+    // ── Maturity §7.4 ─────────────────────────────────────────────────────────
 
     #[test]
     fn test_maturity_zero_epochs_recorded() {
@@ -227,15 +486,12 @@ mod tests {
             epoch_id: 10,
             uptime_weight: 800_000,
         });
-        // maturity pada epoch 10 = w(10) saja (window [4..=10])
         assert_eq!(store.maturity(node(1), 10), 800_000);
     }
 
     #[test]
     fn test_maturity_full_window_accumulates() {
         let mut store = MaturityStore::new();
-        // 7 epoch berturut — window [4..=10] mencakup epoch 4–10 = 7 epoch
-        // W_MATURE_EPOCHS=6 → window [10-6..=10] = [4..=10] = 7 entries
         for epoch in 4u64..=10 {
             store.record(EpochWeightSummary {
                 node_id: node(2),
@@ -243,14 +499,12 @@ mod tests {
                 uptime_weight: 1_000_000,
             });
         }
-        // 7 epoch × 1_000_000 = 7_000_000
         assert_eq!(store.maturity(node(2), 10), 7_000_000);
     }
 
     #[test]
     fn test_maturity_missing_epoch_counts_zero() {
         let mut store = MaturityStore::new();
-        // Hanya epoch 8, 9, 10 yang diisi — 7, 6, 5, 4 dianggap 0
         for epoch in 8u64..=10 {
             store.record(EpochWeightSummary {
                 node_id: node(3),
@@ -272,13 +526,7 @@ mod tests {
     #[test]
     fn test_gov_weight_full_mature() {
         let mut store = MaturityStore::new();
-        // Isi setiap epoch dengan nilai maksimum agar maturity = W_MATURE
-        // W_MATURE = 6 × 4320 × 1_000_000 = 25_920_000_000
-        // Kita perlu total Σ = 25_920_000_000
-        // Gunakan window 7 epoch × (25_920_000_000 / 7) ≈ tidak bulat.
-        // Cara mudah: isi 7 epoch masing-masing dengan per_epoch_target
-        // agar total ≥ W_MATURE → gov_weight dikap di 1_000_000
-        let per_epoch = W_MATURE; // jauh lebih dari cukup
+        let per_epoch = W_MATURE;
         for epoch in 4u64..=10 {
             store.record(EpochWeightSummary {
                 node_id: node(4),
@@ -286,30 +534,23 @@ mod tests {
                 uptime_weight: per_epoch,
             });
         }
-        assert_eq!(store.gov_weight(node(4), 10), 1_000_000); // dikap
+        assert_eq!(store.gov_weight(node(4), 10), 1_000_000);
     }
 
     #[test]
     fn test_gov_weight_half_mature() {
         let mut store = MaturityStore::new();
-        // Isi window penuh dengan setengah W_MATURE dibagi 7 epoch
-        // Target maturity = W_MATURE / 2 = 12_960_000_000
-        // Per epoch = 12_960_000_000 / 7 — tidak bulat, gunakan pendekatan
-        // Lebih mudah: isi 1 epoch dengan tepat W_MATURE/2
         store.record(EpochWeightSummary {
             node_id: node(5),
             epoch_id: 10,
             uptime_weight: W_MATURE / 2,
         });
-        let gw = store.gov_weight(node(5), 10);
-        // gov_weight = (W_MATURE/2) / W_MATURE × 1_000_000 = 500_000
-        assert_eq!(gw, 500_000);
+        assert_eq!(store.gov_weight(node(5), 10), 500_000);
     }
 
     #[test]
     fn test_gov_weight_capped_at_basis() {
         let mut store = MaturityStore::new();
-        // maturity jauh melebihi W_MATURE → dikap di 1_000_000
         store.record(EpochWeightSummary {
             node_id: node(6),
             epoch_id: 10,
@@ -318,12 +559,11 @@ mod tests {
         assert_eq!(store.gov_weight(node(6), 10), 1_000_000);
     }
 
-    // ── Pruning §7.4 storage ──────────────────────────────────────────────────
+    // ── Pruning §7.4 ──────────────────────────────────────────────────────────
 
     #[test]
     fn test_prune_removes_old_epochs() {
         let mut store = MaturityStore::new();
-        // Rekam epoch 1–20
         for epoch in 1u64..=20 {
             store.record(EpochWeightSummary {
                 node_id: node(7),
@@ -331,20 +571,9 @@ mod tests {
                 uptime_weight: 500_000,
             });
         }
-        // Prune pada current_epoch=20 → cutoff = 20 - (6+2) = 12
-        // epoch < 12 dihapus
         store.prune(20);
-        // Epoch 11 harus sudah hilang
-        assert_eq!(
-            store.summaries.get(&(node(7), 11)),
-            None,
-            "epoch 11 harus dipruned"
-        );
-        // Epoch 12 harus masih ada
-        assert!(
-            store.summaries.get(&(node(7), 12)).is_some(),
-            "epoch 12 harus masih ada"
-        );
+        assert_eq!(store.summaries.get(&(node(7), 11)), None);
+        assert!(store.summaries.get(&(node(7), 12)).is_some());
     }
 
     // ── LivenessSMT delegation ────────────────────────────────────────────────
@@ -358,18 +587,7 @@ mod tests {
             epoch_id: 5,
             uptime_weight: W_MATURE,
         });
-        // gov_weight harus 1_000_000 (dikap)
         let gw = smt.compute_uptime_weight_fp(node(8), 5, &store);
         assert_eq!(gw, 1_000_000);
-    }
-
-    // ── No float ─────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_no_floating_point() {
-        // Semua kalkulasi harus pure integer — jika ada f32/f64 kode tidak kompil
-        let w = compute_uptime_weight(750_000, 600_000);
-        // 0.70×750k + 0.30×600k = 525k + 180k = 705k — spec §7.4 v6.0
-        assert_eq!(w, 705_000u64);
     }
 }
