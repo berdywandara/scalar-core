@@ -591,3 +591,362 @@ mod tests {
         assert_eq!(gw, 1_000_000);
     }
 }
+
+// ── EpochAnchor §7.2a ────────────────────────────────────────────────────────
+
+/// EpochAnchor — SPHINCS+ commitment sekali per epoch per node. Spec §7.2a.
+///
+/// Dikirim di END_EPOCH (seq_num-triggered, BUKAN wall-clock — Rule T-1 §7.2c).
+/// chain_head = BLAKE3(last NodeHeartbeat bytes of the epoch).
+/// sig = SPHINCS+(NodeKey_epoch_i, canonical_bytes(EpochAnchor minus sig field)).
+///
+/// Canonical bytes untuk signing:
+///   node_id(4) || epoch_id_le64(8) || hb_count_le32(4) || chain_head(32) || pubkey(64)
+///   = 112 bytes total (NO sig field).
+///
+/// Bootstrap edge case:
+///   - Epoch 0: tidak ada EpochAnchor sebelumnya.
+///     prev_hash HB pertama epoch 0 = BLAKE3(genesis_object_bytes) — spec §7.2a, §12.9.
+///   - Epoch k+1: prev_hash HB pertama = EpochAnchor.chain_head dari epoch k.
+///
+/// NodeKey_epoch_0 pubkey harus dimasukkan dalam genesis object — spec §12.10.
+pub struct EpochAnchor {
+    /// Compressed node ID — 4 bytes pertama BLAKE3(full_node_id). Spec §7.2.
+    pub node_id: [u8; 4],
+    /// Epoch ID yang di-anchor. Spec §7.2a.
+    pub epoch_id: u64,
+    /// Jumlah heartbeat yang dikirim dalam epoch ini. Spec §7.2a.
+    pub hb_count: u32,
+    /// BLAKE3(last NodeHeartbeat bytes of epoch). Spec §7.2a.
+    /// Digunakan sebagai prev_hash untuk HB pertama epoch berikutnya.
+    pub chain_head: [u8; 32],
+    /// SPHINCS+ public key node (64 bytes). Spec §7.2a.
+    pub pubkey: [u8; 64],
+    /// SPHINCS+-SHAKE256s signature atas canonical_bytes(EpochAnchor minus sig).
+    /// Vec<u8> karena panjang signature variable. Spec §7.2a.
+    pub sig: Vec<u8>,
+}
+
+impl EpochAnchor {
+    /// Canonical bytes untuk SPHINCS+ signing — NO sig field. Spec §7.2a.
+    ///
+    /// Layout: node_id(4) || epoch_id_le64(8) || hb_count_le32(4) ||
+    ///         chain_head(32) || pubkey(64) = 112 bytes.
+    pub fn canonical_bytes_to_sign(&self) -> [u8; 112] {
+        let mut out = [0u8; 112];
+        out[0..4].copy_from_slice(&self.node_id);
+        out[4..12].copy_from_slice(&self.epoch_id.to_le_bytes());
+        out[12..16].copy_from_slice(&self.hb_count.to_le_bytes());
+        out[16..48].copy_from_slice(&self.chain_head);
+        out[48..112].copy_from_slice(&self.pubkey);
+        out
+    }
+
+    /// Compute chain_head = BLAKE3(last_heartbeat_bytes). Spec §7.2a.
+    ///
+    /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+    pub fn compute_chain_head(last_heartbeat: &NodeHeartbeat) -> [u8; 32] {
+        // BLAKE3 out-circuit — spec §7.2a, §2.1.3
+        let bytes = last_heartbeat.to_bytes();
+        *blake3::hash(&bytes).as_bytes()
+    }
+}
+
+/// EpochAnchorTiming — behavioral constant. Spec §7.2a.
+///
+/// EpochAnchor dikirim di END_EPOCH — saat node telah mengirim
+/// heartbeat ke-EPOCH_HB_COUNT dalam epoch. Bukan wall-clock.
+pub const EPOCH_ANCHOR_TIMING: &str = "END_EPOCH";
+
+/// EpochTracker — tracking heartbeat count per node per epoch. Spec §7.2a.
+///
+/// Digunakan untuk mendeteksi END_EPOCH via seq_num (Rule T-1).
+/// Saat hb_count mencapai EPOCH_HB_COUNT, node harus produce EpochAnchor.
+#[derive(Default)]
+pub struct EpochTracker {
+    /// Key: (node_id_4, epoch_id) → heartbeat count dalam epoch ini
+    counts: std::collections::HashMap<([u8; 4], u64), u32>,
+    /// Key: (node_id_4, epoch_id) → last heartbeat bytes
+    last_hb: std::collections::HashMap<([u8; 4], u64), NodeHeartbeat>,
+}
+
+impl EpochTracker {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Record heartbeat — update count dan last_hb. Spec §7.2a.
+    pub fn record_heartbeat(&mut self, hb: &NodeHeartbeat, epoch_id: u64) {
+        let key = (hb.node_id, epoch_id);
+        *self.counts.entry(key).or_insert(0) += 1;
+        self.last_hb.insert(key, hb.clone());
+    }
+
+    /// Cek apakah node sudah mencapai END_EPOCH (seq_num-based). Spec §7.2c T-1.
+    ///
+    /// Returns true jika hb_count == EPOCH_HB_COUNT.
+    /// Wall-clock TIDAK digunakan — Rule T-1.
+    pub fn is_end_epoch(&self, node_id: [u8; 4], epoch_id: u64) -> bool {
+        let count = self.counts.get(&(node_id, epoch_id)).copied().unwrap_or(0);
+        count >= EPOCH_HB_COUNT
+    }
+
+    /// Ambil heartbeat count untuk node dalam epoch. Spec §7.2a.
+    pub fn hb_count(&self, node_id: [u8; 4], epoch_id: u64) -> u32 {
+        self.counts.get(&(node_id, epoch_id)).copied().unwrap_or(0)
+    }
+
+    /// Ambil last heartbeat untuk node dalam epoch. Spec §7.2a.
+    pub fn last_heartbeat(&self, node_id: [u8; 4], epoch_id: u64) -> Option<&NodeHeartbeat> {
+        self.last_hb.get(&(node_id, epoch_id))
+    }
+}
+
+#[cfg(test)]
+mod epoch_anchor_tests {
+    use super::*;
+
+    fn make_hb(seq: u32) -> NodeHeartbeat {
+        NodeHeartbeat {
+            node_id: [0x01, 0x02, 0x03, 0x04],
+            seq_num: seq,
+            timestamp: seq * 600,
+            smt_root: [seq as u8; 32],
+            prev_hash: [0u8; 32],
+            mac: [0u8; 32],
+        }
+    }
+
+    // ── EpochAnchor struct ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_epoch_anchor_has_six_fields() {
+        // Spec §7.2a: 6 fields — node_id, epoch_id, hb_count, chain_head, pubkey, sig.
+        let anchor = EpochAnchor {
+            node_id: [0x01, 0x02, 0x03, 0x04],
+            epoch_id: 1u64,
+            hb_count: 4_320u32,
+            chain_head: [0xAAu8; 32],
+            pubkey: [0xBBu8; 64],
+            sig: vec![0xCCu8; 16],
+        };
+        assert_eq!(anchor.node_id, [0x01, 0x02, 0x03, 0x04]);
+        assert_eq!(anchor.epoch_id, 1u64);
+        assert_eq!(anchor.hb_count, 4_320u32);
+    }
+
+    #[test]
+    fn test_epoch_anchor_sig_is_vec() {
+        // Spec §7.2a: sig = Vec<u8> (variable length). BUKAN [u8; N] fixed.
+        let anchor = EpochAnchor {
+            node_id: [0u8; 4],
+            epoch_id: 0u64,
+            hb_count: 0u32,
+            chain_head: [0u8; 32],
+            pubkey: [0u8; 64],
+            sig: Vec::new(),
+        };
+        // Vec<u8> bisa push — fixed array tidak bisa
+        let mut s = anchor.sig;
+        s.push(0xFF);
+        assert_eq!(s.len(), 1);
+    }
+
+    #[test]
+    fn test_canonical_bytes_to_sign_length_112() {
+        // Spec §7.2a: canonical bytes = 112 bytes (NO sig field).
+        let anchor = EpochAnchor {
+            node_id: [0x01, 0x02, 0x03, 0x04],
+            epoch_id: 5u64,
+            hb_count: 4_320u32,
+            chain_head: [0xAAu8; 32],
+            pubkey: [0xBBu8; 64],
+            sig: vec![],
+        };
+        let bytes = anchor.canonical_bytes_to_sign();
+        assert_eq!(bytes.len(), 112);
+    }
+
+    #[test]
+    fn test_canonical_bytes_layout() {
+        // Layout: node_id(4) || epoch_id_le64(8) || hb_count_le32(4) ||
+        //         chain_head(32) || pubkey(64). Spec §7.2a.
+        let anchor = EpochAnchor {
+            node_id: [0x01, 0x02, 0x03, 0x04],
+            epoch_id: 0x0102030405060708u64,
+            hb_count: 0x0A0B0C0Du32,
+            chain_head: [0xAAu8; 32],
+            pubkey: [0xBBu8; 64],
+            sig: vec![],
+        };
+        let bytes = anchor.canonical_bytes_to_sign();
+        // node_id di bytes[0..4]
+        assert_eq!(&bytes[0..4], &[0x01, 0x02, 0x03, 0x04]);
+        // epoch_id little-endian di bytes[4..12]
+        assert_eq!(&bytes[4..12], &0x0102030405060708u64.to_le_bytes());
+        // hb_count little-endian di bytes[12..16]
+        assert_eq!(&bytes[12..16], &0x0A0B0C0Du32.to_le_bytes());
+        // chain_head di bytes[16..48]
+        assert_eq!(&bytes[16..48], &[0xAAu8; 32]);
+        // pubkey di bytes[48..112]
+        assert_eq!(&bytes[48..112], &[0xBBu8; 64]);
+    }
+
+    #[test]
+    fn test_canonical_bytes_deterministic() {
+        // Canonical bytes harus deterministik untuk input yang sama.
+        let anchor = EpochAnchor {
+            node_id: [0x01, 0x00, 0x00, 0x00],
+            epoch_id: 3u64,
+            hb_count: 100u32,
+            chain_head: [0x55u8; 32],
+            pubkey: [0x66u8; 64],
+            sig: vec![0xFF],
+        };
+        let b1 = anchor.canonical_bytes_to_sign();
+        let b2 = EpochAnchor {
+            node_id: [0x01, 0x00, 0x00, 0x00],
+            epoch_id: 3u64,
+            hb_count: 100u32,
+            chain_head: [0x55u8; 32],
+            pubkey: [0x66u8; 64],
+            sig: vec![0xAA], // sig berbeda — tidak masuk canonical
+        }
+        .canonical_bytes_to_sign();
+        assert_eq!(b1, b2);
+    }
+
+    // ── compute_chain_head ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_compute_chain_head_deterministic() {
+        // BLAKE3(last_hb_bytes) harus deterministik. Spec §7.2a.
+        let hb = make_hb(4320);
+        let h1 = EpochAnchor::compute_chain_head(&hb);
+        let h2 = EpochAnchor::compute_chain_head(&hb);
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn test_compute_chain_head_different_hb_differs() {
+        // HB berbeda → chain_head berbeda. Spec §7.2a.
+        let h1 = EpochAnchor::compute_chain_head(&make_hb(4319));
+        let h2 = EpochAnchor::compute_chain_head(&make_hb(4320));
+        assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn test_compute_chain_head_nonzero() {
+        let hb = make_hb(1);
+        let ch = EpochAnchor::compute_chain_head(&hb);
+        assert_ne!(ch, [0u8; 32]);
+    }
+
+    // ── EpochTracker ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_epoch_tracker_count_zero_initially() {
+        let tracker = EpochTracker::new();
+        assert_eq!(tracker.hb_count([0x01, 0x00, 0x00, 0x00], 0), 0);
+    }
+
+    #[test]
+    fn test_epoch_tracker_records_heartbeats() {
+        let mut tracker = EpochTracker::new();
+        let hb = make_hb(1);
+        tracker.record_heartbeat(&hb, 0);
+        tracker.record_heartbeat(&hb, 0);
+        assert_eq!(tracker.hb_count([0x01, 0x02, 0x03, 0x04], 0), 2);
+    }
+
+    #[test]
+    fn test_epoch_tracker_is_end_epoch_false_below_count() {
+        // Belum END_EPOCH jika count < EPOCH_HB_COUNT. Rule T-1. Spec §7.2c.
+        let mut tracker = EpochTracker::new();
+        let node = [0x01, 0x00, 0x00, 0x00];
+        for i in 1..EPOCH_HB_COUNT {
+            tracker.record_heartbeat(
+                &NodeHeartbeat {
+                    node_id: node,
+                    seq_num: i,
+                    timestamp: 0,
+                    smt_root: [0u8; 32],
+                    prev_hash: [0u8; 32],
+                    mac: [0u8; 32],
+                },
+                0,
+            );
+        }
+        assert!(!tracker.is_end_epoch(node, 0));
+    }
+
+    #[test]
+    fn test_epoch_tracker_is_end_epoch_true_at_count() {
+        // END_EPOCH saat count == EPOCH_HB_COUNT. Rule T-1. Spec §7.2c.
+        let mut tracker = EpochTracker::new();
+        let node = [0x01, 0x00, 0x00, 0x00];
+        for i in 1..=EPOCH_HB_COUNT {
+            tracker.record_heartbeat(
+                &NodeHeartbeat {
+                    node_id: node,
+                    seq_num: i,
+                    timestamp: 0,
+                    smt_root: [0u8; 32],
+                    prev_hash: [0u8; 32],
+                    mac: [0u8; 32],
+                },
+                0,
+            );
+        }
+        assert!(tracker.is_end_epoch(node, 0));
+    }
+
+    #[test]
+    fn test_epoch_tracker_last_heartbeat() {
+        // last_heartbeat harus return HB terakhir yang di-record.
+        let mut tracker = EpochTracker::new();
+        let hb1 = make_hb(1);
+        let hb2 = make_hb(2);
+        tracker.record_heartbeat(&hb1, 0);
+        tracker.record_heartbeat(&hb2, 0);
+        let last = tracker.last_heartbeat([0x01, 0x02, 0x03, 0x04], 0).unwrap();
+        assert_eq!(last.seq_num, 2);
+    }
+
+    #[test]
+    fn test_epoch_tracker_separate_epochs() {
+        // Count terpisah per epoch — spec §7.2a.
+        let mut tracker = EpochTracker::new();
+        let node = [0x01, 0x00, 0x00, 0x00];
+        tracker.record_heartbeat(
+            &NodeHeartbeat {
+                node_id: node,
+                seq_num: 1,
+                timestamp: 0,
+                smt_root: [0u8; 32],
+                prev_hash: [0u8; 32],
+                mac: [0u8; 32],
+            },
+            0,
+        );
+        tracker.record_heartbeat(
+            &NodeHeartbeat {
+                node_id: node,
+                seq_num: 1,
+                timestamp: 0,
+                smt_root: [0u8; 32],
+                prev_hash: [0u8; 32],
+                mac: [0u8; 32],
+            },
+            1,
+        );
+        assert_eq!(tracker.hb_count(node, 0), 1);
+        assert_eq!(tracker.hb_count(node, 1), 1);
+    }
+
+    #[test]
+    fn test_epoch_anchor_timing_constant() {
+        // Spec §7.2a: EpochAnchor dikirim di END_EPOCH.
+        assert_eq!(EPOCH_ANCHOR_TIMING, "END_EPOCH");
+    }
+}
