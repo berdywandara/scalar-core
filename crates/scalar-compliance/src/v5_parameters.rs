@@ -127,36 +127,30 @@ mod tests_compliance {
         assert_eq!(W_MATURE, 25_920_000_000u64);
     }
 
+    // ── §9.2 Fee Distribution Constants v9.0 ─────────────────────────────
     #[test]
-    fn test_expected_heartbeats_per_epoch_ossified() {
-        assert_eq!(EXPECTED_HEARTBEATS_PER_EPOCH, 4_320u32);
+    fn test_fee_node_pool_percent_ossified() {
+        // Spec §9.2 v9.0: node pool = 95%. RELAY_PERCENT (70) DIHAPUS.
+        assert_eq!(scalar_fees::distribution::FEE_NODE_POOL_PERCENT, 95u64);
     }
-
-    // ── §9.2 Fee Distribution Constants ──────────────────────────────────
-
     #[test]
-    fn test_relay_percent_ossified() {
-        assert_eq!(scalar_fees::distribution::RELAY_PERCENT, 70u64);
+    fn test_fee_security_fund_percent_ossified() {
+        // Spec §9.2: security fund = 5%. OSSIFIED.
+        assert_eq!(scalar_fees::distribution::FEE_SECURITY_FUND_PERCENT, 5u64);
     }
-
-    #[test]
-    fn test_aggregator_percent_ossified() {
-        assert_eq!(scalar_fees::distribution::AGGREGATOR_PERCENT, 25u64);
-    }
-
-    #[test]
-    fn test_security_fund_percent_ossified() {
-        assert_eq!(scalar_fees::distribution::SECURITY_FUND_PERCENT, 5u64);
-    }
-
     #[test]
     fn test_fee_split_sums_to_100_ossified() {
+        // Spec §9.2: 95 + 5 = 100. OSSIFIED.
         assert_eq!(
-            scalar_fees::distribution::RELAY_PERCENT
-                + scalar_fees::distribution::AGGREGATOR_PERCENT
-                + scalar_fees::distribution::SECURITY_FUND_PERCENT,
+            scalar_fees::distribution::FEE_NODE_POOL_PERCENT
+                + scalar_fees::distribution::FEE_SECURITY_FUND_PERCENT,
             100u64
         );
+    }
+    #[test]
+    fn test_w_floor_fp_ossified() {
+        // Spec §9.2: W_FLOOR_FP = 1_000_000_000. OSSIFIED.
+        assert_eq!(scalar_fees::distribution::W_FLOOR_FP, 1_000_000_000u64);
     }
 
     // ── §3.3 Denomination Constants ───────────────────────────────────────
