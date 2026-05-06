@@ -266,3 +266,147 @@ mod tests {
         assert_eq!(fa.total_fee, 0);
     }
 }
+
+// ── E_TAIL Backstop — spec §7.1, §7.7 ────────────────────────────────────────
+
+/// E_TAIL = 1,000 SCL/epoch = 100,000,000,000 sSCL. OSSIFIED — spec §7.7.
+///
+/// Tail emission backstop — minimum emission per epoch.
+/// Ketika E(k) < E_TAIL, S_R (reserve) digunakan sebagai backstop.
+/// E_active(k) = max(E(k), E_TAIL) — digunakan di seluruh reward calculation.
+pub const E_TAIL_SSCL: u64 = 1_000 * 100_000_000;
+
+/// S_R — Reserve pool untuk tail emission backstop. Spec §7.7, §3.2.
+/// S_R = S_MAX - S_E = 21,000,000 - 18,900,000 = 2,100,000 SCL.
+/// S_R bukan time-locked governance reserve — ini adalah tail emission backstop.
+/// Aktif ketika E(k) < E_TAIL_SSCL.
+pub const S_R_SSCL: u64 = S_MAX_SSCL - S_E_SSCL;
+
+/// Compute E_active(k) = max(E(k), E_TAIL). Spec §7.1, §7.7.
+///
+/// E_active digunakan di seluruh reward calculation dan MC4 circuit.
+/// E(k) murni hanya digunakan untuk menentukan kapan S_R perlu digunakan.
+///
+/// Ketika E(k) < E_TAIL_SSCL:
+///   - E_active = E_TAIL_SSCL (backstop aktif)
+///   - S_R digunakan sebagai sumber funding
+pub fn compute_e_active(e_k: u64) -> u64 {
+    // Spec §7.1: E_active(k) = max(E(k), E_TAIL). OSSIFIED.
+    e_k.max(E_TAIL_SSCL)
+}
+
+/// Cek apakah S_R (backstop) sedang aktif untuk epoch ini. Spec §7.7.
+///
+/// S_R aktif jika E(k) < E_TAIL_SSCL.
+/// Saat S_R aktif: reward dibayar dari S_R, bukan dari emission pool S_E.
+pub fn is_backstop_active(e_k: u64) -> bool {
+    // Spec §7.7: S_R digunakan ketika E(k) < E_TAIL
+    e_k < E_TAIL_SSCL
+}
+
+#[cfg(test)]
+mod e_tail_tests {
+    use super::*;
+
+    #[test]
+    fn test_e_tail_sscl_value() {
+        // Spec §7.7: E_TAIL = 1,000 SCL = 100,000,000,000 sSCL. OSSIFIED.
+        assert_eq!(E_TAIL_SSCL, 100_000_000_000u64);
+    }
+
+    #[test]
+    fn test_s_r_sscl_value() {
+        // Spec §3.2: S_R = S_MAX - S_E = 2,100,000 SCL = 210,000,000,000,000 sSCL.
+        assert_eq!(S_R_SSCL, S_MAX_SSCL - S_E_SSCL);
+        assert_eq!(S_R_SSCL, 2_100_000 * 100_000_000);
+    }
+
+    #[test]
+    fn test_compute_e_active_above_tail() {
+        // E(k) > E_TAIL → E_active = E(k). Spec §7.1.
+        let e_k = E_TAIL_SSCL + 1_000;
+        assert_eq!(compute_e_active(e_k), e_k);
+    }
+
+    #[test]
+    fn test_compute_e_active_below_tail() {
+        // E(k) < E_TAIL → E_active = E_TAIL. Spec §7.1.
+        let e_k = E_TAIL_SSCL - 1;
+        assert_eq!(compute_e_active(e_k), E_TAIL_SSCL);
+    }
+
+    #[test]
+    fn test_compute_e_active_at_tail() {
+        // E(k) = E_TAIL → E_active = E_TAIL. Spec §7.1.
+        assert_eq!(compute_e_active(E_TAIL_SSCL), E_TAIL_SSCL);
+    }
+
+    #[test]
+    fn test_compute_e_active_zero() {
+        // E(k) = 0 (pool exhausted) → E_active = E_TAIL. Spec §7.1.
+        assert_eq!(compute_e_active(0), E_TAIL_SSCL);
+    }
+
+    #[test]
+    fn test_compute_e_active_at_e0() {
+        // E(k) = E0 (epoch 0) → E_active = E0 (jauh > E_TAIL). Spec §7.1.
+        assert_eq!(compute_e_active(E0_SSCL), E0_SSCL);
+        assert!(E0_SSCL > E_TAIL_SSCL);
+    }
+
+    #[test]
+    fn test_backstop_active_below_tail() {
+        // E(k) < E_TAIL → backstop aktif. Spec §7.7.
+        assert!(is_backstop_active(E_TAIL_SSCL - 1));
+        assert!(is_backstop_active(0));
+    }
+
+    #[test]
+    fn test_backstop_not_active_at_tail() {
+        // E(k) = E_TAIL → backstop TIDAK aktif. Spec §7.7.
+        assert!(!is_backstop_active(E_TAIL_SSCL));
+    }
+
+    #[test]
+    fn test_backstop_not_active_above_tail() {
+        // E(k) > E_TAIL → backstop tidak aktif. Spec §7.7.
+        assert!(!is_backstop_active(E_TAIL_SSCL + 1));
+        assert!(!is_backstop_active(E0_SSCL));
+    }
+
+    #[test]
+    fn test_e_tail_less_than_e0() {
+        // E_TAIL << E0. Spec §7.7.
+        assert!(E_TAIL_SSCL < E0_SSCL);
+        // E0/E_TAIL ≈ 126 — tail adalah 1/126 dari initial emission
+        assert!(E0_SSCL / E_TAIL_SSCL >= 100);
+    }
+
+    #[test]
+    fn test_s_r_is_tail_backstop_not_governance() {
+        // Spec §3.2, §7.7: S_R adalah tail backstop, BUKAN governance reserve.
+        // S_R > 0 memastikan tail emission bisa dibayar.
+        assert!(S_R_SSCL > 0);
+        // S_R = 2,100,000 SCL — cukup besar untuk backstop jangka panjang.
+        assert_eq!(S_R_SSCL, 210_000_000_000_000u64);
+    }
+
+    #[test]
+    fn test_e_active_always_at_least_e_tail() {
+        // Invariant: E_active(k) ≥ E_TAIL untuk semua E(k). Spec §7.1.
+        for e_k in [
+            0u64,
+            1,
+            E_TAIL_SSCL / 2,
+            E_TAIL_SSCL - 1,
+            E_TAIL_SSCL,
+            E0_SSCL,
+        ] {
+            assert!(
+                compute_e_active(e_k) >= E_TAIL_SSCL,
+                "E_active harus ≥ E_TAIL untuk e_k={}",
+                e_k
+            );
+        }
+    }
+}
