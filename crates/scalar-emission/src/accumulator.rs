@@ -1,24 +1,24 @@
 //! EmissionAccumulator dan FeeAccumulator
 //!
-//! Spesifikasi: Scalar_Master_Technical_Spec.docx §B.3 + §B.1 + §B.4.2
+//! Spec §3.2, §7.1, §9.2 v9.0.
 //!
 //! Semua nilai dalam sSCL (1 SCL = 100_000_000 sSCL).
 //!
-//! Konstanta ossified (§B.6 Layer 1):
-//! - S_E  = 18_900_000 SCL = 1_890_000_000_000_000 sSCL
-//! - E₀   = 126_000 SCL/epoch = 12_600_000_000_000 sSCL/epoch
-//! - S_max = 21_000_000 SCL
+//! Konstanta ossified:
+//! - S_E   = 18_900_000 SCL = 1_890_000_000_000_000 sSCL  §3.2
+//! - E₀    = 126_000 SCL/epoch = 12_600_000_000_000 sSCL  §7.1
+//! - S_MAX = 21_000_000 SCL = 2_100_000_000_000_000 sSCL  §3.2
 
 use crate::EmissionError;
 
-/// S_E dalam sSCL. OSSIFIED.
+/// S_E dalam sSCL. OSSIFIED — spec §3.2.
 pub const S_E_SSCL: u64 = 18_900_000 * 100_000_000;
-/// E₀ dalam sSCL. OSSIFIED.
+/// E₀ dalam sSCL. OSSIFIED — spec §7.1.
 pub const E0_SSCL: u64 = 126_000 * 100_000_000;
-/// S_max dalam sSCL. OSSIFIED.
+/// S_MAX dalam sSCL. OSSIFIED — spec §3.2.
 pub const S_MAX_SSCL: u64 = 21_000_000 * 100_000_000;
 
-// ── EmissionAccumulator ──────────────────────────────────────────────
+// ── EmissionAccumulator ───────────────────────────────────────────────────────
 
 /// Tracking total PoU minted M_E. Digunakan MC3 untuk enforce S_E cap.
 pub struct EmissionAccumulator {
@@ -38,7 +38,7 @@ impl EmissionAccumulator {
             .unwrap_or(1_000_000_000)
     }
 
-    /// E(k) = E₀ × (1 − ρ(k))² — full integer arithmetic. OSSIFIED.
+    /// E(k) = E₀ × (1 − ρ(k))² — full integer arithmetic. OSSIFIED — spec §7.1.
     pub fn emission_this_epoch(&self) -> u64 {
         let rho_fp = self.rho_fp();
         let one_minus_rho = 1_000_000_000u128.saturating_sub(rho_fp);
@@ -52,7 +52,7 @@ impl EmissionAccumulator {
             .unwrap_or(0)) as u64
     }
 
-    /// Verifikasi supply cap sebelum mint (§B.2.2 MC3).
+    /// Verifikasi supply cap sebelum mint — spec §B.2.2 MC3.
     pub fn check_supply_cap(&self, reward: u64) -> Result<(), EmissionError> {
         let new_total = self
             .total_minted
@@ -68,8 +68,8 @@ impl EmissionAccumulator {
         Ok(())
     }
 
-    /// Update M_E setelah epoch dikonfirmasi ≥67%.
-    /// Jika epoch DEFERRED: JANGAN panggil fungsi ini (§B.5.2).
+    /// Update M_E setelah epoch dikonfirmasi.
+    /// Jika epoch DEFERRED: JANGAN panggil fungsi ini — spec §B.5.2.
     pub fn commit_epoch(&mut self, emission_amount: u64) -> Result<(), EmissionError> {
         self.check_supply_cap(emission_amount)?;
         self.total_minted = self
@@ -79,7 +79,7 @@ impl EmissionAccumulator {
         Ok(())
     }
 
-    /// R_i(k) = E(k) × w_i / W(k). Sesuai §B.1.4.
+    /// R_i(k) = E(k) × w_i / W(k). Spec §7.
     /// w_i dan W dalam fixed-point basis 1_000_000.
     pub fn reward_for_node(e_k: u64, w_i_fp: u64, w_total_fp: u64) -> Result<u64, EmissionError> {
         if w_total_fp == 0 {
@@ -101,9 +101,12 @@ impl Default for EmissionAccumulator {
     }
 }
 
-// ── FeeAccumulator ───────────────────────────────────────────────────
+// ── FeeAccumulator ────────────────────────────────────────────────────────────
 
-/// Total fee per epoch. Distribusi 70/25/5 sesuai §B.4.2.
+/// Total fee per epoch. Distribusi 95/5 sesuai spec §9.2 v9.0.
+///
+/// v9.0: RELAY_PERCENT (70) dan AGGREGATOR_PERCENT (25) DIHAPUS.
+/// Diganti: FEE_NODE_POOL_PERCENT (95) + FEE_SECURITY_FUND_PERCENT (5).
 pub struct FeeAccumulator {
     pub total_fee: u64,
 }
@@ -121,14 +124,17 @@ impl FeeAccumulator {
         Ok(())
     }
 
-    /// Return (relay=70%, aggregator=25%, security=5%).
-    /// Sisa pembulatan masuk ke relay.
-    pub fn distribution(&self) -> (u64, u64, u64) {
+    /// Return (node_pool=95%, security_fund=5%). Spec §9.2 v9.0.
+    ///
+    /// node_pool = uptime-weighted distribution ke semua node.
+    /// security_fund = protocol reserve.
+    /// Sisa pembulatan integer masuk ke security_fund.
+    /// Invariant: node_pool + security_fund == total_fee.
+    pub fn distribution(&self) -> (u64, u64) {
         let t = self.total_fee as u128;
-        let agg = (t * 25 / 100) as u64;
-        let sec = (t * 5 / 100) as u64;
-        let rel = self.total_fee.saturating_sub(agg).saturating_sub(sec);
-        (rel, agg, sec)
+        let node_pool = (t * 95 / 100) as u64;
+        let security_fund = self.total_fee.saturating_sub(node_pool);
+        (node_pool, security_fund)
     }
 
     pub fn reset(&mut self) {
@@ -146,7 +152,7 @@ impl Default for FeeAccumulator {
 mod tests {
     use super::*;
 
-    // ── EmissionAccumulator ───────────────────────────────────────────
+    // ── EmissionAccumulator ───────────────────────────────────────────────────
 
     #[test]
     fn test_initial_emission_equals_e0() {
@@ -211,25 +217,45 @@ mod tests {
         ));
     }
 
-    // ── FeeAccumulator ────────────────────────────────────────────────
+    // ── FeeAccumulator v9.0 ───────────────────────────────────────────────────
 
     #[test]
     fn test_distribution_sums_to_total() {
+        // Spec §9.2: node_pool + security_fund == total_fee. Konservasi token.
         let mut fa = FeeAccumulator::new();
         fa.add_fee(10_000).unwrap();
         fa.add_fee(5_000).unwrap();
-        let (r, a, s) = fa.distribution();
-        assert_eq!(r + a + s, fa.total_fee);
+        let (node_pool, security_fund) = fa.distribution();
+        assert_eq!(node_pool + security_fund, fa.total_fee);
     }
 
     #[test]
-    fn test_distribution_correct_ratios() {
+    fn test_distribution_correct_ratios_v9() {
+        // Spec §9.2 v9.0: 95/5. BUKAN 70/25/5.
         let mut fa = FeeAccumulator::new();
         fa.add_fee(10_000).unwrap();
-        let (r, a, s) = fa.distribution();
-        assert_eq!(s, 500);
-        assert_eq!(a, 2_500);
-        assert_eq!(r, 7_000);
+        let (node_pool, security_fund) = fa.distribution();
+        assert_eq!(node_pool, 9_500);
+        assert_eq!(security_fund, 500);
+    }
+
+    #[test]
+    fn test_distribution_100_sscl() {
+        // 100 sSCL: node_pool=95, security_fund=5.
+        let mut fa = FeeAccumulator::new();
+        fa.add_fee(100).unwrap();
+        let (node_pool, security_fund) = fa.distribution();
+        assert_eq!(node_pool, 95);
+        assert_eq!(security_fund, 5);
+    }
+
+    #[test]
+    fn test_distribution_rounding_no_loss() {
+        // fee=1: node_pool=0 (floor(1*95/100)), security_fund=1. Konservasi.
+        let mut fa = FeeAccumulator::new();
+        fa.add_fee(1).unwrap();
+        let (node_pool, security_fund) = fa.distribution();
+        assert_eq!(node_pool + security_fund, 1);
     }
 
     #[test]
