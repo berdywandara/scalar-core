@@ -10,6 +10,7 @@ rust-version.workspace = true
 scalar-crypto = { path = "../scalar-crypto" }
 scalar-nullifier = { path = "../scalar-nullifier" }
 scalar-stark = { path = "../scalar-stark" }
+scalar-emission = { path = "../scalar-emission" }
 libp2p = { workspace = true, features = ["gossipsub", "kad", "macros", "noise", "tcp", "tokio", "yamux"] }
 tokio = { workspace = true, features = ["full"] }
 thiserror.workspace = true
