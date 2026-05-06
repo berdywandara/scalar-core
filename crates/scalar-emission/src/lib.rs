@@ -1,6 +1,7 @@
 // File: crates/scalar-emission/src/lib.rs
 
 pub mod accumulator;
+pub mod consensus;
 pub mod epoch;
 pub mod equity;
 pub mod institutional;
