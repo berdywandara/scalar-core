@@ -467,3 +467,277 @@ mod tests {
         assert!(true, "Type system enforces integer fixed-point");
     }
 }
+
+// ── Canonical Serialization S1-S4 — spec §8.2 ────────────────────────────────
+
+/// Compute canonical bytes dari EpochRewardManifest untuk hashing. Spec §8.2.
+///
+/// Rules S1-S4:
+///   S1: node_list diurutkan ascending by node_id (diterapkan di compute_seed_k)
+///   S2: timestamp field tidak dimasukkan — fixed per spec
+///   S3: semua integer little-endian
+///   S4: tidak ada optional fields — semua field wajib ada
+///
+/// Layout (fixed, no optional):
+///   epoch_id(8) || spec_version(1) || accepted_liveness_root(32) ||
+///   sync_health_summary(32) || seed_k(32) || total_uptime_weight(8) ||
+///   emission_amount(8) || equity_gini(8) || fee_total(8) ||
+///   previous_emission_total(8) || reward_root(32) = 177 bytes
+///
+/// manifest_hash = BLAKE3(canonical_bytes) — hash discipline: BLAKE3 out-circuit §2.1.3.
+/// manifest_hash field TIDAK dimasukkan dalam canonical_bytes (no circular hash).
+///
+/// Grinding space = 0: tidak ada variasi representasi yang valid — spec §8.2.
+pub fn compute_manifest_canonical_bytes(manifest: &EpochRewardManifest) -> [u8; 177] {
+    let mut out = [0u8; 177];
+    let mut offset = 0;
+
+    // S3: semua integer little-endian — spec §8.2
+    // epoch_id: u64 le (8 bytes)
+    out[offset..offset + 8].copy_from_slice(&manifest.epoch_id.to_le_bytes());
+    offset += 8;
+
+    // spec_version: u8 (1 byte)
+    out[offset] = manifest.spec_version;
+    offset += 1;
+
+    // accepted_liveness_root: [u8;32]
+    out[offset..offset + 32].copy_from_slice(&manifest.accepted_liveness_root);
+    offset += 32;
+
+    // sync_health_summary: [u8;32]
+    out[offset..offset + 32].copy_from_slice(&manifest.sync_health_summary);
+    offset += 32;
+
+    // seed_k: [u8;32] — BARU v9.0
+    out[offset..offset + 32].copy_from_slice(&manifest.seed_k);
+    offset += 32;
+
+    // total_uptime_weight: u64 le (8 bytes)
+    out[offset..offset + 8].copy_from_slice(&manifest.total_uptime_weight.to_le_bytes());
+    offset += 8;
+
+    // emission_amount: u64 le (8 bytes)
+    out[offset..offset + 8].copy_from_slice(&manifest.emission_amount.to_le_bytes());
+    offset += 8;
+
+    // equity_gini: u64 le (8 bytes)
+    out[offset..offset + 8].copy_from_slice(&manifest.equity_gini.to_le_bytes());
+    offset += 8;
+
+    // fee_total: u64 le (8 bytes)
+    out[offset..offset + 8].copy_from_slice(&manifest.fee_total.to_le_bytes());
+    offset += 8;
+
+    // previous_emission_total: u64 le (8 bytes)
+    out[offset..offset + 8].copy_from_slice(&manifest.previous_emission_total.to_le_bytes());
+    offset += 8;
+
+    // reward_root: [u8;32]
+    out[offset..offset + 32].copy_from_slice(&manifest.reward_root);
+    // offset += 32; // final field
+
+    // S4: tidak ada optional fields — semua field selalu hadir.
+    // S2: timestamp TIDAK dimasukkan — no wall-clock in canonical bytes.
+    // manifest_hash TIDAK dimasukkan — circular hash prevention.
+    // slashed_nodes TIDAK dimasukkan dalam fixed canonical bytes —
+    //   slashing dibuktikan via separate proof, bukan bagian canonical manifest hash.
+
+    out
+}
+
+/// Compute manifest_hash = BLAKE3(canonical_bytes(manifest)). Spec §8.2.
+///
+/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// manifest_hash field sendiri TIDAK dimasukkan dalam input hash.
+pub fn compute_manifest_hash(manifest: &EpochRewardManifest) -> [u8; 32] {
+    let canonical = compute_manifest_canonical_bytes(manifest);
+    // BLAKE3 out-circuit — spec §8.2, §2.1.3
+    *blake3::hash(&canonical).as_bytes()
+}
+
+/// Verifikasi bahwa manifest_hash dalam manifest cocok dengan hash yang dihitung ulang.
+/// Spec §8.2.
+pub fn verify_manifest_hash(manifest: &EpochRewardManifest) -> bool {
+    let expected = compute_manifest_hash(manifest);
+    manifest.manifest_hash == expected
+}
+
+#[cfg(test)]
+mod canonical_tests {
+    use super::*;
+
+    fn make_manifest(epoch_id: u64) -> EpochRewardManifest {
+        EpochRewardManifest {
+            epoch_id,
+            spec_version: SPEC_VERSION_MANIFEST,
+            accepted_liveness_root: [0xAAu8; 32],
+            sync_health_summary: [0xBBu8; 32],
+            seed_k: [0xCCu8; 32],
+            manifest_hash: [0u8; 32], // akan diisi oleh compute_manifest_hash
+            total_uptime_weight: 1_000_000,
+            emission_amount: 12_600_000_000_000,
+            equity_gini: 200_000,
+            fee_total: 40_000,
+            slashed_nodes: vec![],
+            reward_root: [0xDDu8; 32],
+            previous_emission_total: 0,
+            status: EpochStatus::Open,
+        }
+    }
+
+    // ── S3: little-endian integers ────────────────────────────────────────────
+
+    #[test]
+    fn test_canonical_bytes_length_177() {
+        // Fixed layout = 177 bytes. Spec §8.2 S3, S4.
+        let m = make_manifest(1);
+        assert_eq!(compute_manifest_canonical_bytes(&m).len(), 177);
+    }
+
+    #[test]
+    fn test_canonical_bytes_epoch_id_little_endian() {
+        // S3: epoch_id harus little-endian di bytes[0..8]. Spec §8.2.
+        let m = make_manifest(0x0102030405060708u64);
+        let bytes = compute_manifest_canonical_bytes(&m);
+        assert_eq!(&bytes[0..8], &0x0102030405060708u64.to_le_bytes());
+    }
+
+    #[test]
+    fn test_canonical_bytes_spec_version_at_offset_8() {
+        // spec_version = 0x02 di byte[8]. Spec §8.2.
+        let m = make_manifest(1);
+        let bytes = compute_manifest_canonical_bytes(&m);
+        assert_eq!(bytes[8], SPEC_VERSION_MANIFEST);
+    }
+
+    #[test]
+    fn test_canonical_bytes_seed_k_present() {
+        // seed_k harus ada di canonical bytes v9.0. Spec §8.2.
+        let mut m = make_manifest(1);
+        m.seed_k = [0x42u8; 32];
+        let bytes = compute_manifest_canonical_bytes(&m);
+        // seed_k ada di offset 8+1+32+32 = 73..105
+        assert_eq!(&bytes[73..105], &[0x42u8; 32]);
+    }
+
+    // ── S2: no timestamp ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_canonical_bytes_no_timestamp() {
+        // S2: timestamp TIDAK ada dalam canonical bytes. Spec §8.2.
+        // Dua manifest identik kecuali status (tidak ada timestamp field) →
+        // canonical bytes identik.
+        let m1 = make_manifest(5);
+        let mut m2 = make_manifest(5);
+        m2.status = EpochStatus::Finalized; // status tidak masuk canonical
+                                            // canonical bytes harus identik karena status tidak dimasukkan
+        assert_eq!(
+            compute_manifest_canonical_bytes(&m1),
+            compute_manifest_canonical_bytes(&m2)
+        );
+    }
+
+    // ── S4: no optional fields ────────────────────────────────────────────────
+
+    #[test]
+    fn test_canonical_bytes_slashed_nodes_not_in_canonical() {
+        // S4: slashed_nodes TIDAK dimasukkan dalam canonical bytes (separate proof).
+        // Spec §8.2.
+        let m1 = make_manifest(1);
+        let mut m2 = make_manifest(1);
+        m2.slashed_nodes = vec![[0xFFu8; 32], [0xEEu8; 32]];
+        // canonical bytes harus identik — slashed_nodes bukan bagian fixed layout
+        assert_eq!(
+            compute_manifest_canonical_bytes(&m1),
+            compute_manifest_canonical_bytes(&m2)
+        );
+    }
+
+    // ── manifest_hash ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_compute_manifest_hash_deterministic() {
+        // manifest_hash deterministik untuk manifest yang sama. Spec §8.2.
+        let m = make_manifest(1);
+        let h1 = compute_manifest_hash(&m);
+        let h2 = compute_manifest_hash(&m);
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn test_compute_manifest_hash_different_epoch_differs() {
+        // epoch_id berbeda → manifest_hash berbeda. Spec §8.2.
+        let h1 = compute_manifest_hash(&make_manifest(1));
+        let h2 = compute_manifest_hash(&make_manifest(2));
+        assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn test_compute_manifest_hash_nonzero() {
+        let h = compute_manifest_hash(&make_manifest(1));
+        assert_ne!(h, [0u8; 32]);
+    }
+
+    #[test]
+    fn test_compute_manifest_hash_not_circular() {
+        // manifest_hash field sendiri TIDAK masuk dalam input hash.
+        // Dua manifest identik kecuali manifest_hash → hash yang sama.
+        let m1 = make_manifest(1);
+        let mut m2 = make_manifest(1);
+        m2.manifest_hash = [0xFFu8; 32]; // berbeda
+        assert_eq!(compute_manifest_hash(&m1), compute_manifest_hash(&m2));
+    }
+
+    // ── verify_manifest_hash ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_verify_manifest_hash_valid() {
+        // Manifest dengan hash yang benar harus pass verify. Spec §8.2.
+        let mut m = make_manifest(1);
+        m.manifest_hash = compute_manifest_hash(&m);
+        assert!(verify_manifest_hash(&m));
+    }
+
+    #[test]
+    fn test_verify_manifest_hash_invalid() {
+        // Manifest dengan hash yang salah harus fail verify.
+        let mut m = make_manifest(1);
+        m.manifest_hash = [0xFFu8; 32]; // salah
+        assert!(!verify_manifest_hash(&m));
+    }
+
+    #[test]
+    fn test_verify_manifest_hash_tampered_emission() {
+        // Jika emission_amount diubah setelah hash → verify fail. Spec §8.2.
+        let mut m = make_manifest(1);
+        m.manifest_hash = compute_manifest_hash(&m);
+        m.emission_amount += 1; // tamper
+        assert!(!verify_manifest_hash(&m));
+    }
+
+    #[test]
+    fn test_verify_manifest_hash_tampered_seed_k() {
+        // Jika seed_k diubah setelah hash → verify fail. Spec §8.2.
+        let mut m = make_manifest(1);
+        m.manifest_hash = compute_manifest_hash(&m);
+        m.seed_k = [0x99u8; 32]; // tamper
+        assert!(!verify_manifest_hash(&m));
+    }
+
+    // ── Grinding space = 0 ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_canonical_unique_no_grinding() {
+        // S1-S4 memastikan SATU representasi byte valid. Grinding space = 0.
+        // Spec §8.2: dua manifest dengan data yang sama menghasilkan
+        // canonical bytes yang identik — tidak ada variasi representasi.
+        let m1 = make_manifest(42);
+        let m2 = make_manifest(42);
+        assert_eq!(
+            compute_manifest_canonical_bytes(&m1),
+            compute_manifest_canonical_bytes(&m2)
+        );
+        assert_eq!(compute_manifest_hash(&m1), compute_manifest_hash(&m2));
+    }
+}
