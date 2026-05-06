@@ -1,16 +1,22 @@
 //! scalar-sdk — Boundary Crate antara Protocol Layer dan Client-Utility Layer
 //!
-//! Spec §21.2 v7.0
+//! Spec §21.2 v9.0
 //!
-//! PRINSIP ISOLASI (spec §21.6):
+//! PRINSIP ISOLASI (spec §21.1):
 //!   - Client code WAJIB import dari scalar-sdk, BUKAN dari protocol crates langsung
 //!   - scalar-sdk tidak mengekspos internal protocol
 //!   - Protocol layer tidak tahu tentang scalar-sdk (dependency satu arah)
 //!   - scalar-sdk TIDAK di-ossify — bisa breaking change tanpa fork
 //!
-//! DEPENDENCY (spec §21.2):
-//!   scalar-sdk → scalar-crypto, scalar-nullifier, scalar-emission,
-//!                scalar-stark, scalar-fees
+//! DEPENDENCY YANG DIIZINKAN (spec §21.2):
+//!   scalar-sdk → scalar-crypto, scalar-fees, blake3, thiserror
+//!
+//! DEPENDENCY YANG DILARANG (spec §21.1 Aturan 1):
+//!   scalar-sdk TIDAK BOLEH import: scalar-emission, scalar-stark,
+//!   scalar-nullifier, scalar-network
+//!
+//! QA CHECK: grep -r 'use scalar_emission\|use scalar_stark\|use scalar_nullifier' \
+//!   crates/scalar-sdk/src/ → harus kosong
 //!
 //! API PUBLIK (spec §21.3):
 //!   query::*  — F1, F2, F3, F4, F7, F11 — read-only, zero onchain cost
@@ -31,11 +37,13 @@ pub use types::{
 // Re-export konstanta kritis — spec §21.2
 pub use record::RECORD_FEE_MIN_SSCL;
 
+// Re-export ossified constants untuk client convenience — spec §21.2
+pub use query::{SDK_E0_SSCL, SDK_S_E_SSCL};
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{proof, query, record};
-    use scalar_emission::liveness::MaturityStore;
 
     // ── F1 Scarcity Proof ─────────────────────────────────────────────────────
 
@@ -44,23 +52,20 @@ mod tests {
         // M_E < S_E → valid. Spec §21.3 F1.
         let proof = query::query_scarcity_proof(1_000_000_000, 1);
         assert!(proof.is_valid);
-        assert_eq!(
-            proof.supply_cap_sscl,
-            scalar_emission::accumulator::S_E_SSCL
-        );
+        assert_eq!(proof.supply_cap_sscl, SDK_S_E_SSCL);
     }
 
     #[test]
     fn test_query_scarcity_proof_at_cap_valid() {
         // M_E = S_E → valid (tepat di cap).
-        let proof = query::query_scarcity_proof(scalar_emission::accumulator::S_E_SSCL, 10);
+        let proof = query::query_scarcity_proof(SDK_S_E_SSCL, 10);
         assert!(proof.is_valid);
     }
 
     #[test]
     fn test_query_scarcity_proof_exceeded_invalid() {
         // M_E > S_E → tidak valid.
-        let proof = query::query_scarcity_proof(scalar_emission::accumulator::S_E_SSCL + 1, 10);
+        let proof = query::query_scarcity_proof(SDK_S_E_SSCL + 1, 10);
         assert!(!proof.is_valid);
     }
 
@@ -69,7 +74,7 @@ mod tests {
     #[test]
     fn test_query_mpas_zero_deviation_at_e0() {
         // Jika actual = E0, deviasi = 0. Spec §21.3 F2.
-        let report = query::query_monetary_policy_score(scalar_emission::accumulator::E0_SSCL, 1);
+        let report = query::query_monetary_policy_score(SDK_E0_SSCL, 1);
         assert_eq!(report.deviation_fp, 0);
     }
 
@@ -93,20 +98,18 @@ mod tests {
     // ── F4 NRS ────────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_query_node_reputation_empty_store() {
-        // Node baru — maturity 0, gov_weight 0. Spec §21.3 F4.
-        let store = MaturityStore::new();
+    fn test_query_node_reputation_valid() {
+        // Node dengan data valid — spec §21.3 F4.
         let mut node_id = [0u8; 32];
         node_id[0] = 1;
-        let report = query::query_node_reputation(node_id, &store, 10).unwrap();
-        assert_eq!(report.gov_weight_fp, 0);
-        assert_eq!(report.maturity_raw, 0);
+        let report = query::query_node_reputation(node_id, 500_000, 6, 10).unwrap();
+        assert_eq!(report.gov_weight_fp, 500_000);
+        assert_eq!(report.maturity_raw, 6);
     }
 
     #[test]
     fn test_query_node_reputation_zero_id_rejected() {
-        let store = MaturityStore::new();
-        let err = query::query_node_reputation([0u8; 32], &store, 10).unwrap_err();
+        let err = query::query_node_reputation([0u8; 32], 0, 0, 10).unwrap_err();
         assert_eq!(err, SdkError::InvalidNodeId);
     }
 
@@ -236,5 +239,19 @@ mod tests {
     fn test_record_fee_min_ossified() {
         // Spec §9: FLOOR_MIN_ABSOLUTE = 40 sSCL. OSSIFIED.
         assert_eq!(RECORD_FEE_MIN_SSCL, 40u64);
+    }
+
+    // ── Ossified constants mirroring ──────────────────────────────────────────
+
+    #[test]
+    fn test_sdk_s_e_sscl_value() {
+        // Spec §3.2 OSSIFIED. Must match scalar-emission::accumulator::S_E_SSCL.
+        assert_eq!(SDK_S_E_SSCL, 1_890_000_000_000_000u64);
+    }
+
+    #[test]
+    fn test_sdk_e0_sscl_value() {
+        // Spec §7.1 OSSIFIED. Must match scalar-emission::accumulator::E0_SSCL.
+        assert_eq!(SDK_E0_SSCL, 12_600_000_000_000u64);
     }
 }
