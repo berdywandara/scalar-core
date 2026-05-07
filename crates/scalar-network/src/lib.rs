@@ -13,3 +13,7 @@ pub mod relay;
 pub mod state_beacon;
 pub mod sync;
 pub mod time_security;
+
+// EMPIRICAL TEST SUITE — Spec §22.5 Pre-Mainnet Mandatory
+#[cfg(test)]
+mod empirical_tests;
