@@ -39,3 +39,6 @@ edition = "2021"
 authors = ["Berdy Wandara"]
 license = "MIT OR Apache-2.0"     
 rust-version = "1.82.0"
+
+[workspace.metadata]
+# fuzz excluded — berdiri sendiri dengan nightly
