@@ -2698,6 +2698,7 @@ dependencies = [
 name = "scalar-stark"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "scalar-crypto",
  "scalar-emission",
  "scalar-nullifier",
