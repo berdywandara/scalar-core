@@ -4,6 +4,7 @@ pub mod accumulator;
 pub mod consensus;
 pub mod epoch;
 pub mod equity;
+pub mod genesis_ceremony;
 pub mod institutional;
 pub mod liveness;
 pub mod longevity;
