@@ -10,5 +10,6 @@ pub mod heartbeat_verifier;
 pub mod nmt;
 pub mod reconciliation;
 pub mod relay;
+pub mod state_beacon;
 pub mod sync;
 pub mod time_security;
