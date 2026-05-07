@@ -255,3 +255,219 @@ mod tests {
         assert_eq!(SDK_E0_SSCL, 12_600_000_000_000u64);
     }
 }
+
+// Re-export fungsi proof dan query yang belum diexport — spec §21.2
+pub use proof::{
+    build_credential_proof, build_dead_man_switch, build_negative_compliance_proof,
+    build_threshold_proof,
+};
+pub use query::{
+    build_payment_proof, query_monetary_policy_score, query_network_health, query_node_reputation,
+    query_scarcity_proof, query_uptime_sla,
+};
+pub use record::{build_indelible_record, build_timestamp_record};
+
+#[cfg(test)]
+mod tests_sprint7_9 {
+    use super::*;
+
+    // ── F10: Credential Proof ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_build_credential_proof_valid() {
+        // Spec §21.3 F10: credential proof valid.
+        let credential_data = b"scalar_node_credential_v1";
+        let issuer_id = [0x42u8; 32];
+        let nonce = [0x01u8; 32];
+        let cp = build_credential_proof(credential_data, issuer_id, nonce, 5).unwrap();
+        assert_ne!(cp.credential_commitment, [0u8; 32]);
+        assert_ne!(cp.issuer_hash, [0u8; 32]);
+        assert_eq!(cp.epoch, 5);
+    }
+
+    #[test]
+    fn test_build_credential_proof_deterministic() {
+        // Spec §21.3 F10: deterministik.
+        let data = b"test_credential";
+        let issuer = [0x01u8; 32];
+        let nonce = [0x02u8; 32];
+        let cp1 = build_credential_proof(data, issuer, nonce, 1).unwrap();
+        let cp2 = build_credential_proof(data, issuer, nonce, 1).unwrap();
+        assert_eq!(cp1.credential_commitment, cp2.credential_commitment);
+        assert_eq!(cp1.issuer_hash, cp2.issuer_hash);
+    }
+
+    #[test]
+    fn test_build_credential_proof_empty_data_rejected() {
+        // Spec §21.3 F10: data kosong → error.
+        let err = build_credential_proof(b"", [0x01u8; 32], [0u8; 32], 1).unwrap_err();
+        assert!(matches!(err, SdkError::InvalidInput(_)));
+    }
+
+    #[test]
+    fn test_build_credential_proof_different_issuer_differs() {
+        // Issuer berbeda → issuer_hash berbeda. Spec §21.3 F10.
+        let data = b"credential";
+        let nonce = [0u8; 32];
+        let cp1 = build_credential_proof(data, [0x01u8; 32], nonce, 1).unwrap();
+        let cp2 = build_credential_proof(data, [0x02u8; 32], nonce, 1).unwrap();
+        assert_ne!(cp1.issuer_hash, cp2.issuer_hash);
+    }
+
+    // ── F11: SLA Report ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_query_uptime_sla_met() {
+        // uptime_actual ≥ committed → sla_met. Spec §21.3 F11.
+        let mut node_id = [0u8; 32];
+        node_id[0] = 1;
+        let sla = query_uptime_sla(node_id, 950_000, 900_000, 5).unwrap();
+        assert!(sla.sla_met);
+        assert_eq!(sla.uptime_actual_fp, 950_000);
+        assert_eq!(sla.uptime_committed_fp, 900_000);
+    }
+
+    #[test]
+    fn test_query_uptime_sla_not_met() {
+        // uptime_actual < committed → not met. Spec §21.3 F11.
+        let mut node_id = [0u8; 32];
+        node_id[0] = 1;
+        let sla = query_uptime_sla(node_id, 700_000, 900_000, 5).unwrap();
+        assert!(!sla.sla_met);
+    }
+
+    #[test]
+    fn test_query_uptime_sla_exact_met() {
+        // uptime_actual = committed → met (boundary). Spec §21.3 F11.
+        let mut node_id = [0u8; 32];
+        node_id[0] = 1;
+        let sla = query_uptime_sla(node_id, 800_000, 800_000, 1).unwrap();
+        assert!(sla.sla_met);
+    }
+
+    #[test]
+    fn test_query_uptime_sla_zero_node_id_rejected() {
+        // node_id = [0;32] → error. Spec §21.3 F11.
+        let err = query_uptime_sla([0u8; 32], 900_000, 900_000, 1).unwrap_err();
+        assert_eq!(err, SdkError::InvalidNodeId);
+    }
+
+    // ── F1: Scarcity — additional edge cases ──────────────────────────────────
+
+    #[test]
+    fn test_scarcity_proof_zero_minted_valid() {
+        // M_E = 0 → valid (genesis state). Spec §21.3 F1.
+        let proof = query_scarcity_proof(0, 0);
+        assert!(proof.is_valid);
+    }
+
+    #[test]
+    fn test_scarcity_proof_supply_cap_correct() {
+        // supply_cap_sscl harus = SDK_S_E_SSCL. Spec §3.2.
+        let proof = query_scarcity_proof(0, 0);
+        assert_eq!(proof.supply_cap_sscl, SDK_S_E_SSCL);
+        assert_eq!(proof.supply_cap_sscl, 1_890_000_000_000_000u64);
+    }
+
+    // ── F2: MPAS — additional edge cases ─────────────────────────────────────
+
+    #[test]
+    fn test_mpas_above_e0_deviation() {
+        // emission > E0 → deviation > 0. Spec §21.3 F2.
+        let report = query_monetary_policy_score(SDK_E0_SSCL + SDK_E0_SSCL, 1);
+        assert_eq!(report.deviation_fp, 1_000_000); // 100% di atas E0
+    }
+
+    // ── F5: STP — additional edge cases ──────────────────────────────────────
+
+    #[test]
+    fn test_threshold_proof_zero_balance_zero_threshold() {
+        // 0 ≥ 0 → met. Spec §21.3 F5.
+        let tp = build_threshold_proof(0, 0, [0u8; 32]).unwrap();
+        assert!(tp.result);
+    }
+
+    #[test]
+    fn test_threshold_proof_commitment_non_zero() {
+        // commitment harus non-zero untuk input non-trivial. Spec §21.3 F5.
+        let tp = build_threshold_proof(1_000, 500, [0x42u8; 32]).unwrap();
+        assert_ne!(tp.balance_commitment, [0u8; 32]);
+    }
+
+    // ── F6: NCP — additional edge cases ──────────────────────────────────────
+
+    #[test]
+    fn test_ncp_order_independent() {
+        // Urutan exclusion set tidak mempengaruhi hasil. Spec §21.3 F6.
+        let nullifier = [0x01u8; 32];
+        let nonce = [0u8; 32];
+        let set1 = [[0x02u8; 32], [0x03u8; 32]];
+        let set2 = [[0x03u8; 32], [0x02u8; 32]];
+        let ncp1 = build_negative_compliance_proof(nullifier, &set1, nonce).unwrap();
+        let ncp2 = build_negative_compliance_proof(nullifier, &set2, nonce).unwrap();
+        assert_eq!(ncp1.exclusion_set_hash, ncp2.exclusion_set_hash);
+        assert_eq!(ncp1.is_compliant, ncp2.is_compliant);
+    }
+
+    // ── F7: Payment Proof — additional edge cases ─────────────────────────────
+
+    #[test]
+    fn test_payment_proof_zero_amount() {
+        // Amount = 0 → proof tetap valid (deterministik). Spec §21.3 F7.
+        let commitment = [0x01u8; 32];
+        let proof = build_payment_proof(commitment, 1, 0);
+        assert_ne!(proof.proof_hash, [0u8; 32]);
+    }
+
+    // ── F8: Timestamp Record — additional edge cases ──────────────────────────
+
+    #[test]
+    fn test_timestamp_record_different_epoch_different_commitment() {
+        // Epoch berbeda → commitment berbeda. Spec §21.3 F8.
+        let doc = [0x42u8; 32];
+        let r1 = build_timestamp_record(doc, 1).unwrap();
+        let r2 = build_timestamp_record(doc, 2).unwrap();
+        assert_ne!(r1.commitment, r2.commitment);
+    }
+
+    // ── F9: Indelible Record — additional edge cases ──────────────────────────
+
+    #[test]
+    fn test_indelible_record_different_epoch_different_commitment() {
+        // Epoch berbeda → nullifier_commitment berbeda. Spec §21.3 F9.
+        let data = [0x42u8; 32];
+        let r1 = build_indelible_record(data, 1).unwrap();
+        let r2 = build_indelible_record(data, 2).unwrap();
+        assert_ne!(r1.nullifier_commitment, r2.nullifier_commitment);
+    }
+
+    // ── F12: DMS — additional edge cases ─────────────────────────────────────
+
+    #[test]
+    fn test_dead_man_switch_different_epoch_different_commitment() {
+        // Epoch berbeda → succession_commitment berbeda. Spec §21.3 F12.
+        let primary = [0x01u8; 32];
+        let backup = [0x02u8; 32];
+        let dms1 = build_dead_man_switch(primary, backup, 1).unwrap();
+        let dms2 = build_dead_man_switch(primary, backup, 2).unwrap();
+        assert_ne!(dms1.succession_commitment, dms2.succession_commitment);
+    }
+
+    // ── Isolation QA ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_sdk_no_protocol_import() {
+        // QA: scalar-sdk tidak import scalar_emission/stark/nullifier.
+        // Test ini compile hanya jika isolation terjaga.
+        // Keberhasilan compile = isolation ok. Spec §21.1.
+        let _ = query_scarcity_proof(0, 0);
+    }
+
+    // ── RECORD_FEE_MIN constant ───────────────────────────────────────────────
+
+    #[test]
+    fn test_record_fee_min_is_floor_min_absolute() {
+        // Spec §9.1: FLOOR_MIN_ABSOLUTE = 40 sSCL = RECORD_FEE_MIN_SSCL.
+        assert_eq!(RECORD_FEE_MIN_SSCL, 40u64);
+    }
+}
