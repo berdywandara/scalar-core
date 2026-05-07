@@ -4,7 +4,7 @@
 > **"Epoch by Sequence, Not by Clock."**
 > — Berdy Wandara, Original Architect & Founder
  
-Scalar Network adalah digital cash post-quantum yang dirancang untuk ketahanan jangka panjang. No blockchain. No trusted setup. No founder allocation. Privacy adalah properti matematis, bukan fitur.
+Scalar Network is a post-quantum digital cash designed for long-term resilience. No blockchain. No trusted setup. No founder allocation. Privacy is a mathematical property, not a feature.
  
 ---
  
