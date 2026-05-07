@@ -47,3 +47,6 @@ impl core::fmt::Display for EmissionError {
         }
     }
 }
+
+#[cfg(test)]
+mod empirical_2_canonical;
