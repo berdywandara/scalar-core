@@ -58,12 +58,11 @@ pub fn field_mul(a: u64, b: u64) -> u64 {
     // Montgomery-like reduction untuk Goldilocks
     // p = 2^64 - 2^32 + 1 → hi * 2^64 ≡ hi * (2^32 - 1) mod p
     let (r, _) = lo.overflowing_add(hi.wrapping_mul(0xFFFF_FFFF));
-    let r = if r >= GOLDILOCKS_PRIME {
+    if r >= GOLDILOCKS_PRIME {
         r - GOLDILOCKS_PRIME
     } else {
         r
-    };
-    r
+    }
 }
 
 // ── Public Input untuk Independent Verifier ──────────────────────────────────
