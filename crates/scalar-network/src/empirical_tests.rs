@@ -34,7 +34,14 @@ mod empirical_tests {
     ) -> NodeHeartbeat {
         let nke = nke();
         let mac = compute_heartbeat_mac(&nke, &node_id, seq_num, timestamp, &smt_root, &prev_hash);
-        NodeHeartbeat { node_id, seq_num, timestamp, smt_root, prev_hash, mac }
+        NodeHeartbeat {
+            node_id,
+            seq_num,
+            timestamp,
+            smt_root,
+            prev_hash,
+            mac,
+        }
     }
 
     // EMPIRICAL-4: Pre-computation attack
@@ -49,12 +56,28 @@ mod empirical_tests {
         let mut rejected: u32 = 0;
         for _ in 1..=EPOCH_HB_COUNT {
             let delta = nmt_broadcast.abs_diff(timestamp_precompute);
-            if delta > T_HEARTBEAT_TTL_S { rejected += 1; } else { accepted += 1; }
+            if delta > T_HEARTBEAT_TTL_S {
+                rejected += 1;
+            } else {
+                accepted += 1;
+            }
         }
-        assert_eq!(accepted, 0, "EMPIRICAL-4 FAILED: {} HB diterima, seharusnya 0", accepted);
-        assert_eq!(rejected, EPOCH_HB_COUNT, "EMPIRICAL-4 FAILED: {} dari {} ditolak", rejected, EPOCH_HB_COUNT);
-        println!("EMPIRICAL-4 PASSED: Semua {} HB precomputed ditolak TTL (gap={}s > TTL={}s)",
-            rejected, nmt_broadcast.abs_diff(timestamp_precompute), T_HEARTBEAT_TTL_S);
+        assert_eq!(
+            accepted, 0,
+            "EMPIRICAL-4 FAILED: {} HB diterima, seharusnya 0",
+            accepted
+        );
+        assert_eq!(
+            rejected, EPOCH_HB_COUNT,
+            "EMPIRICAL-4 FAILED: {} dari {} ditolak",
+            rejected, EPOCH_HB_COUNT
+        );
+        println!(
+            "EMPIRICAL-4 PASSED: Semua {} HB precomputed ditolak TTL (gap={}s > TTL={}s)",
+            rejected,
+            nmt_broadcast.abs_diff(timestamp_precompute),
+            T_HEARTBEAT_TTL_S
+        );
     }
 
     #[test]
@@ -73,9 +96,20 @@ mod empirical_tests {
                 Err(_) => rejected_seq += 1,
             }
         }
-        assert_eq!(accepted, 1, "EMPIRICAL-4: harus tepat 1 diterima, dapat {}", accepted);
-        assert_eq!(rejected_seq, 9, "EMPIRICAL-4: harus 9 ditolak, dapat {}", rejected_seq);
-        println!("EMPIRICAL-4 PASSED: 10 replay → accepted={}, rejected={}", accepted, rejected_seq);
+        assert_eq!(
+            accepted, 1,
+            "EMPIRICAL-4: harus tepat 1 diterima, dapat {}",
+            accepted
+        );
+        assert_eq!(
+            rejected_seq, 9,
+            "EMPIRICAL-4: harus 9 ditolak, dapat {}",
+            rejected_seq
+        );
+        println!(
+            "EMPIRICAL-4 PASSED: 10 replay → accepted={}, rejected={}",
+            accepted, rejected_seq
+        );
     }
 
     #[test]
@@ -84,9 +118,15 @@ mod empirical_tests {
         assert_eq!(T_FUTURE_TOLERANCE_S, 30u32);
         let nmt: u32 = 1_000_000;
         let future_ts = nmt + T_FUTURE_TOLERANCE_S + 1;
-        assert!(!check_future_timestamp(future_ts, nmt), "EMPIRICAL-4: future timestamp harus ditolak T-5");
-        println!("EMPIRICAL-4 PASSED: Future timestamp +{}s ditolak T-5 (tolerance={}s)",
-            T_FUTURE_TOLERANCE_S + 1, T_FUTURE_TOLERANCE_S);
+        assert!(
+            !check_future_timestamp(future_ts, nmt),
+            "EMPIRICAL-4: future timestamp harus ditolak T-5"
+        );
+        println!(
+            "EMPIRICAL-4 PASSED: Future timestamp +{}s ditolak T-5 (tolerance={}s)",
+            T_FUTURE_TOLERANCE_S + 1,
+            T_FUTURE_TOLERANCE_S
+        );
     }
 
     // EMPIRICAL-5: Clock drift test
@@ -99,16 +139,30 @@ mod empirical_tests {
         let nodes = [
             (BASE_WALL + DRIFT_2H_S, "Node A (+2 jam)"),
             (BASE_WALL - DRIFT_2H_S, "Node B (-2 jam)"),
-            (BASE_WALL,              "Node C (tepat)"),
+            (BASE_WALL, "Node C (tepat)"),
         ];
         for (wall_clock, label) in &nodes {
-            let epoch_last  = epoch_from_seq_num(EPOCH_HB_COUNT);
+            let epoch_last = epoch_from_seq_num(EPOCH_HB_COUNT);
             let epoch_first = epoch_from_seq_num(EPOCH_HB_COUNT + 1);
-            assert_eq!(epoch_last, 0, "EMPIRICAL-5 FAILED [{}]: seq={} harus epoch 0, dapat {}", label, EPOCH_HB_COUNT, epoch_last);
-            assert_eq!(epoch_first, 1, "EMPIRICAL-5 FAILED [{}]: seq={} harus epoch 1, dapat {}", label, EPOCH_HB_COUNT + 1, epoch_first);
+            assert_eq!(
+                epoch_last, 0,
+                "EMPIRICAL-5 FAILED [{}]: seq={} harus epoch 0, dapat {}",
+                label, EPOCH_HB_COUNT, epoch_last
+            );
+            assert_eq!(
+                epoch_first,
+                1,
+                "EMPIRICAL-5 FAILED [{}]: seq={} harus epoch 1, dapat {}",
+                label,
+                EPOCH_HB_COUNT + 1,
+                epoch_first
+            );
             println!("  {}: wall={}s, boundary ok", label, wall_clock);
         }
-        println!("EMPIRICAL-5 PASSED: 3 node +/-{}s drift, epoch boundary identik", DRIFT_2H_S);
+        println!(
+            "EMPIRICAL-5 PASSED: 3 node +/-{}s drift, epoch boundary identik",
+            DRIFT_2H_S
+        );
     }
 
     #[test]
@@ -118,7 +172,9 @@ mod empirical_tests {
             let e_a = epoch_from_seq_num(seq);
             let e_b = epoch_from_seq_num(seq);
             let e_c = epoch_from_seq_num(seq);
-            if e_a != e_b || e_b != e_c { fork_detected = true; }
+            if e_a != e_b || e_b != e_c {
+                fork_detected = true;
+            }
         }
         assert!(!fork_detected, "EMPIRICAL-5 FAILED: fork terdeteksi!");
         println!("EMPIRICAL-5 PASSED: Tidak ada fork. epoch_from_seq_num deterministik.");
@@ -129,7 +185,10 @@ mod empirical_tests {
         assert_eq!(EPOCH_HB_COUNT, 4_320u32);
         assert_eq!(epoch_from_seq_num(EPOCH_HB_COUNT), 0);
         assert_eq!(epoch_from_seq_num(EPOCH_HB_COUNT + 1), 1);
-        println!("EMPIRICAL-5 PASSED: EPOCH_HB_COUNT={}, boundary verified", EPOCH_HB_COUNT);
+        println!(
+            "EMPIRICAL-5 PASSED: EPOCH_HB_COUNT={}, boundary verified",
+            EPOCH_HB_COUNT
+        );
     }
 
     // EMPIRICAL-6: Bunching attack test
@@ -144,10 +203,24 @@ mod empirical_tests {
         let mut accepted = 0u32;
         let mut rejected = 0u32;
         for i in 0..N_HB {
-            if rl.check_and_update(node, BASE_TS + i) { accepted += 1; } else { rejected += 1; }
+            if rl.check_and_update(node, BASE_TS + i) {
+                accepted += 1;
+            } else {
+                rejected += 1;
+            }
         }
-        assert_eq!(accepted, 1, "EMPIRICAL-6 FAILED: {} diterima, seharusnya 1", accepted);
-        assert_eq!(rejected, N_HB - 1, "EMPIRICAL-6 FAILED: {} ditolak, seharusnya {}", rejected, N_HB - 1);
+        assert_eq!(
+            accepted, 1,
+            "EMPIRICAL-6 FAILED: {} diterima, seharusnya 1",
+            accepted
+        );
+        assert_eq!(
+            rejected,
+            N_HB - 1,
+            "EMPIRICAL-6 FAILED: {} ditolak, seharusnya {}",
+            rejected,
+            N_HB - 1
+        );
         println!("EMPIRICAL-6 PASSED: 100 HB dalam ~100s: accepted={}, rejected={}. T_HB_MIN_INTERVAL_S={}s",
             accepted, rejected, T_HB_MIN_INTERVAL_S);
     }
@@ -158,9 +231,18 @@ mod empirical_tests {
         let node = [0xB2u8; 4];
         let base = 1_000_000u32;
         assert!(rl.check_and_update(node, base), "HB-1 harus diterima");
-        assert!(!rl.check_and_update(node, base + T_HB_MIN_INTERVAL_S - 1), "HB-2 interval 599s harus ditolak");
-        assert!(rl.check_and_update(node, base + T_HB_MIN_INTERVAL_S), "HB-3 interval 600s harus diterima");
-        println!("EMPIRICAL-6 PASSED: Legitimate HB interval {}s diterima", T_HB_MIN_INTERVAL_S);
+        assert!(
+            !rl.check_and_update(node, base + T_HB_MIN_INTERVAL_S - 1),
+            "HB-2 interval 599s harus ditolak"
+        );
+        assert!(
+            rl.check_and_update(node, base + T_HB_MIN_INTERVAL_S),
+            "HB-3 interval 600s harus diterima"
+        );
+        println!(
+            "EMPIRICAL-6 PASSED: Legitimate HB interval {}s diterima",
+            T_HB_MIN_INTERVAL_S
+        );
     }
 
     #[test]
@@ -169,7 +251,9 @@ mod empirical_tests {
         let mut rl = HeartbeatRateLimiter::new();
         let mut acc = 0u32;
         for _ in 0..100 {
-            if rl.check_and_update(node, 2_000_000) { acc += 1; }
+            if rl.check_and_update(node, 2_000_000) {
+                acc += 1;
+            }
         }
         assert_eq!(acc, 1, "Instant burst: harus 1 diterima, dapat {}", acc);
         println!("EMPIRICAL-6 PASSED: Instant burst 100 HB → hanya 1 diterima");
@@ -184,26 +268,49 @@ mod empirical_tests {
         let local: u32 = 1_000_000;
         let attack_shift: u32 = T_NMT_MAX_DRIFT_S + 1_000;
         let attack_ts = local + attack_shift;
-        let peers: [u32; 8] = [attack_ts, attack_ts, attack_ts, attack_ts, attack_ts, local, local, local];
+        let peers: [u32; 8] = [
+            attack_ts, attack_ts, attack_ts, attack_ts, attack_ts, local, local, local,
+        ];
         let nmt = compute_nmt(&peers).expect("Harus ada NMT dengan 8 peer");
-        assert_eq!(nmt, attack_ts, "EMPIRICAL-7 FAILED: NMT harus tergeser ke attack_ts={}", attack_ts);
+        assert_eq!(
+            nmt, attack_ts,
+            "EMPIRICAL-7 FAILED: NMT harus tergeser ke attack_ts={}",
+            attack_ts
+        );
         let drift = nmt.abs_diff(local);
-        assert!(drift > T_NMT_MAX_DRIFT_S, "EMPIRICAL-7 FAILED: drift={}s harus > {}s", drift, T_NMT_MAX_DRIFT_S);
+        assert!(
+            drift > T_NMT_MAX_DRIFT_S,
+            "EMPIRICAL-7 FAILED: drift={}s harus > {}s",
+            drift,
+            T_NMT_MAX_DRIFT_S
+        );
         let status = compute_nmt_with_eclipse_check(&peers, local);
-        assert!(matches!(status, NmtStatus::EclipseAlert { .. }), "EMPIRICAL-7 FAILED: harus EclipseAlert, dapat {:?}", status);
-        println!("EMPIRICAL-7 PASSED: 5/8 attacker (shift={}s) → NMT={}, drift={}s > {}s → EclipseAlert",
-            attack_shift, nmt, drift, T_NMT_MAX_DRIFT_S);
+        assert!(
+            matches!(status, NmtStatus::EclipseAlert { .. }),
+            "EMPIRICAL-7 FAILED: harus EclipseAlert, dapat {:?}",
+            status
+        );
+        println!(
+            "EMPIRICAL-7 PASSED: 5/8 attacker (shift={}s) → NMT={}, drift={}s > {}s → EclipseAlert",
+            attack_shift, nmt, drift, T_NMT_MAX_DRIFT_S
+        );
     }
 
     #[test]
     fn empirical_7_4_of_8_attackers_not_enough() {
         let local: u32 = 1_000_000;
         let attack_ts = local + T_NMT_MAX_DRIFT_S + 1_000;
-        let peers: [u32; 8] = [attack_ts, attack_ts, attack_ts, attack_ts, local, local, local, local];
+        let peers: [u32; 8] = [
+            attack_ts, attack_ts, attack_ts, attack_ts, local, local, local, local,
+        ];
         let nmt = compute_nmt(&peers).unwrap();
         assert_eq!(nmt, local, "4/8 attacker tidak bisa shift median");
         let status = compute_nmt_with_eclipse_check(&peers, local);
-        assert!(matches!(status, NmtStatus::Valid { .. }), "EMPIRICAL-7: 4/8 harus Valid, dapat {:?}", status);
+        assert!(
+            matches!(status, NmtStatus::Valid { .. }),
+            "EMPIRICAL-7: 4/8 harus Valid, dapat {:?}",
+            status
+        );
         println!("EMPIRICAL-7 PASSED: 4/8 attacker tidak cukup → tidak ada eclipse");
     }
 
@@ -215,10 +322,16 @@ mod empirical_tests {
         let ts_5: [u32; 8] = [attack, attack, attack, attack, attack, local, local, local];
         let nmt_4 = compute_nmt(&ts_4).unwrap();
         let nmt_5 = compute_nmt(&ts_5).unwrap();
-        assert_eq!(nmt_4, local,  "4 attacker: NMT harus local");
+        assert_eq!(nmt_4, local, "4 attacker: NMT harus local");
         assert_eq!(nmt_5, attack, "5 attacker: NMT harus attack");
-        assert!(nmt_4.abs_diff(local) <= T_NMT_MAX_DRIFT_S, "4 attacker: no eclipse");
-        assert!(nmt_5.abs_diff(local) >  T_NMT_MAX_DRIFT_S, "5 attacker: eclipse!");
+        assert!(
+            nmt_4.abs_diff(local) <= T_NMT_MAX_DRIFT_S,
+            "4 attacker: no eclipse"
+        );
+        assert!(
+            nmt_5.abs_diff(local) > T_NMT_MAX_DRIFT_S,
+            "5 attacker: eclipse!"
+        );
         println!("EMPIRICAL-7 PASSED: Threshold 5/8 terkonfirmasi. 4→no eclipse, 5→eclipse. NMT_PEER_COUNT={}",
             NMT_PEER_COUNT);
     }
@@ -229,21 +342,28 @@ mod empirical_tests {
         for n in 0..NMT_PEER_COUNT {
             let ts: Vec<u32> = vec![local; n];
             let status = compute_nmt_with_eclipse_check(&ts, local);
-            assert!(matches!(status, NmtStatus::InsufficientPeers { .. }), "{} peer: harus InsufficientPeers", n);
+            assert!(
+                matches!(status, NmtStatus::InsufficientPeers { .. }),
+                "{} peer: harus InsufficientPeers",
+                n
+            );
         }
-        println!("EMPIRICAL-7 PASSED: 0-7 peer → InsufficientPeers. Butuh tepat {} peer.", NMT_PEER_COUNT);
+        println!(
+            "EMPIRICAL-7 PASSED: 0-7 peer → InsufficientPeers. Butuh tepat {} peer.",
+            NMT_PEER_COUNT
+        );
     }
 
     // Sanity: semua konstanta sesuai spec
 
     #[test]
     fn empirical_all_constants_match_spec() {
-        assert_eq!(T_HEARTBEAT_TTL_S,    600u32,  "T_HEARTBEAT_TTL_S §7.2c");
-        assert_eq!(T_HB_MIN_INTERVAL_S,  600u32,  "T_HB_MIN_INTERVAL_S §7.2c");
-        assert_eq!(T_FUTURE_TOLERANCE_S,  30u32,  "T_FUTURE_TOLERANCE_S §7.2c");
-        assert_eq!(EPOCH_HB_COUNT,      4_320u32, "EPOCH_HB_COUNT §7.2c");
-        assert_eq!(NMT_PEER_COUNT,          8usize, "NMT_PEER_COUNT §12.3a");
-        assert_eq!(T_NMT_MAX_DRIFT_S,    600u32,  "T_NMT_MAX_DRIFT_S §12.3a");
+        assert_eq!(T_HEARTBEAT_TTL_S, 600u32, "T_HEARTBEAT_TTL_S §7.2c");
+        assert_eq!(T_HB_MIN_INTERVAL_S, 600u32, "T_HB_MIN_INTERVAL_S §7.2c");
+        assert_eq!(T_FUTURE_TOLERANCE_S, 30u32, "T_FUTURE_TOLERANCE_S §7.2c");
+        assert_eq!(EPOCH_HB_COUNT, 4_320u32, "EPOCH_HB_COUNT §7.2c");
+        assert_eq!(NMT_PEER_COUNT, 8usize, "NMT_PEER_COUNT §12.3a");
+        assert_eq!(T_NMT_MAX_DRIFT_S, 600u32, "T_NMT_MAX_DRIFT_S §12.3a");
         println!("ALL CONSTANTS VERIFIED dari codebase — tidak ada hardcode manual.");
     }
 }
