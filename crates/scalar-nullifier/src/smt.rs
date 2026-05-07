@@ -22,6 +22,10 @@ impl SparseMerkleTree {
         self.root = *nullifier; // Simulating root change
     }
 
+    pub fn remove(&mut self, nullifier: &[u8; 32]) {
+        self.leaves.remove(nullifier);
+    }
+
     pub fn contains(&self, nullifier: &[u8; 32]) -> bool {
         self.leaves.contains(nullifier)
     }

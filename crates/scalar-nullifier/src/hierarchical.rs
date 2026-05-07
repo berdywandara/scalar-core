@@ -240,3 +240,287 @@ mod tests {
         );
     }
 }
+
+// ── NullifierSet Layer Promotion — spec §6.3 ──────────────────────────────────
+
+/// Hasil promotion di akhir epoch. Spec §6.3.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PromotionResult {
+    /// Jumlah nullifier yang dipromote dari HOT ke WARM. Spec §6.3.
+    pub promoted_to_warm: u32,
+    /// Jumlah nullifier yang dipromote dari HOT ke COLD (usia > 12 epoch). Spec §6.3.
+    pub promoted_to_cold: u32,
+    /// Jumlah nullifier yang dihapus dari HOT (compacted). Spec §6.3.
+    pub removed_from_hot: u32,
+}
+
+/// Promotion threshold — usia minimum untuk COLD promotion. Spec §6.3.
+/// Nullifier lebih tua dari 12 epoch → dipromote ke NS_COLD juga.
+pub const COLD_PROMOTION_EPOCH_THRESHOLD: u64 = 12;
+
+/// NullifierPromoter — mengelola promotion antar layer. Spec §6.3.
+///
+/// Di akhir epoch k:
+///   1. Ambil semua nullifier dari NS_HOT yang lebih tua dari 1 epoch
+///   2. Insert ke NS_WARM
+///   3. Insert ke NS_COLD jika usia > COLD_PROMOTION_EPOCH_THRESHOLD epoch
+///   4. Hapus dari NS_HOT (compact SMT)
+///   5. NS_HOT kini hanya berisi nullifier dari epoch k
+///
+/// Zero-Gap Property:
+///   Nullifier tetap di NS_HOT sampai epoch boundary SEBELUM promotion.
+///   Tidak ada verification gap.
+pub struct NullifierPromoter {
+    /// Tracking nullifier dan epoch_id saat diinsert ke HOT.
+    /// Key: nullifier [u8;32] → epoch_id saat insert
+    hot_entries: std::collections::HashMap<[u8; 32], u64>,
+}
+
+impl NullifierPromoter {
+    pub fn new() -> Self {
+        Self {
+            hot_entries: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Record nullifier baru yang masuk NS_HOT. Spec §6.3.
+    pub fn record_hot_insert(&mut self, nullifier: [u8; 32], epoch_id: u64) {
+        self.hot_entries.insert(nullifier, epoch_id);
+    }
+
+    /// Jalankan promotion di akhir epoch k. Spec §6.3.
+    ///
+    /// Promotes nullifier yang epoch_id < current_epoch ke WARM/COLD.
+    /// Nullifier dari epoch k tetap di HOT.
+    ///
+    /// Zero-Gap: nullifier tetap di HOT sampai epoch boundary.
+    pub fn promote(
+        &mut self,
+        hns: &mut HierarchicalNullifierSet,
+        current_epoch: u64,
+    ) -> PromotionResult {
+        let mut promoted_to_warm = 0u32;
+        let mut promoted_to_cold = 0u32;
+        let mut removed_from_hot = 0u32;
+        let mut to_remove = Vec::new();
+
+        for (&nullifier, &insert_epoch) in &self.hot_entries {
+            // Hanya promote nullifier dari epoch sebelumnya — spec §6.3.
+            // Nullifier dari current_epoch tetap di HOT.
+            if insert_epoch < current_epoch {
+                let age_epochs = current_epoch.saturating_sub(insert_epoch);
+
+                // Step 2: Insert ke NS_WARM — spec §6.3.
+                hns.warm.insert(&nullifier);
+                promoted_to_warm += 1;
+
+                // Step 3: Insert ke NS_COLD jika usia > threshold — spec §6.3.
+                if age_epochs > COLD_PROMOTION_EPOCH_THRESHOLD {
+                    hns.cold.insert(&nullifier);
+                    promoted_to_cold += 1;
+                }
+
+                // Step 4: Hapus dari NS_HOT — spec §6.3.
+                hns.hot.remove(&nullifier);
+                removed_from_hot += 1;
+                to_remove.push(nullifier);
+            }
+        }
+
+        // Bersihkan tracking entries yang sudah dipromote.
+        for nullifier in to_remove {
+            self.hot_entries.remove(&nullifier);
+        }
+
+        PromotionResult {
+            promoted_to_warm,
+            promoted_to_cold,
+            removed_from_hot,
+        }
+    }
+
+    /// Jumlah nullifier yang saat ini tracking di HOT. Spec §6.3.
+    pub fn hot_count(&self) -> usize {
+        self.hot_entries.len()
+    }
+}
+
+impl Default for NullifierPromoter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod promotion_tests {
+    use super::*;
+
+    fn make_nullifier(b: u8) -> [u8; 32] {
+        let mut n = [0u8; 32];
+        n[0] = b;
+        n
+    }
+
+    // ── PromotionResult ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_promote_old_nullifiers_to_warm() {
+        // Nullifier dari epoch k-1 harus dipromote ke WARM. Spec §6.3.
+        let mut hns = HierarchicalNullifierSet::new_for_testing();
+        let mut promoter = NullifierPromoter::new();
+
+        let n = make_nullifier(0x01);
+        hns.insert(&n);
+        promoter.record_hot_insert(n, 0); // epoch 0
+
+        // Promote di epoch 1 → n dari epoch 0 → promote
+        let result = promoter.promote(&mut hns, 1);
+        assert_eq!(result.promoted_to_warm, 1);
+        assert_eq!(result.removed_from_hot, 1);
+    }
+
+    #[test]
+    fn test_current_epoch_nullifiers_stay_in_hot() {
+        // Nullifier dari current_epoch TIDAK dipromote. Spec §6.3.
+        let mut hns = HierarchicalNullifierSet::new_for_testing();
+        let mut promoter = NullifierPromoter::new();
+
+        let n = make_nullifier(0x02);
+        hns.insert(&n);
+        promoter.record_hot_insert(n, 5); // epoch 5 (current)
+
+        // Promote di epoch 5 → n dari epoch 5 → tetap di HOT
+        let result = promoter.promote(&mut hns, 5);
+        assert_eq!(result.promoted_to_warm, 0);
+        assert_eq!(result.removed_from_hot, 0);
+    }
+
+    #[test]
+    fn test_promote_to_cold_after_threshold() {
+        // Nullifier usia > COLD_PROMOTION_EPOCH_THRESHOLD → COLD juga. Spec §6.3.
+        let mut hns = HierarchicalNullifierSet::new_for_testing();
+        let mut promoter = NullifierPromoter::new();
+
+        let n = make_nullifier(0x03);
+        hns.insert(&n);
+        promoter.record_hot_insert(n, 0); // epoch 0
+
+        // Promote di epoch 13 → usia = 13 > 12 threshold → COLD juga
+        let result = promoter.promote(&mut hns, COLD_PROMOTION_EPOCH_THRESHOLD + 1);
+        assert_eq!(result.promoted_to_warm, 1);
+        assert_eq!(result.promoted_to_cold, 1);
+    }
+
+    #[test]
+    fn test_no_cold_promotion_at_threshold() {
+        // Usia = threshold (12) → TIDAK dipromote ke COLD. Spec §6.3.
+        let mut hns = HierarchicalNullifierSet::new_for_testing();
+        let mut promoter = NullifierPromoter::new();
+
+        let n = make_nullifier(0x04);
+        hns.insert(&n);
+        promoter.record_hot_insert(n, 0);
+
+        // Promote di epoch 12 → usia = 12 = threshold → TIDAK ke COLD (strictly >)
+        let result = promoter.promote(&mut hns, COLD_PROMOTION_EPOCH_THRESHOLD);
+        assert_eq!(result.promoted_to_warm, 1);
+        assert_eq!(result.promoted_to_cold, 0);
+    }
+
+    #[test]
+    fn test_zero_gap_property() {
+        // Zero-Gap: nullifier tetap di HOT sampai epoch boundary. Spec §6.3.
+        // Saat epoch k berjalan, nullifier dari epoch k masih di HOT → bisa verify.
+        let mut hns = HierarchicalNullifierSet::new_for_testing();
+        let mut promoter = NullifierPromoter::new();
+
+        let n = make_nullifier(0x05);
+        hns.insert(&n);
+        promoter.record_hot_insert(n, 3);
+
+        // Belum promote (masih epoch 3) → masih di HOT
+        assert!(hns.hot.contains(&n));
+        assert_eq!(promoter.hot_count(), 1);
+
+        // Setelah promote di epoch 4 → dipindah ke WARM
+        let result = promoter.promote(&mut hns, 4);
+        assert_eq!(result.removed_from_hot, 1);
+        // Sekarang di WARM
+        assert!(hns.warm.probably_contains(&n));
+    }
+
+    #[test]
+    fn test_promoted_nullifier_still_found() {
+        // Setelah promotion: nullifier masih bisa ditemukan (di WARM/COLD). Spec §6.3.
+        let mut hns = HierarchicalNullifierSet::new_for_testing();
+        let mut promoter = NullifierPromoter::new();
+
+        let n = make_nullifier(0x06);
+        hns.insert(&n);
+        promoter.record_hot_insert(n, 0);
+        promoter.promote(&mut hns, 1);
+
+        // Harus masih ditemukan — di WARM atau COLD
+        let status = hns.check(&n);
+        assert_ne!(status, NullifierStatus::Missing);
+    }
+
+    #[test]
+    fn test_promote_multiple_nullifiers() {
+        // Multiple nullifier dari epoch berbeda. Spec §6.3.
+        let mut hns = HierarchicalNullifierSet::new_for_testing();
+        let mut promoter = NullifierPromoter::new();
+
+        // 3 dari epoch 0, 2 dari epoch 5 (current)
+        for i in 0u8..3 {
+            let n = make_nullifier(i);
+            hns.insert(&n);
+            promoter.record_hot_insert(n, 0);
+        }
+        for i in 3u8..5 {
+            let n = make_nullifier(i);
+            hns.insert(&n);
+            promoter.record_hot_insert(n, 5);
+        }
+
+        let result = promoter.promote(&mut hns, 5);
+        // 3 dari epoch 0 → dipromote
+        assert_eq!(result.promoted_to_warm, 3);
+        assert_eq!(result.removed_from_hot, 3);
+        // 2 dari epoch 5 → tetap
+        assert_eq!(promoter.hot_count(), 2);
+    }
+
+    #[test]
+    fn test_hot_count_decreases_after_promotion() {
+        // hot_count berkurang setelah promotion. Spec §6.3.
+        let mut hns = HierarchicalNullifierSet::new_for_testing();
+        let mut promoter = NullifierPromoter::new();
+
+        for i in 0u8..5 {
+            let n = make_nullifier(i);
+            hns.insert(&n);
+            promoter.record_hot_insert(n, 0);
+        }
+        assert_eq!(promoter.hot_count(), 5);
+        promoter.promote(&mut hns, 1);
+        assert_eq!(promoter.hot_count(), 0);
+    }
+
+    #[test]
+    fn test_cold_promotion_threshold_value() {
+        // COLD_PROMOTION_EPOCH_THRESHOLD = 12. Spec §6.3.
+        assert_eq!(COLD_PROMOTION_EPOCH_THRESHOLD, 12u64);
+    }
+
+    #[test]
+    fn test_empty_promote_no_op() {
+        // Promote dengan tidak ada nullifier → result semua 0. Spec §6.3.
+        let mut hns = HierarchicalNullifierSet::new_for_testing();
+        let mut promoter = NullifierPromoter::new();
+        let result = promoter.promote(&mut hns, 5);
+        assert_eq!(result.promoted_to_warm, 0);
+        assert_eq!(result.promoted_to_cold, 0);
+        assert_eq!(result.removed_from_hot, 0);
+    }
+}
