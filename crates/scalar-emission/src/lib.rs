@@ -9,6 +9,7 @@ pub mod liveness;
 pub mod longevity;
 pub mod manifest;
 pub mod pou;
+pub mod resumption;
 pub mod root_alignment;
 pub mod slashing;
 pub mod succession;
