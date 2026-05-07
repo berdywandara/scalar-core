@@ -2578,6 +2578,7 @@ dependencies = [
  "scalar-emission",
  "scalar-fees",
  "scalar-network",
+ "scalar-nullifier",
  "scalar-wallet-core",
 ]
 
