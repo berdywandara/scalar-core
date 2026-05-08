@@ -12,6 +12,7 @@
 
 use scalar_consensus::ConsensusEngine;
 use scalar_node::api::LocalRpcServer;
+use scalar_node::heartbeat_service::HeartbeatService;
 use scalar_node::state_machine::NodeStateMachine;
 use scalar_node::swarm::{build_swarm, run_swarm, TOPIC_HEARTBEAT};
 use std::sync::{Arc, Mutex};
@@ -55,7 +56,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _consensus_engine = Arc::new(Mutex::new(ConsensusEngine::default()));
     println!("[CONSENSUS] ZK Consensus Engine online.");
 
-    // 3. RPC Server
+    // 3. HeartbeatService — NodeHeartbeat v9.0 (108 bytes, BLAKE3-MAC)
+    // NodeKey dan NodeID: random untuk testing, production pakai Argon2id
+    let full_node_id = {
+        let mut id = [0u8; 32];
+        id[0..2].copy_from_slice(&port.to_le_bytes());
+        id
+    };
+    let node_key = [0x42u8; 32]; // placeholder — production: dari seed derivation §13.1
+    let hb_service = Arc::new(Mutex::new(HeartbeatService::new(full_node_id, node_key)));
+    println!("[HB] HeartbeatService v9.0 online (108 bytes, BLAKE3-MAC).");
+
+    // 4. RPC Server
     let rpc_server = LocalRpcServer { port };
     println!("[RPC] LocalRpcServer port {}.", port);
     tokio::task::spawn_blocking(move || {
@@ -83,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("==================================================");
 
     // 5. Main event loop
-    let mut hb_counter: u64 = 0;
+    let mut hb_counter: u32 = 0;
     loop {
         tokio::select! {
             // Handle P2P events
@@ -97,7 +109,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("[CORE] ❌ Peer disconnected: {}", peer);
                     }
                     NodeSwarmEvent::HeartbeatReceived { from, data } => {
-                        println!("[CORE] 💓 Heartbeat from {} ({} bytes)", from, data.len());
+                        println!("[CORE] 💓 HB from {} ({} bytes)", from, data.len());
+                        // Verifikasi NodeHeartbeat v9.0 — 5-step spec §7.2b
+                        if data.len() == 108 {
+                            let nmt = HeartbeatService::local_nmt();
+                            // NodeKey_epoch peer: placeholder [0x42;32] untuk testing
+                            // Production: ambil dari EpochAnchor peer — spec §7.2a
+                            let peer_nke = scalar_emission::liveness::derive_node_key_epoch(
+                                &[0x42u8; 32], 0
+                            );
+                            let mut svc = hb_service.lock().unwrap();
+                            if svc.verify_peer_heartbeat(&data, nmt, &peer_nke) {
+                                println!("[CORE] ✅ HB verified from {}", from);
+                            } else {
+                                println!("[CORE] ❌ HB rejected from {}", from);
+                            }
+                        } else {
+                            println!("[CORE] ⚠️  HB wrong size: {} (expected 108)", data.len());
+                        }
                     }
                     NodeSwarmEvent::GossipReceived { from, data } => {
                         println!("[CORE] 📨 Gossip from {} ({} bytes)", from, data.len());
@@ -108,17 +137,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            // Broadcast heartbeat setiap 10 detik — spec §7.2
+            // Broadcast NodeHeartbeat v9.0 setiap 10 detik — spec §7.2
             _ = sleep(Duration::from_secs(10)) => {
                 hb_counter += 1;
                 let mut sm = state_machine.lock().unwrap();
                 sm.update_network_sensor(true, true);
                 drop(sm);
 
-                // Broadcast dummy heartbeat ke network
-                let hb_data = format!("HB:{}", hb_counter).into_bytes();
-                let _ = msg_tx.send((TOPIC_HEARTBEAT.to_string(), hb_data)).await;
-                println!("[CORE] 💓 Heartbeat #{} broadcast", hb_counter);
+                // Produce NodeHeartbeat v9.0 (108 bytes, BLAKE3-MAC) — spec §7.2
+                let hb_bytes = {
+                    let mut svc = hb_service.lock().unwrap();
+                    let hb = svc.produce_heartbeat();
+                    hb.to_bytes().to_vec()
+                };
+
+                let _ = msg_tx.send((TOPIC_HEARTBEAT.to_string(), hb_bytes)).await;
+                println!("[CORE] 💓 NodeHeartbeat v9.0 #{} broadcast (108 bytes)", hb_counter);
             }
         }
     }

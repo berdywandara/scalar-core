@@ -2697,7 +2697,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "argon2",
+ "blake3",
  "futures",
+ "hex",
  "libp2p",
  "scalar-consensus",
  "scalar-crypto",
