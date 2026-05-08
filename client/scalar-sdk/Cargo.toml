@@ -10,7 +10,7 @@ description = "Scalar Network client SDK — boundary crate antara protocol laye
 #   scalar-nullifier, scalar-network
 
 [dependencies]
-scalar-crypto  = { path = "../scalar-crypto" }
-scalar-fees    = { path = "../scalar-fees" }
+scalar-crypto  = { path = "../../core/scalar-crypto" }
+scalar-fees    = { path = "../../core/scalar-fees" }
 blake3         = "1.8.4"
 thiserror      = "1"

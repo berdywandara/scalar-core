@@ -1,18 +1,9 @@
 # Cargo.toml (workspace root)
 [workspace]
 members = [
-    "crates/scalar-compliance",
-    "crates/scalar-sdk",
-    "crates/scalar-crypto",
-    "crates/scalar-stark",
-    "crates/scalar-nullifier",
-    "crates/scalar-network",
-    "crates/scalar-node",
-    "crates/scalar-wallet-core",
-    "crates/scalar-emission",
-    "crates/scalar-fees",
-    "tools/circuit-bench",
-    "tools/genesis-tool", "crates/scalar-governance", "crates/scalar-consensus", "crates/scalar-ffi",
+    "core/*",
+    "client/*",
+    "tools/*",
 ]
 
 resolver = "2"

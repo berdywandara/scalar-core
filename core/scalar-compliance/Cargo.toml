@@ -8,4 +8,4 @@ scalar-emission  = { version = "0.1.0", path = "../scalar-emission" }
 scalar-fees      = { path = "../scalar-fees" }
 scalar-network   = { version = "0.1.0", path = "../scalar-network" }
 scalar-nullifier = { path = "../scalar-nullifier" }
-scalar-wallet-core = { path = "../scalar-wallet-core" }
+scalar-wallet-core = { path = "../../client/scalar-wallet-core" }
