@@ -8,7 +8,7 @@ Scalar is leaderless by design. There is no company, no foundation, no benevolen
 
 Read and internalize two documents:
 
-1. **`Scalar_Master_Technical_Spec_v5.0`** — the single source of truth for all protocol decisions. If your contribution conflicts with the spec, the spec wins. No exceptions.
+1. **`Scalar_Master_Technical_Spec_v9.0`** — the single source of truth for all protocol decisions. If your contribution conflicts with the spec, the spec wins. No exceptions.
 2. **`README.md`** — architecture overview and build instructions.
 
 If the spec is unclear on something, that is a documentation issue worth raising. If you disagree with the spec, that is a governance matter — not a pull request.
@@ -63,7 +63,7 @@ Every pull request must satisfy all five conditions before merge:
 1. cargo test --workspace        → 0 FAILED
 2. cargo clippy --workspace      → 0 warnings (with -D warnings)
 3. cargo fmt --all -- --check    → 0 diff
-4. Spec compliance               → constants and behavior match spec v5.0
+4. Spec compliance               → constants and behavior match spec v9.0
 5. Tests added                   → new code has test coverage
 ```
 
@@ -85,6 +85,7 @@ git clone https://github.com/berdywandara/scalar-core.git
 cd scalar-core
 cargo build --workspace
 cargo test --workspace
+# Expected: 965 passed, 0 failed
 ```
 
 ### Alpine Linux / musl Note
@@ -151,7 +152,7 @@ Every ossified constant must reference its spec section in a comment:
 pub const MAX_FANOUT: usize = 15;
 ```
 
-If you add a new constant, include its spec reference and add a compliance test in `scalar-compliance/src/v5_parameters.rs`.
+If you add a new constant, include its spec reference and add a compliance test in `scalar-compliance/src/v9_parameters.rs`.
 
 ### Zeroize Sensitive Data
 
