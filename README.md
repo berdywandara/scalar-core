@@ -32,7 +32,7 @@ Scalar Network is a post-quantum digital cash designed for long-term resilience.
  
 ```
 scalar-core/
-├── crates/
+├── core/                     # Protocol Layer (ossified after mainnet)
 │   ├── scalar-crypto/        # Poseidon2, SPHINCS+, ML-KEM, BLAKE3, CryptoVersion Registry
 │   ├── scalar-nullifier/     # Hierarchical NullifierSet (HOT/WARM/COLD/ARCH), Layer Promotion
 │   ├── scalar-stark/         # Transfer Circuit (C1-C10), Mint Circuit (MC1-MC5),
@@ -40,19 +40,20 @@ scalar-core/
 │   ├── scalar-emission/      # PoU formula, EpochAnchor, NodeHeartbeat MAC,
 │   │                         # Tail Emission Backstop, Node Resumption Protocol
 │   ├── scalar-fees/          # Fee model (FLOOR + PREMIUM), 95/5 distribution, W_FLOOR_FP
-│   ├── scalar-governance/    # Conviction factor, GovernanceID, Anti-Sybil, fork governance
 │   ├── scalar-network/       # GSS fanout, NMT (8 peers), StateBeacon, Dandelion++,
 │   │                         # heartbeat_verifier, time_security (T-1..T-6), eclipse defense
 │   ├── scalar-node/          # State machine, RPC (port 7777), Argon2id Sybil defense
-│   ├── scalar-wallet-core/   # Key derivation chain (Argon2id v9.0), coin selection
-│   ├── scalar-compliance/    # Ossified parameter verification suite (v5/v6/v7/v9)
+│   ├── scalar-consensus/     # Consensus engine
+│   └── scalar-compliance/    # Ossified parameter verification suite (v5/v6/v7/v9)
+├── client/                   # Client-Utility Layer (scalar-sdk boundary)
 │   ├── scalar-sdk/           # Client-Utility Layer — F1–F12 API (boundary: no protocol deps)
+│   ├── scalar-wallet-core/   # Key derivation chain (Argon2id v9.0), coin selection
 │   ├── scalar-governance/    # Conviction, GovernanceID, AI-resistance, anti-sybil
-│   └── scalar-ffi/           # UniFFI-style bindings for Flutter/mobile
+│   └── scalar-ffi/           # C ABI bindings for Flutter Desktop
 ├── tools/
-│   └── genesis-tool/         # Genesis object generation and verification (CLI)
+│   └── genesis-tool/         # Genesis object generation and verification (binary format)
 └── apps/
-    └── mobile/               # Flutter wallet UI (⏳ PENDING — awaiting UI/UX design)
+    └── mobile/               # Flutter Desktop app (⏳ PENDING — awaiting UI/UX design)
 ```
  
 ---
@@ -268,7 +269,7 @@ NodeKey_epoch_i = `BLAKE3(NodeKey_i ‖ epoch_id_le64)` — per-epoch key, compa
 ```bash
 # QA: verify SDK isolation
 grep -r 'use scalar_emission\|use scalar_stark\|use scalar_nullifier\|use scalar_network' \
-  crates/scalar-sdk/
+  client/scalar-sdk/
 # Expected output: empty (no results)
 ```
  
@@ -311,7 +312,7 @@ Based on **Scalar_PR_Mapping_L1_v10.0** — Layer 1 + SDK complete.
 | scalar-sdk | ✅ Complete | 23 (F1–F12, 45 feature tests) |
 | genesis-tool | ✅ Complete | 9 |
 | Empirical Tests §22.5 | ✅ All 7/7 PASS | ~20 |
-| **Total** | **Layer 1 + SDK: COMPLETE** | **~750+ tests** |
+| **Total** | **Layer 1 + SDK: COMPLETE** | **965 tests** |
  
 **Remaining:** PR-CS-17/18 Flutter Onboarding + Send/Receive (⏳ PENDING — awaiting UI/UX design) · PR-CS-19 Governance Circuit Qvoting (🔴 TODO — post-testnet)
  
@@ -376,6 +377,7 @@ Scalar is designed for long-term resilience through: (1) post-quantum hash-based
  
 - **Specification:** `Scalar_Master_Technical_Spec_v9.0` — single source of truth. If code conflicts with spec, spec wins.
 - **PR Mapping:** `Scalar_PR_Mapping_L1_v10.0` — full development status and sprint planning.
+- **Audit:** v9.0 compliance audit completed — 965 tests, 0 failed, all L1 OSSIFIED parameters verified.
 - **License:** See `AUTHORS.md`
  
 ---
