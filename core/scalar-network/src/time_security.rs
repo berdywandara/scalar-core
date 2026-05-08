@@ -17,7 +17,7 @@ use std::collections::HashMap;
 
 /// T-4: Minimum interval antar heartbeat dalam detik. Spec §7.2c T-4.
 /// 1 HB per 10 menit = 600 detik. Bunching attack: reject HB < interval ini.
-pub const T_HB_MIN_INTERVAL_S: u32 = 600;
+pub const T_HB_MIN_INTERVAL_S: u32 = 300;
 
 /// T-3: Interval update NMT dalam detik. Spec §12.3a.
 /// NMT harus di-update setiap 60 detik dari 8 peer.
@@ -363,8 +363,8 @@ mod tests {
         assert!(!rl.check_and_update(node, 1_002)); // 2 detik → tolak
         assert!(!rl.check_and_update(node, 1_004)); // 4 detik → tolak
         assert!(!rl.check_and_update(node, 1_100)); // 100 detik → tolak
-        assert!(!rl.check_and_update(node, 1_599)); // 599 detik → tolak
-        assert!(rl.check_and_update(node, 1_600)); // 600 detik → diterima
+        assert!(!rl.check_and_update(node, 1_299)); // 299 detik → tolak
+        assert!(rl.check_and_update(node, 1_300)); // 300 detik → diterima
     }
 
     #[test]
@@ -378,8 +378,8 @@ mod tests {
 
     #[test]
     fn test_t4_min_interval_value() {
-        // T_HB_MIN_INTERVAL_S = 600 detik. Spec §7.2c T-4.
-        assert_eq!(T_HB_MIN_INTERVAL_S, 600u32);
+        // T_HB_MIN_INTERVAL_S = 300 detik. Spec §18.2 Layer 2 default.
+        assert_eq!(T_HB_MIN_INTERVAL_S, 300u32);
     }
 
     #[test]

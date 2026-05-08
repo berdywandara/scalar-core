@@ -48,7 +48,7 @@ mod empirical_tests {
 
     #[test]
     fn empirical_4_all_precomputed_hb_rejected_by_ttl() {
-        assert_eq!(T_HEARTBEAT_TTL_S, 600u32);
+        assert_eq!(T_HEARTBEAT_TTL_S, 1_200u32);
         assert_eq!(EPOCH_HB_COUNT, 4_320u32);
         let timestamp_precompute: u32 = 1_000_000;
         let nmt_broadcast: u32 = timestamp_precompute + T_HEARTBEAT_TTL_S + 1;
@@ -195,7 +195,7 @@ mod empirical_tests {
 
     #[test]
     fn empirical_6_100_hb_in_10_seconds_only_1_accepted() {
-        assert_eq!(T_HB_MIN_INTERVAL_S, 600u32);
+        assert_eq!(T_HB_MIN_INTERVAL_S, 300u32);
         const N_HB: u32 = 100;
         const BASE_TS: u32 = 1_000_000;
         let mut rl = HeartbeatRateLimiter::new();
@@ -237,7 +237,7 @@ mod empirical_tests {
         );
         assert!(
             rl.check_and_update(node, base + T_HB_MIN_INTERVAL_S),
-            "HB-3 interval 600s harus diterima"
+            "HB-3 interval T_HB_MIN_INTERVAL_S harus diterima"
         );
         println!(
             "EMPIRICAL-6 PASSED: Legitimate HB interval {}s diterima",
@@ -358,8 +358,8 @@ mod empirical_tests {
 
     #[test]
     fn empirical_all_constants_match_spec() {
-        assert_eq!(T_HEARTBEAT_TTL_S, 600u32, "T_HEARTBEAT_TTL_S §7.2c");
-        assert_eq!(T_HB_MIN_INTERVAL_S, 600u32, "T_HB_MIN_INTERVAL_S §7.2c");
+        assert_eq!(T_HEARTBEAT_TTL_S, 1_200u32, "T_HEARTBEAT_TTL_S §18.2 default");
+        assert_eq!(T_HB_MIN_INTERVAL_S, 300u32, "T_HB_MIN_INTERVAL_S §18.2 default");
         assert_eq!(T_FUTURE_TOLERANCE_S, 30u32, "T_FUTURE_TOLERANCE_S §7.2c");
         assert_eq!(EPOCH_HB_COUNT, 4_320u32, "EPOCH_HB_COUNT §7.2c");
         assert_eq!(NMT_PEER_COUNT, 8usize, "NMT_PEER_COUNT §12.3a");

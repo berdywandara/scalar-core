@@ -80,7 +80,7 @@ mod tests {
             gov_id_1, gov_id_2,
             "GovernanceID harus stabil saat SpendKey dirotasi"
         );
-        assert!(verify_governance_id_stability(&view_key, &view_key));
+        assert!(verify_governance_id_stability(&view_key));
     }
 
     #[test]
