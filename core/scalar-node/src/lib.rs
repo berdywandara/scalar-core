@@ -7,3 +7,4 @@ pub mod sybil;
 pub use gossip::ScalarGossipMessage;
 pub use sybil::NodeIdentity;
 pub mod swarm;
+pub mod heartbeat_service;
