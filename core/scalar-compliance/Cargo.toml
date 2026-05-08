@@ -1,11 +1,13 @@
 [package]
 name = "scalar-compliance"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [dependencies]
-scalar-emission  = { version = "0.1.0", path = "../scalar-emission" }
+scalar-emission  = { path = "../scalar-emission" }
 scalar-fees      = { path = "../scalar-fees" }
-scalar-network   = { version = "0.1.0", path = "../scalar-network" }
+scalar-network   = { path = "../scalar-network" }
 scalar-nullifier = { path = "../scalar-nullifier" }
 scalar-wallet-core = { path = "../../client/scalar-wallet-core" }

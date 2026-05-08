@@ -1,7 +1,9 @@
 [package]
 name = "scalar-sdk"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 description = "Scalar Network client SDK — boundary crate antara protocol layer dan client-utility layer. Spec §21.2 v9.0."
 
 # DEPENDENCY YANG DIIZINKAN — spec §21.1, §21.2
