@@ -9,8 +9,15 @@ use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Port dari argument --port=XXXX, default 7777
+    let port: u16 = std::env::args()
+        .find(|a| a.starts_with("--port="))
+        .and_then(|a| a.trim_start_matches("--port=").parse().ok())
+        .unwrap_or(7777);
+
     println!("==================================================");
     println!("  SCALAR NETWORK CORE NODE - BOOT SEQUENCE INITIATED");
+    println!("  RPC Port: {}", port);
     println!("==================================================");
 
     // 1. Inisiasi State Machine (Memori Inti Node)
@@ -24,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("[CONSENSUS] Mesin Konsensus ZK (SMT & Nullifiers) online.");
 
     // 3. Inisiasi Command Center (Local RPC Server)
-    let rpc_server = LocalRpcServer::new();
+    let rpc_server = LocalRpcServer { port };
     println!("[RPC] LocalRpcServer siap mendengarkan instruksi dompet di port lokal.");
 
     // 4. Menjalankan RPC Server di thread latar belakang
