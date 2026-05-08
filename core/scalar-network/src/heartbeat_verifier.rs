@@ -20,7 +20,7 @@ use std::collections::HashMap;
 /// TTL heartbeat dalam detik. Spec §7.2c T-2.
 /// HB ditolak jika abs(NMT - HB.timestamp) > T_HEARTBEAT_TTL_S.
 /// Layer 2 CONSTRAINED — default 600 detik (10 menit × 1 window).
-pub const T_HEARTBEAT_TTL_S: u32 = 600;
+pub const T_HEARTBEAT_TTL_S: u32 = 1_200;
 
 // ── VerificationError — spec §7.2b ───────────────────────────────────────────
 
@@ -249,7 +249,7 @@ mod tests {
     fn test_step1_ttl_fail_exceeded() {
         // abs(NMT - timestamp) > T_HEARTBEAT_TTL_S → FAIL. Spec §7.2b.
         let mut verifier = HeartbeatVerifier::new();
-        let nmt = 1_000u32;
+        let nmt = 2_400u32;
         let hb = make_valid_hb(
             [0x01; 4],
             1,
@@ -462,8 +462,8 @@ mod tests {
 
     #[test]
     fn test_t_heartbeat_ttl_s_value() {
-        // T_HEARTBEAT_TTL_S = 600 detik. Spec §7.2c T-2.
-        assert_eq!(T_HEARTBEAT_TTL_S, 600u32);
+        // T_HEARTBEAT_TTL_S = 1_200 detik. Spec §18.2 Layer 2 default.
+        assert_eq!(T_HEARTBEAT_TTL_S, 1_200u32);
     }
 
     // ── compute_prev_hash ─────────────────────────────────────────────────────
