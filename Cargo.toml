@@ -17,7 +17,7 @@ winterfell = "0.9"                # STARK prover/verifier
 # Data structures
 
 # Networking
-libp2p = { version = "0.54", features = ["tcp", "noise", "yamux"] }
+libp2p = { version = "0.54", features = ["tcp", "noise", "yamux", "gossipsub", "kad", "macros", "tokio", "identify"] }
 tokio = { version = "1", features = ["full"] }
 
 # Error handling
