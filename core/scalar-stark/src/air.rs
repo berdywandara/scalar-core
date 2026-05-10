@@ -76,11 +76,7 @@ impl TransferCircuitPublicInput {
     ///
     /// Returns true jika root valid untuk digunakan dalam transfer di epoch k.
     /// ANTI-DOUBLE-SPEND: snapshot_epoch HARUS == current_epoch - 1.
-    pub fn validate_cb_utxo_root_epoch(
-        &self,
-        snapshot_epoch: u64,
-        current_epoch: u64,
-    ) -> bool {
+    pub fn validate_cb_utxo_root_epoch(&self, snapshot_epoch: u64, current_epoch: u64) -> bool {
         // CB constraint: root dari epoch k-1 (committed), bukan epoch k
         // Spec §4.2: "snapshot pada epoch terkomit sebelumnya"
         if current_epoch == 0 {
@@ -160,17 +156,26 @@ pub fn is_tx_censorship_expired(entry_ts_ms: u64, current_ts_ms: u64) -> bool {
 pub enum CbConstraintError {
     /// utxo_set_root berasal dari epoch yang sama (k) — anti-double-spend violation.
     /// Spec §4.3 CB: root harus dari epoch k-1.
-    RootFromCurrentEpoch { snapshot_epoch: u64, current_epoch: u64 },
+    RootFromCurrentEpoch {
+        snapshot_epoch: u64,
+        current_epoch: u64,
+    },
     /// utxo_set_root adalah zero — tidak diinisialisasi.
     ZeroRoot,
     /// snapshot_epoch lebih baru dari current_epoch — tidak valid.
-    FutureSnapshot { snapshot_epoch: u64, current_epoch: u64 },
+    FutureSnapshot {
+        snapshot_epoch: u64,
+        current_epoch: u64,
+    },
 }
 
 impl core::fmt::Display for CbConstraintError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::RootFromCurrentEpoch { snapshot_epoch, current_epoch } => write!(
+            Self::RootFromCurrentEpoch {
+                snapshot_epoch,
+                current_epoch,
+            } => write!(
                 f,
                 "CB FAIL: utxo_set_root dari epoch {snapshot_epoch} \
                  tidak valid untuk transaksi epoch {current_epoch} \
@@ -181,7 +186,10 @@ impl core::fmt::Display for CbConstraintError {
                 f,
                 "CB FAIL: utxo_set_root adalah zero — tidak diinisialisasi — spec §4.3 CB"
             ),
-            Self::FutureSnapshot { snapshot_epoch, current_epoch } => write!(
+            Self::FutureSnapshot {
+                snapshot_epoch,
+                current_epoch,
+            } => write!(
                 f,
                 "CB FAIL: snapshot_epoch {snapshot_epoch} > current_epoch {current_epoch} \
                  — root dari masa depan tidak valid"
@@ -330,8 +338,11 @@ mod tests {
         // Root dari epoch k-1 diterima. Spec §4.3 CB.
         let root = valid_utxo_root();
         let result = validate_cb_utxo_root(&root, 4, 5); // snapshot=4, current=5
-        assert!(result.is_ok(),
-            "Root dari epoch k-1 harus diterima: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Root dari epoch k-1 harus diterima: {:?}",
+            result
+        );
     }
 
     #[test]
@@ -359,7 +370,10 @@ mod tests {
         // snapshot_epoch > current_epoch → invalid. Spec §4.3 CB.
         let root = valid_utxo_root();
         let result = validate_cb_utxo_root(&root, 6, 5); // snapshot=6 > current=5
-        assert!(matches!(result, Err(CbConstraintError::FutureSnapshot { .. })));
+        assert!(matches!(
+            result,
+            Err(CbConstraintError::FutureSnapshot { .. })
+        ));
     }
 
     #[test]
@@ -403,8 +417,10 @@ mod tests {
             current_timestamp: 1_000_001_000,
         };
         // snapshot_epoch == current_epoch → harus ditolak
-        assert!(!pi.validate_cb_utxo_root_epoch(5, 5),
-            "Spending dari epoch yang sama harus ditolak");
+        assert!(
+            !pi.validate_cb_utxo_root_epoch(5, 5),
+            "Spending dari epoch yang sama harus ditolak"
+        );
     }
 
     #[test]
@@ -419,8 +435,11 @@ mod tests {
             entry_timestamp: 1_000_000_000,
             crypto_version: 0x01,
         };
-        assert_eq!(pi.utxo_set_root, valid_utxo_root(),
-            "utxo_set_root harus ada di ScalarPublicInputs");
+        assert_eq!(
+            pi.utxo_set_root,
+            valid_utxo_root(),
+            "utxo_set_root harus ada di ScalarPublicInputs"
+        );
     }
 
     // ── Constraint counts ─────────────────────────────────────────────────────
@@ -430,7 +449,8 @@ mod tests {
         let total = compute_total_constraints(2, 2);
         assert!(
             (40_450..=40_850).contains(&total),
-            "2-in/2-out harus ~40_650, dapat {}", total
+            "2-in/2-out harus ~40_650, dapat {}",
+            total
         );
     }
 
@@ -439,7 +459,8 @@ mod tests {
         let total = compute_total_constraints(10, 10);
         assert!(
             (201_500..=202_500).contains(&total),
-            "10-in/10-out harus ~202_000, dapat {}", total
+            "10-in/10-out harus ~202_000, dapat {}",
+            total
         );
     }
 

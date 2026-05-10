@@ -358,8 +358,14 @@ mod empirical_tests {
 
     #[test]
     fn empirical_all_constants_match_spec() {
-        assert_eq!(T_HEARTBEAT_TTL_S, 1_200u32, "T_HEARTBEAT_TTL_S §18.2 default");
-        assert_eq!(T_HB_MIN_INTERVAL_S, 300u32, "T_HB_MIN_INTERVAL_S §18.2 default");
+        assert_eq!(
+            T_HEARTBEAT_TTL_S, 1_200u32,
+            "T_HEARTBEAT_TTL_S §18.2 default"
+        );
+        assert_eq!(
+            T_HB_MIN_INTERVAL_S, 300u32,
+            "T_HB_MIN_INTERVAL_S §18.2 default"
+        );
         assert_eq!(T_FUTURE_TOLERANCE_S, 30u32, "T_FUTURE_TOLERANCE_S §7.2c");
         assert_eq!(EPOCH_HB_COUNT, 4_320u32, "EPOCH_HB_COUNT §7.2c");
         assert_eq!(NMT_PEER_COUNT, 8usize, "NMT_PEER_COUNT §12.3a");

@@ -4,10 +4,10 @@
 //!
 //! Spec §16.4: "Hanya operasi read-only dan ZK verification."
 
-use scalar_emission::dmm::{
-    EpochRewardManifestV12, compute_manifest_hash_v12, SPEC_VERSION_MANIFEST_V12,
-};
 use blake3::Hasher;
+use scalar_emission::dmm::{
+    compute_manifest_hash_v12, EpochRewardManifestV12, SPEC_VERSION_MANIFEST_V12,
+};
 
 // ── NullifierStatus — spec §16.4 ─────────────────────────────────────────────
 
@@ -28,9 +28,15 @@ pub enum NullifierStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ManifestAuditResult {
     /// Manifest valid — hash cocok dan spec_version benar. Spec §16.4.
-    Valid { node_count: usize, total_emission_sscl: u64 },
+    Valid {
+        node_count: usize,
+        total_emission_sscl: u64,
+    },
     /// Manifest hash tidak cocok — data corrupt atau dimanipulasi. Spec §16.4.
-    HashMismatch { expected: [u8; 32], actual: [u8; 32] },
+    HashMismatch {
+        expected: [u8; 32],
+        actual: [u8; 32],
+    },
     /// spec_version tidak valid. Spec §16.4.
     InvalidSpecVersion { version: u8, expected: u8 },
     /// Manifest kosong (tidak ada node). Spec §16.4.
@@ -117,18 +123,16 @@ pub fn audit_blake3_hash(data: &[u8]) -> [u8; 32] {
 mod tests {
     use super::*;
     use scalar_emission::dmm::{
-        NodeRewardEntry, EpochRewardManifestV12,
-        compute_reward_root, compute_network_health_digest, compute_seed_k_v12,
+        compute_network_health_digest, compute_reward_root, compute_seed_k_v12,
+        EpochRewardManifestV12, NodeRewardEntry,
     };
 
     fn make_valid_manifest() -> EpochRewardManifestV12 {
-        let node_list = vec![
-            NodeRewardEntry {
-                node_id_full: [0x01u8; 32],
-                reward_sscl: 1_000_000,
-                uptime_weight_fp: 800_000,
-            }
-        ];
+        let node_list = vec![NodeRewardEntry {
+            node_id_full: [0x01u8; 32],
+            reward_sscl: 1_000_000,
+            uptime_weight_fp: 800_000,
+        }];
         let reward_root = compute_reward_root(&node_list);
         let network_health_digest = compute_network_health_digest(1, 1, 800_000);
         let seed_k = compute_seed_k_v12(&[0x42u8; 32]);
@@ -184,7 +188,11 @@ mod tests {
         // Manifest dengan hash benar → Valid. Spec §16.4.
         let manifest = make_valid_manifest();
         let result = verify_manifest_hash(&manifest);
-        assert!(result.is_valid(), "Manifest valid harus pass verify: {:?}", result);
+        assert!(
+            result.is_valid(),
+            "Manifest valid harus pass verify: {:?}",
+            result
+        );
     }
 
     #[test]
@@ -193,8 +201,10 @@ mod tests {
         let mut manifest = make_valid_manifest();
         manifest.manifest_hash = [0xFFu8; 32]; // tamper
         let result = verify_manifest_hash(&manifest);
-        assert!(matches!(result, ManifestAuditResult::HashMismatch { .. }),
-            "Tampered manifest harus HashMismatch");
+        assert!(
+            matches!(result, ManifestAuditResult::HashMismatch { .. }),
+            "Tampered manifest harus HashMismatch"
+        );
     }
 
     #[test]
@@ -203,7 +213,10 @@ mod tests {
         let mut manifest = make_valid_manifest();
         manifest.spec_version = 0x02; // v9.0 version
         let result = verify_manifest_hash(&manifest);
-        assert!(matches!(result, ManifestAuditResult::InvalidSpecVersion { .. }));
+        assert!(matches!(
+            result,
+            ManifestAuditResult::InvalidSpecVersion { .. }
+        ));
     }
 
     // ── test_audit_no_private_key_access ─────────────────────────────────────

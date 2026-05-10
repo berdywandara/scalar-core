@@ -54,9 +54,9 @@ pub struct TxOrderingKey {
 /// Domain separator OSSIFIED: b"scalar_tx_order_v1" — spec §2.3.
 pub fn compute_tx_ordering_key(tx_hash: &[u8; 32], epoch_id: u64) -> [u8; 32] {
     let mut hasher = Hasher::new();
-    hasher.update(TX_ORDER_DOMAIN);           // b"scalar_tx_order_v1"
-    hasher.update(tx_hash);                   // tx_hash [u8;32]
-    hasher.update(&epoch_id.to_le_bytes());   // S3: little-endian
+    hasher.update(TX_ORDER_DOMAIN); // b"scalar_tx_order_v1"
+    hasher.update(tx_hash); // tx_hash [u8;32]
+    hasher.update(&epoch_id.to_le_bytes()); // S3: little-endian
     *hasher.finalize().as_bytes()
 }
 
@@ -126,8 +126,10 @@ mod tests {
         let tx_hash = make_tx_hash(0x42);
         let k1 = compute_tx_ordering_key(&tx_hash, 10);
         let k2 = compute_tx_ordering_key(&tx_hash, 10);
-        assert_eq!(k1, k2,
-            "ordering_key harus deterministik untuk input yang sama");
+        assert_eq!(
+            k1, k2,
+            "ordering_key harus deterministik untuk input yang sama"
+        );
     }
 
     #[test]
@@ -136,8 +138,7 @@ mod tests {
         let tx_hash = make_tx_hash(0x42);
         let k1 = compute_tx_ordering_key(&tx_hash, 10);
         let k2 = compute_tx_ordering_key(&tx_hash, 11);
-        assert_ne!(k1, k2,
-            "ordering_key harus berbeda untuk epoch berbeda");
+        assert_ne!(k1, k2, "ordering_key harus berbeda untuk epoch berbeda");
     }
 
     #[test]
@@ -145,16 +146,14 @@ mod tests {
         // tx_hash berbeda → ordering_key berbeda. Spec §8.5.
         let k1 = compute_tx_ordering_key(&make_tx_hash(0x01), 10);
         let k2 = compute_tx_ordering_key(&make_tx_hash(0x02), 10);
-        assert_ne!(k1, k2,
-            "ordering_key harus berbeda untuk tx_hash berbeda");
+        assert_ne!(k1, k2, "ordering_key harus berbeda untuk tx_hash berbeda");
     }
 
     #[test]
     fn unit_test_tx_ordering_key_nonzero() {
         // ordering_key tidak boleh zero. Spec §8.5.
         let k = compute_tx_ordering_key(&make_tx_hash(0x00), 0);
-        assert_ne!(k, [0u8; 32],
-            "ordering_key tidak boleh zero");
+        assert_ne!(k, [0u8; 32], "ordering_key tidak boleh zero");
     }
 
     // ── test_canonical_sort_stable ────────────────────────────────────────────
@@ -170,10 +169,14 @@ mod tests {
         let sorted_desc = sort_transactions_canonical(&txs_desc, 5);
         let sorted_shuffled = sort_transactions_canonical(&txs_shuffled, 5);
 
-        assert_eq!(sorted_asc, sorted_desc,
-            "urutan desc harus menghasilkan output canonical yang sama");
-        assert_eq!(sorted_asc, sorted_shuffled,
-            "urutan shuffled harus menghasilkan output canonical yang sama");
+        assert_eq!(
+            sorted_asc, sorted_desc,
+            "urutan desc harus menghasilkan output canonical yang sama"
+        );
+        assert_eq!(
+            sorted_asc, sorted_shuffled,
+            "urutan shuffled harus menghasilkan output canonical yang sama"
+        );
     }
 
     // ── integration_test_utxo_root_identical ─────────────────────────────────
@@ -183,8 +186,11 @@ mod tests {
         // Dua node dengan tx set sama → urutan canonical identik. Spec §8.5.
         // Simulasi: "node A" dan "node B" menerima tx dalam urutan berbeda.
         let tx_set = vec![
-            make_tx(0xAA), make_tx(0xBB), make_tx(0xCC),
-            make_tx(0xDD), make_tx(0xEE),
+            make_tx(0xAA),
+            make_tx(0xBB),
+            make_tx(0xCC),
+            make_tx(0xDD),
+            make_tx(0xEE),
         ];
 
         // Node A: tx diterima dalam urutan 0xAA, 0xBB, 0xCC, 0xDD, 0xEE
@@ -192,21 +198,28 @@ mod tests {
 
         // Node B: tx diterima dalam urutan berbeda
         let node_b_input = vec![
-            make_tx(0xEE), make_tx(0xCC), make_tx(0xAA),
-            make_tx(0xDD), make_tx(0xBB),
+            make_tx(0xEE),
+            make_tx(0xCC),
+            make_tx(0xAA),
+            make_tx(0xDD),
+            make_tx(0xBB),
         ];
 
         let sorted_a = sort_transactions_canonical(&node_a_input, 7);
         let sorted_b = sort_transactions_canonical(&node_b_input, 7);
 
-        assert_eq!(sorted_a, sorted_b,
-            "Dua node dengan tx set sama harus menghasilkan canonical order identik — spec §8.5");
+        assert_eq!(
+            sorted_a, sorted_b,
+            "Dua node dengan tx set sama harus menghasilkan canonical order identik — spec §8.5"
+        );
 
         // Verifikasi: BLAKE3(sorted_a) == BLAKE3(sorted_b) sebagai proxy utxo_set_root
         let hash_a = blake3_tx_list_hash(&sorted_a);
         let hash_b = blake3_tx_list_hash(&sorted_b);
-        assert_eq!(hash_a, hash_b,
-            "utxo_set_root proxy harus identik antar node");
+        assert_eq!(
+            hash_a, hash_b,
+            "utxo_set_root proxy harus identik antar node"
+        );
     }
 
     // Helper: hitung hash dari ordered tx list sebagai proxy utxo_set_root
@@ -248,8 +261,11 @@ mod tests {
         keys.sort_unstable();
         keys.dedup();
 
-        assert_eq!(keys.len(), original_len,
-            "Tidak ada dua tx dengan ordering_key yang sama — prop_test_ordering_no_collision");
+        assert_eq!(
+            keys.len(),
+            original_len,
+            "Tidak ada dua tx dengan ordering_key yang sama — prop_test_ordering_no_collision"
+        );
     }
 
     // ── test_empty_tx_list ────────────────────────────────────────────────────
@@ -288,8 +304,10 @@ mod tests {
         hasher.update(&epoch_id.to_le_bytes());
         let without_domain = *hasher.finalize().as_bytes();
 
-        assert_ne!(with_domain, without_domain,
-            "Domain separator harus digunakan dalam ordering_key computation");
+        assert_ne!(
+            with_domain, without_domain,
+            "Domain separator harus digunakan dalam ordering_key computation"
+        );
     }
 
     // ── test_ordering_epoch_isolation ─────────────────────────────────────────
@@ -307,13 +325,17 @@ mod tests {
         // (tidak selalu berbeda tapi ordering_key pasti berbeda)
         let key_1_0 = compute_tx_ordering_key(&txs[0].tx_hash, 1);
         let key_2_0 = compute_tx_ordering_key(&txs[0].tx_hash, 2);
-        assert_ne!(key_1_0, key_2_0,
-            "ordering_key harus berbeda antar epoch untuk tx yang sama");
+        assert_ne!(
+            key_1_0, key_2_0,
+            "ordering_key harus berbeda antar epoch untuk tx yang sama"
+        );
 
         // Masing-masing epoch menghasilkan urutan yang konsisten dalam dirinya sendiri
         let sorted_epoch_1_again = sort_transactions_canonical(&txs, 1);
-        assert_eq!(sorted_epoch_1, sorted_epoch_1_again,
-            "Ordering harus deterministik dalam epoch yang sama");
+        assert_eq!(
+            sorted_epoch_1, sorted_epoch_1_again,
+            "Ordering harus deterministik dalam epoch yang sama"
+        );
         let _ = sorted_epoch_2; // suppress unused warning
     }
 
@@ -339,9 +361,10 @@ mod tests {
         let expected_be = *hasher_be.finalize().as_bytes();
 
         let actual = compute_tx_ordering_key(&tx_hash, 10);
-        assert_eq!(actual, expected_le,
-            "epoch_id harus little-endian (S3)");
-        assert_ne!(actual, expected_be,
-            "big-endian harus berbeda dari canonical");
+        assert_eq!(actual, expected_le, "epoch_id harus little-endian (S3)");
+        assert_ne!(
+            actual, expected_be,
+            "big-endian harus berbeda dari canonical"
+        );
     }
 }

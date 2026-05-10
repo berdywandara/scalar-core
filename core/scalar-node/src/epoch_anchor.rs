@@ -63,8 +63,7 @@ impl PeerAnchorStore {
         // Derive node_key_epoch dari pubkey material anchor
         // Spec §7.2a: NodeKey_epoch_i = BLAKE3(NodeKey_i || epoch_id_le64)
         // Dalam handshake: pubkey[0..32] digunakan sebagai NodeKey proxy
-        let pubkey_material: [u8; 32] = anchor.pubkey[..32].try_into()
-            .unwrap_or([0u8; 32]);
+        let pubkey_material: [u8; 32] = anchor.pubkey[..32].try_into().unwrap_or([0u8; 32]);
         let node_key_epoch = derive_node_key_epoch(&pubkey_material, anchor.epoch_id);
 
         let entry = PeerAnchorEntry {
@@ -198,22 +197,30 @@ pub fn validate_epoch_anchor_basic(anchor: &EpochAnchor) -> HandshakeResult {
     // epoch_id harus > 0 (genesis edge case boleh = 0)
     // hb_count harus > 0
     if anchor.hb_count == 0 {
-        return HandshakeResult::Rejected { reason: "hb_count cannot be zero" };
+        return HandshakeResult::Rejected {
+            reason: "hb_count cannot be zero",
+        };
     }
 
     // chain_head tidak boleh zero (uninitialized)
     if anchor.chain_head == [0u8; 32] {
-        return HandshakeResult::Rejected { reason: "chain_head is zero — not initialized" };
+        return HandshakeResult::Rejected {
+            reason: "chain_head is zero — not initialized",
+        };
     }
 
     // pubkey tidak boleh semua zero
     if anchor.pubkey == [0u8; 64] {
-        return HandshakeResult::Rejected { reason: "pubkey is zero — invalid" };
+        return HandshakeResult::Rejected {
+            reason: "pubkey is zero — invalid",
+        };
     }
 
     // sig tidak boleh kosong
     if anchor.sig.is_empty() {
-        return HandshakeResult::Rejected { reason: "signature is empty" };
+        return HandshakeResult::Rejected {
+            reason: "signature is empty",
+        };
     }
 
     HandshakeResult::Accepted {
@@ -252,7 +259,13 @@ mod tests {
         let anchor = make_anchor(5, 4320);
         let result = validate_epoch_anchor_basic(&anchor);
         assert!(
-            matches!(result, HandshakeResult::Accepted { epoch_id: 5, hb_count: 4320 }),
+            matches!(
+                result,
+                HandshakeResult::Accepted {
+                    epoch_id: 5,
+                    hb_count: 4320
+                }
+            ),
             "Anchor valid harus diterima"
         );
     }
@@ -294,7 +307,10 @@ mod tests {
         store.store_anchor(peer_id, &anchor);
 
         let nke = store.get_node_key_epoch(&peer_id);
-        assert!(nke.is_some(), "node_key_epoch harus tersedia setelah handshake");
+        assert!(
+            nke.is_some(),
+            "node_key_epoch harus tersedia setelah handshake"
+        );
 
         // node_key_epoch TIDAK boleh sama dengan hardcode placeholder [0x42;32]
         // (kecuali kebetulan sama, tapi sangat tidak mungkin)

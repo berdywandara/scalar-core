@@ -51,10 +51,7 @@ impl PeerTimestampStore {
         // Limit: maksimum NMT_MAX_STORED_TIMESTAMPS entries
         // Jika lebih, hapus yang paling lama (oldest timestamp)
         if self.timestamps.len() > NMT_MAX_STORED_TIMESTAMPS {
-            if let Some((&oldest_id, _)) = self.timestamps
-                .iter()
-                .min_by_key(|(_, &ts)| ts)
-            {
+            if let Some((&oldest_id, _)) = self.timestamps.iter().min_by_key(|(_, &ts)| ts) {
                 self.timestamps.remove(&oldest_id);
             }
         }
@@ -136,9 +133,7 @@ pub fn compute_production_nmt(
     let status = compute_nmt_with_eclipse_check(&timestamps, local_wall_clock);
 
     match status {
-        NmtStatus::Valid { nmt, .. } => {
-            ProductionNmtResult::FromPeers { nmt, peer_count }
-        }
+        NmtStatus::Valid { nmt, .. } => ProductionNmtResult::FromPeers { nmt, peer_count },
         NmtStatus::EclipseAlert { nmt, drift_s, .. } => {
             println!(
                 "[NMT] ECLIPSE ALERT: drift={}s > {}s threshold. Spec §12.3a.",
@@ -189,11 +184,16 @@ mod tests {
         let local = base_ts + 500; // wall-clock sedikit berbeda
         let result = compute_production_nmt(&store, local);
 
-        assert!(result.is_from_peers(),
-            "NMT harus dari peer timestamps jika cukup peer tersedia");
+        assert!(
+            result.is_from_peers(),
+            "NMT harus dari peer timestamps jika cukup peer tersedia"
+        );
         // NMT tidak sama dengan wall-clock
-        assert_ne!(result.nmt_value(), local,
-            "NMT tidak boleh sama dengan wall-clock");
+        assert_ne!(
+            result.nmt_value(),
+            local,
+            "NMT tidak boleh sama dengan wall-clock"
+        );
     }
 
     // ── test_nmt_median_calculation ───────────────────────────────────────────
@@ -203,7 +203,10 @@ mod tests {
         // NMT = median (bukan average). Spec §12.3a.
         let mut store = PeerTimestampStore::new();
         // 8 timestamps: 100..800
-        for (i, ts) in [100u32, 200, 300, 400, 500, 600, 700, 800].iter().enumerate() {
+        for (i, ts) in [100u32, 200, 300, 400, 500, 600, 700, 800]
+            .iter()
+            .enumerate()
+        {
             store.update([i as u8; 4], *ts);
         }
         let result = compute_production_nmt(&store, 1000);
@@ -225,8 +228,11 @@ mod tests {
             matches!(result, ProductionNmtResult::FallbackWallClock { .. }),
             "Kurang dari 8 peer harus fallback ke wall-clock"
         );
-        assert_eq!(result.nmt_value(), local,
-            "Fallback NMT harus = wall-clock lokal");
+        assert_eq!(
+            result.nmt_value(),
+            local,
+            "Fallback NMT harus = wall-clock lokal"
+        );
     }
 
     #[test]
@@ -235,7 +241,10 @@ mod tests {
         let store = PeerTimestampStore::new();
         let local = 999_999u32;
         let result = compute_production_nmt(&store, local);
-        assert!(matches!(result, ProductionNmtResult::FallbackWallClock { .. }));
+        assert!(matches!(
+            result,
+            ProductionNmtResult::FallbackWallClock { .. }
+        ));
     }
 
     // ── test PeerTimestampStore ───────────────────────────────────────────────
@@ -248,7 +257,11 @@ mod tests {
         assert_eq!(store.peer_count(), 1);
         // Update existing peer
         store.update(node, 2000);
-        assert_eq!(store.peer_count(), 1, "Update peer yang sama tidak menambah count");
+        assert_eq!(
+            store.peer_count(),
+            1,
+            "Update peer yang sama tidak menambah count"
+        );
     }
 
     #[test]
@@ -258,8 +271,11 @@ mod tests {
         for i in 0..30usize {
             store.update([i as u8, 0, 0, 0], 1000 + i as u32);
         }
-        assert!(store.peer_count() <= NMT_MAX_STORED_TIMESTAMPS,
-            "Store tidak boleh melebihi {} entries", NMT_MAX_STORED_TIMESTAMPS);
+        assert!(
+            store.peer_count() <= NMT_MAX_STORED_TIMESTAMPS,
+            "Store tidak boleh melebihi {} entries",
+            NMT_MAX_STORED_TIMESTAMPS
+        );
     }
 
     #[test]
@@ -287,8 +303,11 @@ mod tests {
 
         // NMT harus sama meski wall-clock berbeda (selama tidak eclipse)
         if result_wall_a.is_from_peers() && result_wall_b.is_from_peers() {
-            assert_eq!(result_wall_a.nmt_value(), result_wall_b.nmt_value(),
-                "NMT tidak boleh bergantung pada wall-clock lokal — spec §12.3a");
+            assert_eq!(
+                result_wall_a.nmt_value(),
+                result_wall_b.nmt_value(),
+                "NMT tidak boleh bergantung pada wall-clock lokal — spec §12.3a"
+            );
         }
     }
 

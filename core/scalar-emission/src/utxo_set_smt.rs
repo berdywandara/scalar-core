@@ -124,11 +124,7 @@ impl UtxoSetSMT {
     ///
     /// `txs`: transaksi valid yang diterima selama epoch_id.
     /// `extract_outputs`: fungsi untuk mengekstrak output commitments dari tx.
-    pub fn process_epoch_transactions(
-        &mut self,
-        txs: &[TxEntry],
-        epoch_id: u64,
-    ) {
+    pub fn process_epoch_transactions(&mut self, txs: &[TxEntry], epoch_id: u64) {
         // Canonical ordering sebelum pemrosesan — spec §8.5
         let ordered_txs = sort_transactions_canonical(txs, epoch_id);
 
@@ -284,13 +280,17 @@ mod tests {
 
         // Setelah processing — root berubah
         let root_after = smt.root();
-        assert_ne!(root_after, [0u8; 32],
-            "Root harus berubah setelah transaksi diproses");
+        assert_ne!(
+            root_after, [0u8; 32],
+            "Root harus berubah setelah transaksi diproses"
+        );
 
         // Snapshot diambil setelah processing
         let snapshot = smt.take_snapshot(1);
-        assert_eq!(snapshot.utxo_set_root, root_after,
-            "Snapshot root harus sama dengan root setelah processing");
+        assert_eq!(
+            snapshot.utxo_set_root, root_after,
+            "Snapshot root harus sama dengan root setelah processing"
+        );
         assert_eq!(snapshot.snapshot_epoch, 1);
         assert_eq!(snapshot.utxo_count, 3);
     }
@@ -313,8 +313,10 @@ mod tests {
         smt2.process_epoch_transactions(&txs_reordered, 5);
         let root2 = smt2.root();
 
-        assert_eq!(root1, root2,
-            "Root harus identik bit-ke-bit meski urutan penerimaan tx berbeda — spec §8.5");
+        assert_eq!(
+            root1, root2,
+            "Root harus identik bit-ke-bit meski urutan penerimaan tx berbeda — spec §8.5"
+        );
     }
 
     // ── test_utxo_root_verification_vs_manifest ───────────────────────────────
@@ -336,7 +338,10 @@ mod tests {
         let expected_root = [0xFFu8; 32]; // berbeda = mismatch
 
         let result = verify_utxo_root_against_manifest(&peer_root, &expected_root);
-        assert!(matches!(result, SyncVerificationResult::RootMismatch { .. }));
+        assert!(matches!(
+            result,
+            SyncVerificationResult::RootMismatch { .. }
+        ));
     }
 
     // ── integration_test_new_node_sync ────────────────────────────────────────
@@ -346,8 +351,11 @@ mod tests {
         // Node baru sinkronisasi → root identik dengan node lama. Spec §8.5.
         let epoch_id = 3u64;
         let txs = vec![
-            make_tx(0x01), make_tx(0x02), make_tx(0x03),
-            make_tx(0x04), make_tx(0x05),
+            make_tx(0x01),
+            make_tx(0x02),
+            make_tx(0x03),
+            make_tx(0x04),
+            make_tx(0x05),
         ];
 
         // "Node lama" yang sudah sinkron
@@ -358,15 +366,20 @@ mod tests {
         // "Node baru" yang rebuild dari genesis
         // Menerima tx dalam urutan yang berbeda (simulasi gossip)
         let txs_gossip_order = vec![
-            make_tx(0x05), make_tx(0x01), make_tx(0x04),
-            make_tx(0x02), make_tx(0x03),
+            make_tx(0x05),
+            make_tx(0x01),
+            make_tx(0x04),
+            make_tx(0x02),
+            make_tx(0x03),
         ];
         let mut new_node = UtxoSetSMT::new();
         new_node.process_epoch_transactions(&txs_gossip_order, epoch_id);
         let new_root = new_node.root();
 
-        assert_eq!(old_root, new_root,
-            "Node baru setelah sync harus menghasilkan root identik — spec §8.5");
+        assert_eq!(
+            old_root, new_root,
+            "Node baru setelah sync harus menghasilkan root identik — spec §8.5"
+        );
 
         // Verifikasi root terhadap manifest (simulasi)
         let result = verify_utxo_root_against_manifest(&new_root, &old_root);
@@ -384,11 +397,15 @@ mod tests {
             utxo_count: 10,
         };
         // Valid untuk epoch 5 (snapshot dari epoch 4 = k-1)
-        assert!(state.is_valid_for_epoch(5),
-            "Snapshot epoch 4 valid untuk transaksi epoch 5");
+        assert!(
+            state.is_valid_for_epoch(5),
+            "Snapshot epoch 4 valid untuk transaksi epoch 5"
+        );
         // Tidak valid untuk epoch 4 (bukan k-1)
-        assert!(!state.is_valid_for_epoch(4),
-            "Snapshot epoch 4 tidak valid untuk transaksi epoch 4");
+        assert!(
+            !state.is_valid_for_epoch(4),
+            "Snapshot epoch 4 tidak valid untuk transaksi epoch 4"
+        );
     }
 
     #[test]
@@ -414,8 +431,10 @@ mod tests {
 
         smt.insert_utxo(make_commitment(0x02), 1);
         let root_after_2 = smt.root();
-        assert_ne!(root_after_2, root_after_1,
-            "Root harus berubah setelah setiap insert");
+        assert_ne!(
+            root_after_2, root_after_1,
+            "Root harus berubah setelah setiap insert"
+        );
     }
 
     // ── test_domain_separator_utxo ───────────────────────────────────────────
@@ -439,8 +458,11 @@ mod tests {
             smt2.insert_utxo(make_commitment(seed), 1);
         }
 
-        assert_eq!(smt1.root(), smt2.root(),
-            "SMT dengan UTXO identik harus menghasilkan root yang sama");
+        assert_eq!(
+            smt1.root(),
+            smt2.root(),
+            "SMT dengan UTXO identik harus menghasilkan root yang sama"
+        );
     }
 
     // ── test_snapshot_multiple_epochs ────────────────────────────────────────
@@ -457,10 +479,14 @@ mod tests {
         let snap2 = smt.take_snapshot(2);
 
         // Snapshot epoch 2 harus punya lebih banyak UTXO dan root berbeda
-        assert_ne!(snap1.utxo_set_root, snap2.utxo_set_root,
-            "Root harus berbeda setelah epoch baru diproses");
-        assert!(snap2.utxo_count > snap1.utxo_count,
-            "Epoch 2 harus punya lebih banyak UTXO");
+        assert_ne!(
+            snap1.utxo_set_root, snap2.utxo_set_root,
+            "Root harus berbeda setelah epoch baru diproses"
+        );
+        assert!(
+            snap2.utxo_count > snap1.utxo_count,
+            "Epoch 2 harus punya lebih banyak UTXO"
+        );
 
         // snap2 valid untuk epoch 3, snap1 valid untuk epoch 2
         assert!(snap2.is_valid_for_epoch(3));

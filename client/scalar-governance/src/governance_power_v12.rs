@@ -95,8 +95,7 @@ pub fn compute_total_gp_tier_c(
     conviction_factor_fp: u64,
     maturity_fp: u64,
 ) -> u64 {
-    let gp_per_node = compute_base_gp(conviction_factor_fp, maturity_fp)
-        .min(TIER_C_MAX_GOV_POWER);
+    let gp_per_node = compute_base_gp(conviction_factor_fp, maturity_fp).min(TIER_C_MAX_GOV_POWER);
     node_count.saturating_mul(gp_per_node)
 }
 
@@ -106,8 +105,7 @@ pub fn compute_total_gp_tier_ab(
     conviction_factor_fp: u64,
     maturity_fp: u64,
 ) -> u64 {
-    let gp_per_node = compute_base_gp(conviction_factor_fp, maturity_fp)
-        .min(TIER_AB_MAX_GOV_POWER);
+    let gp_per_node = compute_base_gp(conviction_factor_fp, maturity_fp).min(TIER_AB_MAX_GOV_POWER);
     node_count.saturating_mul(gp_per_node)
 }
 
@@ -139,18 +137,16 @@ mod tests {
             1_000_000, // conviction penuh
             1_000_000, // maturity penuh
         );
-        assert_eq!(gp, TIER_C_MAX_GOV_POWER,
-            "Tier C harus dibatasi TIER_C_MAX_GOV_POWER = 200_000");
+        assert_eq!(
+            gp, TIER_C_MAX_GOV_POWER,
+            "Tier C harus dibatasi TIER_C_MAX_GOV_POWER = 200_000"
+        );
     }
 
     #[test]
     fn test_tier_c_gov_power_cap_even_at_max_inputs() {
         // Tier C dengan inputs maksimum tetap dibatasi 200_000. Spec §11.2.
-        let gp = compute_governance_power_v12(
-            &tier_c_id(),
-            u64::MAX / 2,
-            u64::MAX / 2,
-        );
+        let gp = compute_governance_power_v12(&tier_c_id(), u64::MAX / 2, u64::MAX / 2);
         assert_eq!(gp, TIER_C_MAX_GOV_POWER);
     }
 
@@ -164,8 +160,10 @@ mod tests {
             1_000_000, // conviction penuh
             1_000_000, // maturity penuh
         );
-        assert_eq!(gp, TIER_AB_MAX_GOV_POWER,
-            "Tier A harus bisa mencapai 1_000_000");
+        assert_eq!(
+            gp, TIER_AB_MAX_GOV_POWER,
+            "Tier A harus bisa mencapai 1_000_000"
+        );
     }
 
     #[test]
@@ -202,7 +200,7 @@ mod tests {
     fn test_sybil_attack_simulation() {
         // 1000 Tier C node tidak bisa override Tier A/B majority. Spec §11.2.
         let conviction = 1_000_000u64; // conviction penuh
-        let maturity = 1_000_000u64;   // maturity penuh
+        let maturity = 1_000_000u64; // maturity penuh
 
         // 1000 Tier C nodes (serangan Sybil skala besar)
         let total_tier_c = compute_total_gp_tier_c(1_000, conviction, maturity);
@@ -220,8 +218,11 @@ mod tests {
         // dengan jumlah yang sangat besar ini, tapi biayanya sangat tinggi:
         // setiap node butuh >180 hari maturity + Argon2id 16MB
         // Ini adalah deterrence ekonomi, bukan hard block.
-        assert_eq!(total_tier_c / total_tier_a, 20,
-            "1000 Tier C butuh 20x lebih banyak untuk setara dengan 10x Tier A — costly attack");
+        assert_eq!(
+            total_tier_c / total_tier_a,
+            20,
+            "1000 Tier C butuh 20x lebih banyak untuk setara dengan 10x Tier A — costly attack"
+        );
     }
 
     #[test]

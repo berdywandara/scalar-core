@@ -43,7 +43,9 @@ impl DeferredPoolState {
 }
 
 impl Default for DeferredPoolState {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Invariant violations ──────────────────────────────────────────────────────
@@ -67,17 +69,18 @@ impl core::fmt::Display for DeferredPoolViolation {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NegativeBalance => write!(f, "Inv1: D(k) < 0 — spec §15.5"),
-            Self::ExceedsSupplyCap { balance, cap } => write!(
-                f, "Inv2: D(k)={balance} > S_E={cap} — spec §15.5"
-            ),
-            Self::ExceedsMaxRelease { release, max } => write!(
-                f, "Inv3: release={release} > 10%×E₀={max} — spec §15.5"
-            ),
-            Self::ExceedsMaxDeferEpochs { epochs, max } => write!(
-                f, "Inv4: epochs_since_defer={epochs} > {max} — spec §15.5"
-            ),
+            Self::ExceedsSupplyCap { balance, cap } => {
+                write!(f, "Inv2: D(k)={balance} > S_E={cap} — spec §15.5")
+            }
+            Self::ExceedsMaxRelease { release, max } => {
+                write!(f, "Inv3: release={release} > 10%×E₀={max} — spec §15.5")
+            }
+            Self::ExceedsMaxDeferEpochs { epochs, max } => {
+                write!(f, "Inv4: epochs_since_defer={epochs} > {max} — spec §15.5")
+            }
             Self::ConservationViolation { released, residual } => write!(
-                f, "Inv5: Σreleased={released} > Σresidual={residual} — spec §15.5"
+                f,
+                "Inv5: Σreleased={released} > Σresidual={residual} — spec §15.5"
             ),
         }
     }
@@ -164,7 +167,10 @@ mod tests {
         let mut state = valid_state();
         state.balance_sscl = S_E_SSCL + 1;
         let result = assert_deferred_pool_invariants(&state, 0);
-        assert!(matches!(result, Err(DeferredPoolViolation::ExceedsSupplyCap { .. })));
+        assert!(matches!(
+            result,
+            Err(DeferredPoolViolation::ExceedsSupplyCap { .. })
+        ));
     }
 
     #[test]
@@ -173,7 +179,10 @@ mod tests {
         let state = valid_state();
         let too_large = DEFERRED_POOL_MAX_RELEASE + 1;
         let result = assert_deferred_pool_invariants(&state, too_large);
-        assert!(matches!(result, Err(DeferredPoolViolation::ExceedsMaxRelease { .. })));
+        assert!(matches!(
+            result,
+            Err(DeferredPoolViolation::ExceedsMaxRelease { .. })
+        ));
     }
 
     #[test]
@@ -182,7 +191,10 @@ mod tests {
         let mut state = valid_state();
         state.epochs_since_defer = DEFERRED_POOL_MAX_EPOCHS + 1;
         let result = assert_deferred_pool_invariants(&state, 0);
-        assert!(matches!(result, Err(DeferredPoolViolation::ExceedsMaxDeferEpochs { .. })));
+        assert!(matches!(
+            result,
+            Err(DeferredPoolViolation::ExceedsMaxDeferEpochs { .. })
+        ));
     }
 
     #[test]
@@ -191,7 +203,10 @@ mod tests {
         let mut state = valid_state();
         state.total_released_sscl = state.total_residual_sscl + 1;
         let result = assert_deferred_pool_invariants(&state, 0);
-        assert!(matches!(result, Err(DeferredPoolViolation::ConservationViolation { .. })));
+        assert!(matches!(
+            result,
+            Err(DeferredPoolViolation::ConservationViolation { .. })
+        ));
     }
 
     #[test]

@@ -90,7 +90,10 @@ pub enum GossipDecision {
     /// Heartbeat lolos rate limit — boleh di-forward ke peers.
     Forward,
     /// Heartbeat ditolak — interval terlalu pendek (T-4 violation).
-    RateLimited { node_id: [u8; 4], reason: &'static str },
+    RateLimited {
+        node_id: [u8; 4],
+        reason: &'static str,
+    },
 }
 
 impl GossipDecision {
@@ -154,16 +157,14 @@ impl StateBeaconBroadcaster {
     ///
     /// MAC StateBeacon diverifikasi sebelum di-forward.
     /// Returns Some(StateBeacon) jika valid, None jika MAC tidak cocok.
-    pub fn receive_and_verify_beacon(
-        &mut self,
-        beacon_bytes: &[u8],
-    ) -> Option<StateBeacon> {
+    pub fn receive_and_verify_beacon(&mut self, beacon_bytes: &[u8]) -> Option<StateBeacon> {
         // Cek ukuran
         if beacon_bytes.len() != STATE_BEACON_WIRE_SIZE {
             self.received_invalid_count += 1;
             println!(
                 "[BEACON] REJECT: invalid size {} (expected {})",
-                beacon_bytes.len(), STATE_BEACON_WIRE_SIZE
+                beacon_bytes.len(),
+                STATE_BEACON_WIRE_SIZE
             );
             return None;
         }
@@ -174,10 +175,7 @@ impl StateBeaconBroadcaster {
         // Verifikasi MAC (checksum) — spec §12.2
         if !beacon.verify_checksum() {
             self.received_invalid_count += 1;
-            println!(
-                "[BEACON] REJECT: MAC invalid epoch={}",
-                beacon.epoch_id
-            );
+            println!("[BEACON] REJECT: MAC invalid epoch={}", beacon.epoch_id);
             return None;
         }
 
@@ -217,7 +215,10 @@ mod tests {
 
         // Interval terlalu pendek → rate limited
         let d2 = gossip.process_incoming_heartbeat(node, 1_000 + T_HB_MIN_INTERVAL_S - 1);
-        assert!(!d2.should_forward(), "HB interval pendek harus ditolak (T-4)");
+        assert!(
+            !d2.should_forward(),
+            "HB interval pendek harus ditolak (T-4)"
+        );
         assert!(matches!(d2, GossipDecision::RateLimited { .. }));
 
         // Verifikasi stats
@@ -266,8 +267,11 @@ mod tests {
         let bytes = broadcaster.create_beacon(5, smt_root);
 
         // Ukuran harus 44 bytes
-        assert_eq!(bytes.len(), STATE_BEACON_WIRE_SIZE,
-            "StateBeacon harus 44 bytes — spec §12.1a");
+        assert_eq!(
+            bytes.len(),
+            STATE_BEACON_WIRE_SIZE,
+            "StateBeacon harus 44 bytes — spec §12.1a"
+        );
         assert_eq!(broadcaster.broadcast_count, 1);
     }
 
@@ -288,8 +292,10 @@ mod tests {
         let mut tampered = valid_bytes.clone();
         tampered[40] ^= 0xFF; // corrupt MAC
         let result_tampered = broadcaster.receive_and_verify_beacon(&tampered);
-        assert!(result_tampered.is_none(),
-            "Beacon dengan MAC invalid harus ditolak — spec §12.2");
+        assert!(
+            result_tampered.is_none(),
+            "Beacon dengan MAC invalid harus ditolak — spec §12.2"
+        );
         assert_eq!(broadcaster.received_invalid_count, 1);
     }
 
