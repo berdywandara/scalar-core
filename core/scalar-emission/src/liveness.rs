@@ -261,6 +261,7 @@ mod tests {
         id
     }
 
+    #[allow(dead_code)]
     fn node4(b: u8) -> [u8; 4] {
         [b, 0, 0, 0]
     }
