@@ -12,6 +12,7 @@ pub mod liveness;
 pub mod longevity;
 pub mod manifest;
 pub mod ordering;
+pub mod utxo_set_smt;
 pub mod pou;
 pub mod resumption;
 pub mod root_alignment;
