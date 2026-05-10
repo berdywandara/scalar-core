@@ -2608,6 +2608,7 @@ version = "0.1.0"
 dependencies = [
  "scalar-emission",
  "scalar-fees",
+ "scalar-governance",
  "scalar-network",
  "scalar-nullifier",
  "scalar-wallet-core",
