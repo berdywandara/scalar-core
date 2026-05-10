@@ -110,3 +110,40 @@ mod tests_v12 {
         );
     }
 }
+
+// ── TX_ORDER_DOMAIN compliance tests ─────────────────────────────────────────
+
+#[cfg(test)]
+mod tests_v12_ordering {
+    #[test]
+    fn compliance_test_tx_order_domain() {
+        // TX_ORDER_DOMAIN = b"scalar_tx_order_v1". OSSIFIED — spec §2.3.
+        assert_eq!(
+            scalar_emission::ordering::TX_ORDER_DOMAIN,
+            b"scalar_tx_order_v1"
+        );
+    }
+
+    #[test]
+    fn compliance_test_tx_order_domain_len() {
+        // TX_ORDER_DOMAIN_LEN = 18. Spec §2.3.
+        assert_eq!(
+            scalar_emission::ordering::TX_ORDER_DOMAIN_LEN,
+            18usize
+        );
+    }
+
+    #[test]
+    fn compliance_test_canonical_sort_deterministic() {
+        // sort_transactions_canonical deterministik — spec §8.5.
+        use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
+        let txs = vec![
+            TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0x02u8; 32], tx_data: vec![] },
+        ];
+        let s1 = sort_transactions_canonical(&txs, 1);
+        let s2 = sort_transactions_canonical(&txs, 1);
+        assert_eq!(s1, s2, "Canonical sort harus deterministik");
+    }
+}
