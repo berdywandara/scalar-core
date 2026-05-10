@@ -9,3 +9,4 @@ pub use sybil::NodeIdentity;
 pub mod swarm;
 pub mod heartbeat_service;
 pub mod epoch_anchor;
+pub mod node_id;
