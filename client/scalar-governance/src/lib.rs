@@ -102,3 +102,5 @@ mod tests {
         let _ = GovernancePowerCalculator::compute_governance_power(30, 800_000);
     }
 }
+
+pub mod governance_power_v12;

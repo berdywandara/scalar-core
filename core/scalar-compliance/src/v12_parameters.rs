@@ -322,3 +322,52 @@ mod tests_v12_nmt_hybrid {
         }
     }
 }
+
+// ── Tier C Governance Power compliance tests — spec §11.2, §17 ───────────────
+
+#[cfg(test)]
+mod tests_v12_governance {
+    #[test]
+    fn compliance_test_tier_c_gov_power_cap_200k() {
+        // TIER_C_MAX_GOV_POWER = 200_000 fp. OSSIFIED — spec §11.2, §17.
+        assert_eq!(
+            scalar_governance::governance_power_v12::TIER_C_MAX_GOV_POWER,
+            200_000u64
+        );
+    }
+
+    #[test]
+    fn compliance_test_tier_c_gov_power_enforced() {
+        // Tier C GP dibatasi 200_000. Spec §11.2.
+        let mut id = [0u8; 32]; id[0] = 0xFE;
+        let gp = scalar_governance::governance_power_v12::compute_governance_power_v12(
+            &id, 1_000_000, 1_000_000
+        );
+        assert_eq!(gp, 200_000u64,
+            "Tier C harus dibatasi 200_000 fp");
+    }
+
+    #[test]
+    fn compliance_test_tier_a_full_gov_power() {
+        // Tier A GP bisa mencapai 1_000_000. Spec §11.2.
+        let mut id = [0u8; 32]; id[0] = 0x01;
+        let gp = scalar_governance::governance_power_v12::compute_governance_power_v12(
+            &id, 1_000_000, 1_000_000
+        );
+        assert_eq!(gp, 1_000_000u64);
+    }
+
+    #[test]
+    fn compliance_test_gov_power_formula() {
+        // GP(i,t) = min(BaseGP, GOV_MAX_FP_FOR_TIER). Spec §11.2.
+        let mut id_c = [0u8; 32]; id_c[0] = 0xFE;
+        let mut id_a = [0u8; 32]; id_a[0] = 0x01;
+
+        use scalar_governance::governance_power_v12::compute_governance_power_v12;
+        // BaseGP = 600_000, cap_c = 200_000, cap_a = 1_000_000
+        let gp_c = compute_governance_power_v12(&id_c, 600_000, 1_000_000);
+        let gp_a = compute_governance_power_v12(&id_a, 600_000, 1_000_000);
+        assert_eq!(gp_c, 200_000); // min(600_000, 200_000)
+        assert_eq!(gp_a, 600_000); // min(600_000, 1_000_000)
+    }
+}
