@@ -2,6 +2,7 @@
 
 pub mod accumulator;
 pub mod consensus;
+pub mod dmm;
 pub mod epoch;
 pub mod equity;
 pub mod genesis_ceremony;
