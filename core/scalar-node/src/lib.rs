@@ -11,3 +11,4 @@ pub mod heartbeat_service;
 pub mod epoch_anchor;
 pub mod node_id;
 pub mod nmt_production;
+pub mod gossip_production;
