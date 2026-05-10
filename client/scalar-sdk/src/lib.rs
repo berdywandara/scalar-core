@@ -26,6 +26,7 @@
 pub mod proof;
 pub mod query;
 pub mod record;
+pub mod supply;
 pub mod types;
 
 // Re-export tipe utama untuk convenience — spec §21.2
@@ -266,6 +267,7 @@ pub use query::{
     query_scarcity_proof, query_uptime_sla,
 };
 pub use record::{build_indelible_record, build_timestamp_record};
+pub use supply::{query_total_minted, query_deferred_pool, query_security_fund, verify_supply_conservation, AccountingSnapshot, SupplyQueryResult};
 
 #[cfg(test)]
 mod tests_sprint7_9 {
