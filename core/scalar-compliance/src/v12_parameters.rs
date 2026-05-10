@@ -174,7 +174,7 @@ mod tests_v12_utxo {
     fn compliance_test_utxo_root_snapshot_after_processing() {
         // Snapshot diambil SETELAH semua tx epoch diproses. Spec §8.5.
         use scalar_emission::utxo_set_smt::UtxoSetSMT;
-        use scalar_emission::ordering::TxEntry;
+        use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
         let mut smt = UtxoSetSMT::new();
         let txs = vec![
             TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
@@ -191,7 +191,7 @@ mod tests_v12_utxo {
     fn compliance_test_utxo_root_deterministic() {
         // Canonical ordering → root identik antar node. Spec §8.5.
         use scalar_emission::utxo_set_smt::UtxoSetSMT;
-        use scalar_emission::ordering::TxEntry;
+        use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
 
         let txs_a = vec![
             TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
@@ -444,7 +444,7 @@ mod tests_v12_suite_v4 {
     fn compliance_node_sync_utxo_reconstruction() {
         // Node baru sync → utxo_set_root identik dengan node lama. Spec §XXI, §8.5.
         use scalar_emission::utxo_set_smt::{UtxoSetSMT, verify_utxo_root_against_manifest, SyncVerificationResult};
-        use scalar_emission::ordering::TxEntry;
+        use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
 
         let txs = vec![
             TxEntry { tx_hash: [0xAA; 32], tx_data: vec![] },
@@ -581,5 +581,138 @@ mod tests_v12_suite_v4 {
         assert_eq!(scalar_emission::dmm::MAX_CONSECUTIVE_DEFER, 2u32);
         // T_TRANSITION_EPOCHS
         assert_eq!(scalar_emission::types::T_TRANSITION_EPOCHS, 4u64);
+    }
+}
+
+// ── Compliance tests PR-011 s.d. 014 (P2P Gaps) — spec §7.2a, §10.2, §12.3a, §12.2 ──
+
+#[cfg(test)]
+mod tests_v12_p2p_gaps {
+
+    // ── G-11: EpochAnchor (Gap G-1) ──────────────────────────────────────────
+
+    #[test]
+    fn compliance_epoch_anchor_handshake() {
+        // EpochAnchor handshake valid. Spec §7.2a, Gap G-1.
+        use scalar_node::epoch_anchor::{validate_epoch_anchor_basic, HandshakeResult};
+        use scalar_emission::liveness::EpochAnchor;
+        let anchor = EpochAnchor {
+            node_id: [0x01, 0x02, 0x03, 0x04],
+            epoch_id: 5,
+            hb_count: 4320,
+            chain_head: [0x42u8; 32],
+            pubkey: [0x33u8; 64],
+            sig: vec![0xAAu8; 32],
+        };
+        let result = validate_epoch_anchor_basic(&anchor);
+        assert!(
+            matches!(result, HandshakeResult::Accepted { .. }),
+            "Anchor valid harus diterima — compliance Gap G-1"
+        );
+    }
+
+    #[test]
+    fn compliance_peer_node_key_not_hardcode() {
+        // peer_node_key_epoch dari anchor, bukan hardcode. Spec §7.2a.
+        use scalar_node::epoch_anchor::PeerAnchorStore;
+        use scalar_emission::liveness::EpochAnchor;
+        use libp2p::identity::Keypair;
+        use libp2p::PeerId;
+        let key = Keypair::generate_ed25519();
+        let peer_id = PeerId::from(key.public());
+        let anchor = EpochAnchor {
+            node_id: [0x01, 0x00, 0x00, 0x00],
+            epoch_id: 3,
+            hb_count: 100,
+            chain_head: [0x42u8; 32],
+            pubkey: [0x33u8; 64],
+            sig: vec![0xAAu8; 16],
+        };
+        let mut store = PeerAnchorStore::new();
+        store.store_anchor(peer_id, &anchor);
+        let nke = store.get_node_key_epoch(&peer_id);
+        assert!(nke.is_some(), "node_key_epoch harus ada setelah handshake");
+        assert_ne!(*nke.unwrap(), [0u8; 32], "Tidak boleh zero");
+    }
+
+    // ── G-12: NodeID production Argon2id (Gap G-2) ───────────────────────────
+
+    #[test]
+    fn compliance_nodeid_argon2id_not_placeholder() {
+        // NodeID bukan placeholder [0x42;32]. Spec §10.2, Gap G-2.
+        use scalar_node::node_id::{ProductionNodeId, NodeIdDerivationMode,
+            NODE_ID_SALT_PREFIX, ARGON2_NODE_TIME_TIER_C, ARGON2_NODE_MEMORY_TIER_C_KIB};
+        // Salt prefix ossified
+        assert_eq!(NODE_ID_SALT_PREFIX, b"scalar_nodeid_v1");
+        // Tier C params
+        assert_eq!(ARGON2_NODE_MEMORY_TIER_C_KIB, 16 * 1024);
+        assert_eq!(ARGON2_NODE_TIME_TIER_C, 100);
+        // NodeID tidak sama dengan placeholder
+        let result = ProductionNodeId::derive(
+            b"compliance_test_mnemonic",
+            &[0x42u8; 32],
+            NodeIdDerivationMode::TierCOrDev,
+        );
+        assert!(result.is_ok());
+        assert_ne!(result.unwrap().node_id_full, [0x42u8; 32]);
+    }
+
+    // ── G-13: NMT dari peer timestamps (Gap G-3) ─────────────────────────────
+
+    #[test]
+    fn compliance_nmt_from_peer_timestamps() {
+        // NMT dari peer timestamps, bukan wall-clock. Spec §12.3a, Gap G-3.
+        use scalar_node::nmt_production::{
+            PeerTimestampStore, compute_production_nmt, ProductionNmtResult,
+            NMT_MIN_PEERS_FOR_RELIABLE, NMT_MAX_STORED_TIMESTAMPS
+        };
+        // Constants
+        assert_eq!(NMT_MIN_PEERS_FOR_RELIABLE, 8usize);
+        assert_eq!(NMT_MAX_STORED_TIMESTAMPS, 24usize);
+
+        // Dengan cukup peer → FromPeers
+        // Semua timestamp sama → median = 5_000_000, wall-clock = 5_000_000 (drift=0)
+        let mut store = PeerTimestampStore::new();
+        for i in 0..10u8 {
+            store.update([i, 0, 0, 0], 5_000_000u32);
+        }
+        let result = compute_production_nmt(&store, 5_000_000);
+        assert!(matches!(result, ProductionNmtResult::FromPeers { .. }),
+            "NMT harus dari peer timestamps jika cukup peer — compliance Gap G-3");
+
+        // Tanpa peer → FallbackWallClock
+        let empty = PeerTimestampStore::new();
+        let fallback = compute_production_nmt(&empty, 999);
+        assert!(matches!(fallback, ProductionNmtResult::FallbackWallClock { .. }));
+    }
+
+    // ── G-14: HeartbeatRateLimiter + StateBeacon (Gap G-4 + G-5) ────────────
+
+    #[test]
+    fn compliance_rate_limiter_connected_gossip() {
+        // T-4 rate limit aktif di gossip layer. Spec §7.2c T-4, Gap G-4.
+        use scalar_node::gossip_production::{GossipLayer, GossipDecision};
+        use scalar_network::time_security::T_HB_MIN_INTERVAL_S;
+        let mut gossip = GossipLayer::new();
+        let node = [0x01u8; 4];
+        // Forward
+        assert!(gossip.process_incoming_heartbeat(node, 1000).should_forward());
+        // Rate limited
+        let d = gossip.process_incoming_heartbeat(node, 1000 + T_HB_MIN_INTERVAL_S - 1);
+        assert!(!d.should_forward(), "Rate limit harus aktif di gossip layer");
+        assert!(matches!(d, GossipDecision::RateLimited { .. }));
+    }
+
+    #[test]
+    fn compliance_state_beacon_broadcast_verified() {
+        // StateBeacon broadcast + MAC verified. Spec §12.2, Gap G-5.
+        use scalar_node::gossip_production::StateBeaconBroadcaster;
+        use scalar_network::state_beacon::STATE_BEACON_WIRE_SIZE;
+        let mut bc = StateBeaconBroadcaster::new([0x42u8; 32]);
+        let bytes = bc.create_beacon(10, [0xABu8; 32]);
+        assert_eq!(bytes.len(), STATE_BEACON_WIRE_SIZE, "Beacon harus 44 bytes");
+        let beacon = bc.receive_and_verify_beacon(&bytes);
+        assert!(beacon.is_some(), "Valid beacon harus diterima");
+        assert_eq!(beacon.unwrap().epoch_id, 10);
     }
 }
