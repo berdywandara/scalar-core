@@ -11,6 +11,7 @@ pub mod institutional;
 pub mod liveness;
 pub mod longevity;
 pub mod manifest;
+pub mod ordering;
 pub mod pou;
 pub mod resumption;
 pub mod root_alignment;
