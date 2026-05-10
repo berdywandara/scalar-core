@@ -11,3 +11,4 @@ scalar-fees      = { path = "../scalar-fees" }
 scalar-network   = { path = "../scalar-network" }
 scalar-nullifier = { path = "../scalar-nullifier" }
 scalar-wallet-core = { path = "../../client/scalar-wallet-core" }
+scalar-governance = { path = "../../client/scalar-governance" }
