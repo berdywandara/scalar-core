@@ -54,6 +54,7 @@ mod tests {
     fn valid_inputs() -> ScalarPublicInputs {
         ScalarPublicInputs {
             genesis_smt_root: 0,
+            utxo_set_root: [0x42u8; 32],
             current_nullifier_smt_root: 1,
             fee_value: 40,
             timestamp: 1_000_060_000,
