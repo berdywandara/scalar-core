@@ -212,3 +212,53 @@ mod tests_v12_utxo {
             "Root harus identik untuk tx set yang sama — spec §8.5");
     }
 }
+
+// ── Tier C compliance tests — spec §10.1, §12.4 ──────────────────────────────
+
+#[cfg(test)]
+mod tests_v12_tier_c {
+    #[test]
+    fn compliance_test_tier_c_max_nodescore() {
+        // TIER_C_MAX_NODESCORE = 600_000. OSSIFIED — spec §10.1, §12.4, §17.
+        assert_eq!(
+            scalar_network::node_score::TIER_C_MAX_NODESCORE,
+            600_000u64
+        );
+    }
+
+    #[test]
+    fn compliance_test_tier_c_nmt_ineligible() {
+        // Tier C node tidak eligible NMT. Spec §12.4.
+        use scalar_network::node_score::NodeScore;
+        let mut id = [0u8; 32];
+        id[0] = 0xFE; // Tier C prefix
+        let node = NodeScore::new(id, 1_000_000); // raw max
+        assert!(!node.is_nmt_eligible(),
+            "Tier C tidak boleh eligible NMT");
+    }
+
+    #[test]
+    fn compliance_test_tier_c_prefix_is_0xfe() {
+        // TIER_C_PREFIX = 0xFE. Spec §10.1.
+        assert_eq!(scalar_network::node_score::TIER_C_PREFIX, 0xFEu8);
+    }
+
+    #[test]
+    fn compliance_test_tier_c_below_nmt_threshold() {
+        // TIER_C_MAX_NODESCORE < NMT_SCORE_THRESHOLD — invariant. Spec §10.1.
+        assert!(
+            scalar_network::node_score::TIER_C_MAX_NODESCORE
+                < scalar_network::node_score::NMT_SCORE_THRESHOLD
+        );
+    }
+
+    #[test]
+    fn compliance_test_tier_a_full_score() {
+        // Tier A/B bisa mencapai 1_000_000. Spec §10.1.
+        use scalar_network::node_score::NodeScore;
+        let mut id = [0u8; 32];
+        id[0] = 0x01; // Tier A
+        let node = NodeScore::new(id, 1_000_000);
+        assert_eq!(node.score(), 1_000_000);
+    }
+}
