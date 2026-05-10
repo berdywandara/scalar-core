@@ -24,19 +24,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     // RPC port — default 7777
-    let port: u16 = args.iter()
+    let port: u16 = args
+        .iter()
         .find(|a| a.starts_with("--port="))
         .and_then(|a| a.trim_start_matches("--port=").parse().ok())
         .unwrap_or(7777);
 
     // P2P swarm port — default random (0 = OS assigns)
-    let p2p_port: u16 = args.iter()
+    let p2p_port: u16 = args
+        .iter()
         .find(|a| a.starts_with("--p2p-port="))
         .and_then(|a| a.trim_start_matches("--p2p-port=").parse().ok())
         .unwrap_or(0);
 
     // Peer untuk di-dial saat startup (bootstrap)
-    let dial_peers: Vec<libp2p::Multiaddr> = args.iter()
+    let dial_peers: Vec<libp2p::Multiaddr> = args
+        .iter()
         .filter(|a| a.starts_with("--dial="))
         .filter_map(|a| a.trim_start_matches("--dial=").parse().ok())
         .collect();
@@ -44,7 +47,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("==================================================");
     println!("  SCALAR NETWORK CORE NODE - BOOT SEQUENCE");
     println!("  RPC Port : {}", port);
-    println!("  P2P Port : {}", if p2p_port == 0 { "random".to_string() } else { p2p_port.to_string() });
+    println!(
+        "  P2P Port : {}",
+        if p2p_port == 0 {
+            "random".to_string()
+        } else {
+            p2p_port.to_string()
+        }
+    );
     println!("  Dial     : {} peers", dial_peers.len());
     println!("==================================================");
 
@@ -140,15 +150,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Broadcast NodeHeartbeat v9.0 setiap 10 detik — spec §7.2
             _ = sleep(Duration::from_secs(10)) => {
                 hb_counter += 1;
-                let mut sm = state_machine.lock().unwrap();
-                sm.update_network_sensor(true, true);
-                drop(sm);
+                {
+                    let mut sm = state_machine.lock().unwrap();
+                    sm.update_network_sensor(true, true);
+                }
 
                 // Produce NodeHeartbeat v9.0 (108 bytes, BLAKE3-MAC) — spec §7.2
                 let hb_bytes = {
                     let mut svc = hb_service.lock().unwrap();
                     let hb = svc.produce_heartbeat();
-                    hb.to_bytes().to_vec()
+                    let bytes = hb.to_bytes().to_vec();
+                    drop(svc);
+                    bytes
                 };
 
                 let _ = msg_tx.send((TOPIC_HEARTBEAT.to_string(), hb_bytes)).await;
