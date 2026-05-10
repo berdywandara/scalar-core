@@ -180,11 +180,7 @@ impl DmmRequestRateLimiter {
     ///
     /// Returns true jika masih dalam batas rate limit.
     /// Returns false jika node sudah melebihi batas.
-    pub fn check_and_record(
-        &mut self,
-        node_id_short: [u8; 4],
-        epoch: u64,
-    ) -> bool {
+    pub fn check_and_record(&mut self, node_id_short: [u8; 4], epoch: u64) -> bool {
         // Reset jika epoch baru
         if epoch != self.current_epoch {
             self.request_counts.clear();
@@ -211,7 +207,9 @@ impl DmmRequestRateLimiter {
 mod tests {
     use super::*;
 
-    fn valid_hash(seed: u8) -> [u8; 32] { [seed; 32] }
+    fn valid_hash(seed: u8) -> [u8; 32] {
+        [seed; 32]
+    }
 
     // ── test_dmm_manipulation_blocked ────────────────────────────────────────
 
@@ -270,29 +268,29 @@ mod tests {
     #[test]
     fn test_utxo_ordering_attack_prevention() {
         // Ordering identik meski urutan penerimaan berbeda. Spec §14.3.
-        let tx_hashes = vec![
-            [0x01u8; 32], [0x02u8; 32], [0x03u8; 32],
-        ];
+        let tx_hashes = vec![[0x01u8; 32], [0x02u8; 32], [0x03u8; 32]];
         let epoch = 5u64;
 
         // Node A: tx diterima dalam urutan 1,2,3
-        let mut keys_a: Vec<[u8; 32]> = tx_hashes.iter()
+        let mut keys_a: Vec<[u8; 32]> = tx_hashes
+            .iter()
             .map(|h| compute_ordering_key(h, epoch))
             .collect();
         keys_a.sort_unstable();
 
         // Node B: tx diterima dalam urutan 3,1,2
-        let reordered = vec![
-            tx_hashes[2], tx_hashes[0], tx_hashes[1],
-        ];
-        let mut keys_b: Vec<[u8; 32]> = reordered.iter()
+        let reordered = vec![tx_hashes[2], tx_hashes[0], tx_hashes[1]];
+        let mut keys_b: Vec<[u8; 32]> = reordered
+            .iter()
             .map(|h| compute_ordering_key(h, epoch))
             .collect();
         keys_b.sort_unstable();
 
         let result = verify_ordering_consistency(&keys_a, &keys_b);
-        assert!(result.is_ok(),
-            "Ordering harus identik meski urutan penerimaan berbeda — spec §14.3");
+        assert!(
+            result.is_ok(),
+            "Ordering harus identik meski urutan penerimaan berbeda — spec §14.3"
+        );
     }
 
     #[test]
@@ -322,13 +320,17 @@ mod tests {
 
         // Request dalam batas → allowed
         for _ in 0..MAX_DMM_REQUESTS_PER_EPOCH {
-            assert!(limiter.check_and_record(node, 1),
-                "Request dalam batas harus diizinkan");
+            assert!(
+                limiter.check_and_record(node, 1),
+                "Request dalam batas harus diizinkan"
+            );
         }
 
         // Request melebihi batas → blocked
-        assert!(!limiter.check_and_record(node, 1),
-            "Request melebihi batas harus di-block (rate limited)");
+        assert!(
+            !limiter.check_and_record(node, 1),
+            "Request melebihi batas harus di-block (rate limited)"
+        );
     }
 
     #[test]
@@ -344,8 +346,10 @@ mod tests {
         assert!(!limiter.check_and_record(node, 1)); // blocked
 
         // Epoch 2: quota reset
-        assert!(limiter.check_and_record(node, 2),
-            "Request harus diizinkan di epoch baru setelah reset");
+        assert!(
+            limiter.check_and_record(node, 2),
+            "Request harus diizinkan di epoch baru setelah reset"
+        );
     }
 
     #[test]
@@ -361,8 +365,10 @@ mod tests {
         }
 
         // node_b masih punya quota
-        assert!(limiter.check_and_record(node_b, 1),
-            "Node B harus punya quota independen dari Node A");
+        assert!(
+            limiter.check_and_record(node_b, 1),
+            "Node B harus punya quota independen dari Node A"
+        );
     }
 
     #[test]

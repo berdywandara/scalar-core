@@ -10,9 +10,7 @@
 //! Re-export EpochRewardManifestV12 dan NodeRewardEntry dari dmm.rs
 //! sebagai tipe kanonik untuk v11.1-FINAL.
 
-pub use crate::dmm::{
-    EpochRewardManifestV12, NodeRewardEntry, SPEC_VERSION_MANIFEST_V12,
-};
+pub use crate::dmm::{EpochRewardManifestV12, NodeRewardEntry, SPEC_VERSION_MANIFEST_V12};
 
 // ── Version constants — spec §2.4 ────────────────────────────────────────────
 
@@ -77,7 +75,7 @@ pub fn validate_manifest_version(
 ) -> Result<(), ManifestVersionError> {
     match version {
         v if v == SPEC_VERSION_CURRENT => Ok(()), // 0x06 — selalu diterima
-        0x05 if testnet_compat => Ok(()),          // 0x05 — hanya testnet-compat
+        0x05 if testnet_compat => Ok(()),         // 0x05 — hanya testnet-compat
         0x05 => Err(ManifestVersionError::LegacyVersionRequiresTestnetCompat { version: 0x05 }),
         v => Err(ManifestVersionError::NotCurrentVersion {
             version: v,
@@ -206,7 +204,10 @@ mod tests {
         // Version tidak dikenal tetap di-reject bahkan di testnet-compat. Spec §8.4.
         for v in [0x01u8, 0x03, 0x04, 0xFF] {
             let result = validate_manifest_version(v, true);
-            assert!(result.is_err(), "version 0x{v:02X} harus di-reject di testnet juga");
+            assert!(
+                result.is_err(),
+                "version 0x{v:02X} harus di-reject di testnet juga"
+            );
         }
     }
 

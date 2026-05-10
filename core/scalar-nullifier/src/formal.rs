@@ -104,7 +104,9 @@ pub struct ZeroGapViolation {
 mod tests {
     use super::*;
 
-    fn null(seed: u8) -> [u8; 32] { [seed; 32] }
+    fn null(seed: u8) -> [u8; 32] {
+        [seed; 32]
+    }
 
     // ── runtime_assert_cc_invariant ───────────────────────────────────────────
 

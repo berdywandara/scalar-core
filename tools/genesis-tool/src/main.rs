@@ -63,8 +63,8 @@ fn generate_genesis_bytes(timestamp: u64, pubkey: &[u8]) -> Vec<u8> {
 
     // 6. supply_params_hash: bytes32 (32 bytes)
     let s_max: u64 = 2_100_000_000_000_000;
-    let s_e: u64   = 1_890_000_000_000_000;
-    let e0: u64    = 12_600_000_000_000;
+    let s_e: u64 = 1_890_000_000_000_000;
+    let e0: u64 = 12_600_000_000_000;
     let mut supply_data = Vec::new();
     supply_data.extend_from_slice(&s_max.to_le_bytes());
     supply_data.extend_from_slice(&s_e.to_le_bytes());
@@ -100,17 +100,24 @@ fn cmd_generate(pubkey_hex: &str) {
         process::exit(1);
     });
 
-    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-    
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
     let genesis_bytes = generate_genesis_bytes(timestamp, &pubkey);
 
     // Validasi ukuran ketat (177 bytes + pubkey length)
     let expected_len = 177 + pubkey.len();
     if genesis_bytes.len() != expected_len {
-        eprintln!("FATAL ERROR: Ukuran byte tidak sesuai spec (Expected: {}, Got: {})", expected_len, genesis_bytes.len());
+        eprintln!(
+            "FATAL ERROR: Ukuran byte tidak sesuai spec (Expected: {}, Got: {})",
+            expected_len,
+            genesis_bytes.len()
+        );
         process::exit(1);
     }
-    
+
     if genesis_bytes.len() >= 1024 {
         eprintln!("ERROR: Ukuran melebihi batas OSSIFIED 1KB.");
         process::exit(1);
@@ -126,7 +133,10 @@ fn cmd_generate(pubkey_hex: &str) {
 
     let output_path = "genesis.bin";
     match fs::write(output_path, &genesis_bytes) {
-        Ok(_) => println!("✅ Genesis object ditulis dalam format biner ke: {}", output_path),
+        Ok(_) => println!(
+            "✅ Genesis object ditulis dalam format biner ke: {}",
+            output_path
+        ),
         Err(e) => eprintln!("WARNING: Gagal tulis file: {}", e),
     }
 
@@ -140,7 +150,7 @@ fn cmd_verify(path: &str) {
     });
 
     let hash = blake3_hash(&bytes);
-    
+
     println!("Verifikasi File: {}", path);
     println!("Ukuran : {} bytes", bytes.len());
     println!("Hash   : {}", to_hex(&hash));
@@ -158,7 +168,10 @@ fn main() {
 
     match args.get(1).map(String::as_str) {
         Some("generate") => {
-            let pubkey = args.get(2).map(String::as_str).unwrap_or("0000000000000000000000000000000000000000000000000000000000000000");
+            let pubkey = args
+                .get(2)
+                .map(String::as_str)
+                .unwrap_or("0000000000000000000000000000000000000000000000000000000000000000");
             cmd_generate(pubkey);
         }
         Some("verify") => {
@@ -182,7 +195,14 @@ mod tests {
         // Pubkey dummy 32 byte
         let dummy_pubkey = vec![0u8; 32];
         let bytes = generate_genesis_bytes(1600000000, &dummy_pubkey);
-        assert_eq!(bytes.len(), 177 + 32, "Panjang byte harus tepat 177 + panjang pubkey");
-        assert!(bytes.len() < 1024, "Harus kurang dari 1KB sesuai Spec 12.10");
+        assert_eq!(
+            bytes.len(),
+            177 + 32,
+            "Panjang byte harus tepat 177 + panjang pubkey"
+        );
+        assert!(
+            bytes.len() < 1024,
+            "Harus kurang dari 1KB sesuai Spec 12.10"
+        );
     }
 }

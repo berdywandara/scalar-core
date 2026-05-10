@@ -129,7 +129,9 @@ impl LocalHeartbeatData {
 
     /// Cari anchor valid untuk node_id_full. Spec §8.2 find_valid_anchor.
     pub fn find_valid_anchor(&self, node_id_full: &[u8; 32]) -> Option<&AnchorData> {
-        self.anchors.iter().find(|a| &a.node_id_full == node_id_full)
+        self.anchors
+            .iter()
+            .find(|a| &a.node_id_full == node_id_full)
     }
 }
 
@@ -245,17 +247,11 @@ pub fn compute_manifest_hash_v12(manifest: &EpochRewardManifestV12) -> [u8; 32] 
 ///
 /// reward_sscl = floor(E_active(k) × w_i_fp(k) / W_effective_fp(k))
 /// Integer arithmetic — no float. Spec §7.9.
-pub fn compute_reward_for_node(
-    e_active_sscl: u64,
-    w_i_fp: u64,
-    w_effective_fp: u64,
-) -> u64 {
+pub fn compute_reward_for_node(e_active_sscl: u64, w_i_fp: u64, w_effective_fp: u64) -> u64 {
     if w_effective_fp == 0 {
         return 0;
     }
-    ((e_active_sscl as u128)
-        .saturating_mul(w_i_fp as u128)
-        / (w_effective_fp as u128)) as u64
+    ((e_active_sscl as u128).saturating_mul(w_i_fp as u128) / (w_effective_fp as u128)) as u64
 }
 
 // ── BuildDMM — Algoritma utama spec §8.2 ─────────────────────────────────────
@@ -345,11 +341,8 @@ pub fn build_dmm(
     // ── Step 2: Hitung reward setiap node ─────────────────────────────────────
     let mut total_emission_sscl: u64 = 0;
     for entry in &mut dmm_node_list {
-        let reward = compute_reward_for_node(
-            config.e_active_sscl,
-            entry.uptime_weight_fp,
-            w_effective_fp,
-        );
+        let reward =
+            compute_reward_for_node(config.e_active_sscl, entry.uptime_weight_fp, w_effective_fp);
         entry.reward_sscl = reward;
         total_emission_sscl = total_emission_sscl.saturating_add(reward);
     }
@@ -360,8 +353,7 @@ pub fn build_dmm(
 
     // ── Step 4: Hitung network_health_digest ──────────────────────────────────
     let anchor_count = dmm_node_list.len() as u64;
-    let network_health_digest =
-        compute_network_health_digest(epoch_k, anchor_count, w_total_fp);
+    let network_health_digest = compute_network_health_digest(epoch_k, anchor_count, w_total_fp);
 
     // ── Step 5: Hitung seed_k dari prev_manifest.manifest_hash ───────────────
     let seed_k = compute_seed_k_v12(&prev.manifest_hash);
@@ -477,14 +469,17 @@ mod tests {
         let prev = make_prev_manifest(
             9,
             vec![
-                PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 },
-                PrevNodeEntry { node_id_full: node_id(2), uptime_weight_fp: 900_000 },
+                PrevNodeEntry {
+                    node_id_full: node_id(1),
+                    uptime_weight_fp: 800_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(2),
+                    uptime_weight_fp: 900_000,
+                },
             ],
         );
-        let local = make_local_data(
-            10,
-            vec![make_anchor(1, 800_000), make_anchor(2, 900_000)],
-        );
+        let local = make_local_data(10, vec![make_anchor(1, 800_000), make_anchor(2, 900_000)]);
         let result = build_dmm(10, Some(&prev), &local, &default_config());
         assert!(result.is_ok(), "happy path harus berhasil: {:?}", result);
         let manifest = result.unwrap();
@@ -537,9 +532,18 @@ mod tests {
         let prev = make_prev_manifest(
             9,
             vec![
-                PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 750_000 },
-                PrevNodeEntry { node_id_full: node_id(2), uptime_weight_fp: 850_000 },
-                PrevNodeEntry { node_id_full: node_id(3), uptime_weight_fp: 950_000 },
+                PrevNodeEntry {
+                    node_id_full: node_id(1),
+                    uptime_weight_fp: 750_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(2),
+                    uptime_weight_fp: 850_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(3),
+                    uptime_weight_fp: 950_000,
+                },
             ],
         );
         let local = make_local_data(
@@ -556,8 +560,10 @@ mod tests {
         let r1 = build_dmm(10, Some(&prev), &local, &config).unwrap();
         let r2 = build_dmm(10, Some(&prev), &local, &config).unwrap();
 
-        assert_eq!(r1.manifest_hash, r2.manifest_hash,
-            "manifest_hash harus identik bit-ke-bit untuk input yang sama");
+        assert_eq!(
+            r1.manifest_hash, r2.manifest_hash,
+            "manifest_hash harus identik bit-ke-bit untuk input yang sama"
+        );
         assert_eq!(r1.reward_root, r2.reward_root);
         assert_eq!(r1.node_list, r2.node_list);
         assert_eq!(r1.total_emission_sscl, r2.total_emission_sscl);
@@ -579,8 +585,10 @@ mod tests {
         counter.increment();
         assert!(!counter.must_use_dmm());
         counter.increment();
-        assert!(counter.must_use_dmm(),
-            "Setelah 2 defer berturut-turut, harus wajib DMM");
+        assert!(
+            counter.must_use_dmm(),
+            "Setelah 2 defer berturut-turut, harus wajib DMM"
+        );
     }
 
     #[test]
@@ -605,9 +613,18 @@ mod tests {
             9,
             vec![
                 // Sudah dalam urutan ascending
-                PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 },
-                PrevNodeEntry { node_id_full: node_id(2), uptime_weight_fp: 900_000 },
-                PrevNodeEntry { node_id_full: node_id(3), uptime_weight_fp: 700_000 },
+                PrevNodeEntry {
+                    node_id_full: node_id(1),
+                    uptime_weight_fp: 800_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(2),
+                    uptime_weight_fp: 900_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(3),
+                    uptime_weight_fp: 700_000,
+                },
             ],
         );
         let local = make_local_data(
@@ -623,7 +640,10 @@ mod tests {
         let ids: Vec<[u8; 32]> = manifest.node_list.iter().map(|e| e.node_id_full).collect();
         let mut sorted = ids.clone();
         sorted.sort();
-        assert_eq!(ids, sorted, "node_list harus ascending by node_id_full (S1)");
+        assert_eq!(
+            ids, sorted,
+            "node_list harus ascending by node_id_full (S1)"
+        );
     }
 
     // ── test_spec_version_0x06 ────────────────────────────────────────────────
@@ -641,7 +661,10 @@ mod tests {
         // manifest_hash TIDAK dimasukkan dalam input hash — no circular hash. Spec §8.4.
         let prev = make_prev_manifest(
             9,
-            vec![PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 }],
+            vec![PrevNodeEntry {
+                node_id_full: node_id(1),
+                uptime_weight_fp: 800_000,
+            }],
         );
         let local = make_local_data(10, vec![make_anchor(1, 800_000)]);
         let m = build_dmm(10, Some(&prev), &local, &default_config()).unwrap();
@@ -651,8 +674,11 @@ mod tests {
         m2.manifest_hash = [0xFFu8; 32]; // ubah field hash
         let recomputed = compute_manifest_hash_v12(&m2);
         // Karena manifest_hash tidak masuk input → hash yang dicompute sama
-        assert_eq!(compute_manifest_hash_v12(&m), recomputed,
-            "manifest_hash field tidak boleh mempengaruhi hash computation");
+        assert_eq!(
+            compute_manifest_hash_v12(&m),
+            recomputed,
+            "manifest_hash field tidak boleh mempengaruhi hash computation"
+        );
     }
 
     // ── test_reward_root_changes_with_nodes ──────────────────────────────────
@@ -662,11 +688,17 @@ mod tests {
         // reward_root berbeda jika node berbeda. Spec §8.4.
         let prev1 = make_prev_manifest(
             9,
-            vec![PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 }],
+            vec![PrevNodeEntry {
+                node_id_full: node_id(1),
+                uptime_weight_fp: 800_000,
+            }],
         );
         let prev2 = make_prev_manifest(
             9,
-            vec![PrevNodeEntry { node_id_full: node_id(2), uptime_weight_fp: 800_000 }],
+            vec![PrevNodeEntry {
+                node_id_full: node_id(2),
+                uptime_weight_fp: 800_000,
+            }],
         );
         let local1 = make_local_data(10, vec![make_anchor(1, 800_000)]);
         let local2 = make_local_data(10, vec![make_anchor(2, 800_000)]);
@@ -683,8 +715,14 @@ mod tests {
         let prev = make_prev_manifest(
             9,
             vec![
-                PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 },
-                PrevNodeEntry { node_id_full: node_id(2), uptime_weight_fp: 900_000 },
+                PrevNodeEntry {
+                    node_id_full: node_id(1),
+                    uptime_weight_fp: 800_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(2),
+                    uptime_weight_fp: 900_000,
+                },
             ],
         );
         // Hanya node 1 yang punya anchor — node 2 tidak ada anchor
@@ -701,13 +739,18 @@ mod tests {
         // seed_k = BLAKE3("scalar_seed_v1" || prev.manifest_hash). Spec §8.1.
         let prev = make_prev_manifest(
             9,
-            vec![PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 }],
+            vec![PrevNodeEntry {
+                node_id_full: node_id(1),
+                uptime_weight_fp: 800_000,
+            }],
         );
         let local = make_local_data(10, vec![make_anchor(1, 800_000)]);
         let manifest = build_dmm(10, Some(&prev), &local, &default_config()).unwrap();
 
         let expected_seed_k = compute_seed_k_v12(&prev.manifest_hash);
-        assert_eq!(manifest.seed_k, expected_seed_k,
-            "seed_k harus = BLAKE3('scalar_seed_v1' || prev.manifest_hash)");
+        assert_eq!(
+            manifest.seed_k, expected_seed_k,
+            "seed_k harus = BLAKE3('scalar_seed_v1' || prev.manifest_hash)"
+        );
     }
 }

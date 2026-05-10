@@ -17,8 +17,7 @@
 //!   1-5: HeartbeatVerifier::verify() — TTL, seq_num, prev_hash, MAC, accept
 
 use scalar_emission::liveness::{
-    compute_heartbeat_mac, compress_node_id, derive_node_key_epoch,
-    EpochTracker, NodeHeartbeat,
+    compress_node_id, compute_heartbeat_mac, derive_node_key_epoch, EpochTracker, NodeHeartbeat,
 };
 use scalar_network::heartbeat_verifier::HeartbeatVerifier;
 use std::collections::HashMap;
@@ -153,7 +152,10 @@ impl HeartbeatService {
     ) -> bool {
         // Deserialize dari 108 bytes
         if hb_bytes.len() != 108 {
-            println!("[HB] REJECT: invalid size {} (expected 108)", hb_bytes.len());
+            println!(
+                "[HB] REJECT: invalid size {} (expected 108)",
+                hb_bytes.len()
+            );
             return false;
         }
         let arr: &[u8; 108] = match hb_bytes.try_into() {
@@ -163,7 +165,10 @@ impl HeartbeatService {
         let hb = NodeHeartbeat::from_bytes(arr);
 
         // 5-step verification — spec §7.2b
-        match self.verifier.verify(&hb, nmt, peer_node_key_epoch, self.current_epoch) {
+        match self
+            .verifier
+            .verify(&hb, nmt, peer_node_key_epoch, self.current_epoch)
+        {
             Ok(()) => {
                 println!(
                     "[HB] ACCEPT: peer={} seq={} epoch={}",

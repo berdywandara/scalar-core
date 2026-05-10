@@ -16,8 +16,8 @@
 //! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 //! No floating point — semua arithmetic integer.
 
+use crate::node_score::{is_tier_c, NMT_SCORE_THRESHOLD};
 use blake3::Hasher;
-use crate::node_score::{NMT_SCORE_THRESHOLD, is_tier_c};
 
 // ── Ossified constants — spec §12.3, §17 ─────────────────────────────────────
 
@@ -78,7 +78,7 @@ impl NmtNodeCandidate {
 /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 pub fn compute_nmt_rank(node_id_full: &[u8; 32], seed_k: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
-    hasher.update(b"scalar_nmt_v1");    // domain separator — spec §2.3
+    hasher.update(b"scalar_nmt_v1"); // domain separator — spec §2.3
     hasher.update(node_id_full);
     hasher.update(seed_k);
     *hasher.finalize().as_bytes()
@@ -140,10 +140,7 @@ pub fn select_nmt_peers_hybrid(
     seed_k: &[u8; 32],
 ) -> NmtSelectionResult {
     // Step 1: Filter eligible (NodeScore > 800_000, bukan Tier C)
-    let eligible: Vec<&NmtNodeCandidate> = candidates
-        .iter()
-        .filter(|c| c.is_eligible())
-        .collect();
+    let eligible: Vec<&NmtNodeCandidate> = candidates.iter().filter(|c| c.is_eligible()).collect();
 
     if eligible.is_empty() {
         return NmtSelectionResult {
@@ -168,8 +165,7 @@ pub fn select_nmt_peers_hybrid(
         std::collections::HashMap::new();
     let mut asn_counts: std::collections::HashMap<[u8; 4], usize> =
         std::collections::HashMap::new();
-    let mut region_counts: std::collections::HashMap<u8, usize> =
-        std::collections::HashMap::new();
+    let mut region_counts: std::collections::HashMap<u8, usize> = std::collections::HashMap::new();
 
     for (candidate, _rank) in &ranked {
         if deterministic_slots.len() >= NMT_DETERMINISTIC_SLOTS {
@@ -177,13 +173,22 @@ pub fn select_nmt_peers_hybrid(
         }
 
         // Diversitas check — spec §12.3
-        let subnet_count = subnet24_counts.get(&candidate.subnet24).copied().unwrap_or(0);
+        let subnet_count = subnet24_counts
+            .get(&candidate.subnet24)
+            .copied()
+            .unwrap_or(0);
         let asn_count = asn_counts.get(&candidate.asn).copied().unwrap_or(0);
         let region_count = region_counts.get(&candidate.region).copied().unwrap_or(0);
 
-        if subnet_count >= NMT_MAX_PER_SUBNET24 { continue; }
-        if asn_count >= NMT_MAX_PER_ASN { continue; }
-        if region_count >= NMT_MAX_PER_REGION { continue; }
+        if subnet_count >= NMT_MAX_PER_SUBNET24 {
+            continue;
+        }
+        if asn_count >= NMT_MAX_PER_ASN {
+            continue;
+        }
+        if region_count >= NMT_MAX_PER_REGION {
+            continue;
+        }
 
         // Node lolos diversitas — tambahkan ke slot deterministik
         deterministic_slots.push(candidate.node_id_full);
@@ -272,21 +277,23 @@ mod tests {
     }
 
     fn make_large_pool(n: usize) -> Vec<NmtNodeCandidate> {
-        (0..n).map(|i| {
-            let seed = (i % 256) as u8;
-            // Gunakan node_id yang lebih beragam untuk menghindari prefix 0xFE
-            let mut node_id = [0u8; 32];
-            node_id[0] = 0x01;
-            node_id[1] = (i / 256) as u8;
-            node_id[2] = seed;
-            NmtNodeCandidate {
-                node_id_full: node_id,
-                node_score: 850_000, // > NMT_SCORE_THRESHOLD
-                subnet24: [(i % 10) as u8, 0, 0, 0],
-                asn: [(i % 20) as u8, 0, 0, 0],
-                region: (i % 8) as u8,
-            }
-        }).collect()
+        (0..n)
+            .map(|i| {
+                let seed = (i % 256) as u8;
+                // Gunakan node_id yang lebih beragam untuk menghindari prefix 0xFE
+                let mut node_id = [0u8; 32];
+                node_id[0] = 0x01;
+                node_id[1] = (i / 256) as u8;
+                node_id[2] = seed;
+                NmtNodeCandidate {
+                    node_id_full: node_id,
+                    node_score: 850_000, // > NMT_SCORE_THRESHOLD
+                    subnet24: [(i % 10) as u8, 0, 0, 0],
+                    asn: [(i % 20) as u8, 0, 0, 0],
+                    region: (i % 8) as u8,
+                }
+            })
+            .collect()
     }
 
     // ── test_nmt_23_deterministic_slots ──────────────────────────────────────
@@ -296,10 +303,15 @@ mod tests {
         // 23 slot deterministik dari nmt_rank. Spec §12.3.
         let candidates = make_large_pool(50);
         let result = select_nmt_peers_hybrid(&candidates, &seed_k());
-        assert!(result.deterministic_slots.len() <= NMT_DETERMINISTIC_SLOTS,
-            "Deterministik slots tidak boleh melebihi {}", NMT_DETERMINISTIC_SLOTS);
-        assert!(!result.deterministic_slots.is_empty(),
-            "Harus ada setidaknya beberapa deterministik slots");
+        assert!(
+            result.deterministic_slots.len() <= NMT_DETERMINISTIC_SLOTS,
+            "Deterministik slots tidak boleh melebihi {}",
+            NMT_DETERMINISTIC_SLOTS
+        );
+        assert!(
+            !result.deterministic_slots.is_empty(),
+            "Harus ada setidaknya beberapa deterministik slots"
+        );
     }
 
     // ── test_nmt_1_random_slot_chacha20 ──────────────────────────────────────
@@ -310,8 +322,10 @@ mod tests {
         let candidates = make_large_pool(30);
         let result = select_nmt_peers_hybrid(&candidates, &seed_k());
         // Dengan populasi cukup, random slot harus ada
-        assert!(result.random_slot.is_some(),
-            "Random slot harus ada jika populasi cukup");
+        assert!(
+            result.random_slot.is_some(),
+            "Random slot harus ada jika populasi cukup"
+        );
     }
 
     // ── test_nmt_random_seed_reproducible ────────────────────────────────────
@@ -322,10 +336,14 @@ mod tests {
         let candidates = make_large_pool(30);
         let r1 = select_nmt_peers_hybrid(&candidates, &seed_k());
         let r2 = select_nmt_peers_hybrid(&candidates, &seed_k());
-        assert_eq!(r1.random_slot, r2.random_slot,
-            "Random slot harus deterministik untuk seed yang sama");
-        assert_eq!(r1.deterministic_slots, r2.deterministic_slots,
-            "Deterministik slots harus identik");
+        assert_eq!(
+            r1.random_slot, r2.random_slot,
+            "Random slot harus deterministik untuk seed yang sama"
+        );
+        assert_eq!(
+            r1.deterministic_slots, r2.deterministic_slots,
+            "Deterministik slots harus identik"
+        );
     }
 
     // ── test_nmt_tier_c_excluded ──────────────────────────────────────────────
@@ -342,8 +360,10 @@ mod tests {
         let all_peers = result.all_peers();
 
         for peer_id in &all_peers {
-            assert!(!is_tier_c(peer_id),
-                "Tier C tidak boleh ada dalam NMT peer list — spec §12.3");
+            assert!(
+                !is_tier_c(peer_id),
+                "Tier C tidak boleh ada dalam NMT peer list — spec §12.3"
+            );
         }
     }
 
@@ -384,7 +404,10 @@ mod tests {
     #[test]
     fn test_nmt_total_equals_23_plus_1() {
         // 23 + 1 = 24. Spec §12.3.
-        assert_eq!(NMT_DETERMINISTIC_SLOTS + NMT_RANDOM_SLOTS, NMT_PEER_COUNT_V12);
+        assert_eq!(
+            NMT_DETERMINISTIC_SLOTS + NMT_RANDOM_SLOTS,
+            NMT_PEER_COUNT_V12
+        );
     }
 
     // ── test_nmt_rank_deterministic ───────────────────────────────────────────
@@ -417,8 +440,10 @@ mod tests {
         let result = select_nmt_peers_hybrid(&candidates, &seed_k());
 
         if let Some(random) = result.random_slot {
-            assert!(!result.deterministic_slots.contains(&random),
-                "Random slot tidak boleh duplikat dengan deterministik slots");
+            assert!(
+                !result.deterministic_slots.contains(&random),
+                "Random slot tidak boleh duplikat dengan deterministik slots"
+            );
         }
     }
 

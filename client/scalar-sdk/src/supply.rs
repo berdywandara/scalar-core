@@ -95,7 +95,8 @@ pub fn verify_supply_conservation(snapshot: &AccountingSnapshot) -> bool {
     // S_E + S_R = S_MAX = 2_100_000_000_000_000 sSCL (21M SCL)
     const S_MAX_SSCL: u64 = 2_100_000_000_000_000;
 
-    let total_accounted = snapshot.total_pou_minted_sscl
+    let total_accounted = snapshot
+        .total_pou_minted_sscl
         .saturating_add(snapshot.deferred_emission_pool_sscl)
         .saturating_add(snapshot.security_fund_accumulator_sscl);
 
@@ -125,8 +126,10 @@ mod tests {
         // query_total_minted() tersedia dan benar. Spec §20.2.
         let snapshot = make_snapshot();
         let result = query_total_minted(&snapshot);
-        assert_eq!(result.value_sscl, 1_000_000_000_000u64,
-            "total_minted harus sesuai snapshot");
+        assert_eq!(
+            result.value_sscl, 1_000_000_000_000u64,
+            "total_minted harus sesuai snapshot"
+        );
         assert_eq!(result.snapshot_epoch, 5);
         assert_eq!(result.field, "total_pou_minted");
     }
@@ -138,8 +141,10 @@ mod tests {
         // query_deferred_pool() tersedia dan benar. Spec §20.2.
         let snapshot = make_snapshot();
         let result = query_deferred_pool(&snapshot);
-        assert_eq!(result.value_sscl, 50_000_000_000u64,
-            "deferred_pool harus sesuai snapshot");
+        assert_eq!(
+            result.value_sscl, 50_000_000_000u64,
+            "deferred_pool harus sesuai snapshot"
+        );
         assert_eq!(result.field, "deferred_emission_pool");
     }
 
@@ -150,8 +155,10 @@ mod tests {
         // query_security_fund() tersedia dan benar. Spec §20.2.
         let snapshot = make_snapshot();
         let result = query_security_fund(&snapshot);
-        assert_eq!(result.value_sscl, 10_000_000_000u64,
-            "security_fund harus sesuai snapshot");
+        assert_eq!(
+            result.value_sscl, 10_000_000_000u64,
+            "security_fund harus sesuai snapshot"
+        );
         assert_eq!(result.field, "security_fund");
     }
 
@@ -173,8 +180,10 @@ mod tests {
     fn test_supply_conservation_valid() {
         // Conservation invariant: total ≤ S_MAX. Spec §20.2.
         let snapshot = make_snapshot();
-        assert!(verify_supply_conservation(&snapshot),
-            "Supply conservation harus terpenuhi");
+        assert!(
+            verify_supply_conservation(&snapshot),
+            "Supply conservation harus terpenuhi"
+        );
     }
 
     #[test]
@@ -182,13 +191,15 @@ mod tests {
         // Jika total > S_MAX → invariant dilanggar. Spec §20.2.
         let snapshot = AccountingSnapshot {
             total_pou_minted_sscl: 2_100_000_000_000_000, // S_MAX penuh
-            deferred_emission_pool_sscl: 1, // overflow
+            deferred_emission_pool_sscl: 1,               // overflow
             security_fund_accumulator_sscl: 0,
             total_reserve_released_sscl: 0,
             snapshot_epoch: 1,
         };
-        assert!(!verify_supply_conservation(&snapshot),
-            "Overflow S_MAX harus terdeteksi");
+        assert!(
+            !verify_supply_conservation(&snapshot),
+            "Overflow S_MAX harus terdeteksi"
+        );
     }
 
     #[test]

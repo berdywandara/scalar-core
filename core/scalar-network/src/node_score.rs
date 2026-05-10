@@ -144,10 +144,7 @@ pub fn enforce_nodescore_cap(node_id_full: &[u8; 32], score: u64) -> u64 {
 /// Mengembalikan slice dari `nodes` yang memenuhi NMT_SCORE_THRESHOLD.
 /// Tier C secara otomatis terfilter karena score maks 600_000 < 800_000.
 pub fn filter_nmt_eligible(nodes: &[NodeScore]) -> Vec<&NodeScore> {
-    nodes
-        .iter()
-        .filter(|n| n.is_nmt_eligible())
-        .collect()
+    nodes.iter().filter(|n| n.is_nmt_eligible()).collect()
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -174,8 +171,11 @@ mod tests {
     fn test_tier_c_nodescore_cap() {
         // Tier C tidak bisa > 600_000. Spec §10.1, §12.4.
         let node = NodeScore::new(tier_c_node(0x42), 1_000_000);
-        assert_eq!(node.score(), TIER_C_MAX_NODESCORE,
-            "Tier C harus dibatasi TIER_C_MAX_NODESCORE = 600_000");
+        assert_eq!(
+            node.score(),
+            TIER_C_MAX_NODESCORE,
+            "Tier C harus dibatasi TIER_C_MAX_NODESCORE = 600_000"
+        );
         assert!(node.score() <= TIER_C_MAX_NODESCORE);
     }
 
@@ -199,18 +199,25 @@ mod tests {
     fn test_tier_c_nmt_ineligible() {
         // Tier C tidak eligible NMT. Spec §12.4, T-3.
         let node = NodeScore::new(tier_c_node(0x42), 1_000_000); // raw=1M, capped=600k
-        assert!(!node.is_nmt_eligible(),
-            "Tier C tidak boleh eligible NMT — score maks 600k < threshold 800k");
+        assert!(
+            !node.is_nmt_eligible(),
+            "Tier C tidak boleh eligible NMT — score maks 600k < threshold 800k"
+        );
     }
 
     #[test]
     fn test_tier_c_nmt_ineligible_even_max_score() {
         // Bahkan dengan raw_score maksimum, Tier C tetap tidak eligible NMT.
         let node = NodeScore::new(tier_c_node(0x01), u64::MAX);
-        assert!(!node.is_nmt_eligible(),
-            "Tier C dengan raw_score MAX tetap tidak eligible NMT");
-        assert_eq!(node.score(), TIER_C_MAX_NODESCORE,
-            "Score tetap dibatasi 600_000");
+        assert!(
+            !node.is_nmt_eligible(),
+            "Tier C dengan raw_score MAX tetap tidak eligible NMT"
+        );
+        assert_eq!(
+            node.score(),
+            TIER_C_MAX_NODESCORE,
+            "Score tetap dibatasi 600_000"
+        );
     }
 
     // ── test_tier_a_b_full_score ──────────────────────────────────────────────
@@ -219,8 +226,11 @@ mod tests {
     fn test_tier_a_full_score() {
         // Tier A bisa mencapai 1_000_000. Spec §10.1.
         let node = NodeScore::new(tier_a_node(0x01), 1_000_000);
-        assert_eq!(node.score(), 1_000_000,
-            "Tier A/B harus bisa mencapai score 1_000_000");
+        assert_eq!(
+            node.score(),
+            1_000_000,
+            "Tier A/B harus bisa mencapai score 1_000_000"
+        );
     }
 
     #[test]
@@ -234,8 +244,10 @@ mod tests {
     fn test_tier_a_nmt_ineligible_low_score() {
         // Tier A dengan score ≤ 800_000 tidak eligible NMT. Spec §12.4.
         let node = NodeScore::new(tier_a_node(0x01), 800_000);
-        assert!(!node.is_nmt_eligible(),
-            "Score tepat 800_000 tidak eligible (butuh strictly >)");
+        assert!(
+            !node.is_nmt_eligible(),
+            "Score tepat 800_000 tidak eligible (butuh strictly >)"
+        );
     }
 
     // ── test_is_tier_c_prefix_detection ──────────────────────────────────────
@@ -245,16 +257,22 @@ mod tests {
         // Deteksi prefix 0xFE akurat. Spec §10.1.
         let tier_c = tier_c_node(0x42);
         let tier_a = tier_a_node(0x42);
-        assert!(is_tier_c(&tier_c), "0xFE prefix harus terdeteksi sebagai Tier C");
+        assert!(
+            is_tier_c(&tier_c),
+            "0xFE prefix harus terdeteksi sebagai Tier C"
+        );
         assert!(!is_tier_c(&tier_a), "Non-0xFE prefix bukan Tier C");
     }
 
     #[test]
     fn test_is_tier_c_prefix_0xfe_exact() {
         // Hanya 0xFE yang Tier C — 0xFD dan 0xFF bukan Tier C.
-        let mut id_fd = [0u8; 32]; id_fd[0] = 0xFD;
-        let mut id_ff = [0u8; 32]; id_ff[0] = 0xFF;
-        let mut id_fe = [0u8; 32]; id_fe[0] = 0xFE;
+        let mut id_fd = [0u8; 32];
+        id_fd[0] = 0xFD;
+        let mut id_ff = [0u8; 32];
+        id_ff[0] = 0xFF;
+        let mut id_fe = [0u8; 32];
+        id_fe[0] = 0xFE;
         assert!(!is_tier_c(&id_fd));
         assert!(!is_tier_c(&id_ff));
         assert!(is_tier_c(&id_fe));
@@ -285,16 +303,22 @@ mod tests {
     fn test_filter_nmt_eligible_excludes_tier_c() {
         // Tier C tidak muncul di NMT peer list. Spec §12.4.
         let nodes = vec![
-            NodeScore::new(tier_a_node(0x01), 900_000), // eligible
+            NodeScore::new(tier_a_node(0x01), 900_000),   // eligible
             NodeScore::new(tier_c_node(0x02), 1_000_000), // Tier C → capped 600k → not eligible
-            NodeScore::new(tier_a_node(0x03), 850_000), // eligible
-            NodeScore::new(tier_a_node(0x04), 700_000), // below threshold → not eligible
+            NodeScore::new(tier_a_node(0x03), 850_000),   // eligible
+            NodeScore::new(tier_a_node(0x04), 700_000),   // below threshold → not eligible
         ];
         let eligible = filter_nmt_eligible(&nodes);
-        assert_eq!(eligible.len(), 2,
-            "Hanya 2 node yang eligible (Tier A score > 800k)");
+        assert_eq!(
+            eligible.len(),
+            2,
+            "Hanya 2 node yang eligible (Tier A score > 800k)"
+        );
         for n in &eligible {
-            assert!(!n.is_tier_c(), "Tier C tidak boleh ada di NMT eligible list");
+            assert!(
+                !n.is_tier_c(),
+                "Tier C tidak boleh ada di NMT eligible list"
+            );
             assert!(n.score() > NMT_SCORE_THRESHOLD);
         }
     }
@@ -316,8 +340,10 @@ mod tests {
     #[test]
     fn test_tier_c_always_below_nmt_threshold() {
         // TIER_C_MAX_NODESCORE < NMT_SCORE_THRESHOLD — invariant kritis. Spec §10.1.
-        assert!(TIER_C_MAX_NODESCORE < NMT_SCORE_THRESHOLD,
-            "Tier C cap harus selalu di bawah NMT threshold — invariant spec §10.1");
+        assert!(
+            TIER_C_MAX_NODESCORE < NMT_SCORE_THRESHOLD,
+            "Tier C cap harus selalu di bawah NMT threshold — invariant spec §10.1"
+        );
     }
 
     #[test]
