@@ -11,3 +11,6 @@ scalar-fees      = { path = "../scalar-fees" }
 scalar-network   = { path = "../scalar-network" }
 scalar-nullifier = { path = "../scalar-nullifier" }
 scalar-wallet-core = { path = "../../client/scalar-wallet-core" }
+scalar-governance = { path = "../../client/scalar-governance" }
+scalar-node = { path = "../scalar-node" }
+libp2p = { workspace = true, features = ["gossipsub", "kad", "macros", "noise", "tcp", "tokio", "yamux"] }

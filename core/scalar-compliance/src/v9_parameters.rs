@@ -235,9 +235,7 @@ mod tests_v9_l1 {
     #[test]
     fn test_t_hb_min_interval_s() {
         // Spec §7.2c T-4: T_HB_MIN_INTERVAL_S = 600. Layer 2 CONSTRAINED.
-        assert_eq!(
-            scalar_network::time_security::T_HB_MIN_INTERVAL_S,
-            300u32);
+        assert_eq!(scalar_network::time_security::T_HB_MIN_INTERVAL_S, 300u32);
     }
 
     #[test]
@@ -311,7 +309,10 @@ mod tests_v9_canonical {
         let s_desc = compute_seed_k(nodes_desc);
         let s_shuffled = compute_seed_k(nodes_shuffled);
         assert_eq!(s_asc, s_desc, "S1: urutan desc harus identik dengan asc");
-        assert_eq!(s_asc, s_shuffled, "S1: urutan shuffled harus identik dengan asc");
+        assert_eq!(
+            s_asc, s_shuffled,
+            "S1: urutan shuffled harus identik dengan asc"
+        );
     }
 
     #[test]
@@ -319,8 +320,8 @@ mod tests_v9_canonical {
         // S2: timestamp TIDAK boleh ada dalam canonical bytes. Spec §8.2.
         // Dua manifest identik kecuali field non-canonical → hash identik.
         use scalar_emission::manifest::{
-            compute_manifest_canonical_bytes, compute_manifest_hash,
-            EpochRewardManifest, EpochStatus, SPEC_VERSION_MANIFEST,
+            compute_manifest_canonical_bytes, compute_manifest_hash, EpochRewardManifest,
+            EpochStatus, SPEC_VERSION_MANIFEST,
         };
         let base = EpochRewardManifest {
             epoch_id: 7,
@@ -357,8 +358,8 @@ mod tests_v9_canonical {
     fn test_s3_little_endian_encoding() {
         // S3: semua integer WAJIB little-endian. Spec §8.2.
         use scalar_emission::manifest::{
-            compute_manifest_canonical_bytes, EpochRewardManifest,
-            EpochStatus, SPEC_VERSION_MANIFEST,
+            compute_manifest_canonical_bytes, EpochRewardManifest, EpochStatus,
+            SPEC_VERSION_MANIFEST,
         };
         let epoch_id = 0x0102030405060708u64;
         let m = EpochRewardManifest {
@@ -379,23 +380,32 @@ mod tests_v9_canonical {
         };
         let bytes = compute_manifest_canonical_bytes(&m);
         // epoch_id di bytes[0..8] harus little-endian
-        assert_eq!(&bytes[0..8], &epoch_id.to_le_bytes(),
-            "S3: epoch_id harus little-endian");
+        assert_eq!(
+            &bytes[0..8],
+            &epoch_id.to_le_bytes(),
+            "S3: epoch_id harus little-endian"
+        );
         // total_uptime_weight di bytes[73+8..73+16] = bytes[81..89]
         // offset: epoch_id(8)+spec_version(1)+liveness_root(32)+sync(32)+seed_k(32) = 105
-        assert_eq!(&bytes[105..113], &0x0A0B0C0D0E0F1011u64.to_le_bytes(),
-            "S3: total_uptime_weight harus little-endian");
+        assert_eq!(
+            &bytes[105..113],
+            &0x0A0B0C0D0E0F1011u64.to_le_bytes(),
+            "S3: total_uptime_weight harus little-endian"
+        );
         // big-endian TIDAK boleh sama
-        assert_ne!(&bytes[0..8], &epoch_id.to_be_bytes(),
-            "S3: big-endian harus berbeda dari canonical");
+        assert_ne!(
+            &bytes[0..8],
+            &epoch_id.to_be_bytes(),
+            "S3: big-endian harus berbeda dari canonical"
+        );
     }
 
     #[test]
     fn test_s4_canonical_bytes_fixed_length() {
         // S4: tidak ada optional fields — panjang canonical bytes selalu 177. Spec §8.2.
         use scalar_emission::manifest::{
-            compute_manifest_canonical_bytes, EpochRewardManifest,
-            EpochStatus, SPEC_VERSION_MANIFEST,
+            compute_manifest_canonical_bytes, EpochRewardManifest, EpochStatus,
+            SPEC_VERSION_MANIFEST,
         };
         let make = |slashed: Vec<[u8; 32]>| EpochRewardManifest {
             epoch_id: 1,
@@ -414,18 +424,23 @@ mod tests_v9_canonical {
             status: EpochStatus::Open,
         };
         // Tidak peduli berapa slashed_nodes, panjang canonical bytes selalu 177
-        assert_eq!(compute_manifest_canonical_bytes(&make(vec![])).len(), 177,
-            "S4: canonical bytes harus 177 bytes dengan 0 slashed nodes");
-        assert_eq!(compute_manifest_canonical_bytes(&make(vec![[0u8;32]; 100])).len(), 177,
-            "S4: canonical bytes harus 177 bytes dengan 100 slashed nodes");
+        assert_eq!(
+            compute_manifest_canonical_bytes(&make(vec![])).len(),
+            177,
+            "S4: canonical bytes harus 177 bytes dengan 0 slashed nodes"
+        );
+        assert_eq!(
+            compute_manifest_canonical_bytes(&make(vec![[0u8; 32]; 100])).len(),
+            177,
+            "S4: canonical bytes harus 177 bytes dengan 100 slashed nodes"
+        );
     }
 
     #[test]
     fn test_canonical_unique_grinding_space_zero() {
         // Grinding space = 0: satu set data → SATU representasi byte valid. Spec §8.2.
         use scalar_emission::manifest::{
-            compute_manifest_hash, EpochRewardManifest,
-            EpochStatus, SPEC_VERSION_MANIFEST,
+            compute_manifest_hash, EpochRewardManifest, EpochStatus, SPEC_VERSION_MANIFEST,
         };
         let m1 = EpochRewardManifest {
             epoch_id: 99,
@@ -444,8 +459,11 @@ mod tests_v9_canonical {
             status: EpochStatus::Finalized,
         };
         let m2 = m1.clone();
-        assert_eq!(compute_manifest_hash(&m1), compute_manifest_hash(&m2),
-            "Grinding space = 0: hash identik untuk data yang sama");
+        assert_eq!(
+            compute_manifest_hash(&m1),
+            compute_manifest_hash(&m2),
+            "Grinding space = 0: hash identik untuk data yang sama"
+        );
     }
 
     // ── §6.3 NullifierSet Promotion ───────────────────────────────────────────

@@ -6,17 +6,16 @@
 //! Spec §12.2: peer discovery via Kademlia DHT.
 //! Spec §7.2: NodeHeartbeat broadcast via gossipsub topic "scalar/heartbeat/1".
 
-use libp2p::{
-    gossipsub, identify, identity, kad,
-    noise, tcp, yamux,
-    swarm::{NetworkBehaviour, SwarmEvent},
-    Multiaddr, PeerId, StreamProtocol,
-};
-use std::time::Duration;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
-use tokio::sync::mpsc;
 use futures::StreamExt;
+use libp2p::{
+    gossipsub, identify, identity, kad, noise,
+    swarm::{NetworkBehaviour, SwarmEvent},
+    tcp, yamux, Multiaddr, PeerId, StreamProtocol,
+};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::time::Duration;
+use tokio::sync::mpsc;
 
 // ── Topic constants — spec §12 ────────────────────────────────────────────────
 
@@ -78,7 +77,8 @@ pub fn build_swarm() -> anyhow::Result<libp2p::Swarm<ScalarNodeBehaviour>> {
     let mut gossipsub = gossipsub::Behaviour::new(
         gossipsub::MessageAuthenticity::Signed(local_key.clone()),
         gossipsub_config,
-    ).map_err(|e| anyhow::anyhow!("Gossipsub: {}", e))?;
+    )
+    .map_err(|e| anyhow::anyhow!("Gossipsub: {}", e))?;
 
     // Subscribe topics
     for topic_str in [TOPIC_HEARTBEAT, TOPIC_GOSSIP, TOPIC_BEACON] {
@@ -88,9 +88,7 @@ pub fn build_swarm() -> anyhow::Result<libp2p::Swarm<ScalarNodeBehaviour>> {
     }
 
     // Kademlia
-    let mut kademlia_config = kad::Config::new(
-        StreamProtocol::new("/scalar/kad/1.0.0")
-    );
+    let mut kademlia_config = kad::Config::new(StreamProtocol::new("/scalar/kad/1.0.0"));
     kademlia_config.set_query_timeout(Duration::from_secs(60));
     let kademlia = kad::Behaviour::with_config(
         local_peer_id,
@@ -99,11 +97,16 @@ pub fn build_swarm() -> anyhow::Result<libp2p::Swarm<ScalarNodeBehaviour>> {
     );
 
     // Identify
-    let identify = identify::Behaviour::new(
-        identify::Config::new("/scalar/1.0.0".to_string(), local_key.public())
-    );
+    let identify = identify::Behaviour::new(identify::Config::new(
+        "/scalar/1.0.0".to_string(),
+        local_key.public(),
+    ));
 
-    let behaviour = ScalarNodeBehaviour { gossipsub, kademlia, identify };
+    let behaviour = ScalarNodeBehaviour {
+        gossipsub,
+        kademlia,
+        identify,
+    };
 
     // Build swarm dengan SwarmBuilder v0.54 API
     let swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
@@ -114,9 +117,7 @@ pub fn build_swarm() -> anyhow::Result<libp2p::Swarm<ScalarNodeBehaviour>> {
             yamux::Config::default,
         )?
         .with_behaviour(|_| behaviour)?
-        .with_swarm_config(|c| {
-            c.with_idle_connection_timeout(Duration::from_secs(60))
-        })
+        .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
         .build();
 
     Ok(swarm)

@@ -8,6 +8,8 @@ pub mod gossip;
 pub mod gss;
 pub mod heartbeat_verifier;
 pub mod nmt;
+pub mod nmt_hybrid;
+pub mod node_score;
 pub mod reconciliation;
 pub mod relay;
 pub mod state_beacon;
@@ -17,3 +19,4 @@ pub mod time_security;
 // EMPIRICAL TEST SUITE — Spec §22.5 Pre-Mainnet Mandatory
 #[cfg(test)]
 mod empirical_tests;
+pub mod security;

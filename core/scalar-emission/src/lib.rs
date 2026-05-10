@@ -2,18 +2,23 @@
 
 pub mod accumulator;
 pub mod consensus;
+pub mod dmm;
 pub mod epoch;
 pub mod equity;
+pub mod formal;
 pub mod genesis_ceremony;
 pub mod institutional;
 pub mod liveness;
 pub mod longevity;
 pub mod manifest;
+pub mod ordering;
 pub mod pou;
 pub mod resumption;
 pub mod root_alignment;
 pub mod slashing;
 pub mod succession;
+pub mod types;
+pub mod utxo_set_smt;
 
 // ── EmissionError — digunakan oleh accumulator dan modul lain ────────────────
 
