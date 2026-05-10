@@ -147,3 +147,68 @@ mod tests_v12_ordering {
         assert_eq!(s1, s2, "Canonical sort harus deterministik");
     }
 }
+
+// ── UTXO Set SMT compliance tests — spec §8.5, §16.1 ─────────────────────────
+
+#[cfg(test)]
+mod tests_v12_utxo {
+    #[test]
+    fn compliance_test_utxo_domain_separator() {
+        // DOMAIN_UTXO_SMT = b"scalar_utxo_v2". OSSIFIED — spec §2.3.
+        assert_eq!(
+            scalar_emission::utxo_set_smt::DOMAIN_UTXO_SMT,
+            b"scalar_utxo_v2"
+        );
+    }
+
+    #[test]
+    fn compliance_test_utxo_genesis_state() {
+        // Genesis state: root zero, epoch 0. Spec §8.5.
+        use scalar_emission::utxo_set_smt::UtxoSetState;
+        let state = UtxoSetState::genesis();
+        assert_eq!(state.utxo_set_root, [0u8; 32]);
+        assert_eq!(state.snapshot_epoch, 0);
+    }
+
+    #[test]
+    fn compliance_test_utxo_root_snapshot_after_processing() {
+        // Snapshot diambil SETELAH semua tx epoch diproses. Spec §8.5.
+        use scalar_emission::utxo_set_smt::UtxoSetSMT;
+        use scalar_emission::ordering::TxEntry;
+        let mut smt = UtxoSetSMT::new();
+        let txs = vec![
+            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0x02u8; 32], tx_data: vec![] },
+        ];
+        smt.process_epoch_transactions(&txs, 1);
+        let snap = smt.take_snapshot(1);
+        assert_ne!(snap.utxo_set_root, [0u8; 32],
+            "Root harus non-zero setelah transaksi diproses");
+        assert_eq!(snap.snapshot_epoch, 1);
+    }
+
+    #[test]
+    fn compliance_test_utxo_root_deterministic() {
+        // Canonical ordering → root identik antar node. Spec §8.5.
+        use scalar_emission::utxo_set_smt::UtxoSetSMT;
+        use scalar_emission::ordering::TxEntry;
+
+        let txs_a = vec![
+            TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
+        ];
+        let txs_b = vec![
+            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
+        ];
+
+        let mut smt_a = UtxoSetSMT::new();
+        smt_a.process_epoch_transactions(&txs_a, 2);
+
+        let mut smt_b = UtxoSetSMT::new();
+        smt_b.process_epoch_transactions(&txs_b, 2);
+
+        assert_eq!(smt_a.root(), smt_b.root(),
+            "Root harus identik untuk tx set yang sama — spec §8.5");
+    }
+}
