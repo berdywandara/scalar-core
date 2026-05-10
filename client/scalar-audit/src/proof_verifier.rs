@@ -7,8 +7,8 @@
 //! dan inspeksi state. Tidak ada akses ke kunci privat.
 //! Hanya operasi read-only dan ZK verification."
 
-use scalar_stark::verifier::{verify_proof, VerifyError};
 use scalar_stark::air::ScalarPublicInputs;
+use scalar_stark::verifier::{verify_proof, VerifyError};
 
 // ── ProofVerificationResult — spec §16.4 ─────────────────────────────────────
 
@@ -125,7 +125,11 @@ mod tests {
         // Proof non-empty dengan inputs valid → Valid. Spec §16.4.
         let proof = vec![0xABu8; 100];
         let result = verify_transfer_proof(&proof, &valid_inputs());
-        assert!(result.is_valid(), "Proof valid harus diterima: {:?}", result);
+        assert!(
+            result.is_valid(),
+            "Proof valid harus diterima: {:?}",
+            result
+        );
     }
 
     // ── test_verify_transfer_proof_invalid ───────────────────────────────────
@@ -137,7 +141,10 @@ mod tests {
         let mut inputs = valid_inputs();
         inputs.crypto_version = 0x99; // tidak valid
         let result = verify_transfer_proof(&proof, &inputs);
-        assert!(!result.is_valid(), "Proof dengan crypto version invalid harus ditolak");
+        assert!(
+            !result.is_valid(),
+            "Proof dengan crypto version invalid harus ditolak"
+        );
     }
 
     #[test]

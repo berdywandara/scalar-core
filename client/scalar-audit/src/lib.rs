@@ -19,12 +19,11 @@ pub mod state_inspector;
 
 // Re-export API publik — spec §16.4
 pub use proof_verifier::{
-    verify_transfer_proof, is_proof_valid,
-    AuditPublicInputs, ProofVerificationResult,
+    is_proof_valid, verify_transfer_proof, AuditPublicInputs, ProofVerificationResult,
 };
 pub use state_inspector::{
-    inspect_nullifier_state, verify_manifest_hash, audit_blake3_hash,
-    NullifierStatus, ManifestAuditResult,
+    audit_blake3_hash, inspect_nullifier_state, verify_manifest_hash, ManifestAuditResult,
+    NullifierStatus,
 };
 
 #[cfg(test)]

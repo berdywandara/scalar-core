@@ -113,7 +113,8 @@ impl ProductionNodeId {
             mode.time_cost(),
             ARGON2_NODE_PARALLELISM,
             Some(NODE_ID_OUTPUT_LEN),
-        ).map_err(|_| NodeIdError::InvalidParams)?;
+        )
+        .map_err(|_| NodeIdError::InvalidParams)?;
 
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
@@ -191,19 +192,23 @@ mod tests {
     // ── test_nodeid_argon2id_production (dev mode) ────────────────────────────
 
     #[test]
+    #[ignore = "slow: Argon2id 16MB, run manually with -- --ignored"]
     fn test_nodeid_argon2id_not_placeholder() {
         // NodeID tidak lagi placeholder [0x42;32]. Spec §10.2, Gap G-2.
         let result = ProductionNodeId::derive(
-            TEST_MNEMONIC, &TEST_GENESIS, NodeIdDerivationMode::TierCOrDev
+            TEST_MNEMONIC,
+            &TEST_GENESIS,
+            NodeIdDerivationMode::TierCOrDev,
         );
         assert!(result.is_ok(), "Derivasi harus berhasil: {:?}", result);
         let node_id = result.unwrap();
         // NodeID TIDAK boleh sama dengan placeholder [0x42;32]
-        assert_ne!(node_id.node_id_full, [0x42u8; 32],
-            "NodeID tidak boleh sama dengan placeholder");
+        assert_ne!(
+            node_id.node_id_full, [0x42u8; 32],
+            "NodeID tidak boleh sama dengan placeholder"
+        );
         // NodeID tidak boleh zero
-        assert_ne!(node_id.node_id_full, [0u8; 32],
-            "NodeID tidak boleh zero");
+        assert_ne!(node_id.node_id_full, [0u8; 32], "NodeID tidak boleh zero");
     }
 
     // ── test_nodeid_tier_c_argon2id_params ───────────────────────────────────
@@ -212,10 +217,16 @@ mod tests {
     fn test_nodeid_tier_c_argon2id_params() {
         // Tier C pakai 16MB/100iter. Spec §10.1.
         let mode = NodeIdDerivationMode::TierCOrDev;
-        assert_eq!(mode.memory_kib(), ARGON2_NODE_MEMORY_TIER_C_KIB,
-            "Tier C harus pakai 16 MB");
-        assert_eq!(mode.time_cost(), ARGON2_NODE_TIME_TIER_C,
-            "Tier C harus pakai 100 iterasi");
+        assert_eq!(
+            mode.memory_kib(),
+            ARGON2_NODE_MEMORY_TIER_C_KIB,
+            "Tier C harus pakai 16 MB"
+        );
+        assert_eq!(
+            mode.time_cost(),
+            ARGON2_NODE_TIME_TIER_C,
+            "Tier C harus pakai 100 iterasi"
+        );
         assert_eq!(ARGON2_NODE_MEMORY_TIER_C_KIB, 16 * 1024);
         assert_eq!(ARGON2_NODE_TIME_TIER_C, 100);
     }
@@ -226,10 +237,16 @@ mod tests {
     fn test_nodeid_tier_a_argon2id_params() {
         // Tier A/B pakai 4GB/3600iter. Spec §10.2.
         let mode = NodeIdDerivationMode::Production;
-        assert_eq!(mode.memory_kib(), ARGON2_NODE_MEMORY_PRODUCTION_KIB,
-            "Tier A/B harus pakai 4 GB");
-        assert_eq!(mode.time_cost(), ARGON2_NODE_TIME_PRODUCTION,
-            "Tier A/B harus pakai 3_600 iterasi");
+        assert_eq!(
+            mode.memory_kib(),
+            ARGON2_NODE_MEMORY_PRODUCTION_KIB,
+            "Tier A/B harus pakai 4 GB"
+        );
+        assert_eq!(
+            mode.time_cost(),
+            ARGON2_NODE_TIME_PRODUCTION,
+            "Tier A/B harus pakai 3_600 iterasi"
+        );
         assert_eq!(ARGON2_NODE_MEMORY_PRODUCTION_KIB, 4 * 1024 * 1024);
         assert_eq!(ARGON2_NODE_TIME_PRODUCTION, 3_600);
     }
@@ -247,49 +264,70 @@ mod tests {
     // ── test_deterministic_same_input ────────────────────────────────────────
 
     #[test]
+    #[ignore = "slow: Argon2id 16MB x2, run manually with -- --ignored"]
     fn test_nodeid_deterministic_same_input() {
         // Argon2id dengan salt deterministik (bukan OsRng) → output sama.
         // Spec §10.2: NodeID harus reproducible dari mnemonic + genesis_hash.
         let r1 = ProductionNodeId::derive(
-            TEST_MNEMONIC, &TEST_GENESIS, NodeIdDerivationMode::TierCOrDev
-        ).unwrap();
+            TEST_MNEMONIC,
+            &TEST_GENESIS,
+            NodeIdDerivationMode::TierCOrDev,
+        )
+        .unwrap();
         let r2 = ProductionNodeId::derive(
-            TEST_MNEMONIC, &TEST_GENESIS, NodeIdDerivationMode::TierCOrDev
-        ).unwrap();
-        assert_eq!(r1.node_id_full, r2.node_id_full,
-            "NodeID harus deterministik untuk input yang sama");
+            TEST_MNEMONIC,
+            &TEST_GENESIS,
+            NodeIdDerivationMode::TierCOrDev,
+        )
+        .unwrap();
+        assert_eq!(
+            r1.node_id_full, r2.node_id_full,
+            "NodeID harus deterministik untuk input yang sama"
+        );
     }
 
     // ── test_different_mnemonic_different_id ─────────────────────────────────
 
     #[test]
+    #[ignore = "slow: Argon2id 16MB, run manually with -- --ignored"]
     fn test_different_mnemonic_different_id() {
         // Mnemonic berbeda → NodeID berbeda. Spec §10.2.
         let id1 = ProductionNodeId::derive(
-            b"mnemonic_node_alpha", &TEST_GENESIS, NodeIdDerivationMode::TierCOrDev
-        ).unwrap();
+            b"mnemonic_node_alpha",
+            &TEST_GENESIS,
+            NodeIdDerivationMode::TierCOrDev,
+        )
+        .unwrap();
         let id2 = ProductionNodeId::derive(
-            b"mnemonic_node_beta", &TEST_GENESIS, NodeIdDerivationMode::TierCOrDev
-        ).unwrap();
-        assert_ne!(id1.node_id_full, id2.node_id_full,
-            "Mnemonic berbeda harus menghasilkan NodeID berbeda");
+            b"mnemonic_node_beta",
+            &TEST_GENESIS,
+            NodeIdDerivationMode::TierCOrDev,
+        )
+        .unwrap();
+        assert_ne!(
+            id1.node_id_full, id2.node_id_full,
+            "Mnemonic berbeda harus menghasilkan NodeID berbeda"
+        );
     }
 
     // ── test_different_genesis_different_id ──────────────────────────────────
 
     #[test]
+    #[ignore = "slow: Argon2id 16MB, run manually with -- --ignored"]
     fn test_different_genesis_different_id() {
         // genesis_hash berbeda → NodeID berbeda. Spec §10.2.
         let genesis_a = [0x01u8; 32];
         let genesis_b = [0x02u8; 32];
-        let id1 = ProductionNodeId::derive(
-            TEST_MNEMONIC, &genesis_a, NodeIdDerivationMode::TierCOrDev
-        ).unwrap();
-        let id2 = ProductionNodeId::derive(
-            TEST_MNEMONIC, &genesis_b, NodeIdDerivationMode::TierCOrDev
-        ).unwrap();
-        assert_ne!(id1.node_id_full, id2.node_id_full,
-            "genesis_hash berbeda harus menghasilkan NodeID berbeda");
+        let id1 =
+            ProductionNodeId::derive(TEST_MNEMONIC, &genesis_a, NodeIdDerivationMode::TierCOrDev)
+                .unwrap();
+        let id2 =
+            ProductionNodeId::derive(TEST_MNEMONIC, &genesis_b, NodeIdDerivationMode::TierCOrDev)
+                .unwrap();
+        assert_ne!(
+            id1.node_id_full, id2.node_id_full,
+            "genesis_hash berbeda harus menghasilkan NodeID berbeda"
+        );
     }
 
     // ── test_feature_flag_mode ────────────────────────────────────────────────
@@ -298,23 +336,28 @@ mod tests {
     #[cfg(not(feature = "production"))]
     fn test_dev_mode_uses_tier_c_params() {
         // Dev mode (tidak ada --features production) → TierCOrDev. Spec §10.2.
-        let result = ProductionNodeId::derive_with_feature_flag(
-            TEST_MNEMONIC, &TEST_GENESIS
-        );
+        let result = ProductionNodeId::derive_with_feature_flag(TEST_MNEMONIC, &TEST_GENESIS);
         assert!(result.is_ok());
         let node = result.unwrap();
-        assert_eq!(node.mode, NodeIdDerivationMode::TierCOrDev,
-            "Dev mode harus pakai TierCOrDev params");
+        assert_eq!(
+            node.mode,
+            NodeIdDerivationMode::TierCOrDev,
+            "Dev mode harus pakai TierCOrDev params"
+        );
     }
 
     // ── test_output_length ────────────────────────────────────────────────────
 
     #[test]
+    #[ignore = "slow: Argon2id 16MB, run manually with -- --ignored"]
     fn test_nodeid_output_length_32() {
         // Output = 32 bytes. Spec §10.2.
         let result = ProductionNodeId::derive(
-            TEST_MNEMONIC, &TEST_GENESIS, NodeIdDerivationMode::TierCOrDev
-        ).unwrap();
+            TEST_MNEMONIC,
+            &TEST_GENESIS,
+            NodeIdDerivationMode::TierCOrDev,
+        )
+        .unwrap();
         assert_eq!(result.node_id_full.len(), NODE_ID_OUTPUT_LEN);
         assert_eq!(NODE_ID_OUTPUT_LEN, 32);
     }

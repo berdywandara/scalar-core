@@ -25,19 +25,13 @@ mod tests_v12 {
     #[test]
     fn compliance_test_spec_version_current() {
         // types::SPEC_VERSION_CURRENT = 0x06. Spec §2.4.
-        assert_eq!(
-            scalar_emission::types::SPEC_VERSION_CURRENT,
-            0x06u8
-        );
+        assert_eq!(scalar_emission::types::SPEC_VERSION_CURRENT, 0x06u8);
     }
 
     #[test]
     fn compliance_test_t_transition_epochs() {
         // Spec §2.4: T_TRANSITION_EPOCHS = 4.
-        assert_eq!(
-            scalar_emission::types::T_TRANSITION_EPOCHS,
-            4u64
-        );
+        assert_eq!(scalar_emission::types::T_TRANSITION_EPOCHS, 4u64);
     }
 
     // ── §8.4 EpochRewardManifestV12 fields ───────────────────────────────────
@@ -57,8 +51,10 @@ mod tests_v12 {
             reward_root: [0u8; 32],
             network_health_digest: [0xABu8; 32],
         };
-        assert_eq!(m.network_health_digest, [0xABu8; 32],
-            "network_health_digest harus ada dan dapat diakses");
+        assert_eq!(
+            m.network_health_digest, [0xABu8; 32],
+            "network_health_digest harus ada dan dapat diakses"
+        );
     }
 
     #[test]
@@ -70,8 +66,10 @@ mod tests_v12 {
             reward_sscl: 500_000,
             uptime_weight_fp: 800_000,
         };
-        assert_eq!(entry.uptime_weight_fp, 800_000,
-            "uptime_weight_fp harus ada di NodeRewardEntry");
+        assert_eq!(
+            entry.uptime_weight_fp, 800_000,
+            "uptime_weight_fp harus ada di NodeRewardEntry"
+        );
     }
 
     // ── §8.4 Version gate ─────────────────────────────────────────────────────
@@ -80,16 +78,20 @@ mod tests_v12 {
     fn compliance_test_version_reject_0x05_production() {
         // Spec §8.4: manifest spec_version=0x05 di-reject di production.
         let result = scalar_emission::types::validate_manifest_version(0x05, false);
-        assert!(result.is_err(),
-            "spec_version 0x05 harus di-reject di production mode");
+        assert!(
+            result.is_err(),
+            "spec_version 0x05 harus di-reject di production mode"
+        );
     }
 
     #[test]
     fn compliance_test_version_accept_0x05_testnet() {
         // Spec §2.4: spec_version=0x05 diterima dengan --testnet-compat.
         let result = scalar_emission::types::validate_manifest_version(0x05, true);
-        assert!(result.is_ok(),
-            "spec_version 0x05 harus diterima dengan testnet-compat");
+        assert!(
+            result.is_ok(),
+            "spec_version 0x05 harus diterima dengan testnet-compat"
+        );
     }
 
     #[test]
@@ -104,10 +106,7 @@ mod tests_v12 {
     #[test]
     fn compliance_test_max_consecutive_defer() {
         // Spec §8.2: MAX_CONSECUTIVE_DEFER = 2. OSSIFIED.
-        assert_eq!(
-            scalar_emission::dmm::MAX_CONSECUTIVE_DEFER,
-            2u32
-        );
+        assert_eq!(scalar_emission::dmm::MAX_CONSECUTIVE_DEFER, 2u32);
     }
 }
 
@@ -127,10 +126,7 @@ mod tests_v12_ordering {
     #[test]
     fn compliance_test_tx_order_domain_len() {
         // TX_ORDER_DOMAIN_LEN = 18. Spec §2.3.
-        assert_eq!(
-            scalar_emission::ordering::TX_ORDER_DOMAIN_LEN,
-            18usize
-        );
+        assert_eq!(scalar_emission::ordering::TX_ORDER_DOMAIN_LEN, 18usize);
     }
 
     #[test]
@@ -138,9 +134,18 @@ mod tests_v12_ordering {
         // sort_transactions_canonical deterministik — spec §8.5.
         use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
         let txs = vec![
-            TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0x02u8; 32], tx_data: vec![] },
+            TxEntry {
+                tx_hash: [0x03u8; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0x01u8; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0x02u8; 32],
+                tx_data: vec![],
+            },
         ];
         let s1 = sort_transactions_canonical(&txs, 1);
         let s2 = sort_transactions_canonical(&txs, 1);
@@ -173,33 +178,53 @@ mod tests_v12_utxo {
     #[test]
     fn compliance_test_utxo_root_snapshot_after_processing() {
         // Snapshot diambil SETELAH semua tx epoch diproses. Spec §8.5.
-        use scalar_emission::utxo_set_smt::UtxoSetSMT;
         use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
+        use scalar_emission::utxo_set_smt::UtxoSetSMT;
         let mut smt = UtxoSetSMT::new();
         let txs = vec![
-            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0x02u8; 32], tx_data: vec![] },
+            TxEntry {
+                tx_hash: [0x01u8; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0x02u8; 32],
+                tx_data: vec![],
+            },
         ];
         smt.process_epoch_transactions(&txs, 1);
         let snap = smt.take_snapshot(1);
-        assert_ne!(snap.utxo_set_root, [0u8; 32],
-            "Root harus non-zero setelah transaksi diproses");
+        assert_ne!(
+            snap.utxo_set_root, [0u8; 32],
+            "Root harus non-zero setelah transaksi diproses"
+        );
         assert_eq!(snap.snapshot_epoch, 1);
     }
 
     #[test]
     fn compliance_test_utxo_root_deterministic() {
         // Canonical ordering → root identik antar node. Spec §8.5.
-        use scalar_emission::utxo_set_smt::UtxoSetSMT;
         use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
+        use scalar_emission::utxo_set_smt::UtxoSetSMT;
 
         let txs_a = vec![
-            TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
+            TxEntry {
+                tx_hash: [0x03u8; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0x01u8; 32],
+                tx_data: vec![],
+            },
         ];
         let txs_b = vec![
-            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
+            TxEntry {
+                tx_hash: [0x01u8; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0x03u8; 32],
+                tx_data: vec![],
+            },
         ];
 
         let mut smt_a = UtxoSetSMT::new();
@@ -208,8 +233,11 @@ mod tests_v12_utxo {
         let mut smt_b = UtxoSetSMT::new();
         smt_b.process_epoch_transactions(&txs_b, 2);
 
-        assert_eq!(smt_a.root(), smt_b.root(),
-            "Root harus identik untuk tx set yang sama — spec §8.5");
+        assert_eq!(
+            smt_a.root(),
+            smt_b.root(),
+            "Root harus identik untuk tx set yang sama — spec §8.5"
+        );
     }
 }
 
@@ -220,10 +248,7 @@ mod tests_v12_tier_c {
     #[test]
     fn compliance_test_tier_c_max_nodescore() {
         // TIER_C_MAX_NODESCORE = 600_000. OSSIFIED — spec §10.1, §12.4, §17.
-        assert_eq!(
-            scalar_network::node_score::TIER_C_MAX_NODESCORE,
-            600_000u64
-        );
+        assert_eq!(scalar_network::node_score::TIER_C_MAX_NODESCORE, 600_000u64);
     }
 
     #[test]
@@ -233,8 +258,7 @@ mod tests_v12_tier_c {
         let mut id = [0u8; 32];
         id[0] = 0xFE; // Tier C prefix
         let node = NodeScore::new(id, 1_000_000); // raw max
-        assert!(!node.is_nmt_eligible(),
-            "Tier C tidak boleh eligible NMT");
+        assert!(!node.is_nmt_eligible(), "Tier C tidak boleh eligible NMT");
     }
 
     #[test]
@@ -292,22 +316,27 @@ mod tests_v12_nmt_hybrid {
     #[test]
     fn compliance_nmt_tier_c_excluded() {
         // Tier C tidak muncul di NMT. Spec §12.3.
-        use scalar_network::nmt_hybrid::{NmtNodeCandidate, select_nmt_peers_hybrid};
+        use scalar_network::nmt_hybrid::{select_nmt_peers_hybrid, NmtNodeCandidate};
         use scalar_network::node_score::is_tier_c;
 
-        let mut candidates: Vec<NmtNodeCandidate> = (1u8..=30).map(|i| {
-            let mut id = [0u8; 32]; id[0] = 0x01; id[1] = i;
-            NmtNodeCandidate {
-                node_id_full: id,
-                node_score: 850_000,
-                subnet24: [i % 10, 0, 0, 0],
-                asn: [i % 20, 0, 0, 0],
-                region: i % 8,
-            }
-        }).collect();
+        let mut candidates: Vec<NmtNodeCandidate> = (1u8..=30)
+            .map(|i| {
+                let mut id = [0u8; 32];
+                id[0] = 0x01;
+                id[1] = i;
+                NmtNodeCandidate {
+                    node_id_full: id,
+                    node_score: 850_000,
+                    subnet24: [i % 10, 0, 0, 0],
+                    asn: [i % 20, 0, 0, 0],
+                    region: i % 8,
+                }
+            })
+            .collect();
 
         // Tambahkan Tier C
-        let mut tier_c_id = [0u8; 32]; tier_c_id[0] = 0xFE;
+        let mut tier_c_id = [0u8; 32];
+        tier_c_id[0] = 0xFE;
         candidates.push(NmtNodeCandidate {
             node_id_full: tier_c_id,
             node_score: 1_000_000,
@@ -339,20 +368,21 @@ mod tests_v12_governance {
     #[test]
     fn compliance_test_tier_c_gov_power_enforced() {
         // Tier C GP dibatasi 200_000. Spec §11.2.
-        let mut id = [0u8; 32]; id[0] = 0xFE;
+        let mut id = [0u8; 32];
+        id[0] = 0xFE;
         let gp = scalar_governance::governance_power_v12::compute_governance_power_v12(
-            &id, 1_000_000, 1_000_000
+            &id, 1_000_000, 1_000_000,
         );
-        assert_eq!(gp, 200_000u64,
-            "Tier C harus dibatasi 200_000 fp");
+        assert_eq!(gp, 200_000u64, "Tier C harus dibatasi 200_000 fp");
     }
 
     #[test]
     fn compliance_test_tier_a_full_gov_power() {
         // Tier A GP bisa mencapai 1_000_000. Spec §11.2.
-        let mut id = [0u8; 32]; id[0] = 0x01;
+        let mut id = [0u8; 32];
+        id[0] = 0x01;
         let gp = scalar_governance::governance_power_v12::compute_governance_power_v12(
-            &id, 1_000_000, 1_000_000
+            &id, 1_000_000, 1_000_000,
         );
         assert_eq!(gp, 1_000_000u64);
     }
@@ -360,8 +390,10 @@ mod tests_v12_governance {
     #[test]
     fn compliance_test_gov_power_formula() {
         // GP(i,t) = min(BaseGP, GOV_MAX_FP_FOR_TIER). Spec §11.2.
-        let mut id_c = [0u8; 32]; id_c[0] = 0xFE;
-        let mut id_a = [0u8; 32]; id_a[0] = 0x01;
+        let mut id_c = [0u8; 32];
+        id_c[0] = 0xFE;
+        let mut id_a = [0u8; 32];
+        id_a[0] = 0x01;
 
         use scalar_governance::governance_power_v12::compute_governance_power_v12;
         // BaseGP = 600_000, cap_c = 200_000, cap_a = 1_000_000
@@ -387,14 +419,32 @@ mod tests_v12_suite_v4 {
         use scalar_emission::utxo_set_smt::UtxoSetSMT;
 
         let txs_node_a = vec![
-            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0x02u8; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
+            TxEntry {
+                tx_hash: [0x01u8; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0x02u8; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0x03u8; 32],
+                tx_data: vec![],
+            },
         ];
         let txs_node_b = vec![
-            TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0x02u8; 32], tx_data: vec![] },
+            TxEntry {
+                tx_hash: [0x03u8; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0x01u8; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0x02u8; 32],
+                tx_data: vec![],
+            },
         ];
 
         let mut smt_a = UtxoSetSMT::new();
@@ -403,8 +453,11 @@ mod tests_v12_suite_v4 {
         let mut smt_b = UtxoSetSMT::new();
         smt_b.process_epoch_transactions(&txs_node_b, 1);
 
-        assert_eq!(smt_a.root(), smt_b.root(),
-            "utxo_set_root harus identik antar node — compliance §XXI");
+        assert_eq!(
+            smt_a.root(),
+            smt_b.root(),
+            "utxo_set_root harus identik antar node — compliance §XXI"
+        );
     }
 
     // ── §XXI: test governance power cap Tier C ────────────────────────────────
@@ -413,12 +466,15 @@ mod tests_v12_suite_v4 {
     fn compliance_tier_c_gov_cap() {
         // Governance power cap Tier C = 200_000. Spec §XXI, §11.2.
         use scalar_governance::governance_power_v12::{
-            compute_governance_power_v12, TIER_C_MAX_GOV_POWER
+            compute_governance_power_v12, TIER_C_MAX_GOV_POWER,
         };
-        let mut id = [0u8; 32]; id[0] = 0xFE;
+        let mut id = [0u8; 32];
+        id[0] = 0xFE;
         let gp = compute_governance_power_v12(&id, 1_000_000, 1_000_000);
-        assert_eq!(gp, TIER_C_MAX_GOV_POWER,
-            "Tier C governance power cap = 200_000 fp — compliance §XXI");
+        assert_eq!(
+            gp, TIER_C_MAX_GOV_POWER,
+            "Tier C governance power cap = 200_000 fp — compliance §XXI"
+        );
         assert_eq!(TIER_C_MAX_GOV_POWER, 200_000u64);
     }
 
@@ -427,15 +483,18 @@ mod tests_v12_suite_v4 {
     #[test]
     fn compliance_dmm_bootstrapping() {
         // Node tanpa manifest tidak bangun DMM. Spec §XXI, §8.2.
-        use scalar_emission::dmm::{build_dmm, LocalHeartbeatData, DmmConfig, DmmError};
+        use scalar_emission::dmm::{build_dmm, DmmConfig, DmmError, LocalHeartbeatData};
         let local = LocalHeartbeatData::new(10);
         let config = DmmConfig {
             e_active_sscl: 12_600_000_000_000,
             fee_pool_sscl: 0,
         };
         let result = build_dmm(10, None, &local, &config);
-        assert_eq!(result, Err(DmmError::BootstrapRequired),
-            "Node tanpa manifest HARUS return BootstrapRequired — compliance §XXI");
+        assert_eq!(
+            result,
+            Err(DmmError::BootstrapRequired),
+            "Node tanpa manifest HARUS return BootstrapRequired — compliance §XXI"
+        );
     }
 
     // ── §XXI: test sinkronisasi node baru + utxo_set_root reconstruction ──────
@@ -443,12 +502,20 @@ mod tests_v12_suite_v4 {
     #[test]
     fn compliance_node_sync_utxo_reconstruction() {
         // Node baru sync → utxo_set_root identik dengan node lama. Spec §XXI, §8.5.
-        use scalar_emission::utxo_set_smt::{UtxoSetSMT, verify_utxo_root_against_manifest, SyncVerificationResult};
         use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
+        use scalar_emission::utxo_set_smt::{
+            verify_utxo_root_against_manifest, SyncVerificationResult, UtxoSetSMT,
+        };
 
         let txs = vec![
-            TxEntry { tx_hash: [0xAA; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0xBB; 32], tx_data: vec![] },
+            TxEntry {
+                tx_hash: [0xAA; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0xBB; 32],
+                tx_data: vec![],
+            },
         ];
 
         // Node lama
@@ -459,18 +526,29 @@ mod tests_v12_suite_v4 {
         // Node baru rebuild dari genesis
         let mut new_node = UtxoSetSMT::new();
         let txs_reordered = vec![
-            TxEntry { tx_hash: [0xBB; 32], tx_data: vec![] },
-            TxEntry { tx_hash: [0xAA; 32], tx_data: vec![] },
+            TxEntry {
+                tx_hash: [0xBB; 32],
+                tx_data: vec![],
+            },
+            TxEntry {
+                tx_hash: [0xAA; 32],
+                tx_data: vec![],
+            },
         ];
         new_node.process_epoch_transactions(&txs_reordered, 3);
         let new_root = new_node.root();
 
-        assert_eq!(expected_root, new_root,
-            "Node baru harus menghasilkan root identik — compliance §XXI");
+        assert_eq!(
+            expected_root, new_root,
+            "Node baru harus menghasilkan root identik — compliance §XXI"
+        );
 
         let result = verify_utxo_root_against_manifest(&new_root, &expected_root);
-        assert_eq!(result, SyncVerificationResult::Valid,
-            "Verifikasi root vs manifest harus Valid — compliance §XXI");
+        assert_eq!(
+            result,
+            SyncVerificationResult::Valid,
+            "Verifikasi root vs manifest harus Valid — compliance §XXI"
+        );
     }
 
     // ── §XXI: compliance NMT hybrid 23+1 ─────────────────────────────────────
@@ -479,30 +557,35 @@ mod tests_v12_suite_v4 {
     fn compliance_nmt_hybrid_verified() {
         // 23+1 slot verified. Spec §XXI, §12.3.
         use scalar_network::nmt_hybrid::{
-            NMT_DETERMINISTIC_SLOTS, NMT_RANDOM_SLOTS, NMT_PEER_COUNT_V12,
-            NmtNodeCandidate, select_nmt_peers_hybrid
+            select_nmt_peers_hybrid, NmtNodeCandidate, NMT_DETERMINISTIC_SLOTS, NMT_PEER_COUNT_V12,
+            NMT_RANDOM_SLOTS,
         };
         assert_eq!(NMT_DETERMINISTIC_SLOTS, 23);
         assert_eq!(NMT_RANDOM_SLOTS, 1);
         assert_eq!(NMT_PEER_COUNT_V12, 24);
 
         // Verifikasi dengan actual selection
-        let candidates: Vec<NmtNodeCandidate> = (1u8..=30).map(|i| {
-            let mut id = [0u8; 32]; id[0] = 0x01; id[1] = i;
-            NmtNodeCandidate {
-                node_id_full: id,
-                node_score: 850_000,
-                subnet24: [i % 10, 0, 0, 0],
-                asn: [i % 20, 0, 0, 0],
-                region: i % 8,
-            }
-        }).collect();
+        let candidates: Vec<NmtNodeCandidate> = (1u8..=30)
+            .map(|i| {
+                let mut id = [0u8; 32];
+                id[0] = 0x01;
+                id[1] = i;
+                NmtNodeCandidate {
+                    node_id_full: id,
+                    node_score: 850_000,
+                    subnet24: [i % 10, 0, 0, 0],
+                    asn: [i % 20, 0, 0, 0],
+                    region: i % 8,
+                }
+            })
+            .collect();
 
         let result = select_nmt_peers_hybrid(&candidates, &[0x42u8; 32]);
-        assert!(result.total_selected <= NMT_PEER_COUNT_V12,
-            "Total selected tidak boleh melebihi 24");
-        assert!(result.total_selected > 0,
-            "Harus ada peer yang terpilih");
+        assert!(
+            result.total_selected <= NMT_PEER_COUNT_V12,
+            "Total selected tidak boleh melebihi 24"
+        );
+        assert!(result.total_selected > 0, "Harus ada peer yang terpilih");
     }
 
     // ── §XXI: compliance SPEC_VERSION = 0x06 ─────────────────────────────────
@@ -511,12 +594,16 @@ mod tests_v12_suite_v4 {
     fn compliance_spec_version_0x06_manifest() {
         // Manifest version 0x06 di semua produksi. Spec §XXI, §2.4.
         use scalar_emission::dmm::SPEC_VERSION_MANIFEST_V12;
-        use scalar_emission::types::{SPEC_VERSION_CURRENT, validate_manifest_version};
+        use scalar_emission::types::{validate_manifest_version, SPEC_VERSION_CURRENT};
 
-        assert_eq!(SPEC_VERSION_MANIFEST_V12, 0x06u8,
-            "SPEC_VERSION_MANIFEST_V12 harus 0x06");
-        assert_eq!(SPEC_VERSION_CURRENT, 0x06u8,
-            "SPEC_VERSION_CURRENT harus 0x06");
+        assert_eq!(
+            SPEC_VERSION_MANIFEST_V12, 0x06u8,
+            "SPEC_VERSION_MANIFEST_V12 harus 0x06"
+        );
+        assert_eq!(
+            SPEC_VERSION_CURRENT, 0x06u8,
+            "SPEC_VERSION_CURRENT harus 0x06"
+        );
 
         // 0x06 diterima di production
         assert!(validate_manifest_version(0x06, false).is_ok());
@@ -542,8 +629,8 @@ mod tests_v12_suite_v4 {
     fn compliance_formal_deferred_pool_invariants() {
         // Runtime Deferred Pool invariants. Spec §XXI, §15.5.
         use scalar_emission::formal::{
-            assert_deferred_pool_invariants, DeferredPoolState,
-            DEFERRED_POOL_MAX_RELEASE, DEFERRED_POOL_MAX_EPOCHS
+            assert_deferred_pool_invariants, DeferredPoolState, DEFERRED_POOL_MAX_EPOCHS,
+            DEFERRED_POOL_MAX_RELEASE,
         };
         let valid = DeferredPoolState {
             balance_sscl: 1_000_000,
@@ -568,7 +655,10 @@ mod tests_v12_suite_v4 {
         // TIER_C_MAX_NODESCORE
         assert_eq!(scalar_network::node_score::TIER_C_MAX_NODESCORE, 600_000u64);
         // TIER_C_MAX_GOV_POWER
-        assert_eq!(scalar_governance::governance_power_v12::TIER_C_MAX_GOV_POWER, 200_000u64);
+        assert_eq!(
+            scalar_governance::governance_power_v12::TIER_C_MAX_GOV_POWER,
+            200_000u64
+        );
         // NMT_PEER_COUNT_V12
         assert_eq!(scalar_network::nmt_hybrid::NMT_PEER_COUNT_V12, 24usize);
         // NMT_RANDOM_SLOTS
@@ -576,7 +666,10 @@ mod tests_v12_suite_v4 {
         // SPEC_VERSION_MANIFEST_V12
         assert_eq!(scalar_emission::dmm::SPEC_VERSION_MANIFEST_V12, 0x06u8);
         // TX_ORDER_DOMAIN
-        assert_eq!(scalar_emission::ordering::TX_ORDER_DOMAIN, b"scalar_tx_order_v1");
+        assert_eq!(
+            scalar_emission::ordering::TX_ORDER_DOMAIN,
+            b"scalar_tx_order_v1"
+        );
         // MAX_CONSECUTIVE_DEFER
         assert_eq!(scalar_emission::dmm::MAX_CONSECUTIVE_DEFER, 2u32);
         // T_TRANSITION_EPOCHS
@@ -594,8 +687,8 @@ mod tests_v12_p2p_gaps {
     #[test]
     fn compliance_epoch_anchor_handshake() {
         // EpochAnchor handshake valid. Spec §7.2a, Gap G-1.
-        use scalar_node::epoch_anchor::{validate_epoch_anchor_basic, HandshakeResult};
         use scalar_emission::liveness::EpochAnchor;
+        use scalar_node::epoch_anchor::{validate_epoch_anchor_basic, HandshakeResult};
         let anchor = EpochAnchor {
             node_id: [0x01, 0x02, 0x03, 0x04],
             epoch_id: 5,
@@ -614,10 +707,10 @@ mod tests_v12_p2p_gaps {
     #[test]
     fn compliance_peer_node_key_not_hardcode() {
         // peer_node_key_epoch dari anchor, bukan hardcode. Spec §7.2a.
-        use scalar_node::epoch_anchor::PeerAnchorStore;
-        use scalar_emission::liveness::EpochAnchor;
         use libp2p::identity::Keypair;
         use libp2p::PeerId;
+        use scalar_emission::liveness::EpochAnchor;
+        use scalar_node::epoch_anchor::PeerAnchorStore;
         let key = Keypair::generate_ed25519();
         let peer_id = PeerId::from(key.public());
         let anchor = EpochAnchor {
@@ -638,10 +731,13 @@ mod tests_v12_p2p_gaps {
     // ── G-12: NodeID production Argon2id (Gap G-2) ───────────────────────────
 
     #[test]
+    #[ignore = "slow: Argon2id 16MB, run manually with -- --ignored"]
     fn compliance_nodeid_argon2id_not_placeholder() {
         // NodeID bukan placeholder [0x42;32]. Spec §10.2, Gap G-2.
-        use scalar_node::node_id::{ProductionNodeId, NodeIdDerivationMode,
-            NODE_ID_SALT_PREFIX, ARGON2_NODE_TIME_TIER_C, ARGON2_NODE_MEMORY_TIER_C_KIB};
+        use scalar_node::node_id::{
+            NodeIdDerivationMode, ProductionNodeId, ARGON2_NODE_MEMORY_TIER_C_KIB,
+            ARGON2_NODE_TIME_TIER_C, NODE_ID_SALT_PREFIX,
+        };
         // Salt prefix ossified
         assert_eq!(NODE_ID_SALT_PREFIX, b"scalar_nodeid_v1");
         // Tier C params
@@ -663,8 +759,8 @@ mod tests_v12_p2p_gaps {
     fn compliance_nmt_from_peer_timestamps() {
         // NMT dari peer timestamps, bukan wall-clock. Spec §12.3a, Gap G-3.
         use scalar_node::nmt_production::{
-            PeerTimestampStore, compute_production_nmt, ProductionNmtResult,
-            NMT_MIN_PEERS_FOR_RELIABLE, NMT_MAX_STORED_TIMESTAMPS
+            compute_production_nmt, PeerTimestampStore, ProductionNmtResult,
+            NMT_MAX_STORED_TIMESTAMPS, NMT_MIN_PEERS_FOR_RELIABLE,
         };
         // Constants
         assert_eq!(NMT_MIN_PEERS_FOR_RELIABLE, 8usize);
@@ -677,13 +773,18 @@ mod tests_v12_p2p_gaps {
             store.update([i, 0, 0, 0], 5_000_000u32);
         }
         let result = compute_production_nmt(&store, 5_000_000);
-        assert!(matches!(result, ProductionNmtResult::FromPeers { .. }),
-            "NMT harus dari peer timestamps jika cukup peer — compliance Gap G-3");
+        assert!(
+            matches!(result, ProductionNmtResult::FromPeers { .. }),
+            "NMT harus dari peer timestamps jika cukup peer — compliance Gap G-3"
+        );
 
         // Tanpa peer → FallbackWallClock
         let empty = PeerTimestampStore::new();
         let fallback = compute_production_nmt(&empty, 999);
-        assert!(matches!(fallback, ProductionNmtResult::FallbackWallClock { .. }));
+        assert!(matches!(
+            fallback,
+            ProductionNmtResult::FallbackWallClock { .. }
+        ));
     }
 
     // ── G-14: HeartbeatRateLimiter + StateBeacon (Gap G-4 + G-5) ────────────
@@ -691,23 +792,28 @@ mod tests_v12_p2p_gaps {
     #[test]
     fn compliance_rate_limiter_connected_gossip() {
         // T-4 rate limit aktif di gossip layer. Spec §7.2c T-4, Gap G-4.
-        use scalar_node::gossip_production::{GossipLayer, GossipDecision};
         use scalar_network::time_security::T_HB_MIN_INTERVAL_S;
+        use scalar_node::gossip_production::{GossipDecision, GossipLayer};
         let mut gossip = GossipLayer::new();
         let node = [0x01u8; 4];
         // Forward
-        assert!(gossip.process_incoming_heartbeat(node, 1000).should_forward());
+        assert!(gossip
+            .process_incoming_heartbeat(node, 1000)
+            .should_forward());
         // Rate limited
         let d = gossip.process_incoming_heartbeat(node, 1000 + T_HB_MIN_INTERVAL_S - 1);
-        assert!(!d.should_forward(), "Rate limit harus aktif di gossip layer");
+        assert!(
+            !d.should_forward(),
+            "Rate limit harus aktif di gossip layer"
+        );
         assert!(matches!(d, GossipDecision::RateLimited { .. }));
     }
 
     #[test]
     fn compliance_state_beacon_broadcast_verified() {
         // StateBeacon broadcast + MAC verified. Spec §12.2, Gap G-5.
-        use scalar_node::gossip_production::StateBeaconBroadcaster;
         use scalar_network::state_beacon::STATE_BEACON_WIRE_SIZE;
+        use scalar_node::gossip_production::StateBeaconBroadcaster;
         let mut bc = StateBeaconBroadcaster::new([0x42u8; 32]);
         let bytes = bc.create_beacon(10, [0xABu8; 32]);
         assert_eq!(bytes.len(), STATE_BEACON_WIRE_SIZE, "Beacon harus 44 bytes");
