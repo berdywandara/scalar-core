@@ -2603,6 +2603,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "scalar-audit"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "scalar-crypto",
+ "scalar-emission",
+ "scalar-stark",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "scalar-compliance"
 version = "0.1.0"
 dependencies = [
