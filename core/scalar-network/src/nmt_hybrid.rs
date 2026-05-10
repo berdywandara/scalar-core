@@ -17,7 +17,7 @@
 //! No floating point — semua arithmetic integer.
 
 use blake3::Hasher;
-use crate::node_score::{NodeScore, NMT_SCORE_THRESHOLD, is_tier_c};
+use crate::node_score::{NMT_SCORE_THRESHOLD, is_tier_c};
 
 // ── Ossified constants — spec §12.3, §17 ─────────────────────────────────────
 

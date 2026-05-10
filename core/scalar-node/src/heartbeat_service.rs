@@ -20,7 +20,7 @@ use scalar_emission::liveness::{
     compute_heartbeat_mac, compress_node_id, derive_node_key_epoch,
     EpochTracker, NodeHeartbeat,
 };
-use scalar_network::heartbeat_verifier::{HeartbeatVerifier, compute_prev_hash};
+use scalar_network::heartbeat_verifier::HeartbeatVerifier;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 

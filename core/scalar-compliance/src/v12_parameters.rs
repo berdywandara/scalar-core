@@ -371,3 +371,215 @@ mod tests_v12_governance {
         assert_eq!(gp_a, 600_000); // min(600_000, 1_000_000)
     }
 }
+
+// ── Compliance Suite v4.0 — Test Targets §XXI v11.1-FINAL ────────────────────
+// Semua test targets dari §XXI yang belum dicover di atas.
+
+#[cfg(test)]
+mod tests_v12_suite_v4 {
+
+    // ── §XXI: test determinisme tx_ordering_key ───────────────────────────────
+
+    #[test]
+    fn compliance_tx_ordering_determinism() {
+        // Verifikasi utxo_set_root identik antar node. Spec §XXI, §8.5.
+        use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
+        use scalar_emission::utxo_set_smt::UtxoSetSMT;
+
+        let txs_node_a = vec![
+            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0x02u8; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
+        ];
+        let txs_node_b = vec![
+            TxEntry { tx_hash: [0x03u8; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0x01u8; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0x02u8; 32], tx_data: vec![] },
+        ];
+
+        let mut smt_a = UtxoSetSMT::new();
+        smt_a.process_epoch_transactions(&txs_node_a, 1);
+
+        let mut smt_b = UtxoSetSMT::new();
+        smt_b.process_epoch_transactions(&txs_node_b, 1);
+
+        assert_eq!(smt_a.root(), smt_b.root(),
+            "utxo_set_root harus identik antar node — compliance §XXI");
+    }
+
+    // ── §XXI: test governance power cap Tier C ────────────────────────────────
+
+    #[test]
+    fn compliance_tier_c_gov_cap() {
+        // Governance power cap Tier C = 200_000. Spec §XXI, §11.2.
+        use scalar_governance::governance_power_v12::{
+            compute_governance_power_v12, TIER_C_MAX_GOV_POWER
+        };
+        let mut id = [0u8; 32]; id[0] = 0xFE;
+        let gp = compute_governance_power_v12(&id, 1_000_000, 1_000_000);
+        assert_eq!(gp, TIER_C_MAX_GOV_POWER,
+            "Tier C governance power cap = 200_000 fp — compliance §XXI");
+        assert_eq!(TIER_C_MAX_GOV_POWER, 200_000u64);
+    }
+
+    // ── §XXI: test DMM secure bootstrapping ──────────────────────────────────
+
+    #[test]
+    fn compliance_dmm_bootstrapping() {
+        // Node tanpa manifest tidak bangun DMM. Spec §XXI, §8.2.
+        use scalar_emission::dmm::{build_dmm, LocalHeartbeatData, DmmConfig, DmmError};
+        let local = LocalHeartbeatData::new(10);
+        let config = DmmConfig {
+            e_active_sscl: 12_600_000_000_000,
+            fee_pool_sscl: 0,
+        };
+        let result = build_dmm(10, None, &local, &config);
+        assert_eq!(result, Err(DmmError::BootstrapRequired),
+            "Node tanpa manifest HARUS return BootstrapRequired — compliance §XXI");
+    }
+
+    // ── §XXI: test sinkronisasi node baru + utxo_set_root reconstruction ──────
+
+    #[test]
+    fn compliance_node_sync_utxo_reconstruction() {
+        // Node baru sync → utxo_set_root identik dengan node lama. Spec §XXI, §8.5.
+        use scalar_emission::utxo_set_smt::{UtxoSetSMT, verify_utxo_root_against_manifest, SyncVerificationResult};
+        use scalar_emission::ordering::TxEntry;
+
+        let txs = vec![
+            TxEntry { tx_hash: [0xAA; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0xBB; 32], tx_data: vec![] },
+        ];
+
+        // Node lama
+        let mut old_node = UtxoSetSMT::new();
+        old_node.process_epoch_transactions(&txs, 3);
+        let expected_root = old_node.root();
+
+        // Node baru rebuild dari genesis
+        let mut new_node = UtxoSetSMT::new();
+        let txs_reordered = vec![
+            TxEntry { tx_hash: [0xBB; 32], tx_data: vec![] },
+            TxEntry { tx_hash: [0xAA; 32], tx_data: vec![] },
+        ];
+        new_node.process_epoch_transactions(&txs_reordered, 3);
+        let new_root = new_node.root();
+
+        assert_eq!(expected_root, new_root,
+            "Node baru harus menghasilkan root identik — compliance §XXI");
+
+        let result = verify_utxo_root_against_manifest(&new_root, &expected_root);
+        assert_eq!(result, SyncVerificationResult::Valid,
+            "Verifikasi root vs manifest harus Valid — compliance §XXI");
+    }
+
+    // ── §XXI: compliance NMT hybrid 23+1 ─────────────────────────────────────
+
+    #[test]
+    fn compliance_nmt_hybrid_verified() {
+        // 23+1 slot verified. Spec §XXI, §12.3.
+        use scalar_network::nmt_hybrid::{
+            NMT_DETERMINISTIC_SLOTS, NMT_RANDOM_SLOTS, NMT_PEER_COUNT_V12,
+            NmtNodeCandidate, select_nmt_peers_hybrid
+        };
+        assert_eq!(NMT_DETERMINISTIC_SLOTS, 23);
+        assert_eq!(NMT_RANDOM_SLOTS, 1);
+        assert_eq!(NMT_PEER_COUNT_V12, 24);
+
+        // Verifikasi dengan actual selection
+        let candidates: Vec<NmtNodeCandidate> = (1u8..=30).map(|i| {
+            let mut id = [0u8; 32]; id[0] = 0x01; id[1] = i;
+            NmtNodeCandidate {
+                node_id_full: id,
+                node_score: 850_000,
+                subnet24: [i % 10, 0, 0, 0],
+                asn: [i % 20, 0, 0, 0],
+                region: i % 8,
+            }
+        }).collect();
+
+        let result = select_nmt_peers_hybrid(&candidates, &[0x42u8; 32]);
+        assert!(result.total_selected <= NMT_PEER_COUNT_V12,
+            "Total selected tidak boleh melebihi 24");
+        assert!(result.total_selected > 0,
+            "Harus ada peer yang terpilih");
+    }
+
+    // ── §XXI: compliance SPEC_VERSION = 0x06 ─────────────────────────────────
+
+    #[test]
+    fn compliance_spec_version_0x06_manifest() {
+        // Manifest version 0x06 di semua produksi. Spec §XXI, §2.4.
+        use scalar_emission::dmm::SPEC_VERSION_MANIFEST_V12;
+        use scalar_emission::types::{SPEC_VERSION_CURRENT, validate_manifest_version};
+
+        assert_eq!(SPEC_VERSION_MANIFEST_V12, 0x06u8,
+            "SPEC_VERSION_MANIFEST_V12 harus 0x06");
+        assert_eq!(SPEC_VERSION_CURRENT, 0x06u8,
+            "SPEC_VERSION_CURRENT harus 0x06");
+
+        // 0x06 diterima di production
+        assert!(validate_manifest_version(0x06, false).is_ok());
+        // 0x05 hanya dengan testnet-compat
+        assert!(validate_manifest_version(0x05, false).is_err());
+        assert!(validate_manifest_version(0x05, true).is_ok());
+    }
+
+    // ── §XXI: formal verification invariants ─────────────────────────────────
+
+    #[test]
+    fn compliance_formal_cc_invariant() {
+        // Runtime CC invariant assertion. Spec §XXI, §15.4.
+        use scalar_nullifier::formal::assert_cc_invariant;
+        // Non-member → ok
+        assert!(assert_cc_invariant(&[0x01u8; 32], false, false).is_ok());
+        // Member → violation
+        assert!(assert_cc_invariant(&[0x01u8; 32], true, false).is_err());
+        assert!(assert_cc_invariant(&[0x01u8; 32], false, true).is_err());
+    }
+
+    #[test]
+    fn compliance_formal_deferred_pool_invariants() {
+        // Runtime Deferred Pool invariants. Spec §XXI, §15.5.
+        use scalar_emission::formal::{
+            assert_deferred_pool_invariants, DeferredPoolState,
+            DEFERRED_POOL_MAX_RELEASE, DEFERRED_POOL_MAX_EPOCHS
+        };
+        let valid = DeferredPoolState {
+            balance_sscl: 1_000_000,
+            total_residual_sscl: 2_000_000,
+            total_released_sscl: 500_000,
+            epochs_since_defer: 5,
+        };
+        assert!(assert_deferred_pool_invariants(&valid, 100_000).is_ok());
+
+        // Violation: release terlalu besar
+        assert!(assert_deferred_pool_invariants(&valid, DEFERRED_POOL_MAX_RELEASE + 1).is_err());
+
+        // Konstanta
+        assert_eq!(DEFERRED_POOL_MAX_EPOCHS, 12u64);
+    }
+
+    // ── §XVII: semua parameter baru v11.1-FINAL ───────────────────────────────
+
+    #[test]
+    fn compliance_all_new_params_v11_1_final() {
+        // Verifikasi semua parameter baru v11.1-FINAL sekaligus. Spec §XVII.
+        // TIER_C_MAX_NODESCORE
+        assert_eq!(scalar_network::node_score::TIER_C_MAX_NODESCORE, 600_000u64);
+        // TIER_C_MAX_GOV_POWER
+        assert_eq!(scalar_governance::governance_power_v12::TIER_C_MAX_GOV_POWER, 200_000u64);
+        // NMT_PEER_COUNT_V12
+        assert_eq!(scalar_network::nmt_hybrid::NMT_PEER_COUNT_V12, 24usize);
+        // NMT_RANDOM_SLOTS
+        assert_eq!(scalar_network::nmt_hybrid::NMT_RANDOM_SLOTS, 1usize);
+        // SPEC_VERSION_MANIFEST_V12
+        assert_eq!(scalar_emission::dmm::SPEC_VERSION_MANIFEST_V12, 0x06u8);
+        // TX_ORDER_DOMAIN
+        assert_eq!(scalar_emission::ordering::TX_ORDER_DOMAIN, b"scalar_tx_order_v1");
+        // MAX_CONSECUTIVE_DEFER
+        assert_eq!(scalar_emission::dmm::MAX_CONSECUTIVE_DEFER, 2u32);
+        // T_TRANSITION_EPOCHS
+        assert_eq!(scalar_emission::types::T_TRANSITION_EPOCHS, 4u64);
+    }
+}
