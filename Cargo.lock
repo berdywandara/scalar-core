@@ -2606,10 +2606,12 @@ dependencies = [
 name = "scalar-compliance"
 version = "0.1.0"
 dependencies = [
+ "libp2p",
  "scalar-emission",
  "scalar-fees",
  "scalar-governance",
  "scalar-network",
+ "scalar-node",
  "scalar-nullifier",
  "scalar-wallet-core",
 ]
