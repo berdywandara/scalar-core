@@ -19,3 +19,4 @@ pub mod time_security;
 // EMPIRICAL TEST SUITE — Spec §22.5 Pre-Mainnet Mandatory
 #[cfg(test)]
 mod empirical_tests;
+pub mod security;
