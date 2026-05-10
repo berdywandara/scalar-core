@@ -9,6 +9,7 @@ pub mod gss;
 pub mod heartbeat_verifier;
 pub mod node_score;
 pub mod nmt;
+pub mod nmt_hybrid;
 pub mod reconciliation;
 pub mod relay;
 pub mod state_beacon;

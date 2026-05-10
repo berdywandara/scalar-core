@@ -262,3 +262,63 @@ mod tests_v12_tier_c {
         assert_eq!(node.score(), 1_000_000);
     }
 }
+
+// ── NMT Hybrid 23+1 compliance tests — spec §12.3, §17 ───────────────────────
+
+#[cfg(test)]
+mod tests_v12_nmt_hybrid {
+    #[test]
+    fn compliance_test_nmt_peer_count_24() {
+        // NMT_PEER_COUNT_V12 = 24. Spec §12.3, §17.
+        assert_eq!(scalar_network::nmt_hybrid::NMT_PEER_COUNT_V12, 24usize);
+    }
+
+    #[test]
+    fn compliance_test_nmt_random_slots_1() {
+        // NMT_RANDOM_SLOTS = 1. Spec §12.3, §17.
+        assert_eq!(scalar_network::nmt_hybrid::NMT_RANDOM_SLOTS, 1usize);
+    }
+
+    #[test]
+    fn compliance_nmt_hybrid_23_plus_1() {
+        // 23 deterministik + 1 random = 24. Spec §12.3.
+        assert_eq!(
+            scalar_network::nmt_hybrid::NMT_DETERMINISTIC_SLOTS
+                + scalar_network::nmt_hybrid::NMT_RANDOM_SLOTS,
+            scalar_network::nmt_hybrid::NMT_PEER_COUNT_V12
+        );
+    }
+
+    #[test]
+    fn compliance_nmt_tier_c_excluded() {
+        // Tier C tidak muncul di NMT. Spec §12.3.
+        use scalar_network::nmt_hybrid::{NmtNodeCandidate, select_nmt_peers_hybrid};
+        use scalar_network::node_score::is_tier_c;
+
+        let mut candidates: Vec<NmtNodeCandidate> = (1u8..=30).map(|i| {
+            let mut id = [0u8; 32]; id[0] = 0x01; id[1] = i;
+            NmtNodeCandidate {
+                node_id_full: id,
+                node_score: 850_000,
+                subnet24: [i % 10, 0, 0, 0],
+                asn: [i % 20, 0, 0, 0],
+                region: i % 8,
+            }
+        }).collect();
+
+        // Tambahkan Tier C
+        let mut tier_c_id = [0u8; 32]; tier_c_id[0] = 0xFE;
+        candidates.push(NmtNodeCandidate {
+            node_id_full: tier_c_id,
+            node_score: 1_000_000,
+            subnet24: [0xFF, 0, 0, 0],
+            asn: [0, 0, 0, 0],
+            region: 0,
+        });
+
+        let result = select_nmt_peers_hybrid(&candidates, &[0x42u8; 32]);
+        for peer in result.all_peers() {
+            assert!(!is_tier_c(&peer), "Tier C tidak boleh ada di NMT");
+        }
+    }
+}
