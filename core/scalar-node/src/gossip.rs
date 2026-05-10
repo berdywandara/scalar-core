@@ -59,6 +59,7 @@ impl ScalarGossipMessage {
 
         let pub_inputs = ScalarPublicInputs {
             genesis_smt_root: 0, // Placeholder: Di produksi diisi genesis root asli
+            utxo_set_root: [0u8; 32], // Placeholder: diisi dari UtxoSetState epoch k-1
             current_nullifier_smt_root: current_root_u64,
             fee_value: 0, // Placeholder: Diambil dari metadata transaksi jika ada
             timestamp: self.timestamp,
