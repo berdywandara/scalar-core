@@ -1,6 +1,10 @@
 //! SPHINCS+ Post-Quantum Signatures — Spec §2.1, §2.4
 //!
-//! Menggunakan SPHINCS+-SHAKE-256s (Stateless, Post-Quantum).
+//! Menggunakan SLH-DSA-SHAKE-128s (NIST FIPS 205). OSSIFIED — spec §2.1.
+//!
+//! Parameter 128s:
+//!   SK = 64 bytes, PK = 32 bytes, Signature = 7,856 bytes.
+//!   73% lebih kecil dari SHAKE-256s, keamanan setara (128-bit post-quantum).
 //!
 //! Spec §2.4 — Fault Detection:
 //!   Setiap sign_message() WAJIB diikuti immediate verify.
@@ -11,17 +15,25 @@
 use crate::CryptoError;
 use pqcrypto_traits::sign::{DetachedSignature as _, PublicKey as _, SecretKey as _};
 
-use pqcrypto_sphincsplus::sphincsshake256ssimple::{
+// SLH-DSA-SHAKE-128s — OSSIFIED spec §2.1
+use pqcrypto_sphincsplus::sphincsshake128ssimple::{
     detached_sign, keypair, verify_detached_signature, DetachedSignature, PublicKey, SecretKey,
 };
 
-/// Pasangan kunci SPHINCS+.
+/// Ukuran public key SLH-DSA-SHAKE-128s: 32 bytes. OSSIFIED — spec §2.1.
+pub const SPHINCS_PK_BYTES: usize = 32;
+/// Ukuran secret key SLH-DSA-SHAKE-128s: 64 bytes. OSSIFIED — spec §2.1.
+pub const SPHINCS_SK_BYTES: usize = 64;
+/// Ukuran signature SLH-DSA-SHAKE-128s: 7,856 bytes. OSSIFIED — spec §2.1.
+pub const SPHINCS_SIG_BYTES: usize = 7_856;
+
+/// Pasangan kunci SLH-DSA-SHAKE-128s.
 pub struct ScalarKeyPair {
     pub public: Vec<u8>,
     pub secret: Vec<u8>,
 }
 
-/// Generate pasangan kunci SPHINCS+ baru.
+/// Generate pasangan kunci SLH-DSA-SHAKE-128s baru. Spec §2.1.
 pub fn generate_keypair() -> Result<ScalarKeyPair, CryptoError> {
     let (pk, sk) = keypair();
     Ok(ScalarKeyPair {
@@ -30,7 +42,7 @@ pub fn generate_keypair() -> Result<ScalarKeyPair, CryptoError> {
     })
 }
 
-/// Tandatangani pesan dengan SPHINCS+ secret key.
+/// Tandatangani pesan dengan SLH-DSA-SHAKE-128s secret key.
 ///
 /// Spec §2.4 — Fault Detection:
 /// Setelah sign, langsung verify. Jika verify gagal →
@@ -39,14 +51,10 @@ pub fn generate_keypair() -> Result<ScalarKeyPair, CryptoError> {
 pub fn sign_message(message: &[u8], secret_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let sk = SecretKey::from_bytes(secret_key).map_err(|_| CryptoError::InvalidKey)?;
 
-    // Rekonstruksi public key untuk post-sign verify — spec §2.4.
-    // Public key ada di 32 byte pertama secret key pada SPHINCS+-SHAKE-256s.
-    // Gunakan verify_signature untuk post-sign check.
     let sig = detached_sign(message, &sk);
     let sig_bytes = sig.as_bytes().to_vec();
 
     // Post-sign verify — spec §2.4 fault detection.
-    // Verifikasi menggunakan raw bytes untuk menghindari re-parse sk.
     let sig_check =
         DetachedSignature::from_bytes(&sig_bytes).map_err(|_| CryptoError::SigningFailed)?;
     let pk_bytes = public_key_from_secret(secret_key)?;
@@ -57,7 +65,7 @@ pub fn sign_message(message: &[u8], secret_key: &[u8]) -> Result<Vec<u8>, Crypto
     Ok(sig_bytes)
 }
 
-/// Verifikasi signature SPHINCS+.
+/// Verifikasi signature SLH-DSA-SHAKE-128s.
 pub fn verify_signature(
     message: &[u8],
     signature: &[u8],
@@ -77,15 +85,13 @@ pub fn verify_signature(
     }
 }
 
-/// Ekstrak public key dari secret key SPHINCS+-SHAKE-256s.
+/// Ekstrak public key dari secret key SLH-DSA-SHAKE-128s.
 ///
-/// Pada SPHINCS+-SHAKE-256s: secret key = SK_seed (32) ∥ SK_prf (32) ∥ PK_seed (32) ∥ PK_root (32)
-/// Public key = PK_seed (32) ∥ PK_root (32) — 64 byte terakhir dari secret key.
+/// SLH-DSA-SHAKE-128s: SK = 64 bytes, PK = 32 bytes (last 32 bytes of SK).
 /// Spec §2.1.
 fn public_key_from_secret(secret_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
-    // SPHINCS+-SHAKE-256s: SK = 128 bytes, PK = 64 bytes (last 64 of SK)
+    let pk_len = pqcrypto_sphincsplus::sphincsshake128ssimple::public_key_bytes();
     let sk_len = secret_key.len();
-    let pk_len = pqcrypto_sphincsplus::sphincsshake256ssimple::public_key_bytes();
     if sk_len < pk_len {
         return Err(CryptoError::InvalidKey);
     }
@@ -95,6 +101,17 @@ fn public_key_from_secret(secret_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_sphincs_algorithm_is_shake128s() {
+        // OSSIFIED spec §2.1: SLH-DSA-SHAKE-128s.
+        // PK=32, SK=64, Sig=7856 bytes.
+        let kp = generate_keypair().unwrap();
+        assert_eq!(kp.public.len(), SPHINCS_PK_BYTES, "PK harus 32 bytes");
+        assert_eq!(kp.secret.len(), SPHINCS_SK_BYTES, "SK harus 64 bytes");
+        let sig = sign_message(b"test", &kp.secret).unwrap();
+        assert_eq!(sig.len(), SPHINCS_SIG_BYTES, "Sig harus 7856 bytes");
+    }
 
     #[test]
     fn test_sphincs_keypair_generation() {
@@ -117,13 +134,9 @@ mod tests {
     #[test]
     fn test_sphincs_post_sign_verify_runs() {
         // Spec §2.4: sign_message harus melakukan post-sign verify.
-        // Jika post-sign verify tidak jalan, fungsi ini tidak akan Ok.
         let kp = generate_keypair().unwrap();
         let result = sign_message(b"post-sign fault detection test", &kp.secret);
-        assert!(
-            result.is_ok(),
-            "Post-sign verify harus lolos untuk key valid"
-        );
+        assert!(result.is_ok(), "Post-sign verify harus lolos untuk key valid");
     }
 
     #[test]
@@ -152,14 +165,10 @@ mod tests {
 
     #[test]
     fn test_public_key_from_secret_matches_generated() {
-        // public_key_from_secret harus menghasilkan public key yang sama
-        // dengan yang di-generate oleh generate_keypair. Spec §2.1.
+        // Spec §2.1: PK dari SK harus identik dengan PK asli.
         let kp = generate_keypair().unwrap();
         let derived_pk = public_key_from_secret(&kp.secret).unwrap();
-        assert_eq!(
-            derived_pk, kp.public,
-            "Public key dari secret harus sama dengan public key yang di-generate"
-        );
+        assert_eq!(derived_pk, kp.public, "PK dari SK harus sama dengan PK asli");
     }
 
     #[test]
