@@ -1,385 +1,428 @@
 # Scalar Network
- 
-> **"Truth by Mathematics, Not by Majority."**
-> **"Epoch by Sequence, Not by Clock."**
-> — Berdy Wandara, Original Architect & Founder
- 
-Scalar Network is a post-quantum digital cash designed for long-term resilience. No blockchain. No trusted setup. No founder allocation. Privacy is a mathematical property, not a feature.
- 
+
+> **"Truth by Mathematics, Not by Majority."**  
+> **"Epoch by Sequence, Not by Clock."**  
+> **"Governance by Genuine Operation, Not by Stakes."**  
+> **"Hardened by Determinism, Secured by Analysis."**
+
+Scalar Network is a **post-quantum, privacy-by-default digital cash system** that operates without a blockchain. Every transaction is proven valid by a zero-knowledge STARK proof; double-spend prevention is enforced by a two-layer Sparse Merkle Tree NullifierSet. Mathematical certainty replaces social agreement.
+
+**Conceived and designed by [Berdy Wandara](https://github.com/berdywandara).**  
+**Specification:** `Scalar_Master_Technical_Spec_v11.1-FINAL` — 2026-07-15
+
 ---
- 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE-MIT)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE-APACHE)
- 
-[README](README.md) · [AUTHORS](AUTHORS.md) · [CONTRIBUTING](CONTRIBUTING.md) · [SECURITY](SECURITY.md) · [LICENSE](LICENSE)
- 
+
+## Table of Contents
+
+- [Core Philosophy](#core-philosophy)
+- [Why Post-Quantum?](#why-post-quantum)
+- [Cryptographic Stack](#cryptographic-stack)
+- [Architecture Overview](#architecture-overview)
+- [How a Transaction Works](#how-a-transaction-works)
+- [Proof-of-Uptime Emission](#proof-of-uptime-emission)
+- [NullifierSet (2-Layer)](#nullifierset-2-layer)
+- [Supply Parameters](#supply-parameters)
+- [Node Tiers](#node-tiers)
+- [Governance](#governance)
+- [Network Resilience](#network-resilience)
+- [Repository Structure](#repository-structure)
+- [Running a Node](#running-a-node)
+- [Development Status](#development-status)
+- [Design Principles](#design-principles)
+- [License](#license)
+- [Authors](#authors)
+
 ---
- 
-## What Makes Scalar Different
- 
-| Property | How It Works |
-|---|---|
-| **No blockchain** | State = Proof Objects + NullifierSet. No blocks, no chain, no leader election. |
-| **Privacy by default** | Transfer value, sender identity, and receiver identity are always private via zk-STARK proofs. |
-| **Mathematical truth** | A transaction is valid because its STARK proof verifies — not because a majority agrees. |
-| **Leaderless** | No founder allocation, no incorporated entity, no named operational leader. Code is law. |
-| **Post-quantum** | SPHINCS+ (hash-based signatures), zk-STARKs, ML-KEM-768. No elliptic curve assumptions. |
-| **Epoch by sequence** | Epoch boundaries determined by `seq_num`, not wall-clock. Clock-drift forks eliminated. |
- 
+
+## Core Philosophy
+
+Traditional blockchains ask: *"Do enough nodes agree this transaction is valid?"*
+
+Scalar asks: *"Can the sender prove — mathematically, beyond doubt — that this transaction is valid?"*
+
+If the zk-STARK proof verifies, the transaction is accepted. No miners. No validators. No majority vote. Three trust assumptions underpin the entire system:
+
+1. **BLAKE3** collision resistance
+2. **Poseidon2** collision resistance  
+3. **Goldilocks field arithmetic** correctness (`p = 2⁶⁴ − 2³² + 1`)
+
+No trusted setup. No elliptic curves. No administrator key.
+
 ---
- 
+
+## Why Post-Quantum?
+
+Bitcoin and Ethereum rely on elliptic curve cryptography. A sufficiently powerful quantum computer running Shor's algorithm can break these schemes — deriving private keys from public keys. Scalar is built from the ground up with quantum-resistant hash-based primitives only.
+
+---
+
+## Cryptographic Stack
+
+| Purpose | Algorithm | Standard / Note |
+|---|---|---|
+| ZK Proof System | zk-STARK (Winterfell) | Hash-based; no trusted setup |
+| In-circuit Hash | Poseidon2 (Goldilocks field) | ZK-optimized; ~200–400 constraints/op |
+| Out-of-circuit Hash | BLAKE3 | MAC, key derivation, Fiat-Shamir transcript |
+| Post-Quantum Signatures | SLH-DSA-SHAKE-128s | NIST FIPS 205; 7,856-byte signature |
+| Key Derivation (wallet) | Argon2id | 64 MB / 3 iter / 1 parallel |
+| Key Derivation (node ID) | Argon2id | 4 GB / 3,600 iter (Tier A/B) |
+| Channel Encryption | ChaCha20-Poly1305 | Dandelion++ stem phase |
+
+**No elliptic curves anywhere in this stack.**
+
+### Domain Separators (OSSIFIED)
+
+All hash contexts use unique domain separators to prevent cross-context collisions.
+
+| Context | Domain Separator | Length |
+|---|---|---|
+| Nullifier circuit | `scalar_null_v1` | 14 bytes |
+| UTXO commitment | `scalar_utxo_v2` | 16 bytes |
+| Salt derivation | `scalar_salt_v1` | 14 bytes |
+| Seed KDF | `scalar_v2` (prefix) | 9 bytes |
+| Anchor signature | `scalar_anchor_v1` | 16 bytes |
+| STARK FS transcript | `scalar_stark_fs_v1` | 17 bytes |
+| Checkpoint FS | `scalar_checkpoint_fs_v1` | 22 bytes |
+| TX ordering | `scalar_tx_order_v1` | 18 bytes |
+
+Full table in §2.3 of the specification.
+
+---
+
 ## Architecture Overview
- 
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     SCALAR NETWORK NODE                         │
+├─────────────────────────────────────────────────────────────────┤
+│  scalar-node          — Boot, state machine, RPC (:7777)        │
+├─────────────────────────────────────────────────────────────────┤
+│  scalar-network       — P2P: gossipsub + Kademlia DHT           │
+│    transport/internet — libp2p TCP + Noise + Yamux              │
+│    transport/tor      — Tor 3-hop hidden services               │
+│    transport/lora     — LoRa/HF radio (State Beacon 44 bytes)   │
+│    dandelion++        — Stem 90% prob / ChaCha20 / 100–5000 ms  │
+├─────────────────────────────────────────────────────────────────┤
+│  scalar-consensus     — Epoch manifest, DMM, UTXO set ordering  │
+├─────────────────────────────────────────────────────────────────┤
+│  scalar-nullifier     — 2-Layer NullifierSet (NS_ACTIVE + NS_CHECKPOINT) │
+├─────────────────────────────────────────────────────────────────┤
+│  scalar-stark         — Transfer Circuit (CA–CG) + Mint (MC1–MC5) │
+│    constraints/       — Poseidon2 in-circuit only               │
+├─────────────────────────────────────────────────────────────────┤
+│  scalar-crypto        — Poseidon2, SLH-DSA, BLAKE3, Argon2id    │
+├─────────────────────────────────────────────────────────────────┤
+│  scalar-wallet-core   — Key derivation, coin selection, tx build │
+├─────────────────────────────────────────────────────────────────┤
+│  scalar-audit         — Read-only audit / ZK verification        │
+├─────────────────────────────────────────────────────────────────┤
+│  scalar-sdk           — Client-utility layer (public API only)   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Crate dependency chain (strict):**
+```
+scalar-crypto → scalar-nullifier → scalar-emission → scalar-stark
+             → scalar-network → scalar-node
+scalar-sdk   (public API only — no direct protocol crate imports)
+scalar-audit (read-only; no private key access)
+```
+
+---
+
+## How a Transaction Works
+
+```
+1. PROVE  (wallet, local)
+   Commitment: C = Poseidon2(DOMAIN_COMMITMENT_V2 ‖ value ‖ owner_pubkey ‖ secret ‖ salt)
+   Nullifier:  N = Poseidon2(DOMAIN_NULL ‖ secret ‖ spending_key)
+   
+   STARK proof satisfies 7 constraint groups:
+     CA — Ownership: N and C computed correctly from private witness
+     CB — UTXO membership: C ∈ utxo_set_root (snapshot of epoch k-1)
+     CC — Dual non-membership: N ∉ NS_ACTIVE ∧ N ∉ NS_CHECKPOINT
+     CD — Value conservation: Σ inputs = Σ outputs + fee_total
+     CE — Output integrity: each output commitment valid, value ∈ D1–D17
+     CF — Authorization: knowledge of owner_pubkey + SLH-DSA signature
+     CG — Protocol compliance: crypto_version, anti-censorship timestamp
+
+2. BROADCAST  (Dandelion++ privacy transport)
+   Stem phase (90% probability): forward to single peer with random delay 100–5000 ms
+   Fluff phase: gossipsub broadcast to all peers
+
+3. VERIFY & RECORD  (every node, independently)
+   a. Verify SLH-DSA signature (out-of-circuit)
+   b. Verify STARK proof  (~5–20 ms)
+   c. Check N ∉ NS_ACTIVE and N ∉ NS_CHECKPOINT
+   d. Insert N into NS_ACTIVE → SMT root updates
+   No vote. No coordination. Pure mathematics.
+```
+
+### STARK Parameters (OSSIFIED)
+
+| Parameter | Value |
+|---|---|
+| Field | Goldilocks (`p = 2⁶⁴ − 2³² + 1`) |
+| FRI blowup factor | 8 |
+| FRI queries | 84 |
+| Grinding bits | 20 |
+| Folding factor | 4 |
+| Soundness (classical) | ε ≈ 2⁻¹²⁸ |
+| Constraints (2-in/2-out) | ~52,088 |
+| Constraints (10-in/10-out) | ~260,000 |
+| Target proving time | 500 ms ± 10 ms |
+
+---
+
+## Proof-of-Uptime Emission
+
+Scalar rewards nodes for contributing to network liveness — not for computing power.
+
+### Emission Formula
+
+```
+E(k)        = E₀ × (1 − M_E(k−1) / S_E)²
+E_active(k) = max(E(k), E_TAIL)
+
+E₀     = 126,000 SCL/epoch
+E_TAIL = 1,000 SCL/epoch
+```
+
+### Epoch Structure
+
+- **1 Epoch** = 4,320 heartbeats × 600 seconds ≈ **30 days**
+- Epoch boundaries are determined by `seq_num` (Rule T-1), **not by wall-clock time**
+- Each node sends one heartbeat per 300 seconds minimum
+
+### Uptime Weight
+
+```
+w_i(k) = (700,000 × uptime_ratio + 300,000 × root_alignment) / 1,000,000
+```
+
+### Epoch Reward Manifest Consensus
+
+1. **Aggregator selection** — deterministic from `seed_k = BLAKE3("scalar_seed_v1" ‖ committed_manifest_hash(k-1))`
+2. **Validator quorum** — 7/10 validators must agree
+3. **Fallback: DMM** — if no quorum, every synced node independently builds a Deterministic Minimal Manifest from local heartbeat data; output is bit-identical across all honest nodes
+4. **UTXO set root** — transactions ordered by `tx_ordering_key = BLAKE3(DOMAIN_TX_ORDER ‖ tx_hash ‖ epoch_id)` before SMT update; ensures identical `utxo_set_root` across all nodes
+
+---
+
+## NullifierSet (2-Layer)
+
+| Layer | Structure | Contents | Size |
+|---|---|---|---|
+| NS_ACTIVE | Sparse Merkle Tree depth-32 | Nullifiers from last 3 epochs | ~15 MB |
+| NS_CHECKPOINT | Recursive STARK proof | All nullifiers before NS_ACTIVE | ~150 KB |
+
+**Zero-Gap Property:** Checkpoint operation uses Write-Ahead Log (WAL) ensuring no nullifier can fall between the two layers during an atomic checkpoint transition.
+
+**Checkpoint interval:** every 3 epochs. Max 200,000 nullifiers per checkpoint batch.
+
+---
+
+## Supply Parameters
+
+```
+S_MAX  = 21,000,000 SCL  = 2,100,000,000,000,000 sSCL   (hard cap, ossified)
+S_E    = 18,900,000 SCL  = 1,890,000,000,000,000 sSCL   (PoU emission pool)
+S_R    = 2,100,000  SCL  =   210,000,000,000,000 sSCL   (tail emission backstop)
+
+1 SCL  = 100,000,000,000 sSCL (smallest unit)
+```
+
+**17 fixed denominations (D1–D17):** 1 sSCL → 10,000,000,000,000,000 sSCL  
+Fungibility guarantee: two UTXOs of the same denomination are cryptographically indistinguishable.
+
+**Bootstrap vesting:** first 6 epochs — linear vesting, only `(k+1)/6` of reward available.
+
+---
+
+## Node Tiers
+
+| Tier | Hardware | Argon2id | NodeScore Cap | Aggregator | NMT Peer | Governance |
+|---|---|---|---|---|---|---|
+| A — Dedicated | 8 GB RAM, 50 GB SSD, 10 Mbps | 4 GB / 3,600 iter | 1,000,000 | ✅ | ✅ (score >800k) | Full (1,000,000 fp) |
+| B — Cloud + TEE | Same + SGX/SEV | 4 GB / 3,600 iter | 1,000,000 | ✅ (with TEE) | ✅ (score >800k) | Full (1,000,000 fp) |
+| C — Mobile | Low-resource | 16 MB / 100 iter | 600,000 | ❌ | ❌ (auto-excluded) | Capped (200,000 fp) |
+
+**Tier C (prefix `0xFE`):** can send heartbeats and earn proportional rewards but is automatically excluded from NMT peer selection (threshold 800,000 > cap 600,000) and governance power is limited to 200,000 fp to prevent cheap-node Sybil attacks.
+
+### Node ID Generation
+
+```rust
+node_id_full = Argon2id(
+    input       = UTF8(mnemonic),
+    salt        = b"scalar_nodeid_v1" || genesis_hash,
+    memory      = 4 GB,   // Tier A/B
+    iterations  = 3600,
+    parallelism = 1,
+    output_len  = 32,
+)
+node_id_short = BLAKE3(b"scalar_node_short_v1" || node_id_full)[0..4]
+```
+
+---
+
+## Governance
+
+- **Voting identity:** `node_id_full` — no SCL stake required
+- **Eligibility:** maturity ≥ 6 epochs (180 days) of active participation
+- **Conviction factor:** smooth curve from 50,000 fp (day 1) to 1,000,000 fp (day 365); no cliff
+
+```
+GP(i,t) = min(
+    conviction_factor(t_days) × min(maturity(i,k), W_MATURE) / 1_000_000,
+    GOV_MAX_FP_FOR_TIER(i)
+)
+
+Tier A/B: GOV_MAX_FP = 1,000,000
+Tier C:   GOV_MAX_FP = 200,000
+```
+
+**Fork thresholds:** commit 75% / abort 67% / emergency 51%
+
+**Anti-Sybil cost:** running a mature Tier A/B node for >180 days at high uptime. No minimum SCL stake.
+
+---
+
+## Network Resilience
+
+| Condition | Transport |
+|---|---|
+| Normal | Internet — libp2p TCP + Noise + Yamux |
+| Censored | Tor 3-hop hidden services |
+| Internet down | LoRa mesh radio (40 km range) / HF Radio (continental) |
+| Local | State Beacon — 44-byte authenticated UDP-like messages |
+
+**NMT (Network Median Time):** 23 deterministic peers + 1 random slot (ChaCha20 seeded from `BLAKE3(seed_k ‖ "nmt_random")`). Only nodes with NodeScore > 800,000 are eligible. Eclipse resistance: max 3 nodes per /24 subnet, 5 per ASN, 4 per region.
+
+---
+
+## Repository Structure
+
 ```
 scalar-core/
-├── core/                     # Protocol Layer (ossified after mainnet)
-│   ├── scalar-crypto/        # Poseidon2, SPHINCS+, ML-KEM, BLAKE3, CryptoVersion Registry
-│   ├── scalar-nullifier/     # Hierarchical NullifierSet (HOT/WARM/COLD/ARCH), Layer Promotion
-│   ├── scalar-stark/         # Transfer Circuit (C1-C10), Mint Circuit (MC1-MC5),
-│   │                         # Independent Verifier (Goldilocks, dual STARK)
-│   ├── scalar-emission/      # PoU formula, EpochAnchor, NodeHeartbeat MAC,
-│   │                         # Tail Emission Backstop, Node Resumption Protocol
-│   ├── scalar-fees/          # Fee model (FLOOR + PREMIUM), 95/5 distribution, W_FLOOR_FP
-│   ├── scalar-network/       # GSS fanout, NMT (8 peers), StateBeacon, Dandelion++,
-│   │                         # heartbeat_verifier, time_security (T-1..T-6), eclipse defense
-│   ├── scalar-node/          # State machine, RPC (port 7777), Argon2id Sybil defense
-│   ├── scalar-consensus/     # Consensus engine
-│   └── scalar-compliance/    # Ossified parameter verification suite (v5/v6/v7/v9)
-├── client/                   # Client-Utility Layer (scalar-sdk boundary)
-│   ├── scalar-sdk/           # Client-Utility Layer — F1–F12 API (boundary: no protocol deps)
-│   ├── scalar-wallet-core/   # Key derivation chain (Argon2id v9.0), coin selection
-│   ├── scalar-governance/    # Conviction, GovernanceID, AI-resistance, anti-sybil
-│   └── scalar-ffi/           # C ABI bindings for Flutter Desktop
+├── crates/
+│   ├── scalar-crypto/        # Poseidon2, SLH-DSA, BLAKE3, Argon2id
+│   ├── scalar-nullifier/     # 2-layer NullifierSet (NS_ACTIVE + NS_CHECKPOINT)
+│   ├── scalar-stark/         # Transfer Circuit (CA–CG) + Mint Circuit (MC1–MC5)
+│   ├── scalar-network/       # P2P networking, Dandelion++, State Beacon
+│   ├── scalar-consensus/     # Epoch manifest, DMM, UTXO ordering
+│   ├── scalar-emission/      # PoU emission formula, Deferred Pool
+│   ├── scalar-node/          # Node binary, state machine, RPC
+│   ├── scalar-wallet-core/   # Key derivation, coin selection, tx builder
+│   ├── scalar-audit/         # Read-only audit crate (no private key access)
+│   ├── scalar-governance/    # Node-backed governance, conviction voting
+│   └── scalar-sdk/           # Client-utility layer (public API only)
+├── docs/
+│   ├── REGULATORY_FRAMEWORK.md   # Appendix A
+│   ├── TEST_VECTORS.md           # Appendix B — cryptographic test vectors
+│   └── ARCHITECTURE_DIAGRAMS.md  # Appendix D — protocol flow diagrams
 ├── tools/
-│   └── genesis-tool/         # Genesis object generation and verification (binary format)
-└── apps/
-    └── mobile/               # Flutter Desktop app (⏳ PENDING — awaiting UI/UX design)
+│   ├── genesis-tool/         # Generate genesis object
+│   └── circuit-bench/        # Benchmark proof generation
+├── apps/
+│   └── mobile/               # Flutter cross-platform wallet
+├── .github/
+│   └── workflows/            # CI pipelines
+├── AUTHORS.md
+├── CONTRIBUTING.md
+├── LICENSE-MIT
+├── LICENSE-APACHE
+├── SECURITY.md
+└── Cargo.toml
 ```
- 
+
 ---
- 
-## Cryptographic Stack
- 
-All Layer 0 primitives are **ossified** — they cannot change without a network fork.
- 
-| Component | Primitive | Notes |
-|---|---|---|
-| Signatures | SPHINCS+-SHAKE256s | NIST FIPS 205. Hash-based. 128-bit quantum security. |
-| ZK Proofs | zk-STARKs (Winterfell + Independent) | No trusted setup. ε ≈ 2⁻⁶¹⁴⁴ soundness. Dual verifier. |
-| In-circuit hash | Poseidon2 | t=4, d=7, RF=8, RP=22. Goldilocks field. **In-circuit ONLY.** |
-| Out-circuit hash | BLAKE3 | NullifierSet IDs, state hash, MAC. **Out-circuit ONLY.** |
-| Key exchange | ML-KEM-768 | NIST FIPS 203. Post-quantum transport. |
-| Symmetric | ChaCha20-Poly1305 | All P2P channels. |
-| Identity cost | Argon2id | 4 GB RAM, 1 hour CPU. Anti-Sybil. |
-| Seed KDF | Argon2id | 64 MB RAM, t=3, p=1, output 64 bytes. (v9.0 — SCL-SPEC-SEED-001) |
-| HB integrity | BLAKE3-MAC | NodeHeartbeat MAC — NOT SPHINCS+ (EpochAnchor only). |
- 
----
- 
-## Transfer Circuit: 10 Constraint Groups
- 
-Every transfer produces a STARK proof covering C1–C10, verified independently by every node:
- 
-| Constraint | ~Constraints | Purpose |
-|---|---|---|
-| C1 — Commitment Validity | ~200/input | Every input coin is a valid Poseidon2 commitment. |
-| C2 — Nullifier Validity | ~200/input | Two-layer nullifier: in-circuit (Poseidon2) + out-circuit (BLAKE3). Implicit binding via STARK proof. |
-| C3 — Genesis Membership | ~6,464/input | Every input coin originates from genesis via Merkle path. |
-| C4 — Non-Membership | ~12,800/input | Anti-double-spend: nullifier absent from NullifierSet. |
-| C5 — Value Conservation | ~10 | Σ inputs = Σ outputs + fee. **Ossified.** |
-| C6 — Non-Negativity | ~163/value | All values > 0. Fee ≥ FLOOR_MIN_ABSOLUTE = 40 sSCL. |
-| C7 — Output Formation | ~200/output | Every output commitment uses a fresh random salt. |
-| C8 — Authorization | ~200 | In-circuit: Poseidon2 auth_commit. Out-of-circuit: SPHINCS+ verify. Both required. |
-| C9 — Version Compatibility | ~10 | Proof uses a currently valid CryptoVersion. |
-| C10 — Censorship Resistance | ~50 | Aggregator cannot exclude eligible transactions (T_MAX_WAIT = 30 min). |
- 
-**Performance:** ~40,650 constraints (2-in/2-out) · ~202,000 (10-in/10-out) · Proving time: 300ms ± 10ms · Soundness: ε ≈ 2⁻⁶¹⁴⁴
- 
----
- 
-## Hierarchical NullifierSet
- 
-The only "ledger" in Scalar Network. Four layers optimized for storage and lookup speed.
- 
-```
-NS_HOT   (SMT depth-32,  0–30 days  / 1 epoch)   ~29 MB   · ~0.50ms lookup
-NS_WARM  (Bloom p=10⁻¹⁰ k=33,  30–365 days)      ~20 MB   · ~0.02ms lookup
-NS_COLD  (Bloom p=10⁻¹⁵ k=50,  >365 days)       ~866 MB   · ~0.03ms lookup
-NS_ARCH  (Recursive STARK checkpoint)              <1 MB   · <100ms verify
-──────────────────────────────────────────────────────────────────────────────
-TOTAL                                             ~916 MB   · ~0.55ms worst case
-                                                  vs 3.2 GB monolithic SMT (71.4% savings)
-```
- 
-**Layer Promotion** (every epoch boundary):
-1. Nullifiers from NS_HOT older than 1 epoch → promoted to NS_WARM
-2. Nullifiers older than 12 epochs → also inserted into NS_COLD
-3. NS_HOT compacted — contains only current epoch's nullifiers
-4. Zero-Gap Property: no verification gap during promotion
- 
-NS_ARCH generates a recursive STARK proof every 90 days (3 epochs), proving the entire nullifier history from genesis in a single ~150 KB proof. New nodes download this proof instead of replaying all history.
- 
----
- 
-## Proof-of-Uptime Emission
- 
-No mining. No staking. Nodes earn rewards proportional to verified uptime.
- 
-```
-E(k)        = E₀ × (1 − M_E(k−1) / S_E)²         # Standard emission per epoch k
-E_active(k) = max(E(k), E_TAIL)                    # Tail emission backstop (ossified)
- 
-w_i(k) = (700,000 × uptime_ratio_fp(i,k)
-         + 300,000 × root_alignment_fp(i,k))
-         / 1,000,000
- 
-R_total(i,k) = R_pou(i,k) + R_fee(i,k) + longevity_boost
-R_pou(i,k)   = E_active(k) × w_i(k) / W(k)
-R_fee(i,k)   = Fee_pool(k) × 0.95 × w_i(k) / W_effective(k)
-```
- 
-**Supply:** 21,000,000 SCL hard cap · 18,900,000 SCL via PoU (S_E) · 2,100,000 SCL tail emission backstop (S_R)  
-**Epoch:** 30 days · 4,320 expected heartbeats (seq_num based — Rule T-1) · E₀ = 126,000 SCL/epoch  
-**Tail emission:** E_TAIL = 1,000 SCL/epoch — sustained operation ~286 years from genesis  
-**Longevity boost:** +1% per year of operation, capped at +50% at year 50
- 
----
- 
-## NodeHeartbeat v9.0
- 
-Compact 108-byte structure — BLAKE3-MAC only (no SPHINCS+ per heartbeat):
- 
-```
-NodeHeartbeat {
-  node_id:   [u8; 4]   // Compressed: first 4 bytes of BLAKE3(full_node_id)
-  seq_num:   u32        // Monotonic per node. Epoch boundary = seq_num (Rule T-1)
-  timestamp: u32        // Delta seconds from epoch_start (NOT absolute wall-clock)
-  smt_root:  [u8; 32]  // Current SMT root
-  prev_hash: [u8; 32]  // BLAKE3(previous heartbeat bytes)
-  mac:       [u8; 32]  // BLAKE3(NodeKey_epoch ‖ node_id ‖ seq_num ‖ timestamp ‖ smt_root ‖ prev_hash)
-}  // TOTAL: 4+4+4+32+32+32 = 108 bytes (vs 29,900 bytes v8.0 — 213× reduction)
-```
- 
-**EpochAnchor:** One SPHINCS+ signature per node per epoch, covering the entire heartbeat chain via `chain_head = BLAKE3(last_HB)`. Sent at END of epoch before reward claim window opens.
- 
-**5-Step Heartbeat Verification:**
-1. TTL check: `abs(NMT − HB.timestamp) ≤ T_HEARTBEAT_TTL_S` (use NMT, not wall-clock)
-2. seq_num: strictly monotonic, anti-replay
-3. prev_hash: chain integrity via BLAKE3
-4. MAC: recompute and compare
-5. Accept: update counters
- 
----
- 
-## Time Security Rules (T-1 to T-6) — Ossified
- 
-| Rule | Summary |
-|---|---|
-| T-1 — Epoch Boundary | Epoch determined by `seq_num` ranges, NOT wall-clock. Clock-drift fork eliminated. |
-| T-2 — HB Freshness | `abs(NMT − HB.timestamp) ≤ T_HEARTBEAT_TTL_S`. Rejects pre-computed fake uptime. |
-| T-3 — Network Median Time | NMT = median of 8 peers. Robust against outliers. No NTP (trustless). |
-| T-4 — Rate Limiting | Max 1 HB per `T_HB_MIN_INTERVAL_S` per node. Rejects heartbeat bunching. |
-| T-5 — seq_num Monotonic | Strictly increasing per node. Gaps non-fillable. Anti-replay. |
-| T-6 — Timestamp Role | Timestamp used for TTL, monitoring, beacon ONLY. NOT for epoch boundary or rewards. |
- 
----
- 
-## Network Protocol
- 
-**Gossip:** GSS (Global Synchrony Score) fanout 3–15 (ossified max = 15). Adaptive based on network synchrony.
- 
-**Reconciliation:** Aggregator selected via `argmin BLAKE3(node_id ‖ seed_k)` where `seed_k` is unpredictable until epoch k−1 completes. 10 independent validators, quorum 7/10. Canonical serialization S1-S4 eliminates manifest grinding.
- 
-**Privacy routing:** Dandelion++ (STEM → FLUFF phases) + 3-hop geographic-diverse onion routing + message padding to 1/16/64/256 KB + random broadcast delay 0–10s.
- 
-**Eclipse defense (5 layers):**
-- GSS entropy monitor: WARNING if GSS_fp < 400,000 from dominant peer
-- Geographic diversity: ≥2 regions required
-- NMT manipulation detection: alert if 5+ of 8 peers are attacker-controlled
-- Anti-partition halt (CP property): node halts new tx processing if <67% peers connected
- 
-**Bootstrap:** Hardcoded peers (multi-jurisdiction) · Genesis object ≤1 KB · BLAKE3 hash hardcoded in binary · NS_ARCH checkpoint every 90 days
- 
-**Transport stack (5 tiers):** Internet (primary) → LoRa Mesh (StateBeacon only) → HF Radio → Local Mesh → Visual QR. Tiers 3–5 carry StateBeacon (44 bytes) — state synchronization only, NOT consensus.
- 
----
- 
-## Governance
- 
-Three-layer governance with anti-AI-attack safeguards:
- 
-| Layer | Mechanism |
-|---|---|
-| Layer 1 — Ossified | Cannot change without fork. ≥75% nodes + 90-day timelock + 30-day review. |
-| Layer 2 — Constrained | Parameters within defined ranges. Same quorum + timelock. |
-| Layer 3 — Reserve | Tail emission backstop (S_R). Year 126+ automatic, not discretionary. |
- 
-**Governance power:** `conviction_factor(days) × maturity_weight` — no SCL balance (private witness, unverifiable without breaking privacy).
- 
-**Conviction factor:** Precomputed discrete table. t=7d: 52.2%, t=30d: 95.8%, t=365d: 100%. Flash loan immunity: CF(30d)/CF(1min) ≈ 13,118×.
- 
-**GovernanceID:** `BLAKE3(ViewKey ∥ "governance_scalar_v1")` — does not reset on SpendKey rotation, cannot be linked to balance or transactions.
- 
-**Anti-Sybil:** `GOVERNANCE_MIN_STAKE_SSCL = 100,000`. One SpendKey = one GovernanceID. Argon2id NodeID cost prevents Sybil nodes.
- 
----
- 
-## Wallet Key Derivation (v9.0 — SCL-SPEC-SEED-001)
- 
-```
-seed         = Argon2id(mnemonic, salt=b"scalar_v2"‖genesis_hash,
-                        m=65536 KiB, t=3, p=1, len=64 bytes)
-               (first word MUST be "scalar" — BIP-39 wallets reject this)
-MasterKey    = BLAKE3(seed ‖ "scalar_master")
-AccountKey_i = BLAKE3(MasterKey ‖ "account" ‖ i_le64)
- 
-SpendKey     = BLAKE3(AccountKey ‖ "spend")
-ViewKey      = BLAKE3(AccountKey ‖ "view")
-NodeKey      = BLAKE3(AccountKey ‖ "node")        ← separate from SpendKey
-DuressKey    = BLAKE3(AccountKey ‖ "duress" ‖ index_le64)
-GovernanceID = BLAKE3(ViewKey   ‖ "governance_scalar_v1")
-```
- 
-NodeKey is separate from SpendKey by design: a compromised node does not mean compromised coins.
-NodeKey_epoch_i = `BLAKE3(NodeKey_i ‖ epoch_id_le64)` — per-epoch key, compartmentalized.
- 
-> ⚠️ **Breaking change from v7.0:** Seed output differs from same mnemonic. Must be implemented before mainnet.
- 
----
- 
-## scalar-sdk: Client-Utility Layer (F1–F12)
- 
-`scalar-sdk` is the **only** entry point for client applications. It MUST NOT import `scalar-emission`, `scalar-stark`, `scalar-nullifier`, or `scalar-network`.
- 
-| F# | Feature | Function | Cost |
-|---|---|---|---|
-| F1 | Scarcity Proof | `query_scarcity_proof()` | 0 |
-| F2 | MPAS | `query_monetary_policy_score()` | 0 |
-| F3 | NHI | `query_network_health()` | 0 |
-| F4 | NRS | `query_node_reputation()` | 0 |
-| F5 | STP | `build_threshold_proof()` | 0 |
-| F6 | NCP | `build_negative_compliance_proof()` | 0 |
-| F7 | PoP | `build_payment_proof()` | 0 |
-| F8 | QR Stamp | `build_timestamp_record()` | 40 sSCL |
-| F9 | SIR | `build_indelible_record()` | 40 sSCL |
-| F10 | Credential | `build_credential_proof()` | 0 |
-| F11 | SLA | `query_uptime_sla()` | 0 |
-| F12 | DMS | `build_dead_man_switch()` | 0 |
- 
+
+## Running a Node
+
+**Requirements:** Rust 1.82+, 8 GB RAM (Tier A/B), 50 GB SSD, 10 Mbps uplink
+
 ```bash
-# QA: verify SDK isolation
-grep -r 'use scalar_emission\|use scalar_stark\|use scalar_nullifier\|use scalar_network' \
-  client/scalar-sdk/
-# Expected output: empty (no results)
+# Clone
+git clone https://github.com/berdywandara/scalar-core
+cd scalar-core
+
+# Build (production — compile-time check enforces --features production)
+cargo build --release --features production
+
+# Run a node
+cargo run --release --bin scalar-node --features production
+
+# Query the node
+curl http://localhost:7777              # node status
+curl http://localhost:7777/smt_root    # current NullifierSet root
+curl http://localhost:7777/node_state  # state: BOOTSTRAPPING→SYNCING→ACTIVE
 ```
- 
+
+**Note:** `cargo check` (without `--features production`) passes with warnings only for development. Mainnet binary requires `--features production` — compile-time enforcement.
+
 ---
- 
-## Hardware Requirements
- 
-Scalar runs on ordinary hardware. No data center required.
- 
-```
-Minimum (full node, PoU eligible):
-  RAM:       8 GB
-  Storage:   50 GB SSD
-  Bandwidth: 10 Mbps sustained
- 
-Mobile (partial validation):
-  RAM:       8 GB (smartphone)
-  Storage:   NS_HOT only (~29 MB)
-```
- 
----
- 
+
 ## Development Status
- 
-Based on **Scalar_PR_Mapping_L1_v10.0** — Layer 1 + SDK complete.
- 
-| Crate | Status | Tests |
+
+| Phase | Scope | Status |
 |---|---|---|
-| scalar-crypto | ✅ Complete | 3 |
-| scalar-nullifier | ✅ Complete | 39 |
-| scalar-stark | ✅ Complete | 46 (23 + 23 independent) |
-| scalar-emission | ✅ Complete | 93 |
-| scalar-fees | ✅ Complete | 52 |
-| scalar-governance | ✅ Complete | 19 |
-| scalar-network | ✅ Complete | 150 |
-| scalar-node | ✅ Complete | 7 |
-| scalar-compliance | ✅ Complete | 65 |
-| scalar-wallet-core | ✅ Complete | 50 (v9.0 Argon2id) |
-| scalar-ffi | ✅ Complete | 20 |
-| scalar-sdk | ✅ Complete | 23 (F1–F12, 45 feature tests) |
-| genesis-tool | ✅ Complete | 9 |
-| Empirical Tests §22.5 | ✅ All 7/7 PASS | ~20 |
-| **Total** | **Layer 1 + SDK: COMPLETE** | **965 tests** |
- 
-**Remaining:** PR-CS-17/18 Flutter Onboarding + Send/Receive (⏳ PENDING — awaiting UI/UX design) · PR-CS-19 Governance Circuit Qvoting (🔴 TODO — post-testnet)
- 
+| Phase 1 | Core cryptography, zk-STARK foundation | ✅ Complete |
+| Phase 2 | Network layer, multi-transport, gossip | ✅ Complete |
+| Phase 3 | NullifierSet 2-layer + WAL checkpoint | ✅ Complete |
+| Phase 4 | Wallet architecture, key management | ✅ Complete |
+| Phase 5 | Spec v11.1-FINAL integration & gap resolution | ✅ Complete |
+| Phase 6 | Test vectors, formal verification, testnet | 🔄 In Progress |
+| Phase 7 | Mainnet launch | ⏳ Pending |
+
+**Pre-mainnet requirements (mandatory):**
+- [ ] Two independent STARK implementations (Winterfell + second) — cross-verified
+- [ ] Two independent Argon2id implementations — byte-identical test vectors
+- [ ] Formal verification of CC invariant (TLA+ or Coq)
+- [ ] Two independent security audits of circuits and protocol
+- [ ] All test vectors in `docs/TEST_VECTORS.md` verified by both implementations
+
 ---
- 
-## Building
- 
-```bash
-# Standard build
-cargo build --workspace
- 
-# Run all tests
-cargo test --workspace
- 
-# Production Argon2id (4 GB RAM — do NOT run in Codespace)
-cargo check -p scalar-node --features production
- 
-# Lint
-cargo clippy --workspace -- -D warnings
-cargo fmt --all -- --check
-```
- 
-> **Alpine Linux note:** `pqcrypto-sphincsplus` requires a GCC compatibility flag on musl systems.
-> ```bash
-> cat > /tmp/cc-wrapper.sh << 'WRAP'
-> #!/bin/sh
-> exec gcc "-D__GNUC_PREREQ(x,y)=0" "$@"
-> WRAP
-> chmod +x /tmp/cc-wrapper.sh && export CC=/tmp/cc-wrapper.sh
-> ```
- 
+
+## Design Principles
+
+**No blockchain.** No blocks, no chain, no longest-chain rule. State is a NullifierSet (SMT) and a set of Proof Objects.
+
+**No majority vote.** A STARK proof is valid because mathematics says so — not because 51% of nodes agreed.
+
+**No trusted setup.** zk-STARKs require no ceremony. Security assumption: hash function collision resistance only.
+
+**No elliptic curves.** Not for signatures, not for key exchange, not anywhere.
+
+**Privacy by default.** Transaction amounts, senders, and recipients are hidden. Only mathematical validity is public.
+
+**Determinism over coordination.** Every critical computation (DMM, UTXO ordering, NMT peers, aggregator selection) is fully deterministic from shared public data — no coordination protocol needed, no ambiguity possible.
+
 ---
- 
-## Formal Verification
- 
-All C1–C10 and MC1–MC5 constraints must be formally specified in TLA+ or Coq before mainnet. Six mathematical invariants must be formally proved:
- 
-1. Supply conservation: `PoU_minted + Reserve_released ≤ 21,000,000 SCL`
-2. Value conservation per transaction: `Σ inputs = Σ outputs + fee`
-3. Nullifier uniqueness: every nullifier inserted exactly once
-4. Privacy preservation: private witness not extractable from public inputs
-5. Finality monotonicity: committed nullifiers cannot be removed without fork
-6. Emission bound: `E(k) ≤ E₀ × (1 − M_E(k−1)/S_E)²`
- 
+
+## License
+
+Dual-licensed under **MIT** OR **Apache-2.0** at your option.
+
+- [LICENSE-MIT](./LICENSE-MIT)
+- [LICENSE-APACHE](./LICENSE-APACHE)
+
 ---
- 
-## Security Model
- 
-Scalar requires only three trust assumptions:
- 
-1. SHA3/BLAKE3 collision resistance
-2. Poseidon2 collision resistance
-3. Goldilocks field arithmetic correctness
- 
-**No elliptic curve assumptions. No integer factorization. No trusted setup. No trusted party.**
- 
-Scalar is designed for long-term resilience through: (1) post-quantum hash-based cryptography (SPHINCS+, zk-STARK), (2) genuine decentralization via Argon2id anti-Sybil NodeID, (3) Succession Protocol for institutional nodes, (4) multi-layer governance with conviction cliff and AI-resistant safeguards, (5) tail emission backstop sustaining node operation ~286 years, and (6) economic self-balancing via uptime-weighted rewards.
- 
+
+## Authors
+
+See [AUTHORS.md](./AUTHORS.md).
+
+Scalar Network protocol was conceived and designed by **Berdy Wandara** (Original Architect & Founder). Per the leaderless principle of the protocol, this attribution is purely historical — it confers no special allocation, privilege, or governance power within the running network.
+
 ---
- 
-## Reference
- 
-- **Specification:** `Scalar_Master_Technical_Spec_v9.0` — single source of truth. If code conflicts with spec, spec wins.
-- **PR Mapping:** `Scalar_PR_Mapping_L1_v10.0` — full development status and sprint planning.
-- **Audit:** v9.0 compliance audit completed — 965 tests, 0 failed, all L1 OSSIFIED parameters verified.
-- **License:** See `AUTHORS.md`
- 
----
- 
-*Scalar is digital cash verified by mathematics — not by miners, validators, or majorities.*
+
+## Further Reading
+
+| Document | Location |
+|---|---|
+| Master Technical Specification v11.1-FINAL | `docs/` (canonical spec) |
+| Regulatory Framework (Appendix A) | [`docs/REGULATORY_FRAMEWORK.md`](./docs/REGULATORY_FRAMEWORK.md) |
+| Test Vectors & Cryptographic Reference (Appendix B) | [`docs/TEST_VECTORS.md`](./docs/TEST_VECTORS.md) |
+| Architecture Diagrams & Protocol Flows (Appendix D) | [`docs/ARCHITECTURE_DIAGRAMS.md`](./docs/ARCHITECTURE_DIAGRAMS.md) |
+| Security Policy | [`SECURITY.md`](./SECURITY.md) |
+| Contributing Guide | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
