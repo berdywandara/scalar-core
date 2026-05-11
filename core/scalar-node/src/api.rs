@@ -98,6 +98,22 @@ impl LocalRpcServer {
                 })),
                 error: None,
             },
+            "get_epoch" => RpcResponse {
+                result: Some(serde_json::json!({
+                    "epoch": 0,
+                    "heartbeat_count": 0,
+                    "epoch_progress_percent": 0,
+                    "heartbeats_per_epoch": 4320
+                })),
+                error: None,
+            },
+            "get_peers" => RpcResponse {
+                result: Some(serde_json::json!({
+                    "peer_count": 0,
+                    "peers": []
+                })),
+                error: None,
+            },
             "get_node_state" => RpcResponse {
                 result: Some(serde_json::json!({
                     "state": "ACTIVE",
@@ -108,7 +124,7 @@ impl LocalRpcServer {
             _ => RpcResponse {
                 result: None,
                 error: Some(format!(
-                    "Method '{}' tidak dikenal. Tersedia: get_status, get_smt_root, get_node_state",
+                    "Method '{}' tidak dikenal. Tersedia: get_status, get_smt_root, get_node_state, get_epoch, get_peers",
                     method
                 )),
             },
