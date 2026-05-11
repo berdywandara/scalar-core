@@ -6,12 +6,14 @@ members = [
     "tools/*",
     "tests/integration",
     "tests/spec-compliance",
+    "tools/test-vector-gen",
 ]
 
 resolver = "2"
 
 [workspace.dependencies]
-blake3 = "1.5"                    # BLAKE3
+blake3 = "1.5"
+hex = "0.4"                    # BLAKE3
 
 # ZK Proving
 winterfell = "0.9"                # STARK prover/verifier
