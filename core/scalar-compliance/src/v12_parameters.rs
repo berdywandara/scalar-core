@@ -178,7 +178,7 @@ mod tests_v12_utxo {
     #[test]
     fn compliance_test_utxo_root_snapshot_after_processing() {
         // Snapshot diambil SETELAH semua tx epoch diproses. Spec §8.5.
-        use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
+        use scalar_emission::ordering::TxEntry;
         use scalar_emission::utxo_set_smt::UtxoSetSMT;
         let mut smt = UtxoSetSMT::new();
         let txs = vec![
@@ -203,7 +203,7 @@ mod tests_v12_utxo {
     #[test]
     fn compliance_test_utxo_root_deterministic() {
         // Canonical ordering → root identik antar node. Spec §8.5.
-        use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
+        use scalar_emission::ordering::TxEntry;
         use scalar_emission::utxo_set_smt::UtxoSetSMT;
 
         let txs_a = vec![
@@ -415,7 +415,7 @@ mod tests_v12_suite_v4 {
     #[test]
     fn compliance_tx_ordering_determinism() {
         // Verifikasi utxo_set_root identik antar node. Spec §XXI, §8.5.
-        use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
+        use scalar_emission::ordering::TxEntry;
         use scalar_emission::utxo_set_smt::UtxoSetSMT;
 
         let txs_node_a = vec![
@@ -502,7 +502,7 @@ mod tests_v12_suite_v4 {
     #[test]
     fn compliance_node_sync_utxo_reconstruction() {
         // Node baru sync → utxo_set_root identik dengan node lama. Spec §XXI, §8.5.
-        use scalar_emission::ordering::{sort_transactions_canonical, TxEntry};
+        use scalar_emission::ordering::TxEntry;
         use scalar_emission::utxo_set_smt::{
             verify_utxo_root_against_manifest, SyncVerificationResult, UtxoSetSMT,
         };
