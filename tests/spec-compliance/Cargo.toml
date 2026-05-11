@@ -1,0 +1,21 @@
+[package]
+name = "scalar-spec-compliance"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[test]]
+name = "ossified_parameters"
+path = "src/ossified_parameters.rs"
+
+[[test]]
+name = "domain_separators"
+path = "src/domain_separators.rs"
+
+[dev-dependencies]
+scalar-crypto = { path = "../../core/scalar-crypto" }
+scalar-emission = { path = "../../core/scalar-emission" }
+scalar-nullifier = { path = "../../core/scalar-nullifier" }
+scalar-fees = { path = "../../core/scalar-fees" }
+scalar-network = { path = "../../core/scalar-network" }

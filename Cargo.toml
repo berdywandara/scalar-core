@@ -5,6 +5,7 @@ members = [
     "client/*",
     "tools/*",
     "tests/integration",
+    "tests/spec-compliance",
 ]
 
 resolver = "2"
