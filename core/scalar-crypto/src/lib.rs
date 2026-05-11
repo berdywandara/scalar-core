@@ -20,6 +20,7 @@ pub mod hybrid_hash;
 pub mod ml_kem;
 pub mod poseidon2;
 pub mod sphincs;
+pub mod domain;
 pub mod version;
 
 /// Unified error type untuk semua operasi kriptografi scalar-crypto.
