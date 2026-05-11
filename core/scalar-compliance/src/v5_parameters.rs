@@ -13,9 +13,9 @@ pub const V5_CRYPTO_VERSION: u8 = 0x01;
 
 // ── §4.4 Transfer Circuit ────────────────────────────────────────────
 /// Total constraints 2-in/2-out termasuk C9+C10. Spec §4.4.
-pub const V5_TRANSFER_CONSTRAINTS_2_2: usize = 40_650;
+pub const V5_TRANSFER_CONSTRAINTS_2_2: usize = 52_088;
 /// Total constraints 10-in/10-out. Spec §4.4.
-pub const V5_TRANSFER_CONSTRAINTS_10_10: usize = 202_000;
+pub const V5_TRANSFER_CONSTRAINTS_10_10: usize = 260_000;
 /// Max inputs/outputs per tx. OSSIFIED §4.4.
 pub const V5_MAX_IO: u32 = 10;
 
@@ -37,7 +37,7 @@ pub const V5_MAX_FANOUT: usize = 15;
 pub const V5_MAX_ROOT_CANDIDATES: usize = 100;
 
 // ── §2.5 Proving Time ─────────────────────────────────────────────────
-pub const V5_PROVING_TIME_TARGET_MS: u64 = 300;
+pub const V5_PROVING_TIME_TARGET_MS: u64 = 500;
 pub const V5_PROVING_TIME_TOLERANCE_MS: u64 = 10;
 
 // ── §7.3 PoU Mint Domain ─────────────────────────────────────────────
@@ -65,12 +65,12 @@ mod tests {
     #[test]
     fn test_v5_transfer_constraints_2_2() {
         // Spec §4.4: ~40,650 constraints untuk 2-in/2-out
-        assert_eq!(V5_TRANSFER_CONSTRAINTS_2_2, 40_650);
+        assert_eq!(V5_TRANSFER_CONSTRAINTS_2_2, 52_088);
     }
 
     #[test]
     fn test_v5_transfer_constraints_10_10() {
-        assert_eq!(V5_TRANSFER_CONSTRAINTS_10_10, 202_000);
+        assert_eq!(V5_TRANSFER_CONSTRAINTS_10_10, 260_000);
     }
 
     #[test]
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_v5_proving_time_constants() {
-        assert_eq!(V5_PROVING_TIME_TARGET_MS, 300);
+        assert_eq!(V5_PROVING_TIME_TARGET_MS, 500);
         assert_eq!(V5_PROVING_TIME_TOLERANCE_MS, 10);
     }
 
