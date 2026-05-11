@@ -2,9 +2,10 @@
 
 use std::collections::BTreeMap;
 
-pub const CURRENT_VERSION: u8 = 0x01;
-/// T_TRANSITION_EPOCHS = 2 epoch (60 hari). Spec §2.6.
-pub const TRANSITION_WINDOW_EPOCHS: u64 = 2;
+/// CRYPTO_VERSION_CURRENT = 0x03. OSSIFIED — spec §2.4.
+pub const CURRENT_VERSION: u8 = 0x03;
+/// T_TRANSITION_EPOCHS = 4 epoch. OSSIFIED — spec §2.4.
+pub const TRANSITION_WINDOW_EPOCHS: u64 = 4;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CryptoVersion {
@@ -42,7 +43,7 @@ impl CryptoRegistry {
 
     /// Menambahkan versi kriptografi baru.
     /// Versi lama diberi deprecation_epoch = activation_epoch_baru + TRANSITION_WINDOW_EPOCHS.
-    /// Spec §2.6: selama T_TRANSITION_EPOCHS = 2 epoch, kedua versi valid.
+    /// Spec §2.4: selama T_TRANSITION_EPOCHS = 4 epoch, kedua versi valid.
     pub fn add_version(&mut self, id: u8, activation_epoch: u64) -> Result<(), &'static str> {
         let latest_id = self.versions.keys().last().copied().unwrap_or(0);
 
@@ -106,14 +107,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_current_version_is_0x01() {
-        assert_eq!(CURRENT_VERSION, 0x01);
+    fn test_current_version_is_0x03() {
+        // OSSIFIED — spec §2.4: CRYPTO_VERSION_CURRENT = 0x03.
+        assert_eq!(CURRENT_VERSION, 0x03);
     }
 
     #[test]
-    fn test_transition_window_is_2_epochs() {
-        // Spec §2.6: T_TRANSITION_EPOCHS = 2 epoch (60 hari)
-        assert_eq!(TRANSITION_WINDOW_EPOCHS, 2);
+    fn test_transition_window_is_4_epochs() {
+        // OSSIFIED — spec §2.4: T_TRANSITION_EPOCHS = 4 epoch.
+        assert_eq!(TRANSITION_WINDOW_EPOCHS, 4);
     }
 
     #[test]
@@ -145,31 +147,31 @@ mod tests {
 
     #[test]
     fn test_transition_window_both_versions_valid() {
-        // Spec §2.6: T_TRANSITION_EPOCHS = 2
+        // Spec §2.4: T_TRANSITION_EPOCHS = 4
         // Skenario: versi 0x02 aktif di epoch 20
-        // deprecation 0x01 = 20 + 2 = epoch 22
-        // Pada epoch 21: keduanya valid (masih dalam window 2 epoch)
-        // Pada epoch 23: 0x01 sudah deprecated
+        // deprecation 0x01 = 20 + 4 = epoch 24
+        // Pada epoch 22: keduanya valid (masih dalam window 4 epoch)
+        // Pada epoch 25: 0x01 sudah deprecated
         let mut registry = CryptoRegistry::new(0);
         registry.add_version(0x02, 20).unwrap();
 
-        // Dalam window transisi (epoch 21 — sebelum deprecation epoch 22)
+        // Dalam window transisi (epoch 22 < deprecation epoch 24)
         assert!(
-            registry.is_valid_at(0x01, 21),
-            "v0x01 harus valid dalam window transisi (epoch 21 < dep 22)"
+            registry.is_valid_at(0x01, 22),
+            "v0x01 harus valid dalam window transisi (epoch 22 < dep 24)"
         );
         assert!(
-            registry.is_valid_at(0x02, 21),
-            "v0x02 harus valid setelah activation (epoch 21 >= 20)"
+            registry.is_valid_at(0x02, 22),
+            "v0x02 harus valid setelah activation (epoch 22 >= 20)"
         );
 
-        // Setelah window selesai (epoch 23 > deprecation epoch 22)
+        // Setelah window selesai (epoch 25 > deprecation epoch 24)
         assert!(
-            !registry.is_valid_at(0x01, 23),
-            "v0x01 harus deprecated setelah epoch 22"
+            !registry.is_valid_at(0x01, 25),
+            "v0x01 harus deprecated setelah epoch 24"
         );
         assert!(
-            registry.is_valid_at(0x02, 23),
+            registry.is_valid_at(0x02, 25),
             "v0x02 tetap valid setelah transisi"
         );
     }
@@ -182,25 +184,25 @@ mod tests {
         assert!(registry.verify_proof_version(0x02).is_err());
 
         // Tambah v0x02 aktif di epoch 10
-        // deprecation v0x01 = 10 + 2 = epoch 12
+        // deprecation v0x01 = 10 + 4 = epoch 14
         registry.add_version(0x02, 10).unwrap();
 
-        // Di epoch 11: keduanya valid (11 < 12)
-        registry.set_current_epoch(11);
+        // Di epoch 12: keduanya valid (12 < 14)
+        registry.set_current_epoch(12);
         assert!(
             registry.verify_proof_version(0x01).is_ok(),
-            "v0x01 masih valid di epoch 11 (dep=12)"
+            "v0x01 masih valid di epoch 12 (dep=14)"
         );
         assert!(
             registry.verify_proof_version(0x02).is_ok(),
             "v0x02 valid setelah activation epoch 10"
         );
 
-        // Di epoch 13: v0x01 sudah deprecated (13 > 12)
-        registry.set_current_epoch(13);
+        // Di epoch 15: v0x01 sudah deprecated (15 > 14)
+        registry.set_current_epoch(15);
         assert!(
             registry.verify_proof_version(0x01).is_err(),
-            "v0x01 harus deprecated di epoch 13"
+            "v0x01 harus deprecated di epoch 15"
         );
         assert!(
             registry.verify_proof_version(0x02).is_ok(),
