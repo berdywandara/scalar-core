@@ -6,10 +6,19 @@
 fn test_domain_separators_all_unique() {
     use scalar_crypto::domain::*;
     let domains: Vec<&[u8]> = vec![
-        DOMAIN_NULLIFIER, DOMAIN_UTXO_COMMITMENT, DOMAIN_SALT,
-        DOMAIN_SEED, DOMAIN_NMT, DOMAIN_NODE_SHORT, DOMAIN_ANCHOR,
-        DOMAIN_VOTE, DOMAIN_GENESIS_BOOTSTRAP, DOMAIN_STARK_FS,
-        DOMAIN_CHECKPOINT_FS, DOMAIN_BEACON, DOMAIN_SEED_KDF,
+        DOMAIN_NULLIFIER,
+        DOMAIN_UTXO_COMMITMENT,
+        DOMAIN_SALT,
+        DOMAIN_SEED,
+        DOMAIN_NMT,
+        DOMAIN_NODE_SHORT,
+        DOMAIN_ANCHOR,
+        DOMAIN_VOTE,
+        DOMAIN_GENESIS_BOOTSTRAP,
+        DOMAIN_STARK_FS,
+        DOMAIN_CHECKPOINT_FS,
+        DOMAIN_BEACON,
+        DOMAIN_SEED_KDF,
         DOMAIN_TX_ORDER,
     ];
     let mut seen = std::collections::HashSet::new();
@@ -64,13 +73,23 @@ fn test_supply_cap_never_exceeded() {
 fn test_emission_monotonically_decreasing() {
     use scalar_emission::accumulator::{EmissionAccumulator, S_E_SSCL};
     let mut prev_emission = u64::MAX;
-    let steps = [0, S_E_SSCL/10, S_E_SSCL/4, S_E_SSCL/2, S_E_SSCL*3/4];
+    let steps = [
+        0,
+        S_E_SSCL / 10,
+        S_E_SSCL / 4,
+        S_E_SSCL / 2,
+        S_E_SSCL * 3 / 4,
+    ];
     for &minted in &steps {
         let mut acc = EmissionAccumulator::new();
         acc.total_minted = minted;
         let emission = acc.emission_this_epoch();
-        assert!(emission <= prev_emission,
-            "Emission harus monoton menurun: {} > {}", emission, prev_emission);
+        assert!(
+            emission <= prev_emission,
+            "Emission harus monoton menurun: {} > {}",
+            emission,
+            prev_emission
+        );
         prev_emission = emission;
     }
 }
@@ -79,19 +98,22 @@ fn test_emission_monotonically_decreasing() {
 #[test]
 fn test_nmt_hybrid_peer_count() {
     use scalar_network::nmt_hybrid::{
-        NMT_PEER_COUNT_V12, NMT_DETERMINISTIC_SLOTS, NMT_RANDOM_SLOTS
+        NMT_DETERMINISTIC_SLOTS, NMT_PEER_COUNT_V12, NMT_RANDOM_SLOTS,
     };
     assert_eq!(NMT_PEER_COUNT_V12, 24);
     assert_eq!(NMT_DETERMINISTIC_SLOTS, 23);
     assert_eq!(NMT_RANDOM_SLOTS, 1);
-    assert_eq!(NMT_DETERMINISTIC_SLOTS + NMT_RANDOM_SLOTS, NMT_PEER_COUNT_V12);
+    assert_eq!(
+        NMT_DETERMINISTIC_SLOTS + NMT_RANDOM_SLOTS,
+        NMT_PEER_COUNT_V12
+    );
 }
 
 /// Test 7: SLH-DSA-SHAKE-128s key sizes
 #[test]
 fn test_slh_dsa_shake128s_key_sizes() {
     use scalar_crypto::sphincs::{
-        generate_keypair, sign_message, SPHINCS_PK_BYTES, SPHINCS_SK_BYTES, SPHINCS_SIG_BYTES
+        generate_keypair, sign_message, SPHINCS_PK_BYTES, SPHINCS_SIG_BYTES, SPHINCS_SK_BYTES,
     };
     let kp = generate_keypair().unwrap();
     assert_eq!(kp.public.len(), SPHINCS_PK_BYTES, "PK harus 32 bytes");

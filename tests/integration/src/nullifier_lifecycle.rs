@@ -42,7 +42,7 @@ fn test_zero_gap_property_enforced() {
 /// Test 5: NS_WARM hash functions = 33, NS_COLD = 50
 #[test]
 fn test_bloom_filter_hash_functions() {
-    use scalar_nullifier::bloom::{NS_WARM_HASH_FUNCTIONS, NS_COLD_HASH_FUNCTIONS};
+    use scalar_nullifier::bloom::{NS_COLD_HASH_FUNCTIONS, NS_WARM_HASH_FUNCTIONS};
     assert_eq!(NS_WARM_HASH_FUNCTIONS, 33, "NS_WARM k=33 per spec §6.3");
     assert_eq!(NS_COLD_HASH_FUNCTIONS, 50, "NS_COLD k=50 per spec §6.4");
 }

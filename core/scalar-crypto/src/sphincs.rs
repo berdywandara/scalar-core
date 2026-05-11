@@ -136,7 +136,10 @@ mod tests {
         // Spec §2.4: sign_message harus melakukan post-sign verify.
         let kp = generate_keypair().unwrap();
         let result = sign_message(b"post-sign fault detection test", &kp.secret);
-        assert!(result.is_ok(), "Post-sign verify harus lolos untuk key valid");
+        assert!(
+            result.is_ok(),
+            "Post-sign verify harus lolos untuk key valid"
+        );
     }
 
     #[test]
@@ -168,7 +171,10 @@ mod tests {
         // Spec §2.1: PK dari SK harus identik dengan PK asli.
         let kp = generate_keypair().unwrap();
         let derived_pk = public_key_from_secret(&kp.secret).unwrap();
-        assert_eq!(derived_pk, kp.public, "PK dari SK harus sama dengan PK asli");
+        assert_eq!(
+            derived_pk, kp.public,
+            "PK dari SK harus sama dengan PK asli"
+        );
     }
 
     #[test]
