@@ -1,259 +1,237 @@
 # Contributing to Scalar Network
 
-Scalar is leaderless by design. There is no company, no foundation, no benevolent dictator. The specification is the authority. Code is law. Contributions are welcome from anyone who understands and respects these principles.
+Thank you for your interest in contributing to Scalar Network.  
+This guide explains how contributions are structured and what we expect.
+
+**Specification authority:** `Scalar_Master_Technical_Spec_v11.1-FINAL` (2026-07-15).  
+If there is any conflict between this guide and the specification, the specification takes precedence.
 
 ---
 
-## Before You Contribute
+## Table of Contents
 
-Read and internalize two documents:
-
-1. **`Scalar_Master_Technical_Spec_v9.0`** — the single source of truth for all protocol decisions. If your contribution conflicts with the spec, the spec wins. No exceptions.
-2. **`README.md`** — architecture overview and build instructions.
-
-If the spec is unclear on something, that is a documentation issue worth raising. If you disagree with the spec, that is a governance matter — not a pull request.
-
----
-
-## Four Principles That Cannot Be Compromised
-
-Every contribution must preserve these without exception:
-
-1. **No Blockchain** — no blocks, no chain, no leader election, no block producer
-2. **Privacy by Default** — value, sender identity, and receiver identity are always private
-3. **Mathematical Truth** — validity is determined by STARK proof verification, not by majority vote
-4. **Leaderless Design** — no privileged actors, no founder allocation, no special cases
-
-A pull request that violates any of these four principles will not be merged regardless of technical quality.
+- [Code of Conduct](#code-of-conduct)
+- [Before You Start](#before-you-start)
+- [Development Environment](#development-environment)
+- [Contribution Types](#contribution-types)
+- [Pull Request Process](#pull-request-process)
+- [Coding Standards](#coding-standards)
+- [Cryptographic Implementation Rules](#cryptographic-implementation-rules)
+- [Test Requirements](#test-requirements)
+- [OSSIFIED Parameters — Do Not Change](#ossified-parameters--do-not-change)
+- [Commit Message Format](#commit-message-format)
+- [Review Process](#review-process)
 
 ---
 
-## What Contributions Are Welcome
+## Code of Conduct
 
-### Always Welcome
-- Bug fixes with reproduction steps and tests
-- New tests that improve coverage of existing behavior
-- Performance improvements that do not change protocol semantics
-- Documentation improvements that increase clarity without changing meaning
-- Tooling improvements (CI, build scripts, developer experience)
-
-### Welcome With Discussion First
-- New features that extend protocol capabilities
-- Changes to existing behavior in any crate
-- New crates or major restructuring
-- Dependency additions or upgrades
-
-Open an issue before starting significant work. This prevents wasted effort if the direction is wrong.
-
-### Not Welcome
-- Changes that introduce floating-point arithmetic anywhere (all calculations must be integer fixed-point)
-- Changes that weaken privacy guarantees
-- Changes that bypass the NullifierSet or STARK verification
-- Changes that add trusted parties, oracles, or privileged roles
-- Changes to ossified Layer 1 parameters without a formal spec change and governance process
-- Code that is not covered by tests
+Be respectful. Focus on technical merit. Keep discussions on-topic.  
+Security vulnerabilities must be reported privately — see [SECURITY.md](./SECURITY.md).
 
 ---
 
-## Definition of Done
+## Before You Start
 
-Every pull request must satisfy all five conditions before merge:
-
-```
-1. cargo test --workspace        → 0 FAILED
-2. cargo clippy --workspace      → 0 warnings (with -D warnings)
-3. cargo fmt --all -- --check    → 0 diff
-4. Spec compliance               → constants and behavior match spec v9.0
-5. Tests added                   → new code has test coverage
-```
-
-No exceptions. CI enforces conditions 1–3 automatically.
+1. **Read the specification.** The master technical specification is the single source of truth. All implementation decisions flow from it.
+2. **Check existing issues and pull requests.** Your idea may already be in progress.
+3. **Open an issue first** for non-trivial changes (new features, architectural modifications, changes to any crate in the protocol dependency chain). This avoids wasted effort.
+4. **Never change OSSIFIED parameters** (see the section below) without a formal governance process.
 
 ---
 
-## Development Setup
-
-### Prerequisites
-
-- Rust stable (currently 1.95.0)
-- GCC (for `pqcrypto-sphincsplus` C compilation)
-
-### Clone and Build
+## Development Environment
 
 ```bash
-git clone https://github.com/berdywandara/scalar-core.git
+# Requirements
+# - Rust 1.82+ (via rustup)
+# - System: Linux or macOS recommended; Windows via WSL2
+
+# Clone
+git clone https://github.com/berdywandara/scalar-core
 cd scalar-core
-cargo build --workspace
+
+# Check compilation (no errors expected, warnings only)
+cargo check
+
+# Run tests
 cargo test --workspace
-# Expected: 965 passed, 0 failed
-```
 
-### Alpine Linux / musl Note
+# Run with production feature flag (required for mainnet binary)
+cargo build --release --features production
 
-If you are on Alpine Linux or a musl-based system, `pqcrypto-sphincsplus` requires a GCC compatibility shim:
+# Format
+cargo fmt --all
 
-```bash
-cat > /tmp/cc-wrapper.sh << 'EOF'
-#!/bin/sh
-exec gcc "-D__GNUC_PREREQ(x,y)=0" "$@"
-EOF
-chmod +x /tmp/cc-wrapper.sh
-export CC=/tmp/cc-wrapper.sh
-```
-
-Add this export to your shell profile to make it persistent.
-
-### Running Specific Tests
-
-```bash
-# Single crate
-cargo test -p scalar-network
-
-# Single test module
-cargo test -p scalar-network -- eclipse
-
-# With output
-cargo test -p scalar-nullifier -- --nocapture
+# Lint
+cargo clippy --workspace -- -D warnings
 ```
 
 ---
 
-## Code Standards
+## Contribution Types
 
-### No Floating Point
+### Protocol Crates (`scalar-crypto`, `scalar-nullifier`, `scalar-stark`, `scalar-consensus`, `scalar-emission`)
 
-All arithmetic must use integer fixed-point with basis `1_000_000`. This is a hard requirement for cross-platform determinism.
+Highest bar. Any change here must:
+- Be fully traceable to a section of the specification
+- Include test vectors from `docs/TEST_VECTORS.md` or add new ones
+- Be reviewed by at least two maintainers
+- Not alter any OSSIFIED parameter
 
-```rust
-// WRONG
-let ratio: f64 = minted as f64 / supply as f64;
+### Network Crate (`scalar-network`)
 
-// CORRECT
-let ratio_fp: u64 = (minted * 1_000_000) / supply;
-```
+Changes to gossip, transport selection, Dandelion++ parameters, or NMT peer logic require specification references. Eclipse defense properties must not be weakened.
 
-### Hash Usage
+### Node Binary (`scalar-node`)
 
-Follow the hash rules from spec §2.1.3 strictly:
+RPC endpoints and state machine transitions. Must not bypass any protocol invariant.
 
-| Context | Hash |
-|---|---|
-| In-circuit (commitments, nullifiers, Merkle paths) | Poseidon2 only |
-| Out-circuit (NodeID, state hash, connectivity proof) | BLAKE3 only |
+### SDK and Audit (`scalar-sdk`, `scalar-audit`)
 
-Mixing these is a protocol violation that breaks soundness.
+Read-only and utility code. Must not import protocol crates directly (boundary enforced). Preferred contribution area for ecosystem developers.
 
-### Constants Must Match Spec
+### Documentation (`docs/`, `README.md`, `SECURITY.md`, `CONTRIBUTING.md`)
 
-Every ossified constant must reference its spec section in a comment:
+Very welcome. Accuracy over brevity. Specification section references (`§X.Y`) are mandatory for any technical claim.
 
-```rust
-/// Maximum gossip fanout. OSSIFIED. Spec §12.3.
-pub const MAX_FANOUT: usize = 15;
-```
+### Tools (`tools/`)
 
-If you add a new constant, include its spec reference and add a compliance test in `scalar-compliance/src/v9_parameters.rs`.
-
-### Zeroize Sensitive Data
-
-Any struct holding private key material must implement `Zeroize` and `ZeroizeOnDrop`:
-
-```rust
-#[derive(Zeroize, ZeroizeOnDrop)]
-pub struct SensitiveKey {
-    pub bytes: [u8; 32],
-}
-```
-
-### Error Handling
-
-Use `Result` with descriptive error types. Do not use `unwrap()` or `expect()` in production code paths. `unwrap()` is acceptable in tests.
+Genesis tool and circuit benchmarks. Changes here do not affect live protocol.
 
 ---
 
 ## Pull Request Process
 
-1. **Fork** the repository and create a branch from `main`
-2. **Name your branch** descriptively: `feat/pr-cs-16-genesis-cli`, `fix/bloom-false-positive-edge-case`
-3. **Write tests** before or alongside your implementation
-4. **Run the full check suite** locally before pushing:
-   ```bash
-   cargo test --workspace && \
-   cargo clippy --workspace -- -D warnings && \
-   cargo fmt --all -- --check
-   ```
-5. **Write a clear commit message** following the existing convention:
-   ```
-   feat(PR-CS-16): Genesis Ceremony CLI — BLAKE3 hash, verify, spec §12.8
-   fix(scalar-nullifier): bloom filter edge case at exact capacity
-   docs: update CONTRIBUTING.md
-   ```
-6. **Open the pull request** with a description that explains:
-   - What the change does
-   - Which spec section it implements or references
-   - How to test it manually if relevant
+1. Fork the repository and create a branch: `git checkout -b feat/your-description`
+2. Make your changes following the coding standards below
+3. Add or update tests (see Test Requirements)
+4. Run `cargo fmt --all && cargo clippy --workspace -- -D warnings && cargo test --workspace`
+5. Open a pull request with:
+   - **Title:** concise, imperative (`Add CC invariant test for NS_CHECKPOINT boundary`)
+   - **Body:** problem, solution, specification reference (`§X.Y`), test coverage description
+6. Link related issues
+7. Do not merge your own PR; wait for reviewer approval
 
-### Commit Message Format
+---
+
+## Coding Standards
+
+- **Language:** Rust (edition 2021). Stable toolchain only.
+- **No `unsafe`** in protocol crates without explicit justification and reviewer sign-off.
+- **No `unwrap()` or `expect()`** in library code; propagate errors with `Result`.
+- **All public items** must have doc comments with specification references where applicable.
+- **Constant-time operations:** Any code that branches on secret data must use constant-time primitives. This is mandatory for Argon2id, key derivation, and nullifier comparison. See §13.2.
+- **Feature flags:** Production-specific code goes behind `#[cfg(feature = "production")]`. A compile-time error must fire if a mainnet binary is built without this flag (§10.2).
+
+```rust
+// Good — doc comment with spec reference
+/// Derives the UTXO commitment per the unified schema.
+/// Spec: §3.4, §4.3 (CA constraint)
+pub fn compute_commitment(params: &CommitmentParams) -> FieldElement { ... }
+
+// Bad — no spec reference, no error handling
+pub fn commitment(v: u64, pk: &[u8]) -> [u8; 32] {
+    poseidon2_hash(&[v, ...]).unwrap()
+}
+```
+
+---
+
+## Cryptographic Implementation Rules
+
+These rules are non-negotiable:
+
+1. **Poseidon2 is for in-circuit only.** BLAKE3 for all out-of-circuit operations. Never swap them.
+2. **Domain separators are OSSIFIED.** Never modify, abbreviate, or reuse a domain separator for a different context. See §2.3.
+3. **Argon2id implementations must be constant-time.** Execution time variance must be < ±1%. See §13.2.
+4. **SLH-DSA signature verification** must use NIST FIPS 205 test vectors for regression.
+5. **STARK parameters** (FRI blowup=8, queries=84, grinding=20, folding=4) must not be changed. Any change requires a governance fork.
+6. **UTXO ordering** must use `tx_ordering_key = BLAKE3(DOMAIN_TX_ORDER ‖ tx_hash ‖ epoch_id)`. No alternative ordering is permitted. See §8.5.
+7. **All integer serialization** is little-endian in wire format, big-endian in documentation. See §8.3 (S3).
+8. **NullifierSet checkpoint** must use WAL with atomic commit. Zero-Gap Property must be maintained. See §6.3.
+
+---
+
+## Test Requirements
+
+| Contribution Area | Minimum Test Requirement |
+|---|---|
+| Protocol crate (crypto, stark, nullifier) | Unit tests + test vectors from `docs/TEST_VECTORS.md` |
+| Consensus / DMM | Unit test for BuildDMM with: normal case, partial anchor data, no quorum |
+| NullifierSet | Checkpoint WAL crash-recovery test; CC dual non-membership boundary test |
+| UTXO ordering | Determinism test: two nodes with same tx set must produce identical `utxo_set_root` |
+| Network | Eclipse defense: NMT peer diversity constraints enforced |
+| Wallet key derivation | SCL-SPEC-SEED-001 test vector (two independent implementations must match) |
+| Governance | Tier C governance power cap (200,000 fp) enforced |
+
+For new cryptographic test vectors, add entries to `docs/TEST_VECTORS.md` following the existing format (section B.3–B.8).
+
+---
+
+## OSSIFIED Parameters — Do Not Change
+
+The following values are embedded in circuit constraints and cannot be changed without a hard fork governed by the formal governance process. PRs touching these values will be rejected:
 
 ```
-type(scope): short description — spec reference if applicable
-
-type:  feat | fix | docs | test | refactor | chore
-scope: crate name or PR ID (e.g., scalar-network, PR-CS-16)
+S_MAX, S_E, S_R                  — supply caps
+E₀, E_TAIL                       — emission constants
+FRI blowup factor = 8
+FRI queries = 84
+Grinding bits = 20
+Folding factor = 4
+CRYPTO_VERSION_CURRENT = 0x03
+SPEC_VERSION_MANIFEST = 0x06
+All domain separator byte strings  — see §2.3
+UTXO denominations D1–D17
+Argon2id wallet parameters (64 MB / 3 / 1)
 ```
 
 ---
 
-## Spec Conflicts
+## Commit Message Format
 
-If your implementation requires behavior that conflicts with the spec:
+```
+<type>(<scope>): <short summary>
 
-1. **Do not merge the conflicting code.** The spec wins.
-2. **Open an issue** describing the conflict with a precise reference to the spec section.
-3. **If the spec is wrong**, propose a spec amendment through the governance process described in spec §11.
-4. **If the spec is ambiguous**, open an issue for clarification before proceeding.
+[Optional body — explain WHY, reference spec section]
 
-The spec is the authority. Code that disagrees with the spec is a bug, even if the code is technically correct in isolation.
+Spec: §X.Y
+Fixes #<issue>
+```
 
----
+Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `security`  
+Scopes: `crypto`, `nullifier`, `stark`, `network`, `consensus`, `emission`, `node`, `wallet`, `sdk`, `audit`, `governance`, `docs`
 
-## Layer 1 Ossified Parameters
+Examples:
+```
+feat(consensus): implement BuildDMM secure bootstrapping
 
-The following parameters are ossified and **cannot be changed by a pull request** under any circumstances. They require a formal governance fork process per spec §11.7:
+Adds prasyarat verification: DMM is only built when the node holds a
+locally-verified committed_manifest(k-1). Nodes without a valid prior
+manifest cannot participate in DMM.
 
-- Goldilocks prime (2⁶⁴ - 2³² + 1)
-- Poseidon2 parameters (t=4, d=7, RF=8, RP=22)
-- Supply cap (21,000,000 SCL)
-- PoU pool (18,900,000 SCL)
-- E₀ (126,000 SCL/epoch)
-- FLOOR_MIN_ABSOLUTE (40 sSCL)
-- MAX_IO per transaction (10/10)
-- MAX_FANOUT (15)
-- STARK soundness target (ε ≈ 2⁻⁶¹⁴⁴)
-- Multi-client STARK mandate (2 independent implementations)
-- Fee burn (0%)
-- Conflict resolution method (67% network consensus)
+Spec: §8.2
+Fixes #42
 
-A pull request modifying any of these values will be rejected immediately.
+fix(nullifier): enforce Zero-Gap Property in WAL checkpoint
 
----
+Ensures that NS_ACTIVE entries are only deleted after NS_CHECKPOINT
+proof is verified and committed atomically.
 
-## Security Vulnerabilities
-
-**Do not open a public issue for security vulnerabilities.**
-
-Follow the responsible disclosure process described in `SECURITY.md`.
+Spec: §6.3
+```
 
 ---
 
-## Recognition
+## Review Process
 
-Contributors are listed in `AUTHORS.md`. All contributions that are merged are credited. Security researchers who report valid vulnerabilities are listed under a dedicated section in `AUTHORS.md` with their permission.
+- All PRs require at least **one approval** from a maintainer.
+- Protocol crate PRs require **two approvals**.
+- Security-sensitive PRs (nullifier, STARK constraints, key derivation) require **two approvals plus explicit acknowledgement of the relevant spec invariant**.
+- CI must pass: `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test --workspace`.
+- Reviewers will check: spec alignment, constant-time safety, domain separator correctness, test coverage, OSSIFIED parameter preservation.
 
 ---
 
-## Questions
-
-If you are unsure whether a contribution is appropriate, open an issue and ask before investing significant time. It is better to discuss direction early than to build something that cannot be merged.
-
-> *Scalar is built on the principle that mathematical truth does not require consensus. The same applies to good code: it either satisfies the specification or it does not. There is no middle ground.*
+*Last updated: 2026-07-15 — aligned with Scalar_Master_Technical_Spec_v11.1-FINAL*
