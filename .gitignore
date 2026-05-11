@@ -2,3 +2,8 @@
 **/*.rs.bk
 Cargo.lock
 genesis.bin
+founder_sk.bin
+founder_pk.bin
+genesis_hash.txt
+genesis.bin
+founder_pk.hex
