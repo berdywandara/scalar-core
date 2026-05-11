@@ -4,6 +4,7 @@ members = [
     "core/*",
     "client/*",
     "tools/*",
+    "tests/integration",
 ]
 
 resolver = "2"
