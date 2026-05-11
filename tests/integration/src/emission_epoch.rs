@@ -5,7 +5,10 @@
 #[test]
 fn test_e0_value() {
     use scalar_emission::accumulator::E0_SSCL;
-    assert_eq!(E0_SSCL, 12_600_000_000_000u64, "E0 = 126,000 SCL per spec §7.1");
+    assert_eq!(
+        E0_SSCL, 12_600_000_000_000u64,
+        "E0 = 126,000 SCL per spec §7.1"
+    );
 }
 
 /// Test 2: S_E = 18,900,000 SCL
@@ -28,14 +31,21 @@ fn test_emission_zero_at_cap() {
     use scalar_emission::accumulator::{EmissionAccumulator, S_E_SSCL};
     let mut acc = EmissionAccumulator::new();
     acc.total_minted = S_E_SSCL;
-    assert_eq!(acc.emission_this_epoch(), 0, "Emission harus 0 saat pool habis");
+    assert_eq!(
+        acc.emission_this_epoch(),
+        0,
+        "Emission harus 0 saat pool habis"
+    );
 }
 
 /// Test 5: Heartbeat per epoch = 4,320
 #[test]
 fn test_heartbeats_per_epoch() {
     use scalar_emission::liveness::EXPECTED_HEARTBEATS_PER_EPOCH;
-    assert_eq!(EXPECTED_HEARTBEATS_PER_EPOCH, 4_320u32, "4320 HB/epoch per spec §7.2");
+    assert_eq!(
+        EXPECTED_HEARTBEATS_PER_EPOCH, 4_320u32,
+        "4320 HB/epoch per spec §7.2"
+    );
 }
 
 /// Test 6: W_MATURE_EPOCHS = 6
@@ -48,8 +58,11 @@ fn test_w_mature_epochs() {
 /// Test 7: Deferred pool max release = 10% E0
 #[test]
 fn test_deferred_pool_max_release() {
-    use scalar_emission::formal::DEFERRED_POOL_MAX_RELEASE;
     use scalar_emission::accumulator::E0_SSCL;
-    assert_eq!(DEFERRED_POOL_MAX_RELEASE, E0_SSCL / 10,
-        "Max release = 10% E0 per spec §15.5");
+    use scalar_emission::formal::DEFERRED_POOL_MAX_RELEASE;
+    assert_eq!(
+        DEFERRED_POOL_MAX_RELEASE,
+        E0_SSCL / 10,
+        "Max release = 10% E0 per spec §15.5"
+    );
 }

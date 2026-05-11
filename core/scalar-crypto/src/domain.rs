@@ -161,15 +161,28 @@ mod tests {
     fn test_all_domains_unique() {
         // Semua domain separator harus unik. Spec §2.3.
         let domains: Vec<&[u8]> = vec![
-            DOMAIN_NULLIFIER, DOMAIN_UTXO_COMMITMENT, DOMAIN_SALT,
-            DOMAIN_SEED, DOMAIN_NMT, DOMAIN_NODE_SHORT, DOMAIN_ANCHOR,
-            DOMAIN_VOTE, DOMAIN_GENESIS_BOOTSTRAP, DOMAIN_STARK_FS,
-            DOMAIN_CHECKPOINT_FS, DOMAIN_BEACON, DOMAIN_SEED_KDF,
+            DOMAIN_NULLIFIER,
+            DOMAIN_UTXO_COMMITMENT,
+            DOMAIN_SALT,
+            DOMAIN_SEED,
+            DOMAIN_NMT,
+            DOMAIN_NODE_SHORT,
+            DOMAIN_ANCHOR,
+            DOMAIN_VOTE,
+            DOMAIN_GENESIS_BOOTSTRAP,
+            DOMAIN_STARK_FS,
+            DOMAIN_CHECKPOINT_FS,
+            DOMAIN_BEACON,
+            DOMAIN_SEED_KDF,
             DOMAIN_TX_ORDER,
         ];
         let mut seen = std::collections::HashSet::new();
         for d in &domains {
-            assert!(seen.insert(*d), "Domain separator duplikat ditemukan: {:?}", d);
+            assert!(
+                seen.insert(*d),
+                "Domain separator duplikat ditemukan: {:?}",
+                d
+            );
         }
     }
 }

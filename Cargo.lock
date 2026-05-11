@@ -2686,6 +2686,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "scalar-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "scalar-crypto",
+ "scalar-emission",
+ "scalar-fees",
+ "scalar-network",
+ "scalar-nullifier",
+]
+
+[[package]]
 name = "scalar-network"
 version = "0.1.0"
 dependencies = [
@@ -2744,6 +2755,17 @@ dependencies = [
  "scalar-crypto",
  "scalar-fees",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "scalar-spec-compliance"
+version = "0.1.0"
+dependencies = [
+ "scalar-crypto",
+ "scalar-emission",
+ "scalar-fees",
+ "scalar-network",
+ "scalar-nullifier",
 ]
 
 [[package]]

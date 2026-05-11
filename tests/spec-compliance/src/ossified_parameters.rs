@@ -5,17 +5,26 @@
 
 #[test]
 fn compliance_s_max() {
-    assert_eq!(scalar_emission::accumulator::S_MAX_SSCL, 2_100_000_000_000_000u64);
+    assert_eq!(
+        scalar_emission::accumulator::S_MAX_SSCL,
+        2_100_000_000_000_000u64
+    );
 }
 
 #[test]
 fn compliance_s_e() {
-    assert_eq!(scalar_emission::accumulator::S_E_SSCL, 1_890_000_000_000_000u64);
+    assert_eq!(
+        scalar_emission::accumulator::S_E_SSCL,
+        1_890_000_000_000_000u64
+    );
 }
 
 #[test]
 fn compliance_s_r() {
-    assert_eq!(scalar_emission::accumulator::S_R_SSCL, 210_000_000_000_000u64);
+    assert_eq!(
+        scalar_emission::accumulator::S_R_SSCL,
+        210_000_000_000_000u64
+    );
 }
 
 #[test]
@@ -25,7 +34,10 @@ fn compliance_e0() {
 
 #[test]
 fn compliance_e_tail() {
-    assert_eq!(scalar_emission::accumulator::E_TAIL_SSCL, 100_000_000_000u64);
+    assert_eq!(
+        scalar_emission::accumulator::E_TAIL_SSCL,
+        100_000_000_000u64
+    );
 }
 
 // ── §2.4 Crypto Version ───────────────────────────────────────────────────────
@@ -61,7 +73,10 @@ fn compliance_sphincs_sig_bytes() {
 
 #[test]
 fn compliance_heartbeats_per_epoch() {
-    assert_eq!(scalar_emission::liveness::EXPECTED_HEARTBEATS_PER_EPOCH, 4_320u32);
+    assert_eq!(
+        scalar_emission::liveness::EXPECTED_HEARTBEATS_PER_EPOCH,
+        4_320u32
+    );
 }
 
 #[test]
@@ -89,8 +104,8 @@ fn compliance_fee_security_fund_percent() {
 #[test]
 fn compliance_fee_split_sums_100() {
     assert_eq!(
-        scalar_fees::distribution::FEE_NODE_POOL_PERCENT +
-        scalar_fees::distribution::FEE_SECURITY_FUND_PERCENT,
+        scalar_fees::distribution::FEE_NODE_POOL_PERCENT
+            + scalar_fees::distribution::FEE_SECURITY_FUND_PERCENT,
         100u64
     );
 }
@@ -109,7 +124,10 @@ fn compliance_ns_cold_k() {
 
 #[test]
 fn compliance_cold_promotion_threshold() {
-    assert_eq!(scalar_nullifier::hierarchical::COLD_PROMOTION_EPOCH_THRESHOLD, 12u64);
+    assert_eq!(
+        scalar_nullifier::hierarchical::COLD_PROMOTION_EPOCH_THRESHOLD,
+        12u64
+    );
 }
 
 // ── §12.3 NMT ────────────────────────────────────────────────────────────────
