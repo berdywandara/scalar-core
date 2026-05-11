@@ -1,5 +1,5 @@
 [package]
-name = "scalar-compliance-fuzz"
+name = "scalar-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2021"
@@ -9,23 +9,44 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-
-[dependencies.scalar-compliance]
-path = ".."
+blake3 = "1.5"
 
 [dependencies.scalar-emission]
-path = "../crates/scalar-emission"
+path = "../core/scalar-emission"
+
+[dependencies.scalar-crypto]
+path = "../core/scalar-crypto"
+
+[dependencies.scalar-fees]
+path = "../core/scalar-fees"
+
+[dependencies.scalar-nullifier]
+path = "../core/scalar-nullifier"
 
 [[bin]]
-name = "fuzz_target_1"
-path = "fuzz_targets/fuzz_target_1.rs"
+name = "fuzz_canonical_serialization"
+path = "fuzz_targets/fuzz_canonical_serialization.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "fuzz_canonical_serialization"
-path = "fuzz_targets/fuzz_canonical_serialization.rs"
+name = "fuzz_fee_floor"
+path = "fuzz_targets/fuzz_fee_floor.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_nullifier_cc"
+path = "fuzz_targets/fuzz_nullifier_cc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_emission_formula"
+path = "fuzz_targets/fuzz_emission_formula.rs"
 test = false
 doc = false
 bench = false
