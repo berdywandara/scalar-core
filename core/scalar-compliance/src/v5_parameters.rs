@@ -113,7 +113,7 @@ mod tests {
 
 #[cfg(test)]
 mod tests_compliance {
-    use scalar_emission::liveness::{EXPECTED_HEARTBEATS_PER_EPOCH, W_MATURE, W_MATURE_EPOCHS};
+    use scalar_emission::liveness::{W_MATURE, W_MATURE_EPOCHS};
 
     // ── §7.4 Maturity Constants ───────────────────────────────────────────
 
