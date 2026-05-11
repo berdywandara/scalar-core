@@ -1,0 +1,25 @@
+[package]
+name = "scalar-integration-tests"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[test]]
+name = "end_to_end"
+path = "src/end_to_end.rs"
+
+[[test]]
+name = "nullifier_lifecycle"
+path = "src/nullifier_lifecycle.rs"
+
+[[test]]
+name = "emission_epoch"
+path = "src/emission_epoch.rs"
+
+[dev-dependencies]
+scalar-crypto = { path = "../../core/scalar-crypto" }
+scalar-emission = { path = "../../core/scalar-emission" }
+scalar-nullifier = { path = "../../core/scalar-nullifier" }
+scalar-fees = { path = "../../core/scalar-fees" }
+scalar-network = { path = "../../core/scalar-network" }
