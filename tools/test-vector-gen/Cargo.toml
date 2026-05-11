@@ -1,0 +1,17 @@
+[package]
+name = "test-vector-gen"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "test-vector-gen"
+path = "src/main.rs"
+
+[dependencies]
+scalar-crypto = { path = "../../core/scalar-crypto" }
+scalar-emission = { path = "../../core/scalar-emission" }
+scalar-nullifier = { path = "../../core/scalar-nullifier" }
+blake3 = "1.5"
+hex = "0.4"

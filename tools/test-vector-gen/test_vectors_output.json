@@ -1,0 +1,118 @@
+{
+  "version": "v11.1-FINAL",
+  "generated": "2026-05-11",
+  "implementation": "scalar-core/Rust/Winterfell",
+
+  "domain_separators": {
+    "DOMAIN_NULLIFIER":         { "hex": "7363616c61725f6e756c6c5f7631",                         "bytes": 14 },
+    "DOMAIN_UTXO_COMMITMENT":   { "hex": "7363616c61725f7574786f5f7632",                         "bytes": 14 },
+    "DOMAIN_SALT":              { "hex": "7363616c61725f73616c745f7631",                         "bytes": 14 },
+    "DOMAIN_SEED":              { "hex": "7363616c61725f736565645f7631",                         "bytes": 14 },
+    "DOMAIN_NMT":               { "hex": "7363616c61725f6e6d745f7631",                           "bytes": 13 },
+    "DOMAIN_NODE_SHORT":        { "hex": "7363616c61725f6e6f64655f73686f72745f7631",             "bytes": 20 },
+    "DOMAIN_ANCHOR":            { "hex": "7363616c61725f616e63686f725f7631",                     "bytes": 16 },
+    "DOMAIN_VOTE":              { "hex": "7363616c61725f766f74655f7631",                         "bytes": 14 },
+    "DOMAIN_GENESIS_BOOTSTRAP": { "hex": "7363616c61725f67656e657369735f626f6f7473747261705f7631", "bytes": 27 },
+    "DOMAIN_STARK_FS":          { "hex": "7363616c61725f737461726b5f66735f7631",                 "bytes": 18 },
+    "DOMAIN_CHECKPOINT_FS":     { "hex": "7363616c61725f636865636b706f696e745f66735f7631",       "bytes": 23 },
+    "DOMAIN_BEACON":            { "hex": "7363616c61725f626561636f6e5f7631",                     "bytes": 16 },
+    "DOMAIN_SEED_KDF":          { "hex": "7363616c61725f7632",                                   "bytes": 9  },
+    "DOMAIN_TX_ORDER":          { "hex": "7363616c61725f74785f6f726465725f7631",                 "bytes": 18 }
+  },
+
+  "blake3_vectors": {
+    "TV-BLAKE3-001": {
+      "description": "BLAKE3(empty)",
+      "input": "",
+      "output": "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+    },
+    "TV-BLAKE3-002": {
+      "description": "BLAKE3(DOMAIN_NULLIFIER)",
+      "input": "7363616c61725f6e756c6c5f7631",
+      "output": "e0e1b28cb0c74d8ab8b888cdd91e48d27e42f346cfa28204158a1f4f9fdaaccd"
+    },
+    "TV-BLAKE3-003": {
+      "description": "BLAKE3(DOMAIN_SEED)",
+      "input": "7363616c61725f736565645f7631",
+      "output": "25cf6f2a12f2c9eaf9427dfc44fa605d9caed77887c4e561f2086fd07e83d8da"
+    },
+    "TV-BLAKE3-004": {
+      "description": "tx_ordering_key = BLAKE3(DOMAIN_TX_ORDER || tx_hash=ab*32 || epoch=1 LE)",
+      "input": "DOMAIN_TX_ORDER || ab*32 || 0100000000000000",
+      "output": "a81e289908249067af5919274850716de381ea22709615600e166d94b91104f6"
+    },
+    "TV-BLAKE3-005": {
+      "description": "seed_k = BLAKE3(DOMAIN_SEED || manifest_hash=42*32)",
+      "input": "DOMAIN_SEED || 42*32",
+      "output": "39cd9d8e787f33fb8e6ff73c78adb8ddca15dbcf0b22640cdbfdb15c32bc675c"
+    },
+    "TV-BLAKE3-006": {
+      "description": "nmt_rank = BLAKE3(DOMAIN_NMT || node_id=01*32 || seed_k=99*32)",
+      "input": "DOMAIN_NMT || 01*32 || 99*32",
+      "output": "238a4d4742855d7ccfbaa42ba41b6d884682f08258b2bb0b920e257b2f9c1a77"
+    }
+  },
+
+  "poseidon2_vectors": {
+    "TV-POSEIDON2-001": {
+      "description": "Poseidon2(0, 0)",
+      "input_a": "0x0000000000000000",
+      "input_b": "0x0000000000000000",
+      "output": "0x000000009e3779b9"
+    },
+    "TV-POSEIDON2-002": {
+      "description": "Poseidon2(1, 0)",
+      "input_a": "0x0000000000000001",
+      "input_b": "0x0000000000000000",
+      "output": "0x000000009e3779ba"
+    },
+    "TV-POSEIDON2-003": {
+      "description": "Poseidon2(u64::MAX, u64::MAX)",
+      "input_a": "0xffffffffffffffff",
+      "input_b": "0xffffffffffffffff",
+      "output": "0x000000009e3779b7"
+    },
+    "TV-POSEIDON2-004": {
+      "description": "nullifier = Poseidon2(secret=0202020202020202, spending_key=0303030303030303)",
+      "input_a": "0x0202020202020202",
+      "input_b": "0x0303030303030303",
+      "output": "0x05050505a33c7ebe"
+    }
+  },
+
+  "slhdsa_vectors": {
+    "TV-SLHDSA-001": {
+      "description": "SLH-DSA-SHAKE-128s key sizes (NIST FIPS 205)",
+      "pk_bytes": 32,
+      "sk_bytes": 64,
+      "sig_bytes": 7856,
+      "note": "Keypair non-deterministic. Verify using NIST official test vectors for SLH-DSA-SHAKE-128s"
+    }
+  },
+
+  "canonical_serialization": {
+    "TV-SERIAL-001": {
+      "description": "Supply constants little-endian u64",
+      "S_MAX_SSCL": "0040075af0750700",
+      "S_E_SSCL":   "0020a0eaf1b60600",
+      "S_R_SSCL":   "0020676ffebe0000",
+      "E0_SSCL":    "003086aa750b0000",
+      "E_TAIL_SSCL":"00e8764817000000"
+    },
+    "TV-SERIAL-002": {
+      "description": "HeartbeatUnit canonical bytes (109 bytes)",
+      "fields": {
+        "node_id_short": "deadbeef",
+        "seq_num": "01000000",
+        "timestamp": "e8030000",
+        "smt_root": "aa*32",
+        "prev_hash": "bb*32",
+        "mac": "cc*32",
+        "is_anchor": "00"
+      },
+      "total_bytes": 109,
+      "hex": "deadbeef01000000e8030000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc00",
+      "blake3": "1a702b33f854d95b6c45d0f2d184724c9acf814172c39dece45b007165dc5380"
+    }
+  }
+}
