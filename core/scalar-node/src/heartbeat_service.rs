@@ -257,16 +257,16 @@ mod tests {
         // Node verify heartbeat yang dia sendiri produce
         let mut svc = make_service();
         let hb = svc.produce_heartbeat();
-        let hb_bytes = hb.to_bytes();
+        let _hb_bytes = hb.to_bytes();
         let nmt = HeartbeatService::local_nmt();
         // Compute NodeKey_epoch untuk verifikasi
-        let nke = derive_node_key_epoch(&svc.node_key, svc.current_epoch);
+        let _nke = derive_node_key_epoch(&svc.node_key, svc.current_epoch);
         // Seed verifier dengan state awal
         svc.verifier.seed_node_state(svc.node_id, [0u8; 108], 0);
         // Re-produce untuk test (verifier butuh state yang di-seed)
         let mut svc2 = make_service();
         let hb2 = svc2.produce_heartbeat();
-        let bytes2 = hb2.to_bytes();
+        let _bytes2 = hb2.to_bytes();
         let nke2 = derive_node_key_epoch(&svc2.node_key, svc2.current_epoch);
         // Verifikasi dengan verifier baru
         let mut verifier = HeartbeatVerifier::new();
