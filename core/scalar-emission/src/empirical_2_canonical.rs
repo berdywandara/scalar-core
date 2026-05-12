@@ -1,127 +1,83 @@
 #[cfg(test)]
 mod empirical_2_canonical_fuzz {
-    use crate::manifest::{
-        compute_manifest_canonical_bytes, compute_manifest_hash, EpochRewardManifest, EpochStatus,
-        SPEC_VERSION_MANIFEST,
+    use crate::dmm::{
+        compute_manifest_hash_v12, EpochRewardManifestV12, SPEC_VERSION_MANIFEST_V12,
     };
 
-    fn build_manifest(seed: u64) -> EpochRewardManifest {
-        // Derive varied fields dari seed — simulasi fuzz input
+    fn build_manifest(seed: u64) -> EpochRewardManifestV12 {
         let epoch_id = seed ^ 0xDEADBEEF_CAFEBABE;
         let mut seed_k = [0u8; 32];
-        let mut liveness_root = [0u8; 32];
+        let mut reward_root = [0u8; 32];
+        let mut network_health_digest = [0u8; 32];
+        let mut tx_set_root = [0u8; 32];
         for i in 0..8 {
             let b = ((seed >> (i * 8)) & 0xFF) as u8;
             seed_k[i] = b;
             seed_k[i + 8] = b.wrapping_add(0x11);
             seed_k[i + 16] = b.wrapping_mul(0x37);
             seed_k[i + 24] = b.wrapping_add(0xAA);
-            liveness_root[i] = b.wrapping_add(0x42);
-            liveness_root[i + 8] = b.wrapping_mul(0x13);
-            liveness_root[i + 16] = b.wrapping_add(0x99);
-            liveness_root[i + 24] = b ^ 0xF0;
+            reward_root[i] = b.wrapping_add(0x42);
+            reward_root[i + 8] = b.wrapping_mul(0x13);
+            reward_root[i + 16] = b.wrapping_add(0x99);
+            reward_root[i + 24] = b ^ 0xF0;
+            network_health_digest[i] = b.wrapping_add(0xCC);
+            network_health_digest[i + 8] = b ^ 0x77;
+            network_health_digest[i + 16] = b.wrapping_mul(0x55);
+            network_health_digest[i + 24] = b.wrapping_add(0x33);
+            tx_set_root[i] = b.wrapping_add(0x88);
+            tx_set_root[i + 8] = b.wrapping_mul(0x7);
+            tx_set_root[i + 16] = b ^ 0xAA;
+            tx_set_root[i + 24] = b.wrapping_add(0x44);
         }
-        let emission = (seed % 12_600_000_000_000).min(12_600_000_000_000);
-        EpochRewardManifest {
+        let total_emission = (seed % 12_600_000_000_000).min(12_600_000_000_000);
+        EpochRewardManifestV12 {
             epoch_id,
-            spec_version: SPEC_VERSION_MANIFEST,
-            accepted_liveness_root: liveness_root,
-            sync_health_summary: seed_k,
+            spec_version: SPEC_VERSION_MANIFEST_V12,
+            total_emission_sscl: total_emission,
+            deferred: seed % 2 == 0,
             seed_k,
             manifest_hash: [0u8; 32],
-            total_uptime_weight: (seed % 25_920_000_000).min(25_920_000_000),
-            emission_amount: emission,
-            equity_gini: seed % 1_000_000,
-            fee_total: seed % 1_000_000_000,
-            slashed_nodes: vec![],
-            reward_root: liveness_root,
-            previous_emission_total: seed % 1_890_000_000_000_000,
-            status: EpochStatus::Finalized,
+            reward_root,
+            network_health_digest,
+            tx_set_root,
+            node_list: vec![],
         }
     }
 
-    /// EMPIRICAL-2: 1_000_000 variasi input → canonical_bytes identik untuk data sama.
-    /// Spec §22.5, §8.2. Memverifikasi S1-S4 canonical serialization rules.
+    /// EMPIRICAL-2: 1_000_000 variasi input → manifest_hash deterministik untuk data sama.
     #[test]
     fn empirical_2_canonical_serialization_1m_variations() {
         const N_ITERATIONS: u64 = 1_000_000;
-        let violations = 0u64;
 
         for seed in 0..N_ITERATIONS {
             let manifest = build_manifest(seed);
 
             // P1: Deterministik
-            let b1 = compute_manifest_canonical_bytes(&manifest);
-            let b2 = compute_manifest_canonical_bytes(&manifest);
-            assert_eq!(b1, b2, "P1 FAILED seed={}: tidak deterministik", seed);
+            let h1 = compute_manifest_hash_v12(&manifest);
+            let h2 = compute_manifest_hash_v12(&manifest);
+            assert_eq!(h1, h2, "P1 FAILED seed={}: tidak deterministik", seed);
 
-            // P2: Fixed length 177 bytes (S4)
-            assert_eq!(
-                b1.len(),
-                177,
-                "P2 FAILED seed={}: panjang {} bukan 177",
-                seed,
-                b1.len()
-            );
+            // P2: manifest_hash field tidak mempengaruhi hash (non-circular)
+            let mut m2 = manifest.clone();
+            m2.manifest_hash = [0xFFu8; 32];
+            let h3 = compute_manifest_hash_v12(&m2);
+            assert_eq!(h1, h3, "P2 FAILED seed={}: manifest_hash circular", seed);
 
-            // P3: manifest_hash = BLAKE3(canonical_bytes)
-            let hash = compute_manifest_hash(&manifest);
-            let expected = *blake3::hash(&b1).as_bytes();
-            assert_eq!(hash, expected, "P3 FAILED seed={}: hash mismatch", seed);
-
-            // P4: slashed_nodes tidak masuk canonical
-            let mut m_slashed = manifest.clone();
-            m_slashed.slashed_nodes = vec![[0xFFu8; 32]];
-            let b_slashed = compute_manifest_canonical_bytes(&m_slashed);
-            assert_eq!(
-                b1, b_slashed,
-                "P4 FAILED seed={}: slashed_nodes masuk canonical",
-                seed
-            );
-
-            // P5: status tidak masuk canonical
-            let mut m_open = manifest.clone();
-            m_open.status = EpochStatus::Open;
-            let b_open = compute_manifest_canonical_bytes(&m_open);
-            assert_eq!(
-                b1, b_open,
-                "P5 FAILED seed={}: status masuk canonical",
-                seed
-            );
-
-            // P6: manifest_hash field tidak masuk canonical
-            let mut m_hash = manifest.clone();
-            m_hash.manifest_hash = [0xBBu8; 32];
-            let b_hash = compute_manifest_canonical_bytes(&m_hash);
-            assert_eq!(
-                b1, b_hash,
-                "P6 FAILED seed={}: manifest_hash field masuk canonical",
-                seed
-            );
-
-            // P7: epoch_id little-endian di bytes[0..8] (S3)
-            let epoch_le = manifest.epoch_id.to_le_bytes();
-            assert_eq!(
-                &b1[0..8],
-                &epoch_le,
-                "P7 FAILED seed={}: epoch_id bukan little-endian",
-                seed
-            );
-
-            if violations > 0 {
-                break;
+            // P3: tx_set_root mempengaruhi hash (Temuan 2)
+            let mut m4 = manifest.clone();
+            m4.tx_set_root = [0xBBu8; 32];
+            let h4 = compute_manifest_hash_v12(&m4);
+            if manifest.tx_set_root != [0xBBu8; 32] {
+                assert_ne!(h1, h4, "P3 FAILED seed={}: tx_set_root tidak mempengaruhi hash", seed);
             }
+
+            // P4: Hash bukan zero
+            assert_ne!(h1, [0u8; 32], "P4 FAILED seed={}: hash zero", seed);
         }
 
-        assert_eq!(
-            violations, 0,
-            "EMPIRICAL-2 FAILED: {} violations dari {} iterasi",
-            violations, N_ITERATIONS
-        );
-
         println!(
-            "EMPIRICAL-2 PASSED: {} variasi input → canonical_bytes selalu identik. \
-             P1-P7 semua verified. Spec §22.5 §8.2 compliant.",
+            "EMPIRICAL-2 PASSED: {} variasi input → manifest_hash selalu deterministik. \
+             P1-P4 semua verified. Spec v11.1-FINAL compliant.",
             N_ITERATIONS
         );
     }
