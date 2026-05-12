@@ -50,6 +50,7 @@ mod tests_v12 {
             manifest_hash: [0u8; 32],
             reward_root: [0u8; 32],
             network_health_digest: [0xABu8; 32],
+            tx_set_root: [0u8; 32],
         };
         assert_eq!(
             m.network_health_digest, [0xABu8; 32],
@@ -488,6 +489,7 @@ mod tests_v12_suite_v4 {
         let config = DmmConfig {
             e_active_sscl: 12_600_000_000_000,
             fee_pool_sscl: 0,
+            txids: vec![],
         };
         let result = build_dmm(10, None, &local, &config);
         assert_eq!(
