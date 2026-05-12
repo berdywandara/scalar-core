@@ -162,7 +162,7 @@ mod tests {
             seed_k: [0u8; 32],
             manifest_hash: [0u8; 32],
             reward_root: [0u8; 32],
-            network_health_digest: [0xABu8; 32], // field baru v11.1-FINAL
+            network_health_digest: [0xABu8; 32], tx_set_root: [0u8; 32],
         };
         assert_eq!(manifest.network_health_digest, [0xABu8; 32]);
         assert_eq!(manifest.spec_version, 0x06);
@@ -227,6 +227,7 @@ mod tests {
             manifest_hash: [0u8; 32],
             reward_root: [0u8; 32],
             network_health_digest: [0u8; 32],
+            tx_set_root: [0u8; 32],
         };
         assert!(validate_manifest_v12(&manifest, false).is_ok());
     }
