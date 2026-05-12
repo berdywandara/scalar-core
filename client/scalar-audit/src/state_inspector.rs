@@ -147,6 +147,7 @@ mod tests {
             manifest_hash: [0u8; 32],
             reward_root,
             network_health_digest,
+            tx_set_root: [0u8; 32],
         };
         // Compute dan set hash yang benar
         let hash = compute_manifest_hash_v12(&manifest);
