@@ -284,7 +284,10 @@ mod tests {
         let txid = make_txid(0x42, 10);
         let k1 = compute_tx_ordering_key(&txid, 10);
         let k2 = compute_tx_ordering_key(&txid, 10);
-        assert_eq!(k1, k2, "ordering_key must be deterministic for identical inputs");
+        assert_eq!(
+            k1, k2,
+            "ordering_key must be deterministic for identical inputs"
+        );
     }
 
     #[test]
