@@ -115,13 +115,16 @@ fn slhdsa_vectors() {
         generate_keypair, sign_message, verify_signature, SPHINCS_PK_BYTES, SPHINCS_SIG_BYTES,
         SPHINCS_SK_BYTES,
     };
+
     println!(" PK size : {} bytes", SPHINCS_PK_BYTES);
     println!(" Sig size: {} bytes", SPHINCS_SIG_BYTES);
     println!(" SK size : {} bytes", SPHINCS_SK_BYTES);
+
     let kp = generate_keypair().expect("keygen failed");
     let message = b"scalar_anchor_v1_test_vector_001";
     let sig = sign_message(message, &kp.secret).expect("sign failed");
     let valid = verify_signature(message, &sig, &kp.public).unwrap();
+
     println!(" message : {}", hex::encode(message));
     println!(" pk[0..16]: {}...", hex::encode(&kp.public[..16]));
     println!(" sig size: {} bytes", sig.len());
