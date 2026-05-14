@@ -314,10 +314,7 @@ mod tests {
     #[test]
     fn unit_test_tx_ordering_key_nonzero() {
         let k = compute_tx_ordering_key(&[0u8; 32], 0);
-        assert_ne!(
-            k, [0u8; 32], 
-            "ordering_key must not be zero"
-        );
+        assert_ne!(k, [0u8; 32], "ordering_key must not be zero");
     }
 
     // Canonical Sort Tests
