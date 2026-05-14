@@ -89,7 +89,7 @@ pub fn verify_signature(
 ///
 /// SLH-DSA-SHAKE-128s: SK = 64 bytes, PK = 32 bytes (last 32 bytes of SK).
 /// Spec §2.1.
-fn public_key_from_secret(secret_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
+pub fn public_key_from_secret(secret_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let pk_len = pqcrypto_sphincsplus::sphincsshake128ssimple::public_key_bytes();
     let sk_len = secret_key.len();
     if sk_len < pk_len {
