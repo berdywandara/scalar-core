@@ -116,8 +116,8 @@ fn slhdsa_vectors() {
         SPHINCS_SK_BYTES,
     };
     println!(" PK size : {} bytes", SPHINCS_PK_BYTES);
-    println!(" SK size : {} bytes", SPHINCS_SK_BYTES);
     println!(" Sig size: {} bytes", SPHINCS_SIG_BYTES);
+    println!(" SK size : {} bytes", SPHINCS_SK_BYTES);
     let kp = generate_keypair().expect("keygen failed");
     let message = b"scalar_anchor_v1_test_vector_001";
     let sig = sign_message(message, &kp.secret).expect("sign failed");
