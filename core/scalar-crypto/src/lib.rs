@@ -25,14 +25,14 @@ pub mod version;
 
 // Re-export SPHINCS constants for convenient access
 pub use sphincs::{
-    generate_keypair, 
-    public_key_from_secret, 
-    sign_message, 
+    generate_keypair,
+    public_key_from_secret,
+    sign_message,
     verify_signature,
     ScalarKeyPair,
-    SPHINCS_PK_BYTES, 
-    SPHINCS_SK_BYTES, 
-    SPHINCS_SIG_BYTES
+    SPHINCS_PK_BYTES,
+    SPHINCS_SK_BYTES,
+    SPHINCS_SIG_BYTES,
 };
 
 /// Unified error type untuk semua operasi kriptografi scalar-crypto.
