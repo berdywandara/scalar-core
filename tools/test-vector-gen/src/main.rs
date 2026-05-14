@@ -41,10 +41,16 @@ fn verify_domain_separators() {
 
 fn blake3_vectors() {
     let h0 = blake3::hash(b"");
-    println!(" TV-BLAKE3-001 (empty): {}", hex::encode(h0.as_bytes()));
+    println!(
+        " TV-BLAKE3-001 (empty): {}",
+        hex::encode(h0.as_bytes())
+    );
 
     let h1 = blake3::hash(scalar_crypto::domain::DOMAIN_NULLIFIER);
-    println!(" TV-BLAKE3-002 (DOMAIN_NULLIFIER): {}", hex::encode(h1.as_bytes()));
+    println!(
+        " TV-BLAKE3-002 (DOMAIN_NULLIFIER): {}",
+        hex::encode(h1.as_bytes())
+    );
 
     let h2 = blake3::hash(scalar_crypto::domain::DOMAIN_SEED);
     println!(
