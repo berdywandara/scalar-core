@@ -300,7 +300,8 @@ pub fn build_dmm(
 
     let mut total_emission_sscl: u64 = 0;
     for entry in &mut dmm_node_list {
-        let reward = 
+        // FIX: hapus trailing whitespace — `let reward =` tidak boleh spasi di akhir baris
+        let reward =
             compute_reward_for_node(config.e_active_sscl, entry.uptime_weight_fp, w_effective_fp);
         entry.reward_sscl = reward;
         total_emission_sscl = total_emission_sscl.saturating_add(reward);
@@ -341,11 +342,27 @@ pub struct DeferCounter {
 }
 
 impl DeferCounter {
-    pub fn new() -> Self { Self::default() }
-    pub fn increment(&mut self) -> u32 { self.consecutive_count += 1; self.consecutive_count }
-    pub fn reset(&mut self) { self.consecutive_count = 0; }
-    pub fn must_use_dmm(&self) -> bool { self.consecutive_count >= MAX_CONSECUTIVE_DEFER }
-    pub fn consecutive_count(&self) -> u32 { self.consecutive_count }
+    // FIX: indentasi berlebih dihapus — `pub fn new()` harus sejajar dengan method lain
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn increment(&mut self) -> u32 {
+        self.consecutive_count += 1;
+        self.consecutive_count
+    }
+
+    pub fn reset(&mut self) {
+        self.consecutive_count = 0;
+    }
+
+    pub fn must_use_dmm(&self) -> bool {
+        self.consecutive_count >= MAX_CONSECUTIVE_DEFER
+    }
+
+    pub fn consecutive_count(&self) -> u32 {
+        self.consecutive_count
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -354,25 +371,61 @@ impl DeferCounter {
 mod tests {
     use super::*;
 
-    fn node_id(b: u8) -> [u8; 32] { let mut id = [0u8; 32]; id[0] = b; id }
+    // FIX: helper satu baris → dipecah ke multi-baris standar rustfmt
+    fn node_id(b: u8) -> [u8; 32] {
+        let mut id = [0u8; 32];
+        id[0] = b;
+        id
+    }
+
     fn make_prev_manifest(epoch_id: u64, nodes: Vec<PrevNodeEntry>) -> CommittedManifestRef {
-        let mut manifest_hash = [0u8; 32]; manifest_hash[0] = 0x42; manifest_hash[1] = epoch_id as u8;
-        CommittedManifestRef { manifest_hash, node_list: nodes, epoch_id }
+        // FIX: inisialisasi array dan mutasi dipisah per baris
+        let mut manifest_hash = [0u8; 32];
+        manifest_hash[0] = 0x42;
+        manifest_hash[1] = epoch_id as u8;
+        CommittedManifestRef {
+            manifest_hash,
+            node_list: nodes,
+            epoch_id,
+        }
     }
+
     fn make_anchor(node_b: u8, uptime_fp: u64) -> AnchorData {
-        AnchorData { node_id_full: node_id(node_b), hb_count: 4320, chain_head: [node_b; 32], uptime_weight_fp: uptime_fp }
+        AnchorData {
+            node_id_full: node_id(node_b),
+            hb_count: 4320,
+            chain_head: [node_b; 32],
+            uptime_weight_fp: uptime_fp,
+        }
     }
+
     fn make_local_data(epoch_k: u64, anchors: Vec<AnchorData>) -> LocalHeartbeatData {
         LocalHeartbeatData { epoch_k, anchors }
     }
-    fn default_config() -> DmmConfig { DmmConfig { e_active_sscl: 12_600_000_000_000u64, fee_pool_sscl: 0, txids: vec![] } }
+
+    fn default_config() -> DmmConfig {
+        DmmConfig {
+            e_active_sscl: 12_600_000_000_000u64,
+            fee_pool_sscl: 0,
+            txids: vec![],
+        }
+    }
 
     #[test]
     fn unit_test_build_dmm_happy_path() {
-        let prev = make_prev_manifest(9, vec![
-            PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 },
-            PrevNodeEntry { node_id_full: node_id(2), uptime_weight_fp: 900_000 },
-        ]);
+        let prev = make_prev_manifest(
+            9,
+            vec![
+                PrevNodeEntry {
+                    node_id_full: node_id(1),
+                    uptime_weight_fp: 800_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(2),
+                    uptime_weight_fp: 900_000,
+                },
+            ],
+        );
         let local = make_local_data(10, vec![make_anchor(1, 800_000), make_anchor(2, 900_000)]);
         let result = build_dmm(10, Some(&prev), &local, &default_config());
         assert!(result.is_ok());
@@ -395,7 +448,10 @@ mod tests {
     fn unit_test_build_dmm_hash_mismatch() {
         let prev = CommittedManifestRef {
             manifest_hash: [0u8; 32],
-            node_list: vec![PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 }],
+            node_list: vec![PrevNodeEntry {
+                node_id_full: node_id(1),
+                uptime_weight_fp: 800_000,
+            }],
             epoch_id: 9,
         };
         let local = make_local_data(10, vec![make_anchor(1, 800_000)]);
@@ -405,12 +461,31 @@ mod tests {
 
     #[test]
     fn prop_test_dmm_determinism() {
-        let prev = make_prev_manifest(9, vec![
-            PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 750_000 },
-            PrevNodeEntry { node_id_full: node_id(2), uptime_weight_fp: 850_000 },
-            PrevNodeEntry { node_id_full: node_id(3), uptime_weight_fp: 950_000 },
-        ]);
-        let local = make_local_data(10, vec![make_anchor(1, 750_000), make_anchor(2, 850_000), make_anchor(3, 950_000)]);
+        let prev = make_prev_manifest(
+            9,
+            vec![
+                PrevNodeEntry {
+                    node_id_full: node_id(1),
+                    uptime_weight_fp: 750_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(2),
+                    uptime_weight_fp: 850_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(3),
+                    uptime_weight_fp: 950_000,
+                },
+            ],
+        );
+        let local = make_local_data(
+            10,
+            vec![
+                make_anchor(1, 750_000),
+                make_anchor(2, 850_000),
+                make_anchor(3, 950_000),
+            ],
+        );
         let config = default_config();
         let r1 = build_dmm(10, Some(&prev), &local, &config).unwrap();
         let r2 = build_dmm(10, Some(&prev), &local, &config).unwrap();
@@ -421,9 +496,13 @@ mod tests {
     #[test]
     fn test_tx_set_root_included_in_hash() {
         // Perubahan tx_set_root harus mengubah manifest_hash — Temuan 2
-        let prev = make_prev_manifest(9, vec![
-            PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 }
-        ]);
+        let prev = make_prev_manifest(
+            9,
+            vec![PrevNodeEntry {
+                node_id_full: node_id(1),
+                uptime_weight_fp: 800_000,
+            }],
+        );
         let local = make_local_data(10, vec![make_anchor(1, 800_000)]);
         let mut config = default_config();
         config.txids = vec![[0xAA; 32]];
@@ -433,8 +512,11 @@ mod tests {
         let m2 = build_dmm(10, Some(&prev), &local, &config).unwrap();
 
         assert_ne!(m1.tx_set_root, m2.tx_set_root);
-        assert_ne!(m1.manifest_hash, m2.manifest_hash,
-            "manifest_hash harus berubah jika tx_set_root berbeda");
+        assert_ne!(
+            m1.manifest_hash,
+            m2.manifest_hash,
+            "manifest_hash harus berubah jika tx_set_root berbeda"
+        );
     }
 
     #[test]
@@ -452,35 +534,79 @@ mod tests {
         assert_ne!(root, [0u8; 32]);
     }
 
-    // sisa test yang sudah ada
     #[test]
-    fn test_max_consecutive_defer() { assert_eq!(MAX_CONSECUTIVE_DEFER, 2); }
+    fn test_max_consecutive_defer() {
+        assert_eq!(MAX_CONSECUTIVE_DEFER, 2);
+    }
+
     #[test]
     fn test_defer_counter_must_use_dmm_after_2() {
-        let mut c = DeferCounter::new(); assert!(!c.must_use_dmm()); c.increment(); c.increment(); assert!(c.must_use_dmm());
+        // FIX: statement dipisah per baris — tidak boleh semicolon dalam satu baris
+        let mut c = DeferCounter::new();
+        assert!(!c.must_use_dmm());
+        c.increment();
+        c.increment();
+        assert!(c.must_use_dmm());
     }
+
     #[test]
     fn test_defer_counter_reset_after_normal_consensus() {
-        let mut c = DeferCounter::new(); c.increment(); c.increment(); assert!(c.must_use_dmm()); c.reset(); assert!(!c.must_use_dmm());
+        let mut c = DeferCounter::new();
+        c.increment();
+        c.increment();
+        assert!(c.must_use_dmm());
+        c.reset();
+        assert!(!c.must_use_dmm());
     }
+
     #[test]
     fn test_node_list_ordering_ascending() {
-        let prev = make_prev_manifest(9, vec![
-            PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 },
-            PrevNodeEntry { node_id_full: node_id(2), uptime_weight_fp: 900_000 },
-            PrevNodeEntry { node_id_full: node_id(3), uptime_weight_fp: 700_000 },
-        ]);
-        let local = make_local_data(10, vec![make_anchor(1, 800_000), make_anchor(2, 900_000), make_anchor(3, 700_000)]);
+        let prev = make_prev_manifest(
+            9,
+            vec![
+                PrevNodeEntry {
+                    node_id_full: node_id(1),
+                    uptime_weight_fp: 800_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(2),
+                    uptime_weight_fp: 900_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(3),
+                    uptime_weight_fp: 700_000,
+                },
+            ],
+        );
+        let local = make_local_data(
+            10,
+            vec![
+                make_anchor(1, 800_000),
+                make_anchor(2, 900_000),
+                make_anchor(3, 700_000),
+            ],
+        );
         let m = build_dmm(10, Some(&prev), &local, &default_config()).unwrap();
-        let ids: Vec<[u8;32]> = m.node_list.iter().map(|e| e.node_id_full).collect();
-        let mut sorted = ids.clone(); sorted.sort();
+        let ids: Vec<[u8; 32]> = m.node_list.iter().map(|e| e.node_id_full).collect();
+        let mut sorted = ids.clone();
+        sorted.sort();
         assert_eq!(ids, sorted);
     }
+
     #[test]
-    fn test_spec_version_0x06() { assert_eq!(SPEC_VERSION_MANIFEST_V12, 0x06); }
+    fn test_spec_version_0x06() {
+        assert_eq!(SPEC_VERSION_MANIFEST_V12, 0x06);
+    }
+
     #[test]
     fn test_manifest_hash_not_circular() {
-        let prev = make_prev_manifest(9, vec![PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 }]);
+        let prev = make_prev_manifest(
+            9,
+            vec![PrevNodeEntry {
+                node_id_full: node_id(1),
+                uptime_weight_fp: 800_000,
+            }],
+        );
         let local = make_local_data(10, vec![make_anchor(1, 800_000)]);
         let m = build_dmm(10, Some(&prev), &local, &default_config()).unwrap();
         let mut m2 = m.clone();
@@ -488,30 +614,60 @@ mod tests {
         let recomputed = compute_manifest_hash_v12(&m2);
         assert_eq!(compute_manifest_hash_v12(&m), recomputed);
     }
+
     #[test]
     fn test_reward_root_changes_with_nodes() {
-        let prev1 = make_prev_manifest(9, vec![PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 }]);
-        let prev2 = make_prev_manifest(9, vec![PrevNodeEntry { node_id_full: node_id(2), uptime_weight_fp: 800_000 }]);
+        let prev1 = make_prev_manifest(
+            9,
+            vec![PrevNodeEntry {
+                node_id_full: node_id(1),
+                uptime_weight_fp: 800_000,
+            }],
+        );
+        let prev2 = make_prev_manifest(
+            9,
+            vec![PrevNodeEntry {
+                node_id_full: node_id(2),
+                uptime_weight_fp: 800_000,
+            }],
+        );
         let local1 = make_local_data(10, vec![make_anchor(1, 800_000)]);
         let local2 = make_local_data(10, vec![make_anchor(2, 800_000)]);
         let m1 = build_dmm(10, Some(&prev1), &local1, &default_config()).unwrap();
         let m2 = build_dmm(10, Some(&prev2), &local2, &default_config()).unwrap();
         assert_ne!(m1.reward_root, m2.reward_root);
     }
+
     #[test]
     fn test_node_without_anchor_excluded() {
-        let prev = make_prev_manifest(9, vec![
-            PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 },
-            PrevNodeEntry { node_id_full: node_id(2), uptime_weight_fp: 900_000 },
-        ]);
+        let prev = make_prev_manifest(
+            9,
+            vec![
+                PrevNodeEntry {
+                    node_id_full: node_id(1),
+                    uptime_weight_fp: 800_000,
+                },
+                PrevNodeEntry {
+                    node_id_full: node_id(2),
+                    uptime_weight_fp: 900_000,
+                },
+            ],
+        );
         let local = make_local_data(10, vec![make_anchor(1, 800_000)]);
         let m = build_dmm(10, Some(&prev), &local, &default_config()).unwrap();
         assert_eq!(m.node_list.len(), 1);
         assert_eq!(m.node_list[0].node_id_full, node_id(1));
     }
+
     #[test]
     fn test_seed_k_dari_prev_manifest_hash() {
-        let prev = make_prev_manifest(9, vec![PrevNodeEntry { node_id_full: node_id(1), uptime_weight_fp: 800_000 }]);
+        let prev = make_prev_manifest(
+            9,
+            vec![PrevNodeEntry {
+                node_id_full: node_id(1),
+                uptime_weight_fp: 800_000,
+            }],
+        );
         let local = make_local_data(10, vec![make_anchor(1, 800_000)]);
         let m = build_dmm(10, Some(&prev), &local, &default_config()).unwrap();
         assert_eq!(m.seed_k, compute_seed_k_v12(&prev.manifest_hash));
