@@ -20,11 +20,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 // Set this after the official genesis ceremony.
 // Update with BLAKE3 hash of the production genesis.bin.
 // DO NOT update before the official ceremony — this is a permanent commitment.
+// FIX: rustfmt tidak memakai pengelompokan 8-byte dengan spasi — semua koma rapat
 const CANONICAL_HASH: [u8; 32] = [
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00,
 ];
 
 // ── Hash Utilities ────────────────────────────────────────────────────────────
@@ -71,9 +71,10 @@ fn generate_genesis_bytes(timestamp: u64, pubkey: &[u8]) -> Vec<u8> {
     buffer.extend_from_slice(&empty_smt_root);
 
     // 6. supply_params_hash: bytes32 (32 bytes) — Spec §3.2
+    // FIX: hapus spasi berlebih untuk alignment visual — rustfmt tidak mengizinkan ini
     let s_max: u64 = 2_100_000_000_000_000; // 21,000,000 SCL
-    let s_e: u64   = 1_890_000_000_000_000; // 18,900,000 SCL
-    let e0: u64    =    12_600_000_000_000; // 126,000 SCL/epoch
+    let s_e: u64 = 1_890_000_000_000_000; // 18,900,000 SCL
+    let e0: u64 = 12_600_000_000_000; // 126,000 SCL/epoch
     let mut supply_data = Vec::new();
     supply_data.extend_from_slice(&s_max.to_le_bytes());
     supply_data.extend_from_slice(&s_e.to_le_bytes());
@@ -115,15 +116,24 @@ fn cmd_keygen() {
     println!("FOUNDER KEYPAIR — SLH-DSA-SHAKE-128s");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("Public Key  ({} bytes): {}", pk.len(), to_hex(&pk));
-    println!("Secret Key  ({} bytes): [HIDDEN — saved to founder_sk.bin]", sk.len());
+    println!(
+        "Secret Key  ({} bytes): [HIDDEN — saved to founder_sk.bin]",
+        sk.len()
+    );
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
     fs::write("founder_sk.bin", &sk).expect("Failed to write founder_sk.bin");
     fs::write("founder_pk.bin", &pk).expect("Failed to write founder_pk.bin");
     fs::write("founder_pk.hex", to_hex(&pk).as_bytes()).expect("Failed to write founder_pk.hex");
 
-    println!("✅ founder_sk.bin  — SECRET KEY ({} bytes) — NEVER GO ONLINE", sk.len());
-    println!("✅ founder_pk.bin  — PUBLIC KEY ({} bytes) — safe to publish", pk.len());
+    println!(
+        "✅ founder_sk.bin  — SECRET KEY ({} bytes) — NEVER GO ONLINE",
+        sk.len()
+    );
+    println!(
+        "✅ founder_pk.bin  — PUBLIC KEY ({} bytes) — safe to publish",
+        pk.len()
+    );
     println!("✅ founder_pk.hex  — PUBLIC KEY in hex format\n");
     println!("Next step:");
     println!("  genesis-tool generate $(cat founder_pk.hex)");
@@ -142,7 +152,11 @@ fn cmd_generate(pubkey_hex: &str) {
     });
 
     if pubkey.len() != 32 {
-        eprintln!("ERROR: SLH-DSA-SHAKE-128s public key must be 32 bytes, got {}", pubkey.len());
+        // FIX: baris terlalu panjang → argumen eprintln! dipecah
+        eprintln!(
+            "ERROR: SLH-DSA-SHAKE-128s public key must be 32 bytes, got {}",
+            pubkey.len()
+        );
         process::exit(1);
     }
 
@@ -292,10 +306,13 @@ mod tests {
     fn test_strict_binary_length() {
         let dummy_pubkey = vec![0u8; 32];
         let bytes = generate_genesis_bytes(1_700_000_000, &dummy_pubkey);
-        assert_eq!(bytes.len(), 177 + 32,
-            "Length must be exactly 177 + pubkey length");
-        assert!(bytes.len() < 1024,
-            "Must be less than 1KB per Spec §12.10");
+        // FIX: argumen assert_eq! dan assert! dipecah ke multi-baris
+        assert_eq!(
+            bytes.len(),
+            177 + 32,
+            "Length must be exactly 177 + pubkey length"
+        );
+        assert!(bytes.len() < 1024, "Must be less than 1KB per Spec §12.10");
     }
 
     #[test]
@@ -304,8 +321,12 @@ mod tests {
         let ts = 1_700_000_000u64;
         let b1 = generate_genesis_bytes(ts, &pubkey);
         let b2 = generate_genesis_bytes(ts, &pubkey);
-        assert_eq!(blake3_hash(&b1), blake3_hash(&b2),
-            "Hash must be deterministic for identical inputs");
+        // FIX: argumen assert_eq! dipecah ke multi-baris
+        assert_eq!(
+            blake3_hash(&b1),
+            blake3_hash(&b2),
+            "Hash must be deterministic for identical inputs"
+        );
     }
 
     #[test]
@@ -318,7 +339,11 @@ mod tests {
     #[test]
     fn test_canonical_hash_placeholder() {
         // CANONICAL_HASH remains placeholder until official genesis ceremony
-        assert_eq!(CANONICAL_HASH, [0u8; 32],
-            "CANONICAL_HASH must be set after official ceremony");
+        // FIX: argumen assert_eq! dipecah ke multi-baris
+        assert_eq!(
+            CANONICAL_HASH,
+            [0u8; 32],
+            "CANONICAL_HASH must be set after official ceremony"
+        );
     }
 }
