@@ -171,7 +171,10 @@ mod tests {
         let version = 0x03u8;
         let txid1 = compute_txid(nullifiers, commitments, fee, epoch, version);
         let txid2 = compute_txid(nullifiers, commitments, fee, epoch, version);
-        assert_eq!(txid1, txid2, "TXID must be deterministic for identical inputs");
+        assert_eq!(
+            txid1, txid2,
+            "TXID must be deterministic for identical inputs"
+        );
     }
 
     #[test]
