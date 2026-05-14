@@ -47,7 +47,10 @@ fn blake3_vectors() {
     println!(" TV-BLAKE3-002 (DOMAIN_NULLIFIER): {}", hex::encode(h1.as_bytes()));
 
     let h2 = blake3::hash(scalar_crypto::domain::DOMAIN_SEED);
-    println!(" TV-BLAKE3-003 (DOMAIN_SEED): {}", hex::encode(h2.as_bytes()));
+    println!(
+        " TV-BLAKE3-003 (DOMAIN_SEED): {}",
+        hex::encode(h2.as_bytes())
+    );
 
     let tx_hash = [0xABu8; 32];
     let epoch_id: u64 = 1;
