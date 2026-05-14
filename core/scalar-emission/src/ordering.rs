@@ -172,7 +172,7 @@ mod tests {
         let txid1 = compute_txid(nullifiers, commitments, fee, epoch, version);
         let txid2 = compute_txid(nullifiers, commitments, fee, epoch, version);
         assert_eq!(
-            txid1, txid2, 
+            txid1, txid2,
             "TXID must be deterministic for identical inputs"
         );
     }
@@ -191,7 +191,7 @@ mod tests {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x11; 32]], 40, 1, 0x03);
         assert_ne!(
-            txid1, txid2, 
+            txid1, txid2,
             "TXID must differ for different commitments"
         );
     }
@@ -201,7 +201,7 @@ mod tests {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 50, 1, 0x03);
         assert_ne!(
-            txid1, txid2, 
+            txid1, txid2,
             "TXID must differ for different fees"
         );
     }
@@ -211,7 +211,7 @@ mod tests {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 2, 0x03);
         assert_ne!(
-            txid1, txid2, 
+            txid1, txid2,
             "TXID must differ for different epochs"
         );
     }
@@ -221,7 +221,7 @@ mod tests {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x04);
         assert_ne!(
-            txid1, txid2, 
+            txid1, txid2,
             "TXID must differ for different crypto_version"
         );
     }
