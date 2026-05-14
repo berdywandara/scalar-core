@@ -231,8 +231,7 @@ mod tests {
         let txid = compute_txid(&[[0x00; 32]], &[[0x00; 32]], 0, 0, 0x00);
         assert_ne!(
             txid, [0u8; 32], 
-            "TXID must not be zero"
-        );
+            "TXID must not be zero");
     }
 
     #[test]
