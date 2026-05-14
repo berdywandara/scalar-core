@@ -23,6 +23,9 @@ pub mod poseidon2;
 pub mod sphincs;
 pub mod version;
 
+// Re-export SPHINCS constants for convenient access
+pub use sphincs::{SPHINCS_PK_BYTES, SPHINCS_SK_BYTES, SPHINCS_SIG_BYTES};
+
 /// Unified error type untuk semua operasi kriptografi scalar-crypto.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CryptoError {
