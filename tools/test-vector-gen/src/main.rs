@@ -112,8 +112,8 @@ fn poseidon2_vectors() {
 
 fn slhdsa_vectors() {
     use scalar_crypto::sphincs::{
-        generate_keypair, sign_message, verify_signature, SPHINCS_PK_BYTES,
-        SPHINCS_SK_BYTES, SPHINCS_SIG_BYTES,
+        generate_keypair, sign_message, verify_signature, SPHINCS_PK_BYTES, SPHINCS_SIG_BYTES,
+        SPHINCS_SK_BYTES, 
     };
     println!(" PK size : {} bytes", SPHINCS_PK_BYTES);
     println!(" SK size : {} bytes", SPHINCS_SK_BYTES);
@@ -130,8 +130,7 @@ fn slhdsa_vectors() {
 }
 
 fn canonical_serialization_vectors() {
-    use scalar_emission::accumulator::{
-        E0_SSCL, E_TAIL_SSCL, S_E_SSCL, S_MAX_SSCL, S_R_SSCL,
+    use scalar_emission::accumulator::{E0_SSCL, E_TAIL_SSCL, S_E_SSCL, S_MAX_SSCL, S_R_SSCL,
     };
     println!(" TV-SERIAL-001: Supply constants (little-endian u64 hex)");
     println!(" S_MAX : {}", hex::encode(S_MAX_SSCL.to_le_bytes()));
