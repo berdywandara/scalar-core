@@ -229,9 +229,7 @@ mod tests {
     #[test]
     fn unit_test_txid_nonzero() {
         let txid = compute_txid(&[[0x00; 32]], &[[0x00; 32]], 0, 0, 0x00);
-        assert_ne!(
-            txid, [0u8; 32], 
-            "TXID must not be zero");
+        assert_ne!(txid, [0u8; 32], "TXID must not be zero");
     }
 
     #[test]
