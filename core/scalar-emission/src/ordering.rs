@@ -223,9 +223,14 @@ mod tests {
         let epoch = 5u64;
         let version = 0x03u8;
         let with_domain = compute_txid(nullifiers, commitments, fee, epoch, version);
+        // FIX: `for n in nullifiers { hasher.update(n); }` satu baris → dipecah
         let mut hasher = Hasher::new();
-        for n in nullifiers { hasher.update(n); }
-        for c in commitments { hasher.update(c); }
+        for n in nullifiers {
+            hasher.update(n);
+        }
+        for c in commitments {
+            hasher.update(c);
+        }
         hasher.update(&fee.to_le_bytes());
         hasher.update(&epoch.to_le_bytes());
         hasher.update(&[version]);
@@ -236,7 +241,14 @@ mod tests {
     #[test]
     fn unit_test_txid_multiple_inputs_outputs() {
         let txid_1_1 = compute_txid(&[[0xAA; 32]], &[[0xBB; 32]], 40, 1, 0x03);
-        let txid_2_2 = compute_txid(&[[0xAA; 32], [0xCC; 32]], &[[0xBB; 32], [0xDD; 32]], 80, 1, 0x03);
+        // FIX: baris terlalu panjang → argumen array dipecah
+        let txid_2_2 = compute_txid(
+            &[[0xAA; 32], [0xCC; 32]],
+            &[[0xBB; 32], [0xDD; 32]],
+            80,
+            1,
+            0x03,
+        );
         assert_ne!(txid_1_1, txid_2_2, "2-in/2-out TXID must differ from 1-in/1-out");
     }
 
@@ -285,9 +297,22 @@ mod tests {
 
     #[test]
     fn integration_test_utxo_root_identical() {
-        let tx_set = vec![make_tx(0xAA), make_tx(0xBB), make_tx(0xCC), make_tx(0xDD), make_tx(0xEE)];
+        // FIX: vec literal panjang → satu item per baris
+        let tx_set = vec![
+            make_tx(0xAA),
+            make_tx(0xBB),
+            make_tx(0xCC),
+            make_tx(0xDD),
+            make_tx(0xEE),
+        ];
         let node_a_input = tx_set.clone();
-        let node_b_input = vec![make_tx(0xEE), make_tx(0xCC), make_tx(0xAA), make_tx(0xDD), make_tx(0xBB)];
+        let node_b_input = vec![
+            make_tx(0xEE),
+            make_tx(0xCC),
+            make_tx(0xAA),
+            make_tx(0xDD),
+            make_tx(0xBB),
+        ];
         let sorted_a = sort_transactions_canonical(&node_a_input, 7);
         let sorted_b = sort_transactions_canonical(&node_b_input, 7);
         assert_eq!(sorted_a, sorted_b);
@@ -418,8 +443,13 @@ mod tests {
         let txid_le = compute_txid(nullifiers, commitments, 256, 1, 0x03);
         let mut hasher_le = Hasher::new();
         hasher_le.update(TXID_DOMAIN);
-        for n in nullifiers { hasher_le.update(n); }
-        for c in commitments { hasher_le.update(c); }
+        // FIX: for loop satu baris → dipecah (konsisten dengan loop lain di file ini)
+        for n in nullifiers {
+            hasher_le.update(n);
+        }
+        for c in commitments {
+            hasher_le.update(c);
+        }
         hasher_le.update(&256u64.to_le_bytes());
         hasher_le.update(&1u64.to_le_bytes());
         hasher_le.update(&[0x03]);
