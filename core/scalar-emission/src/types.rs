@@ -162,7 +162,9 @@ mod tests {
             seed_k: [0u8; 32],
             manifest_hash: [0u8; 32],
             reward_root: [0u8; 32],
-            network_health_digest: [0xABu8; 32], tx_set_root: [0u8; 32],
+            // FIX: dua field dalam satu baris → dipecah ke baris terpisah
+            network_health_digest: [0xABu8; 32],
+            tx_set_root: [0u8; 32],
         };
         assert_eq!(manifest.network_health_digest, [0xABu8; 32]);
         assert_eq!(manifest.spec_version, 0x06);
