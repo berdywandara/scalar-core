@@ -256,7 +256,7 @@ mod tests {
         hasher.update(&[version]);
         let without_domain = *hasher.finalize().as_bytes();
         assert_ne!(
-            with_domain, without_domain, 
+            with_domain, without_domain,
             "Domain separator must be used in TXID"
         );
     }
