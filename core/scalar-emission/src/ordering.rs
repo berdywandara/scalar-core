@@ -273,7 +273,7 @@ mod tests {
             0x03,
         );
         assert_ne!(
-            txid_1_1, txid_2_2, 
+            txid_1_1, txid_2_2,
             "2-in/2-out TXID must differ from 1-in/1-out"
         );
     }
