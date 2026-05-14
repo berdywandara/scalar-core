@@ -171,48 +171,68 @@ mod tests {
         let version = 0x03u8;
         let txid1 = compute_txid(nullifiers, commitments, fee, epoch, version);
         let txid2 = compute_txid(nullifiers, commitments, fee, epoch, version);
-        assert_eq!(txid1, txid2, "TXID must be deterministic for identical inputs");
+        assert_eq!(
+            txid1, txid2, 
+            "TXID must be deterministic for identical inputs"
+        );
     }
 
     #[test]
     fn unit_test_txid_different_nullifier() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x02; 32]], &[[0x10; 32]], 40, 1, 0x03);
-        assert_ne!(txid1, txid2, "TXID must differ for different nullifiers");
+        assert_ne!(
+            txid1, txid2, "TXID must differ for different nullifiers"
+        );
     }
 
     #[test]
     fn unit_test_txid_different_commitment() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x11; 32]], 40, 1, 0x03);
-        assert_ne!(txid1, txid2, "TXID must differ for different commitments");
+        assert_ne!(
+            txid1, txid2, 
+            "TXID must differ for different commitments"
+        );
     }
 
     #[test]
     fn unit_test_txid_different_fee() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 50, 1, 0x03);
-        assert_ne!(txid1, txid2, "TXID must differ for different fees");
+        assert_ne!(
+            txid1, txid2, 
+            "TXID must differ for different fees"
+        );
     }
 
     #[test]
     fn unit_test_txid_different_epoch() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 2, 0x03);
-        assert_ne!(txid1, txid2, "TXID must differ for different epochs");
+        assert_ne!(
+            txid1, txid2, 
+            "TXID must differ for different epochs"
+        );
     }
 
     #[test]
     fn unit_test_txid_different_crypto_version() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x04);
-        assert_ne!(txid1, txid2, "TXID must differ for different crypto_version");
+        assert_ne!(
+            txid1, txid2, 
+            "TXID must differ for different crypto_version"
+        );
     }
 
     #[test]
     fn unit_test_txid_nonzero() {
         let txid = compute_txid(&[[0x00; 32]], &[[0x00; 32]], 0, 0, 0x00);
-        assert_ne!(txid, [0u8; 32], "TXID must not be zero");
+        assert_ne!(
+            txid, [0u8; 32], 
+            "TXID must not be zero"
+        );
     }
 
     #[test]
@@ -235,7 +255,10 @@ mod tests {
         hasher.update(&epoch.to_le_bytes());
         hasher.update(&[version]);
         let without_domain = *hasher.finalize().as_bytes();
-        assert_ne!(with_domain, without_domain, "Domain separator must be used in TXID");
+        assert_ne!(
+            with_domain, without_domain, 
+            "Domain separator must be used in TXID"
+        );
     }
 
     #[test]
@@ -249,7 +272,10 @@ mod tests {
             1,
             0x03,
         );
-        assert_ne!(txid_1_1, txid_2_2, "2-in/2-out TXID must differ from 1-in/1-out");
+        assert_ne!(
+            txid_1_1, txid_2_2, 
+            "2-in/2-out TXID must differ from 1-in/1-out"
+        );
     }
 
     // Ordering Key Tests
@@ -258,7 +284,10 @@ mod tests {
         let txid = make_txid(0x42, 10);
         let k1 = compute_tx_ordering_key(&txid, 10);
         let k2 = compute_tx_ordering_key(&txid, 10);
-        assert_eq!(k1, k2, "ordering_key must be deterministic for identical inputs");
+        assert_eq!(
+            k1, k2, 
+            "ordering_key must be deterministic for identical inputs"
+        );
     }
 
     #[test]
@@ -266,20 +295,29 @@ mod tests {
         let txid = make_txid(0x42, 10);
         let k1 = compute_tx_ordering_key(&txid, 10);
         let k2 = compute_tx_ordering_key(&txid, 11);
-        assert_ne!(k1, k2, "ordering_key must differ for different epochs");
+        assert_ne!(
+            k1, k2, 
+            "ordering_key must differ for different epochs"
+        );
     }
 
     #[test]
     fn unit_test_tx_ordering_key_different_txid() {
         let k1 = compute_tx_ordering_key(&make_txid(0x01, 10), 10);
         let k2 = compute_tx_ordering_key(&make_txid(0x02, 10), 10);
-        assert_ne!(k1, k2, "ordering_key must differ for different txid");
+        assert_ne!(
+            k1, k2, 
+            "ordering_key must differ for different txid"
+        );
     }
 
     #[test]
     fn unit_test_tx_ordering_key_nonzero() {
         let k = compute_tx_ordering_key(&[0u8; 32], 0);
-        assert_ne!(k, [0u8; 32], "ordering_key must not be zero");
+        assert_ne!(
+            k, [0u8; 32], 
+            "ordering_key must not be zero"
+        );
     }
 
     // Canonical Sort Tests
