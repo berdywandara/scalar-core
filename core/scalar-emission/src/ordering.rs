@@ -206,7 +206,10 @@ mod tests {
     fn unit_test_txid_different_crypto_version() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x04);
-        assert_ne!(txid1, txid2, "TXID must differ for different crypto_version");
+        assert_ne!(
+            txid1, txid2,
+            "TXID must differ for different crypto_version"
+        );
     }
 
     #[test]
