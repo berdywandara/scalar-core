@@ -300,7 +300,8 @@ pub fn build_dmm(
 
     let mut total_emission_sscl: u64 = 0;
     for entry in &mut dmm_node_list {
-        let reward = compute_reward_for_node(config.e_active_sscl, entry.uptime_weight_fp, w_effective_fp);
+        let reward = 
+            compute_reward_for_node(config.e_active_sscl, entry.uptime_weight_fp, w_effective_fp);
         entry.reward_sscl = reward;
         total_emission_sscl = total_emission_sscl.saturating_add(reward);
     }
