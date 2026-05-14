@@ -112,13 +112,13 @@ fn poseidon2_vectors() {
 
 fn slhdsa_vectors() {
     use scalar_crypto::sphincs::{
-        generate_keypair, sign_message, verify_signature, SPHINCS_PK_BYTES, SPHINCS_SIG_BYTES,
-        SPHINCS_SK_BYTES,
+        generate_keypair, sign_message, verify_signature, SPHINCS_PK_BYTES, SPHINCS_SK_BYTES, SPHINCS_SIG_BYTES,
     };
 
     println!(" PK size : {} bytes", SPHINCS_PK_BYTES);
-    println!(" Sig size: {} bytes", SPHINCS_SIG_BYTES);
     println!(" SK size : {} bytes", SPHINCS_SK_BYTES);
+    println!(" Sig size: {} bytes", SPHINCS_SIG_BYTES);
+
 
     let kp = generate_keypair().expect("keygen failed");
     let message = b"scalar_anchor_v1_test_vector_001";
