@@ -68,7 +68,12 @@ mod empirical_2_canonical_fuzz {
             m4.tx_set_root = [0xBBu8; 32];
             let h4 = compute_manifest_hash_v12(&m4);
             if manifest.tx_set_root != [0xBBu8; 32] {
-                assert_ne!(h1, h4, "P3 FAILED seed={}: tx_set_root tidak mempengaruhi hash", seed);
+                assert_ne!(
+                    h1,
+                    h4,
+                    "P3 FAILED seed={}: tx_set_root tidak mempengaruhi hash",
+                    seed
+                );
             }
 
             // P4: Hash bukan zero
