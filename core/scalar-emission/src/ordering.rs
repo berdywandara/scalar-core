@@ -171,39 +171,28 @@ mod tests {
         let version = 0x03u8;
         let txid1 = compute_txid(nullifiers, commitments, fee, epoch, version);
         let txid2 = compute_txid(nullifiers, commitments, fee, epoch, version);
-        assert_eq!(
-            txid1, txid2,
-            "TXID must be deterministic for identical inputs"
-        );
+        assert_eq!(txid1, txid2, "TXID must be deterministic for identical inputs");
     }
 
     #[test]
     fn unit_test_txid_different_nullifier() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x02; 32]], &[[0x10; 32]], 40, 1, 0x03);
-        assert_ne!(
-            txid1, txid2, "TXID must differ for different nullifiers"
-        );
+        assert_ne!(txid1, txid2, "TXID must differ for different nullifiers");
     }
 
     #[test]
     fn unit_test_txid_different_commitment() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x11; 32]], 40, 1, 0x03);
-        assert_ne!(
-            txid1, txid2,
-            "TXID must differ for different commitments"
-        );
+        assert_ne!(txid1, txid2, "TXID must differ for different commitments");
     }
 
     #[test]
     fn unit_test_txid_different_fee() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 50, 1, 0x03);
-        assert_ne!(
-            txid1, txid2,
-            "TXID must differ for different fees"
-        );
+        assert_ne!(txid1, txid2, "TXID must differ for different fees");
     }
 
     #[test]
@@ -217,10 +206,7 @@ mod tests {
     fn unit_test_txid_different_crypto_version() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x04);
-        assert_ne!(
-            txid1, txid2,
-            "TXID must differ for different crypto_version"
-        );
+        assert_ne!(txid1, txid2, "TXID must differ for different crypto_version");
     }
 
     #[test]
