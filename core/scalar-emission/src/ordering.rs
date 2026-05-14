@@ -210,10 +210,7 @@ mod tests {
     fn unit_test_txid_different_epoch() {
         let txid1 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 1, 0x03);
         let txid2 = compute_txid(&[[0x01; 32]], &[[0x10; 32]], 40, 2, 0x03);
-        assert_ne!(
-            txid1, txid2,
-            "TXID must differ for different epochs"
-        );
+        assert_ne!(txid1, txid2, "TXID must differ for different epochs");
     }
 
     #[test]
