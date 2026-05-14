@@ -284,10 +284,7 @@ mod tests {
         let txid = make_txid(0x42, 10);
         let k1 = compute_tx_ordering_key(&txid, 10);
         let k2 = compute_tx_ordering_key(&txid, 10);
-        assert_eq!(
-            k1, k2, 
-            "ordering_key must be deterministic for identical inputs"
-        );
+        assert_eq!(k1, k2, "ordering_key must be deterministic for identical inputs");
     }
 
     #[test]
@@ -295,20 +292,14 @@ mod tests {
         let txid = make_txid(0x42, 10);
         let k1 = compute_tx_ordering_key(&txid, 10);
         let k2 = compute_tx_ordering_key(&txid, 11);
-        assert_ne!(
-            k1, k2, 
-            "ordering_key must differ for different epochs"
-        );
+        assert_ne!(k1, k2, "ordering_key must differ for different epochs");
     }
 
     #[test]
     fn unit_test_tx_ordering_key_different_txid() {
         let k1 = compute_tx_ordering_key(&make_txid(0x01, 10), 10);
         let k2 = compute_tx_ordering_key(&make_txid(0x02, 10), 10);
-        assert_ne!(
-            k1, k2, 
-            "ordering_key must differ for different txid"
-        );
+        assert_ne!(k1, k2, "ordering_key must differ for different txid");
     }
 
     #[test]
