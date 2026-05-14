@@ -130,8 +130,7 @@ fn slhdsa_vectors() {
 }
 
 fn canonical_serialization_vectors() {
-    use scalar_emission::accumulator::{E0_SSCL, E_TAIL_SSCL, S_E_SSCL, S_MAX_SSCL, S_R_SSCL,
-    };
+    use scalar_emission::accumulator::{E0_SSCL, E_TAIL_SSCL, S_E_SSCL, S_MAX_SSCL, S_R_SSCL,};
     println!(" TV-SERIAL-001: Supply constants (little-endian u64 hex)");
     println!(" S_MAX : {}", hex::encode(S_MAX_SSCL.to_le_bytes()));
     println!(" S_E : {}", hex::encode(S_E_SSCL.to_le_bytes()));
