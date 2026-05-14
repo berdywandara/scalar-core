@@ -513,8 +513,7 @@ mod tests {
 
         assert_ne!(m1.tx_set_root, m2.tx_set_root);
         assert_ne!(
-            m1.manifest_hash,
-            m2.manifest_hash,
+            m1.manifest_hash, m2.manifest_hash,
             "manifest_hash harus berubah jika tx_set_root berbeda"
         );
     }
