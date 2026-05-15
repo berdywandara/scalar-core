@@ -1,44 +1,44 @@
-//! Root Alignment Snapshot Buffer — Spec §7.3
+//! root Alignment Snapshot Buffer — Spec §7.3
 //!
 //! root_alignment_score mengukur seberapa sering SMT root node i
-//! cocok dengan majority root dalam window snapshot terakhir.
+//! matches majority root in window snapshot last.
 //!
 //! Spec §7.3:
 //!   root_alignment_score = matched_snapshots / total_snapshots (fp basis 1_000_000)
-//!   Window = ALIGNMENT_WINDOW_SIZE snapshot terakhir
-//!   Score 1_000_000 = semua snapshot cocok (perfect alignment)
-//!   Score 0 = tidak ada snapshot yang cocok (node divergen)
+//! Window = ALIGNMENT_WINDOW_SIZE snapshot last
+//! Score 1_000_000 = all snapshot cocok (perfect alignment)
+//! Score 0 = none snapshot that cocok (node atvergen)
 //!
-//! Snapshot diambil setiap heartbeat. Majority root = root yang dimiliki
-//! ≥50% node dalam jaringan pada saat snapshot.
+//! Snapshot taton each heartbeat. Majority root = root that owned
+//! ≥50% node in network on when snapshot.
 //!
-//! Digunakan oleh compute_uptime_weight() sebagai komponen 30%.
-//! No floating point — semua arithmetic integer fixed-point basis 1_000_000.
+//! used oleh compute_uptime_weight() as komponen 30%.
+//! No floating point — all arithmetic integer fixed-point basis 1_000_000.
 
 // ── Constants — spec §7.3 ────────────────────────────────────────────────────
 
-/// Jumlah snapshot yang disimpan untuk alignment calculation. Spec §7.3.
-/// Window = 10 snapshot terakhir.
+/// Jumlah snapshot that stored for alignment calculation. Spec §7.3.
+/// Window = 10 snapshot last.
 pub const ALIGNMENT_WINDOW_SIZE: usize = 10;
 
-/// Fixed-point basis untuk alignment score. Spec §7.3.
+/// Fixed-point basis for alignment score. Spec §7.3.
 pub const ALIGNMENT_FP_BASIS: u64 = 1_000_000;
 
 // ── RootSnapshot — satu snapshot per heartbeat ───────────────────────────────
 
-/// Satu root snapshot dari satu heartbeat. Spec §7.3.
+/// Satu root snapshot from satu heartbeat. Spec §7.3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootSnapshot {
-    /// SMT root node ini pada saat snapshot.
+    /// SMT root node this on when snapshot.
     pub node_root: [u8; 32],
-    /// Majority root jaringan pada saat snapshot (dari konsensus).
+    /// Majority root network on when snapshot (from konsensus).
     pub majority_root: [u8; 32],
-    /// seq_num saat snapshot diambil.
+    /// seq_num when snapshot taton.
     pub seq_num: u32,
 }
 
 impl RootSnapshot {
-    /// Apakah node root cocok dengan majority root? Spec §7.3.
+    /// whether node root matches majority root? Spec §7.3.
     pub fn is_aligned(&self) -> bool {
         self.node_root == self.majority_root
     }
@@ -46,17 +46,17 @@ impl RootSnapshot {
 
 // ── RootAlignmentBuffer — spec §7.3 ──────────────────────────────────────────
 
-/// Ring buffer snapshot untuk root alignment calculation. Spec §7.3.
+/// Ring buffer snapshot for root alignment calculation. Spec §7.3.
 ///
-/// Menyimpan ALIGNMENT_WINDOW_SIZE snapshot terakhir.
-/// Menghitung root_alignment_score = matched / total dalam fp basis 1_000_000.
+/// store ALIGNMENT_WINDOW_SIZE snapshot last.
+/// compute root_alignment_score = matched / total in fp basis 1_000_000.
 #[derive(Debug)]
 pub struct RootAlignmentBuffer {
     /// Ring buffer — circular, overwrites oldest entry.
     snapshots: [Option<RootSnapshot>; ALIGNMENT_WINDOW_SIZE],
-    /// Index untuk entry berikutnya.
+    /// Index for entry next.
     next_idx: usize,
-    /// Total snapshot yang pernah diinsert (untuk count calculation).
+    /// Total snapshot that ever atinsert (for count calculation).
     total_inserted: usize,
 }
 
@@ -69,21 +69,21 @@ impl RootAlignmentBuffer {
         }
     }
 
-    /// Tambahkan snapshot baru. Spec §7.3.
+    /// add snapshot new. Spec §7.3.
     ///
-    /// Overwrites entry paling lama jika buffer penuh.
+    /// Overwrites entry paling old if buffer full.
     pub fn push(&mut self, snapshot: RootSnapshot) {
         self.snapshots[self.next_idx] = Some(snapshot);
         self.next_idx = (self.next_idx + 1) % ALIGNMENT_WINDOW_SIZE;
         self.total_inserted += 1;
     }
 
-    /// Hitung jumlah snapshot yang ada dalam buffer.
+    /// Hitung jumlah snapshot that ada in buffer.
     pub fn count(&self) -> usize {
         self.snapshots.iter().filter(|s| s.is_some()).count()
     }
 
-    /// Hitung jumlah snapshot yang cocok (node_root == majority_root). Spec §7.3.
+    /// Hitung jumlah snapshot that cocok (node_root == majority_root). Spec §7.3.
     pub fn matched_count(&self) -> usize {
         self.snapshots
             .iter()
@@ -92,12 +92,12 @@ impl RootAlignmentBuffer {
             .count()
     }
 
-    /// Hitung root_alignment_score dalam fixed-point basis 1_000_000. Spec §7.3.
+    /// Hitung root_alignment_score in fixed-point basis 1_000_000. Spec §7.3.
     ///
     /// score = matched_snapshots / total_snapshots × 1_000_000
     ///
-    /// Returns 0 jika tidak ada snapshot (node baru).
-    /// Returns 1_000_000 jika semua snapshot cocok (perfect alignment).
+    /// Returns 0 if none snapshot (node new).
+    /// Returns 1_000_000 if all snapshot cocok (perfect alignment).
     pub fn alignment_score_fp(&self) -> u64 {
         let total = self.count() as u64;
         if total == 0 {
@@ -111,7 +111,7 @@ impl RootAlignmentBuffer {
             .unwrap_or(0)
     }
 
-    /// Ambil snapshot terbaru. Spec §7.3.
+    /// tato snapshot latest. Spec §7.3.
     pub fn latest(&self) -> Option<&RootSnapshot> {
         // next_idx - 1 adalah entry terbaru
         let last_idx = self
@@ -121,7 +121,7 @@ impl RootAlignmentBuffer {
         self.snapshots[last_idx].as_ref()
     }
 
-    /// Cek apakah buffer penuh (ALIGNMENT_WINDOW_SIZE snapshot). Spec §7.3.
+    /// check whether buffer full (ALIGNMENT_WINDOW_SIZE snapshot). Spec §7.3.
     pub fn is_full(&self) -> bool {
         self.count() == ALIGNMENT_WINDOW_SIZE
     }
@@ -135,11 +135,11 @@ impl Default for RootAlignmentBuffer {
 
 // ── Helper: compute majority root dari peer roots ────────────────────────────
 
-/// Compute majority root dari slice of (node_id, smt_root) pairs. Spec §7.3.
+/// Compute majority root of slice of (node_id, smt_root) pairs. Spec §7.3.
 ///
-/// Majority root = root yang dimiliki ≥50% node.
-/// Returns None jika tidak ada majority (split network).
-/// No floating point — semua arithmetic integer.
+/// Majority root = root that owned ≥50% node.
+/// Returns None if none majority (split network).
+/// No floating point — all arithmetic integer.
 pub fn compute_majority_root(peer_roots: &[([u8; 4], [u8; 32])]) -> Option<[u8; 32]> {
     if peer_roots.is_empty() {
         return None;

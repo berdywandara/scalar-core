@@ -1,7 +1,7 @@
 //! NodeID Production — Argon2id Anti-Sybil — Spec §10.2, Gap G-2
 //!
-//! PR-V12-012 FIX: node_key placeholder [0x42;32] diganti dengan
-//! production NodeID dari Argon2id sesuai spec §10.2.
+//! PR-V12-012 FIX: node_toy placeholder [0x42;32] atganti with
+//! production NodeID from Argon2id per spec §10.2.
 //!
 //! Spec §10.2:
 //!   node_id_full = Argon2id(
@@ -12,29 +12,29 @@
 //!     output = 32 bytes
 //!   )
 //!
-//! Tier C (§10.1): Argon2id 16 MB / 100 iter (sama dengan dev mode).
+//! Tier C (§10.1): Argon2id 16 MB / 100 iter (same with dev mode).
 //! Tier A/B: Argon2id 4 GB / 3_600 iter (production mode).
 //!
-//! Compile-time error jika build mainnet tanpa --features production.
-//! (Spec §10.2: "Compile-time error if build mainnet without --features production")
+//! Compile-time error if build mainnet tanpa --feregulatees production.
+//! (Spec §10.2: "Compile-time error if build mainnet without --feregulatees production")
 
 use argon2::{Algorithm, Argon2, Params, Version};
 
 // ── Constants — spec §10.2 ────────────────────────────────────────────────────
 
-/// Salt prefix untuk NodeID derivation. OSSIFIED — spec §10.2.
+/// Salt prefix for nodeID derivation. OSSIFIED — spec §10.2.
 pub const NODE_ID_SALT_PREFIX: &[u8] = b"scalar_nodeid_v1";
 
 /// Salt prefix length. Spec §10.2.
 pub const NODE_ID_SALT_PREFIX_LEN: usize = 16;
 
-/// Argon2id memory cost production (Tier A/B): 4 GB dalam KiB. OSSIFIED — spec §10.2.
+/// Argon2id memory cost production (Tier A/B): 4 GB in KiB. OSSIFIED — spec §10.2.
 pub const ARGON2_NODE_MEMORY_PRODUCTION_KIB: u32 = 4 * 1024 * 1024;
 
 /// Argon2id time cost production (Tier A/B): 3_600 iterasi. OSSIFIED — spec §10.2.
 pub const ARGON2_NODE_TIME_PRODUCTION: u32 = 3_600;
 
-/// Argon2id memory cost Tier C / dev: 16 MB dalam KiB. Spec §10.1.
+/// Argon2id memory cost Tier C / dev: 16 MB in KiB. Spec §10.1.
 pub const ARGON2_NODE_MEMORY_TIER_C_KIB: u32 = 16 * 1024;
 
 /// Argon2id time cost Tier C / dev: 100 iterasi. Spec §10.1.
@@ -51,14 +51,14 @@ pub const TIER_C_NODE_PREFIX: u8 = 0xFE;
 
 // ── NodeIdDerivationMode — tier selection ─────────────────────────────────────
 
-/// Mode derivasi NodeID. Spec §10.1, §10.2.
+/// Mode derivation NodeID. Spec §10.1, §10.2.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeIdDerivationMode {
     /// Tier A/B production: 4 GB / 3_600 iter. Spec §10.2.
-    /// Aktif dengan --features production.
+    /// Aktif with --feregulatees production.
     Production,
     /// Tier C / dev: 16 MB / 100 iter. Spec §10.1.
-    /// Default mode untuk dev dan Tier C.
+    /// Default mode for dev and Tier C.
     TierCOrDev,
 }
 
@@ -80,21 +80,21 @@ impl NodeIdDerivationMode {
 
 // ── ProductionNodeId — spec §10.2 ─────────────────────────────────────────────
 
-/// Production NodeID yang diturunkan dari Argon2id. Spec §10.2.
+/// Production NodeID that atturunkan from Argon2id. Spec §10.2.
 #[derive(Clone, Debug)]
 pub struct ProductionNodeId {
     /// Full 32-byte NodeID. Spec §10.2.
     pub node_id_full: [u8; 32],
-    /// Mode derivasi yang digunakan.
+    /// Mode derivation used.
     pub mode: NodeIdDerivationMode,
 }
 
 impl ProductionNodeId {
-    /// Derive NodeID dari mnemonic dan genesis_hash. Spec §10.2.
+    /// Derive NodeID from mnemonic and genesis_hash. Spec §10.2.
     ///
-    /// `mnemonic`: kata-kata mnemonic sebagai bytes (UTF-8).
+    /// `mnemonic`: kata-kata mnemonic as bytes (UTF-8).
     /// `genesis_hash`: 32-byte genesis hash.
-    /// `mode`: Production (4GB) atau TierCOrDev (16MB).
+    /// `mode`: Production (4GB) or TierCOrDev (16MB).
     ///
     /// salt = b"scalar_nodeid_v1" || genesis_hash
     pub fn derive(
@@ -134,14 +134,14 @@ impl ProductionNodeId {
         })
     }
 
-    /// Cek apakah ini node Tier C (prefix 0xFE). Spec §10.1.
+    /// check whether this node Tier C (prefix 0xFE). Spec §10.1.
     pub fn is_tier_c(&self) -> bool {
         self.node_id_full[0] == TIER_C_NODE_PREFIX
     }
 
-    /// Derive node_id_full menggunakan mode yang sesuai dengan feature flag.
+    /// Derive node_id_full using mode that in accorandce with feregulatee flag.
     ///
-    /// Production build (--features production) → Production mode.
+    /// Production build (--feregulatees production) → Production mode.
     /// Dev build → TierCOrDev mode.
     pub fn derive_with_feature_flag(
         mnemonic: &[u8],
@@ -159,14 +159,14 @@ impl ProductionNodeId {
 
 // ── Error ─────────────────────────────────────────────────────────────────────
 
-/// Error derivasi NodeID. Spec §10.2.
+/// Error derivation NodeID. Spec §10.2.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeIdError {
-    /// Params Argon2id tidak valid.
+    /// Params Argon2id invalid.
     InvalidParams,
-    /// Derivasi gagal.
+    /// derivation failed.
     DerivationFailed,
-    /// Output adalah zero — tidak valid.
+    /// Output adalah zero — invalid.
     ZeroOutput,
 }
 

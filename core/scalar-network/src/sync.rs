@@ -16,7 +16,7 @@
 
 // ── Konstanta Spec §6.5 + §12.8 ──────────────────────────────────────
 
-/// Checkpoint interval dalam hari. Spec §6.5: 90 hari.
+/// Checkpoint interval in days. Spec §6.5: 90 days.
 pub const CHECKPOINT_INTERVAL_DAYS: u64 = 90;
 
 /// NS_ARCH proof size maksimum (bytes). Spec §6.5: ~150 KB.
@@ -28,7 +28,7 @@ pub const NS_ARCH_VERIFY_MAX_MS: u64 = 100;
 /// Jumlah bootstrap peers hardcoded. Spec §12.8: 50 peers.
 pub const BOOTSTRAP_PEER_COUNT: usize = 50;
 
-/// Minimum persentase bootstrap peers per region. Spec §12.8: ≥20%.
+/// Mthismum persentase bootstrap peers per region. Spec §12.8: ≥20%.
 pub const BOOTSTRAP_MIN_REGION_PERCENT: u64 = 20;
 
 /// Maksimum persentase bootstrap peers per region. Spec §12.8: ≤40%.
@@ -40,60 +40,60 @@ pub const GENESIS_MAX_BYTES: usize = 1024;
 /// Jumlah finality threshold standar (%). Spec §12.9.
 pub const FINALITY_STANDARD_PERCENT: u64 = 67;
 
-/// Checkpoint interval minimum (hari). Spec §6.5: range 30-180.
+/// Checkpoint interval mthismum (days). Spec §6.5: range 30-180.
 pub const CHECKPOINT_INTERVAL_MIN_DAYS: u64 = 30;
 
-/// Checkpoint interval maksimum (hari). Spec §6.5: range 30-180.
+/// Checkpoint interval maksimum (days). Spec §6.5: range 30-180.
 pub const CHECKPOINT_INTERVAL_MAX_DAYS: u64 = 180;
 
 // ── Sync State Machine ────────────────────────────────────────────────
 
-/// State machine untuk progressive sync node baru. Spec §12.8.
+/// State machine for progressive sync node new. Spec §12.8.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SyncState {
-    /// Belum mulai sync.
+    /// not yet start sync.
     Idle,
-    /// Step 1: Download + verifikasi genesis object.
+    /// Step 1: Download + verification genesis object.
     VerifyingGenesis,
     /// Step 2: Download checkpoint snapshot.
     DownloadingCheckpoint { checkpoint_epoch: u64 },
-    /// Step 3: Verifikasi NS_ARCH recursive STARK proof.
+    /// Step 3: verification NS_ARCH recursive STARK proof.
     VerifyingNsArch { checkpoint_epoch: u64 },
-    /// Step 4: Delta sync dari checkpoint ke tip.
+    /// Step 4: Delta sync from checkpoint to tip.
     DeltaSyncing {
         checkpoint_epoch: u64,
         current_epoch: u64,
     },
-    /// Step 5: Node fully synced, siap berpartisipasi.
+    /// Step 5: Node fully synced, siap berpartfillpasi.
     Synced { tip_epoch: u64 },
-    /// Sync gagal — alasan tersimpan.
+    /// Sync failed — alasan tersave.
     Failed { reason: SyncFailReason },
 }
 
-/// Alasan kegagalan sync.
+/// Alasan tofaileand sync.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SyncFailReason {
-    /// Genesis hash tidak cocok dengan hardcoded hash.
+    /// Genesis hash not matches hardcoded hash.
     GenesisHashMismatch,
-    /// NS_ARCH proof tidak valid.
+    /// NS_ARCH proof invalid.
     NsArchProofInvalid,
-    /// NS_ARCH proof terlalu besar (> 150 KB).
+    /// NS_ARCH proof terthen large (> 150 KB).
     NsArchProofTooLarge,
-    /// NS_ARCH verification terlalu lambat (> 100ms).
+    /// NS_ARCH verification terthen slow (> 100ms).
     NsArchVerifyTooSlow,
-    /// Tidak ada checkpoint tersedia.
+    /// none checkpoint available.
     NoCheckpointAvailable,
-    /// Delta sync gagal karena tidak ada peer.
+    /// Delta sync failed karena none peer.
     NoPeersAvailable,
 }
 
 impl SyncState {
-    /// True jika node sudah fully synced.
+    /// true if node already fully synced.
     pub fn is_synced(&self) -> bool {
         matches!(self, SyncState::Synced { .. })
     }
 
-    /// True jika sync sedang berjalan.
+    /// true if sync currently running.
     pub fn is_in_progress(&self) -> bool {
         !matches!(
             self,
@@ -101,7 +101,7 @@ impl SyncState {
         )
     }
 
-    /// True jika sync gagal.
+    /// true if sync failed.
     pub fn is_failed(&self) -> bool {
         matches!(self, SyncState::Failed { .. })
     }
@@ -109,19 +109,19 @@ impl SyncState {
 
 // ── Genesis Verification ──────────────────────────────────────────────
 
-/// Hasil verifikasi genesis object.
+/// verification result genesis object.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GenesisVerifyResult {
     /// Genesis valid — hash cocok.
     Valid,
-    /// Genesis tidak valid — hash mismatch.
+    /// Genesis invalid — hash mismatch.
     InvalidHash { expected: [u8; 32], got: [u8; 32] },
-    /// Genesis terlalu besar.
+    /// Genesis terthen large.
     TooLarge { size: usize },
 }
 
-/// Verifikasi genesis object. Spec §12.8.
-/// BLAKE3(genesis_bytes) harus == hardcoded_canonical_hash.
+/// verification genesis object. Spec §12.8.
+/// BLAto3(genesis_bytes) harus == hardcoded_canonical_hash.
 pub fn verify_genesis(
     genesis_bytes: &[u8],
     hardcoded_canonical_hash: &[u8; 32],
@@ -147,34 +147,34 @@ pub fn verify_genesis(
 
 // ── Checkpoint Management ─────────────────────────────────────────────
 
-/// Metadata checkpoint. Spec §6.5 + §12.8.
+/// metadata checkpoint. Spec §6.5 + §12.8.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckpointMetadata {
-    /// Epoch saat checkpoint dibuat.
+    /// current epoch checkpoint created.
     pub epoch: u64,
-    /// Hash NullifierSet root saat checkpoint.
+    /// hash NullifierSet root when checkpoint.
     pub nullifier_set_root: [u8; 32],
-    /// Hash NS_ARCH recursive STARK proof.
+    /// hash NS_ARCH recursive STARK proof.
     pub ns_arch_proof_hash: [u8; 32],
-    /// Ukuran NS_ARCH proof (bytes).
+    /// size NS_ARCH proof (bytes).
     pub ns_arch_proof_size: usize,
     /// Timestamp checkpoint (Unix).
     pub timestamp: u64,
 }
 
-/// Validasi metadata checkpoint. Spec §6.5.
+/// validation metadata checkpoint. Spec §6.5.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckpointValidation {
     Valid,
-    /// Proof terlalu besar (> 150 KB).
+    /// Proof terthen large (> 150 KB).
     ProofTooLarge {
         size: usize,
     },
-    /// Epoch tidak valid.
+    /// Epoch invalid.
     InvalidEpoch,
 }
 
-/// Validasi checkpoint sebelum download full proof.
+/// validation checkpoint before download full proof.
 pub fn validate_checkpoint_metadata(meta: &CheckpointMetadata) -> CheckpointValidation {
     if meta.epoch == 0 {
         return CheckpointValidation::InvalidEpoch;
@@ -187,9 +187,9 @@ pub fn validate_checkpoint_metadata(meta: &CheckpointMetadata) -> CheckpointVali
     CheckpointValidation::Valid
 }
 
-/// Hitung epoch checkpoint terbaru berdasarkan current_epoch.
-/// Checkpoint dibuat setiap CHECKPOINT_INTERVAL_DAYS (dalam satuan epoch ≈ 30 hari).
-/// Spec §6.5: interval 90 hari = 3 epoch.
+/// Hitung epoch checkpoint latest based on current_epoch.
+/// Checkpoint created each CHECKPOINT_INTERVAL_DAYS (in onean epoch ≈ 30 days).
+/// Spec §6.5: interval 90 days = 3 epoch.
 pub fn latest_checkpoint_epoch(current_epoch: u64) -> Option<u64> {
     // Checkpoint setiap 3 epoch (90 hari / 30 hari per epoch)
     const CHECKPOINT_EPOCH_INTERVAL: u64 = 3;
@@ -206,22 +206,22 @@ pub fn latest_checkpoint_epoch(current_epoch: u64) -> Option<u64> {
 
 // ── NS_ARCH Proof Verification ────────────────────────────────────────
 
-/// Hasil verifikasi NS_ARCH proof. Spec §6.5.
+/// verification result NS_ARCH proof. Spec §6.5.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NsArchVerifyResult {
     /// Proof valid — node bisa trust seluruh history.
     Valid,
-    /// Proof terlalu besar.
+    /// Proof terthen large.
     TooLarge { size: usize },
-    /// Verifikasi terlalu lambat (> 100ms).
+    /// verification terthen slow (> 100ms).
     TooSlow { elapsed_ms: u64 },
-    /// Proof tidak valid secara kriptografi.
+    /// Proof invalid secara cryptography.
     InvalidProof,
 }
 
-/// Validasi ukuran dan waktu verifikasi NS_ARCH proof. Spec §6.5.
-/// Catatan: verifikasi kriptografi sebenarnya dilakukan oleh scalar-stark crate.
-/// Fungsi ini memvalidasi constraints ukuran dan timing.
+/// validation size and waktu verification NS_ARCH proof. Spec §6.5.
+/// note: verification cryptography actual performed oleh scalar-stark crate.
+/// function this validate constraints size and timing.
 pub fn validate_ns_arch_constraints(
     proof_size_bytes: usize,
     verify_elapsed_ms: u64,
@@ -265,28 +265,28 @@ impl BootstrapDiversity {
     }
 }
 
-/// Validasi geographic diversity bootstrap peers. Spec §12.8.
-/// Setiap region: ≥20% dan ≤40%.
+/// validation geographic atversionty bootstrap peers. Spec §12.8.
+/// each region: ≥20% and ≤40%.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BootstrapDiversityResult {
     Valid,
-    /// Region terlalu sedikit (< 20%).
+    /// Region terthen seatkit (< 20%).
     RegionTooSmall {
         region: &'static str,
         percent: u64,
     },
-    /// Region terlalu dominan (> 40%).
+    /// Region terthen dominant (> 40%).
     RegionTooLarge {
         region: &'static str,
         percent: u64,
     },
-    /// Total peers tidak cukup.
+    /// Total peers insufficient.
     InsufficientPeers {
         count: usize,
     },
 }
 
-/// Validasi diversity bootstrap list. Spec §12.8.
+/// validation atversionty bootstrap list. Spec §12.8.
 pub fn validate_bootstrap_diversity(d: &BootstrapDiversity) -> BootstrapDiversityResult {
     if d.total() < BOOTSTRAP_PEER_COUNT {
         return BootstrapDiversityResult::InsufficientPeers { count: d.total() };
@@ -319,14 +319,14 @@ pub fn validate_bootstrap_diversity(d: &BootstrapDiversity) -> BootstrapDiversit
 
 // ── Delta Sync Progress ───────────────────────────────────────────────
 
-/// Progres delta sync dari checkpoint ke tip. Spec §12.8.
+/// Progres delta sync from checkpoint to tip. Spec §12.8.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeltaSyncProgress {
     /// Epoch awal (checkpoint).
     pub from_epoch: u64,
-    /// Epoch target (tip jaringan).
+    /// Epoch target (tip network).
     pub to_epoch: u64,
-    /// Epoch yang sudah berhasil di-sync.
+    /// epoch that already successful at-sync.
     pub synced_epoch: u64,
 }
 
@@ -349,12 +349,12 @@ impl DeltaSyncProgress {
         (done * 100) / total
     }
 
-    /// True jika delta sync selesai.
+    /// true if delta sync fthisshed.
     pub fn is_complete(&self) -> bool {
         self.synced_epoch >= self.to_epoch
     }
 
-    /// Advance ke epoch berikutnya.
+    /// Advance to epoch next.
     pub fn advance(&mut self) {
         if self.synced_epoch < self.to_epoch {
             self.synced_epoch += 1;
@@ -364,7 +364,7 @@ impl DeltaSyncProgress {
 
 // ── Helper ────────────────────────────────────────────────────────────
 
-/// BLAKE3 hash sederhana (stub untuk test — production pakai scalar-crypto).
+/// BLAto3 hash simple (stub for test — production use scalar-crypto).
 /// Returns 32 byte hash.
 fn blake3_hash(data: &[u8]) -> [u8; 32] {
     // Simplified deterministic hash untuk unit test
@@ -682,7 +682,7 @@ mod tests {
     fn test_delta_sync_advance_does_not_exceed_tip() {
         let mut p = DeltaSyncProgress::new(3, 4);
         p.advance();
-        p.advance(); // sudah di tip, tidak boleh melebihi
+        p.advance(); // already at tip, must not exceed
         assert_eq!(p.synced_epoch, 4);
     }
 

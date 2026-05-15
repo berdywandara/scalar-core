@@ -6,8 +6,8 @@ pub struct VersionCompatibilityConstraint {
 
 pub struct VersionCompatibilityWitness {
     pub crypto_version: u8,           // PUBLIC INPUT
-    pub current_epoch: u64,           // dari context
-    pub valid_version_proof: Vec<u8>, // membuktikan versi valid
+    pub current_epoch: u64,           // from context
+    pub valid_version_proof: Vec<u8>, // memproofkan version valid
 }
 
 impl VersionCompatibilityConstraint {
@@ -15,7 +15,7 @@ impl VersionCompatibilityConstraint {
         &self,
         crypto_version: u8,
         _current_epoch: u64,
-        valid_versions: &[u8], // dari CryptoVersion Registry
+        valid_versions: &[u8], // from Cryptoversionon Registry
     ) -> bool {
         valid_versions.contains(&crypto_version)
     }

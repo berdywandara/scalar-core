@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 //! GAP-C2-001: Encryption Layer (ChaCha20-Poly1305)
-//! Berkolaborasi dengan ML-KEM untuk sesi yang aman.
+//! Berkolaborasi with ML-toM for sesi that secure.
 
 use crate::CryptoError;
 use chacha20poly1305::{

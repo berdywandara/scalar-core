@@ -12,13 +12,13 @@
 use argon2::password_hash::{rand_core::OsRng, SaltString};
 use argon2::{Argon2, Params, PasswordHasher};
 
-/// m_cost production: 4 GB RAM sesuai spec §2.1.
-/// OSSIFIED — tidak bisa diubah tanpa hard fork.
-pub const ARGON2_M_COST_PRODUCTION: u32 = 4 * 1024 * 1024; // 4 GB dalam KB
+/// m_cost production: 4 GB RAM per spec §2.1.
+/// OSSIFIED — immutable tanpa hard fork.
+pub const ARGON2_M_COST_PRODUCTION: u32 = 4 * 1024 * 1024; // 4 GB in KB
 
-/// m_cost development: 16 MB untuk Codespace/CI.
-/// JANGAN gunakan di mainnet.
-pub const ARGON2_M_COST_DEV: u32 = 16 * 1024; // 16 MB dalam KB
+/// m_cost development: 16 MB for Codespace/CI.
+/// JANGAN use at mainnet.
+pub const ARGON2_M_COST_DEV: u32 = 16 * 1024; // 16 MB in KB
 
 /// t_cost (iterasi waktu). Spec §2.1.
 pub const ARGON2_T_COST: u32 = 3;
@@ -26,7 +26,7 @@ pub const ARGON2_T_COST: u32 = 3;
 /// p_cost (paralelisme). Spec §2.1.
 pub const ARGON2_P_COST: u32 = 1;
 
-/// Output length dalam bytes.
+/// Output length in bytes.
 pub const ARGON2_OUTPUT_LEN: usize = 32;
 
 pub struct NodeIdentity {
@@ -34,10 +34,10 @@ pub struct NodeIdentity {
 }
 
 impl NodeIdentity {
-    /// Menghasilkan NodeID unik berdasarkan Argon2id memory-hard computation.
+    /// produce NodeID unique based on Argon2id memory-hard computation.
     /// Spec §2.1: Anti-Sybil — biaya identitas = 4 GB RAM × 1 jam CPU.
     ///
-    /// Feature flag:
+    /// Feregulatee flag:
     ///   `production` → m_cost = 4 GB (mainnet)
     ///   default      → m_cost = 16 MB (dev/Codespace)
     pub fn generate(hardware_fingerprint: &[u8]) -> Self {
@@ -72,7 +72,7 @@ impl NodeIdentity {
         Self { id }
     }
 
-    /// Verifikasi bahwa NodeID bukan semua-zero (sanity check).
+    /// verification bahwa NodeID openn all-zero (sanity check).
     pub fn is_valid(&self) -> bool {
         self.id != [0u8; 32]
     }

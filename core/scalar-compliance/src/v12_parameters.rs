@@ -1,11 +1,11 @@
-//! Compliance Suite v12.0 — Parameter v11.1-FINAL
+//! Compliance Suite v12.0 — parameter v11.1-FINAL
 //!
-//! Spec §XVII (parameter referensi lengkap v11.1-FINAL), §XXI (test targets).
+//! Spec §XVII (parameter reference complete v11.1-FINAL), §XXI (test targets).
 //!
-//! Verifikasi semua parameter baru dari v11.1-FINAL:
-//!   SPEC_VERSION_MANIFEST_V12 = 0x06
+//! verification all parameter new from v11.1-FINAL:
+//! SPEC_versionON_MANIFEST_V12 = 0x06
 //!   T_TRANSITION_EPOCHS = 4
-//!   network_health_digest field exists
+//! network_health_atgest field exists
 //!   NodeRewardEntry.uptime_weight_fp field exists
 
 #[cfg(test)]

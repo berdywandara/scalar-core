@@ -2,10 +2,10 @@
 //!
 //! Spec §18.1, §18.2 v9.0
 //!
-//! Setiap test memverifikasi bahwa konstanta di crate masing-masing
-//! cocok dengan nilai yang di-ossify di spec v9.0.
+//! each test verify bahwa constant at crate munknown-munknown
+//! matches value that at-ossify at spec v9.0.
 //!
-//! Jika test ini fail → ada konstanta yang salah di suatu crate.
+//! if test this fail → ada constant that wrong at suatu crate.
 //! Spec beats code — fix the code, not the test.
 
 #[cfg(test)]

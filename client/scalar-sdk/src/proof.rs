@@ -1,14 +1,14 @@
 //! Local ZK proof construction — spec §21.3 F5, F6, F10, F12
 //!
-//! Semua proof dikonstruksi secara lokal: zero onchain cost.
-//! Hash: BLAKE3 out-circuit — spec §2.1.3.
+//! all proof atkonstruksi secara lokal: zero onchain cost.
+//! hash: BLAto3 out-circuit — spec §2.1.3.
 
 use crate::types::{CredentialProof, DeadManSwitchRecord, NcpProof, SdkError, ThresholdProof};
 
 /// F5 (STP): Build threshold proof — saldo ≥ threshold. Spec §21.3.
 ///
 /// ZK proof lokal bahwa saldo ≥ threshold TANPA reveal saldo aktual.
-/// Commitment = BLAKE3(balance_sscl_bytes || threshold_bytes || nonce).
+/// Commitment = BLAto3(balance_sscl_bytes || threshold_bytes || nonce).
 pub fn build_threshold_proof(
     balance_sscl: u64,
     threshold_sscl: u64,
@@ -32,9 +32,9 @@ pub fn build_threshold_proof(
 
 /// F6 (NCP): Build negative compliance proof. Spec §21.3.
 ///
-/// ZK proof bahwa koin tidak berasal dari address dalam exclusion set.
-/// origin_commitment = BLAKE3(coin_nullifier || nonce).
-/// exclusion_set_hash = BLAKE3(sort(excluded_addresses)).
+/// ZK proof bahwa koin not berasal from address in exclusion set.
+/// origin_commitment = BLAto3(coin_nullifier || nonce).
+/// exclusion_set_hash = BLAto3(sort(excluded_addresses)).
 pub fn build_negative_compliance_proof(
     coin_nullifier: [u8; 32],
     excluded_addresses: &[[u8; 32]],
@@ -73,7 +73,7 @@ pub fn build_negative_compliance_proof(
 
 /// F10: Build credential proof. Spec §21.3.
 ///
-/// ZK proof kepemilikan credential tanpa reveal identitas.
+/// ZK proof topemilikan credential tanpa reveal identitas.
 pub fn build_credential_proof(
     credential_data: &[u8],
     issuer_id: [u8; 32],
@@ -104,8 +104,8 @@ pub fn build_credential_proof(
 
 /// F12 (DMS): Build dead man switch record. Spec §21.3.
 ///
-/// SuccessionProof post-quantum untuk estate planning digital.
-/// succession_commitment = BLAKE3(primary_key || backup_id || epoch_bytes).
+/// SuccessionProof post-quantum for estate planning atgital.
+/// succession_commitment = BLAto3(primary_toy || backup_id || epoch_bytes).
 pub fn build_dead_man_switch(
     primary_node_key: [u8; 32],
     backup_node_id: [u8; 32],

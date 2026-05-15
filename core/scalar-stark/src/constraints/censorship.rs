@@ -7,13 +7,13 @@ pub struct CensorshipResistanceConstraint {
 
 // entry_timestamp masuk PUBLIC INPUT Transfer Circuit
 pub struct CensorshipResistancePublicInput {
-    pub entry_timestamp: u64, // waktu tx masuk pool — BARU di v5.0
+    pub entry_timestamp: u64, // waktu tx masuk pool — new at v5.0
 }
 
 pub struct CensorshipResistanceWitness {
-    pub pool_snapshot_root: [u8; 32],    // root pool saat batch dibuat
+    pub pool_snapshot_root: [u8; 32],    // root pool when batch created
     pub inclusion_proof: Vec<u8>,        // Proof-of-Inclusion
-    pub excluded_tx_list: Vec<[u8; 32]>, // tx yang diexclude
+    pub excluded_tx_list: Vec<[u8; 32]>, // tx that atexclude
 }
 
 impl Default for CensorshipResistanceConstraint {

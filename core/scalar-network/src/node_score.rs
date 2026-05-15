@@ -1,26 +1,26 @@
 //! NodeScore + Tier C Sybil Control — Spec §10.1, §12.4 v11.1
 //!
-//! NodeScore: metrik kesehatan node (0–1_000_000).
-//! Tidak mempengaruhi reward secara langsung, tapi menentukan eligibilitas:
+//! NodeScore: metrik tosehatan node (0–1_000_000).
+//! not affect reward secara langsung, but determine eligibilitas:
 //!   - NMT peer: NodeScore > NMT_SCORE_THRESHOLD (800_000)
 //!   - Aggregator: NodeScore > AGGREGATOR_MIN_UPTIME_FP (700_000)
 //!
 //! Tier C (prefix 0xFE):
-//!   - NodeScore dibatasi maksimum TIER_C_MAX_NODESCORE = 600_000
-//!   - Secara otomatis tidak eligible NMT (threshold 800_000 tidak bisa dicapai)
-//!   - Ini menutup celah Sybil tanpa perlu fraksi eksplisit
+//! - NodeScore atbatasi maksimum TIER_C_MAX_NODESCORE = 600_000
+//! - Secara otomatis not eligible NMT (threshold 800_000 cannot achieved)
+//! - this close celah Sybil tanpa need fraksi eksplfillt
 //!
 //! Spec §10.1: "Tier C — Mobile / Low-resource"
 //! Spec §12.4: "Batas atas Tier C: max_score = 600_000"
 
 // ── Ossified constants — spec §10.1, §12.4, §17 ──────────────────────────────
 
-/// Maksimum NodeScore untuk node Tier C (prefix 0xFE). OSSIFIED — spec §10.1, §12.4.
-/// Tier C tidak bisa melebihi nilai ini, sehingga otomatis tidak eligible NMT.
+/// Maksimum NodeScore for node Tier C (prefix 0xFE). OSSIFIED — spec §10.1, §12.4.
+/// Tier C cannot exceed value this, so that otomatis not eligible NMT.
 pub const TIER_C_MAX_NODESCORE: u64 = 600_000;
 
-/// Threshold NodeScore untuk eligible NMT peer. OSSIFIED — spec §12.4, T-3.
-/// Node dengan NodeScore ≤ NMT_SCORE_THRESHOLD tidak eligible sebagai NMT peer.
+/// Threshold NodeScore for eligible NMT peer. OSSIFIED — spec §12.4, T-3.
+/// Node with NodeScore ≤ NMT_SCORE_THRESHOLD not eligible as NMT peer.
 pub const NMT_SCORE_THRESHOLD: u64 = 800_000;
 
 /// NodeScore maksimum (Tier A/B). OSSIFIED — spec §10.1.
@@ -34,31 +34,31 @@ pub const FIXED_POINT_BASIS: u64 = 1_000_000;
 
 // ── Tier detection — spec §10.1 ───────────────────────────────────────────────
 
-/// Deteksi apakah node adalah Tier C berdasarkan prefix node_id_full. Spec §10.1.
+/// detection whether node adalah Tier C based on prefix node_id_full. Spec §10.1.
 ///
-/// Node Tier C memiliki node_id_full[0] == 0xFE.
-/// Ini berasal dari Argon2id parameter yang berbeda (16MB/100iter vs 4GB/3600iter).
+/// Node Tier C have node_id_full[0] == 0xFE.
+/// this berasal from Argon2id parameter that atfferent (16MB/100iter vs 4GB/3600iter).
 ///
-/// Hash discipline: tidak ada hashing di fungsi ini — pure prefix check.
+/// hash atscipline: none hashing at function this — pure prefix check.
 pub fn is_tier_c(node_id_full: &[u8; 32]) -> bool {
     node_id_full[0] == TIER_C_PREFIX
 }
 
-/// Deteksi tier berdasarkan node_id_full. Spec §10.1.
+/// detection tier based on node_id_full. Spec §10.1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeTier {
-    /// Tier A: Dedicated hardware. NodeScore maks 1_000_000. Spec §10.1.
+    /// Tier A: Deatcated hardware. NodeScore maks 1_000_000. Spec §10.1.
     TierA,
-    /// Tier B: Virtualized cloud dengan TEE. NodeScore maks 1_000_000. Spec §10.1.
+    /// Tier B: Virtualized cloud with TEE. NodeScore maks 1_000_000. Spec §10.1.
     TierB,
     /// Tier C: Mobile/low-resource. NodeScore maks 600_000. Spec §10.1.
     TierC,
 }
 
-/// Ambil tier node dari node_id_full. Spec §10.1.
+/// tato tier node from node_id_full. Spec §10.1.
 ///
 /// Tier C: node_id_full[0] == 0xFE.
-/// Tier A/B: semua yang lain (dibedakan oleh TEE di runtime, bukan node_id).
+/// Tier A/B: all that lain (atbedwill oleh TEE at runtime, openn node_id).
 pub fn get_node_tier(node_id_full: &[u8; 32]) -> NodeTier {
     if is_tier_c(node_id_full) {
         NodeTier::TierC
@@ -71,22 +71,22 @@ pub fn get_node_tier(node_id_full: &[u8; 32]) -> NodeTier {
 
 // ── NodeScore computation — spec §12.4 ───────────────────────────────────────
 
-/// NodeScore — metrik kesehatan node (0–1_000_000). Spec §12.4.
+/// NodeScore — metrik tosehatan node (0–1_000_000). Spec §12.4.
 ///
-/// Tidak mempengaruhi reward secara langsung.
-/// Digunakan untuk NMT eligibility dan adaptive fanout.
+/// not affect reward secara langsung.
+/// used for NMT eligibility and adaptive fanout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NodeScore {
     /// node_id_full (32 bytes). Spec §10.2.
     pub node_id_full: [u8; 32],
-    /// NodeScore raw (sebelum cap). Internal use.
+    /// NodeScore raw (before cap). Internal use.
     raw_score: u64,
     /// Tier node. Spec §10.1.
     pub tier: NodeTier,
 }
 
 impl NodeScore {
-    /// Buat NodeScore baru. Score otomatis di-cap sesuai tier. Spec §12.4.
+    /// Buat NodeScore new. Score otomatis at-cap sesuai tier. Spec §12.4.
     pub fn new(node_id_full: [u8; 32], raw_score: u64) -> Self {
         let tier = get_node_tier(&node_id_full);
         Self {
@@ -96,10 +96,10 @@ impl NodeScore {
         }
     }
 
-    /// Ambil NodeScore yang sudah di-cap sesuai tier. Spec §12.4.
+    /// tato NodeScore that has been at-cap sesuai tier. Spec §12.4.
     ///
-    /// Tier C: score dibatasi TIER_C_MAX_NODESCORE = 600_000.
-    /// Tier A/B: score dibatasi MAX_NODESCORE = 1_000_000.
+    /// Tier C: score atbatasi TIER_C_MAX_NODESCORE = 600_000.
+    /// Tier A/B: score atbatasi MAX_NODESCORE = 1_000_000.
     pub fn score(&self) -> u64 {
         let cap = match self.tier {
             NodeTier::TierC => TIER_C_MAX_NODESCORE,
@@ -108,16 +108,16 @@ impl NodeScore {
         self.raw_score.min(cap)
     }
 
-    /// Cek apakah node eligible sebagai NMT peer. Spec §12.4, T-3.
+    /// check whether node eligible as NMT peer. Spec §12.4, T-3.
     ///
     /// NMT mensyaratkan NodeScore > NMT_SCORE_THRESHOLD (800_000).
-    /// Tier C dibatasi 600_000 → otomatis tidak eligible.
-    /// Ini menutup celah Sybil tanpa perlu fraksi eksplisit.
+    /// Tier C atbatasi 600_000 → otomatis not eligible.
+    /// this close celah Sybil tanpa need fraksi eksplfillt.
     pub fn is_nmt_eligible(&self) -> bool {
         self.score() > NMT_SCORE_THRESHOLD
     }
 
-    /// Cek apakah node adalah Tier C. Spec §10.1.
+    /// check whether node adalah Tier C. Spec §10.1.
     pub fn is_tier_c(&self) -> bool {
         matches!(self.tier, NodeTier::TierC)
     }
@@ -125,10 +125,10 @@ impl NodeScore {
 
 // ── enforce_nodescore_cap — spec §12.4 ───────────────────────────────────────
 
-/// Enforce NodeScore cap berdasarkan tier. Spec §12.4.
+/// Enforce NodeScore cap based on tier. Spec §12.4.
 ///
-/// node dengan prefix 0xFE tidak bisa > 600_000.
-/// Dipanggil setiap kali score diperbarui.
+/// node with prefix 0xFE cannot > 600_000.
+/// called each kali score atpernewi.
 pub fn enforce_nodescore_cap(node_id_full: &[u8; 32], score: u64) -> u64 {
     if is_tier_c(node_id_full) {
         score.min(TIER_C_MAX_NODESCORE)
@@ -139,9 +139,9 @@ pub fn enforce_nodescore_cap(node_id_full: &[u8; 32], score: u64) -> u64 {
 
 // ── NMT peer selection filter — spec §12.4 ───────────────────────────────────
 
-/// Filter node yang eligible sebagai NMT peer. Spec §12.4, T-3.
+/// Filter node that eligible as NMT peer. Spec §12.4, T-3.
 ///
-/// Mengembalikan slice dari `nodes` yang memenuhi NMT_SCORE_THRESHOLD.
+/// return slice from `nodes` that memenuhi NMT_SCORE_THRESHOLD.
 /// Tier C secara otomatis terfilter karena score maks 600_000 < 800_000.
 pub fn filter_nmt_eligible(nodes: &[NodeScore]) -> Vec<&NodeScore> {
     nodes.iter().filter(|n| n.is_nmt_eligible()).collect()
@@ -161,7 +161,7 @@ mod tests {
 
     fn tier_a_node(seed: u8) -> [u8; 32] {
         let mut id = [seed; 32];
-        id[0] = 0x01; // bukan 0xFE
+        id[0] = 0x01; // openn 0xFE
         id
     }
 

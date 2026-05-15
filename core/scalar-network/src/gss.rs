@@ -12,16 +12,16 @@
 /// Fixed-point basis. OSSIFIED — spec §12.3 v6.0.
 pub const FIXED_POINT_BASIS: u64 = 1_000_000;
 
-/// Latency maksimum yang dipertimbangkan. OSSIFIED — spec §12.3 v6.0.
+/// Latency maksimum that atpertimbangkan. OSSIFIED — spec §12.3 v6.0.
 pub const MAX_LATENCY_MS: u64 = 300_000;
 
 /// Threshold staleness heartbeat. OSSIFIED — spec §12.3 v6.0.
 pub const HEARTBEAT_STALENESS_S: u64 = 900;
 
-/// Threshold GSS untuk eclipse detection Layer 1. OSSIFIED — spec §12.8 v6.0.
+/// Threshold GSS for eclipse detection Layer 1. OSSIFIED — spec §12.8 v6.0.
 pub const GSS_ECLIPSE_THRESHOLD: u64 = 400_000;
 
-/// Data sinkronisasi satu peer untuk kalkulasi GSS.
+/// data synchronization satu peer for calculation GSS.
 #[derive(Debug, Clone)]
 pub struct PeerSyncData {
     pub smt_root: [u8; 32],
@@ -29,7 +29,7 @@ pub struct PeerSyncData {
     pub age_seconds: u64,
 }
 
-/// Hitung GSS_fp untuk satu node berdasarkan data peers.
+/// Hitung GSS_fp for one node based on data peers.
 /// Spec §12.3 v6.0: GSS_fp = Σ(root_match x latency_score x recency_score) / N
 pub fn compute_gss_fp(my_root: &[u8; 32], peers: &[PeerSyncData]) -> u64 {
     if peers.is_empty() {
@@ -61,8 +61,8 @@ pub fn compute_gss_fp(my_root: &[u8; 32], peers: &[PeerSyncData]) -> u64 {
     sum / n
 }
 
-/// Hitung peer_sync_summary untuk NodeHeartbeat.
-/// Spec §12.3 v6.0: BLAKE3(node_id || epoch_id || seq_num || gss_fp_le64)
+/// Hitung peer_sync_summary for nodeHeartbeat.
+/// Spec §12.3 v6.0: BLAto3(node_id || epoch_id || seq_num || gss_fp_le64)
 pub fn compute_peer_sync_summary(
     node_id: &[u8; 32],
     epoch_id: u64,
@@ -77,8 +77,8 @@ pub fn compute_peer_sync_summary(
     *hasher.finalize().as_bytes()
 }
 
-/// Deteksi eclipse proxy via GSS — Layer 1. Spec §12.8 v6.0.
-/// Returns true jika GSS_fp konsisten di bawah threshold selama >3 heartbeat.
+/// detection eclipse proxy via GSS — Layer 1. Spec §12.8 v6.0.
+/// returns true if GSS_fp konsisten below threshold during >3 heartbeat.
 pub fn is_eclipse_candidate_via_gss(gss_history: &[u64]) -> bool {
     if gss_history.len() < 3 {
         return false;

@@ -18,7 +18,7 @@ pub enum TransportType {
 pub struct TransportMux;
 
 impl TransportMux {
-    /// Decision Tree: Otomatis memilih transport berdasarkan prioritas & kondisi sensor
+    /// Decfillon Tree: Otomatis select transport based on prioritas & kondfill sensor
     pub fn select_and_send(
         _payload: &[u8],
         priority: Priority,

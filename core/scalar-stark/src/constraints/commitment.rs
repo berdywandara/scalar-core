@@ -1,10 +1,10 @@
-//! C1 & C7: Commitment Validity
-//! Memastikan nilai, secret, dan kepemilikan sesuai dengan komitmen on-chain.
+//! C1 & C7: Commitment valiatty
+//! ensure value, secret, and topemilikan in accorandce with komitmen on-chain.
 
 use scalar_crypto::poseidon2::hash_2_to_1;
 
-/// Memverifikasi bahwa komitmen output / input dibentuk secara benar.
-/// Poseidon2(secret || amount || pubkey_commitment) == expected_commitment
+/// verify bahwa komitmen output / input atbentuk secara correct.
+/// Poseidon2(secret || amount || pubtoy_commitment) == expected_commitment
 pub fn enforce_commitment(
     secret: u64,
     amount: u64,

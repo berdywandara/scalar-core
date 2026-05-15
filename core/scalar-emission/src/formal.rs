@@ -1,10 +1,10 @@
 //! Formal Verification Runtime Assertions — Deferred Emission Pool
 //!
-//! Spec §15.5 v11.1-FINAL: runtime assertions untuk 5 invariant Deferred Pool.
+//! Spec §15.5 v11.1-FINAL: runtime assertions for 5 invariant Deferred Pool.
 //!
 //! File TLA+: verification/deferred_pool.tla
 //!
-//! Runtime assertions ini berjalan dalam debug builds sebagai defense-in-depth.
+//! Runtime assertions this running in debug builds as defense-in-depth.
 
 use crate::accumulator::{E0_SSCL, S_E_SSCL};
 
@@ -13,7 +13,7 @@ use crate::accumulator::{E0_SSCL, S_E_SSCL};
 /// Maksimum release per epoch = 10% × E₀. Spec §15.5.
 pub const DEFERRED_POOL_MAX_RELEASE: u64 = E0_SSCL / 10;
 
-/// Maksimum epoch sejak defer. Spec §15.5.
+/// Maksimum epoch since defer. Spec §15.5.
 pub const DEFERRED_POOL_MAX_EPOCHS: u64 = 12;
 
 // ── Deferred Pool State ───────────────────────────────────────────────────────
@@ -21,13 +21,13 @@ pub const DEFERRED_POOL_MAX_EPOCHS: u64 = 12;
 /// State Deferred Emission Pool. Spec §15.5.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeferredPoolState {
-    /// D(k): saldo pool saat ini. Spec §15.5 Inv1, Inv2.
+    /// D(k): saldo pool when this. Spec §15.5 Inv1, Inv2.
     pub balance_sscl: u64,
-    /// Σ residual yang masuk pool. Spec §15.5 Inv5.
+    /// Σ residual that masuk pool. Spec §15.5 Inv5.
     pub total_residual_sscl: u64,
-    /// Σ yang sudah direlease. Spec §15.5 Inv5.
+    /// Σ that has been atrelease. Spec §15.5 Inv5.
     pub total_released_sscl: u64,
-    /// Epoch sejak defer terakhir. Spec §15.5 Inv4.
+    /// Epoch since defer last. Spec §15.5 Inv4.
     pub epochs_since_defer: u64,
 }
 
@@ -53,13 +53,13 @@ impl Default for DeferredPoolState {
 /// Pelanggaran invariant Deferred Pool. Spec §15.5.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeferredPoolViolation {
-    /// Inv1: D(k) < 0 (tidak mungkin dengan u64, tapi disertakan untuk kelengkapan).
+    /// Inv1: D(k) < 0 (not mungkin with u64, but atsertwill for tocompletean).
     NegativeBalance,
     /// Inv2: D(k) > S_E.
     ExceedsSupplyCap { balance: u64, cap: u64 },
     /// Inv3: release > 10% × E₀.
     ExceedsMaxRelease { release: u64, max: u64 },
-    /// Inv4: epoch sejak defer > 12.
+    /// Inv4: epoch since defer > 12.
     ExceedsMaxDeferEpochs { epochs: u64, max: u64 },
     /// Inv5: Σ release > Σ residual (conservation violation).
     ConservationViolation { released: u64, residual: u64 },
@@ -88,9 +88,9 @@ impl core::fmt::Display for DeferredPoolViolation {
 
 // ── Runtime assertions ────────────────────────────────────────────────────────
 
-/// Verifikasi semua 5 invariant Deferred Pool. Spec §15.5.
+/// verification all 5 invariant Deferred Pool. Spec §15.5.
 ///
-/// Dipanggil setiap epoch setelah pemrosesan reward.
+/// called each epoch after pemrosesan reward.
 pub fn assert_deferred_pool_invariants(
     state: &DeferredPoolState,
     release_this_epoch: u64,

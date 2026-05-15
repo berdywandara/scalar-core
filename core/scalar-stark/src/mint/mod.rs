@@ -4,7 +4,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub const VALID_MINT_CRYPTO_VERSIONS: [u8; 1] = [0x01];
 
-/// Public Input untuk Mint Claim Circuit v5.0
+/// Public Input for Mint Claim Circuit v5.0
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MintClaimPublicInput {
     pub crypto_version: u8, // V5.0 Requirement (MC1)
@@ -13,13 +13,13 @@ pub struct MintClaimPublicInput {
     pub claim_hash: [u8; 32],
 }
 
-/// Witness WAJIB dihapus dari RAM setelah digunakan untuk keamanan memori
+/// Witness WAJIB deleted from RAM after used for security memory
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct MintClaimWitness {
     pub(crate) secret_key: [u8; 32],
 }
 
-/// MC1: Verifikasi crypto_version
+/// MC1: verification crypto_versionon
 pub fn verify_mc1_crypto_version(version: u8) -> Result<(), &'static str> {
     if VALID_MINT_CRYPTO_VERSIONS.contains(&version) {
         Ok(())

@@ -1,8 +1,8 @@
 //! State Inspector — Read-only State Inspection — Spec §16.4 v11.1-FINAL
 //!
-//! API publik untuk inspeksi state tanpa akses ke kunci privat.
+//! API publik for inspect state tanpa access to private toy.
 //!
-//! Spec §16.4: "Hanya operasi read-only dan ZK verification."
+//! Spec §16.4: "only operation read-only and ZK verification."
 
 use blake3::Hasher;
 use scalar_emission::dmm::{
@@ -11,35 +11,35 @@ use scalar_emission::dmm::{
 
 // ── NullifierStatus — spec §16.4 ─────────────────────────────────────────────
 
-/// Status nullifier berdasarkan inspeksi state. Spec §16.4.
+/// Status nullifier based on inspect state. Spec §16.4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NullifierStatus {
-    /// Nullifier belum pernah digunakan — coin masih valid. Spec §16.4.
+    /// Nullifier not yet ever used — coin still valid. Spec §16.4.
     Unspent,
-    /// Nullifier sudah digunakan — coin sudah dibelanjakan. Spec §16.4.
+    /// Nullifier already used — coin already atbelanjwill. Spec §16.4.
     Spent { epoch_detected: u64 },
-    /// Status tidak diketahui — data tidak mencukupi. Spec §16.4.
+    /// Status not known — data not mensufficienti. Spec §16.4.
     Unknown,
 }
 
 // ── ManifestAuditResult — spec §16.4 ─────────────────────────────────────────
 
-/// Hasil audit manifest. Spec §16.4.
+/// Hasil auatt manifest. Spec §16.4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ManifestAuditResult {
-    /// Manifest valid — hash cocok dan spec_version benar. Spec §16.4.
+    /// Manifest valid — hash cocok and spec_versionon correct. Spec §16.4.
     Valid {
         node_count: usize,
         total_emission_sscl: u64,
     },
-    /// Manifest hash tidak cocok — data corrupt atau dimanipulasi. Spec §16.4.
+    /// Manifest hash does not match — data corrupt or atmanipulasi. Spec §16.4.
     HashMismatch {
         expected: [u8; 32],
         actual: [u8; 32],
     },
-    /// spec_version tidak valid. Spec §16.4.
+    /// spec_versionon invalid. Spec §16.4.
     InvalidSpecVersion { version: u8, expected: u8 },
-    /// Manifest kosong (tidak ada node). Spec §16.4.
+    /// Manifest empty (none node). Spec §16.4.
     EmptyManifest,
 }
 
@@ -51,13 +51,13 @@ impl ManifestAuditResult {
 
 // ── inspect_nullifier_state — spec §16.4 ─────────────────────────────────────
 
-/// Inspeksi status nullifier dari snapshot state. Spec §16.4.
+/// inspect status nullifier from snapshot state. Spec §16.4.
 ///
-/// `nullifier`: 32-byte nullifier yang di-inspeksi.
-/// `spent_nullifiers`: slice nullifier yang sudah digunakan (dari state snapshot).
+/// `nullifier`: 32-byte nullifier that at-inspect.
+/// `spent_nullifiers`: slice nullifier that has been used (from state snapshot).
 ///
-/// Returns NullifierStatus — read-only, tidak mengubah state.
-/// Tidak ada akses ke private key atau internal nullifier store. Spec §16.4.
+/// Returns NullifierStatus — read-only, not change state.
+/// none access to private toy or internal nullifier store. Spec §16.4.
 pub fn inspect_nullifier_state(
     nullifier: &[u8; 32],
     spent_nullifiers: &[[u8; 32]],
@@ -66,7 +66,7 @@ pub fn inspect_nullifier_state(
     for (i, spent) in spent_nullifiers.iter().enumerate() {
         if spent == nullifier {
             return NullifierStatus::Spent {
-                epoch_detected: i as u64, // simplified: index sebagai epoch proxy
+                epoch_detected: i as u64, // simplified: index as epoch proxy
             };
         }
     }
@@ -75,10 +75,10 @@ pub fn inspect_nullifier_state(
 
 // ── verify_manifest_hash — spec §16.4 ────────────────────────────────────────
 
-/// Verifikasi manifest_hash dari EpochRewardManifestV12. Spec §16.4.
+/// verification manifest_hash from epochRewardManifestV12. Spec §16.4.
 ///
-/// Menghitung ulang hash dan membandingkan dengan manifest.manifest_hash.
-/// Returns ManifestAuditResult — read-only. Spec §16.4.
+/// compute ulang hash and compare with manifest.manifest_hash.
+/// Returns ManifestauattResult — read-only. Spec §16.4.
 pub fn verify_manifest_hash(manifest: &EpochRewardManifestV12) -> ManifestAuditResult {
     // Cek spec_version
     if manifest.spec_version != SPEC_VERSION_MANIFEST_V12 {
@@ -108,9 +108,9 @@ pub fn verify_manifest_hash(manifest: &EpochRewardManifestV12) -> ManifestAuditR
     }
 }
 
-/// Hitung BLAKE3 hash dari data untuk audit. Spec §16.4.
+/// Hitung BLAto3 hash from data for auatt. Spec §16.4.
 ///
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn audit_blake3_hash(data: &[u8]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(data);
@@ -212,7 +212,7 @@ mod tests {
     fn test_verify_manifest_invalid_spec_version() {
         // spec_version != 0x06 → InvalidSpecVersion. Spec §16.4.
         let mut manifest = make_valid_manifest();
-        manifest.spec_version = 0x02; // v9.0 version
+        manifest.spec_version = 0x02; // v9.0 versionon
         let result = verify_manifest_hash(&manifest);
         assert!(matches!(
             result,

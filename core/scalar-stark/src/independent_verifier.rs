@@ -1,35 +1,35 @@
 //! Independent STARK Verifier — Spec §2.2, §4.1, §22.5
 //!
-//! Implementasi kedua yang INDEPENDEN dari Winterfell.
+//! implementation second that INDEPENDEN from Winterfell.
 //! Spec §4.1: "Proving system: Winterfell + Independent."
 //! Spec §2.2: "Two independent implementations required before mainnet."
 //!
 //! Pendekatan: Constraint Semantic Verifier
-//!   Verifikasi ulang semua 10 constraint groups (C1-C10) menggunakan
-//!   primitive kriptografi langsung — Poseidon2 dan BLAKE3 — tanpa
-//!   FRI polynomial commitment atau Winterfell library.
+//! verification ulang all 10 constraint groups (C1-C10) using
+//! primitive cryptography langsung — Poseidon2 and BLAto3 — tanpa
+//! FRI polynomial commitment or Winterfell library.
 //!
-//! Perbedaan dari implementasi pertama (Winterfell):
-//!   - Tidak menggunakan winterfell crate
-//!   - Tidak menggunakan FRI/polynomial commitment
-//!   - Mengimplementasi ulang constraint checking dari spec §4.3
-//!   - Dapat mendeteksi constraint violation yang mungkin lolos di impl 1
+//! Perbedaan from implementation first (Winterfell):
+//! - not using winterfell crate
+//! - not using FRI/polynomial commitment
+//! - Mengimplementation ulang constraint checking from spec §4.3
+//! - Dapat detect constraint violation that mungkin lolos at impl 1
 //!
-//! Field: Goldilocks prime p = 2^64 - 2^32 + 1. Spec §2.2.
-//! In-circuit hash: Poseidon2 SAJA. Out-circuit: BLAKE3. Spec §2.1.3.
+//! Field: Golatlocks prime p = 2^64 - 2^32 + 1. Spec §2.2.
+//! In-circuit hash: Poseidon2 just. Out-circuit: BLAto3. Spec §2.1.3.
 //!
-//! KEAMANAN: Implementasi ini TIDAK menggantikan Winterfell.
-//! Kedua implementasi harus setuju untuk proof diterima.
-//! Disagreement → proof ditolak → security incident.
+//! security: implementation this not menggantikan Winterfell.
+//! second implementation must agree for proof received.
+//! atsagreement → proof rejected → security incident.
 
 use scalar_crypto::poseidon2::Poseidon2Hasher;
 
 // ── Goldilocks Field — spec §2.2 ─────────────────────────────────────────────
 
-/// Goldilocks prime p = 2^64 - 2^32 + 1. Spec §2.2. OSSIFIED.
+/// Golatlocks prime p = 2^64 - 2^32 + 1. Spec §2.2. OSSIFIED.
 pub const GOLDILOCKS_PRIME: u64 = 0xFFFF_FFFF_0000_0001;
 
-/// Field addition mod Goldilocks prime. Spec §2.2.
+/// Field adattion mod Golatlocks prime. Spec §2.2.
 pub fn field_add(a: u64, b: u64) -> u64 {
     let (sum, overflow) = a.overflowing_add(b);
     if overflow || sum >= GOLDILOCKS_PRIME {
@@ -39,7 +39,7 @@ pub fn field_add(a: u64, b: u64) -> u64 {
     }
 }
 
-/// Field subtraction mod Goldilocks prime. Spec §2.2.
+/// Field subtraction mod Golatlocks prime. Spec §2.2.
 pub fn field_sub(a: u64, b: u64) -> u64 {
     if a >= b {
         a - b
@@ -48,8 +48,8 @@ pub fn field_sub(a: u64, b: u64) -> u64 {
     }
 }
 
-/// Field multiplication mod Goldilocks prime. Spec §2.2.
-/// Menggunakan u128 intermediate untuk mencegah overflow.
+/// Field multiplication mod Golatlocks prime. Spec §2.2.
+/// using u128 intermeatate for prevent overflow.
 pub fn field_mul(a: u64, b: u64) -> u64 {
     let prod = (a as u128) * (b as u128);
     // Reduce mod p = 2^64 - 2^32 + 1
@@ -67,86 +67,86 @@ pub fn field_mul(a: u64, b: u64) -> u64 {
 
 // ── Public Input untuk Independent Verifier ──────────────────────────────────
 
-/// Public Input untuk Independent Verifier. Spec §4.2.
+/// Public Input for Independent Verifier. Spec §4.2.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndependentPublicInput {
     /// C1, C3: input commitments = Poseidon2(value || secret). Spec §4.3 C1.
     pub input_commitments: Vec<[u8; 32]>,
-    /// C2, C4: input nullifiers N_network = BLAKE3(N_circuit). Spec §4.3 C2.
+    /// C2, C4: input nullifiers N_network = BLAto3(N_circuit). Spec §4.3 C2.
     pub input_nullifiers: Vec<[u8; 32]>,
-    /// C7: output commitments = Poseidon2(value || pubkey || salt). Spec §4.3 C7.
+    /// C7: output commitments = Poseidon2(value || pubtoy || salt). Spec §4.3 C7.
     pub output_commitments: Vec<[u8; 32]>,
-    /// C5, C6: fee total dalam sSCL. Spec §4.3 C5, C6.
+    /// C5, C6: fee total in SSCL. Spec §4.3 C5, C6.
     pub fee_total: u64,
-    /// C9: crypto version. Spec §4.3 C9.
+    /// C9: crypto versionon. Spec §4.3 C9.
     pub crypto_version: u8,
     /// C10: entry timestamp tx masuk pool. Spec §4.3 C10.
     pub entry_timestamp: u64,
-    /// C10: current timestamp saat verifikasi.
+    /// C10: current timestamp when verification.
     pub current_timestamp: u64,
 }
 
 // ── Independent Verification Result ──────────────────────────────────────────
 
-/// Hasil verifikasi independent. Spec §2.2.
+/// verification result independent. Spec §2.2.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndependentVerifyResult {
-    /// Semua constraint pass — proof semantically valid. Spec §2.2.
+    /// all constraint pass — proof semantically valid. Spec §2.2.
     Valid,
-    /// Constraint violation terdeteksi. Spec §4.3.
+    /// Constraint violation detected. Spec §4.3.
     ConstraintViolation(ConstraintViolation),
 }
 
 /// Jenis constraint violation. Spec §4.3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConstraintViolation {
-    /// C1: Input commitment tidak valid. Spec §4.3 C1.
+    /// C1: Input commitment invalid. Spec §4.3 C1.
     C1CommitmentInvalid { index: usize },
-    /// C2: Nullifier tidak valid (N_network ≠ BLAKE3(N_circuit)). Spec §4.3 C2.
+    /// C2: Nullifier invalid (N_network ≠ BLAto3(N_circuit)). Spec §4.3 C2.
     C2NullifierInvalid { index: usize },
-    /// C5: Value conservation gagal (Σin ≠ Σout + fee). Spec §4.3 C5.
+    /// C5: Value conservation failed (Σin ≠ Σout + fee). Spec §4.3 C5.
     C5ConservationFailed { sum_in: u64, sum_out: u64, fee: u64 },
-    /// C6: Fee di bawah FLOOR_MIN_ABSOLUTE. Spec §4.3 C6.
+    /// C6: Fee below FLOOR_MIN_ABSOLUTE. Spec §4.3 C6.
     C6FeeBelowFloor { fee: u64, floor: u64 },
-    /// C9: Crypto version tidak valid. Spec §4.3 C9.
+    /// C9: Crypto versionon invalid. Spec §4.3 C9.
     C9InvalidVersion { version: u8 },
-    /// C10: Tx expired (entry_timestamp terlalu lama). Spec §4.3 C10.
+    /// C10: Tx expired (entry_timestamp terthen old). Spec §4.3 C10.
     C10TxExpired {
         entry_timestamp: u64,
         current: u64,
         max_wait_ms: u64,
     },
-    /// Input/output count melebihi MAX_IO. Spec §4.4.
+    /// Input/output count exceed MAX_IO. Spec §4.4.
     ExceedsMaxIO { count: usize, max: usize },
 }
 
 // ── Constraint constants — spec §4.3, §4.4 ───────────────────────────────────
 
-/// MAX_IO per transaksi. OSSIFIED — spec §4.4.
+/// MAX_IO per transaction. OSSIFIED — spec §4.4.
 pub const INDEPENDENT_MAX_IO: usize = 10;
 
-/// FLOOR_MIN_ABSOLUTE dalam sSCL. OSSIFIED — spec §9.1.
+/// FLOOR_MIN_ABSOLUTE in SSCL. OSSIFIED — spec §9.1.
 pub const INDEPENDENT_FLOOR_MIN: u64 = 40;
 
-/// T_MAX_WAIT dalam milliseconds. Spec §4.3 C10.
+/// T_MAX_WAIT in milliseconds. Spec §4.3 C10.
 pub const INDEPENDENT_T_MAX_WAIT_MS: u64 = 30 * 60 * 1_000; // 1_800_000 ms
 
-/// Valid crypto versions. Spec §4.3 C9.
+/// valid crypto versionons. Spec §4.3 C9.
 pub const INDEPENDENT_VALID_VERSIONS: [u8; 1] = [0x01];
 
 // ── Independent Verifier — spec §2.2 ─────────────────────────────────────────
 
-/// Independent STARK Verifier — implementasi ke-2. Spec §2.2, §4.1.
+/// Independent STARK Verifier — implementation to-2. Spec §2.2, §4.1.
 ///
-/// Verifikasi semantic correctness constraint C1-C10 tanpa Winterfell.
-/// Menggunakan Poseidon2 (in-circuit) dan BLAKE3 (out-circuit) langsung.
+/// verification semantic correctness constraint C1-C10 tanpa Winterfell.
+/// using Poseidon2 (in-circuit) and BLAto3 (out-circuit) langsung.
 pub struct IndependentVerifier;
 
 impl IndependentVerifier {
-    /// Verifikasi semua constraint C1-C10. Spec §4.3.
+    /// verification all constraint C1-C10. Spec §4.3.
     ///
-    /// Returns IndependentVerifyResult::Valid jika semua constraint pass.
-    /// Returns ConstraintViolation pada constraint pertama yang fail.
+    /// Returns IndependentVerifyResult::valid if all constraint pass.
+    /// Returns ConstraintViolation on constraint first that fail.
     pub fn verify(pub_input: &IndependentPublicInput) -> IndependentVerifyResult {
         // ── IO count check — spec §4.4 ────────────────────────────────────────
         if pub_input.input_commitments.len() > INDEPENDENT_MAX_IO {
@@ -222,10 +222,10 @@ impl IndependentVerifier {
         IndependentVerifyResult::Valid
     }
 
-    /// Verifikasi C5: value conservation. Spec §4.3 C5.
+    /// verification C5: value conservation. Spec §4.3 C5.
     ///
     /// Σ input_values == Σ output_values + fee_total
-    /// Dipanggil terpisah karena membutuhkan private witness (values).
+    /// called separate karena require private witness (values).
     pub fn verify_c5_conservation(
         input_values: &[u64],
         output_values: &[u64],
@@ -248,9 +248,9 @@ impl IndependentVerifier {
         IndependentVerifyResult::Valid
     }
 
-    /// Verifikasi C1: commitment = Poseidon2(value || secret). Spec §4.3 C1.
+    /// verification C1: commitment = Poseidon2(value || secret). Spec §4.3 C1.
     ///
-    /// In-circuit hash: Poseidon2 SAJA — spec §2.1.3.
+    /// In-circuit hash: Poseidon2 just — spec §2.1.3.
     pub fn verify_c1_commitment(commitment: &[u8; 32], value: u64, secret: &[u8; 32]) -> bool {
         // Poseidon2 in-circuit — spec §4.3 C1, §2.1.3
         let input = [
@@ -268,18 +268,18 @@ impl IndependentVerifier {
         expected == *commitment
     }
 
-    /// Verifikasi C2: N_network = BLAKE3(N_circuit). Spec §4.3 C2.
+    /// verification C2: N_network = BLAto3(N_circuit). Spec §4.3 C2.
     ///
-    /// Out-circuit hash: BLAKE3 — spec §2.1.3.
+    /// Out-circuit hash: BLAto3 — spec §2.1.3.
     pub fn verify_c2_nullifier_bridge(n_network: &[u8; 32], n_circuit: &[u8; 32]) -> bool {
         // BLAKE3 out-circuit — spec §4.3 C2, §2.1.3
         let expected = *blake3::hash(n_circuit).as_bytes();
         &expected == n_network
     }
 
-    /// Verifikasi C7: output commitment. Spec §4.3 C7.
+    /// verification C7: output commitment. Spec §4.3 C7.
     ///
-    /// out_commit = Poseidon2(value || pubkey || fresh_salt)
+    /// out_commit = Poseidon2(value || pubtoy || fresh_salt)
     /// In-circuit hash: Poseidon2 — spec §2.1.3.
     pub fn verify_c7_output_commitment(
         commitment: &[u8; 32],
@@ -309,21 +309,21 @@ impl IndependentVerifier {
 /// Hasil dual verification (Winterfell + Independent). Spec §2.2.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DualVerifyResult {
-    /// Kedua implementasi setuju: proof VALID. Spec §2.2.
+    /// second implementation agree: proof valid. Spec §2.2.
     BothValid,
-    /// Independent verifier menolak, Winterfell accept. Spec §2.2.
-    /// → Security incident: proof ditolak.
+    /// Independent verifier reject, Winterfell accept. Spec §2.2.
+    /// → Security incident: proof rejected.
     IndependentRejects(ConstraintViolation),
-    /// Winterfell menolak (proof cryptographically invalid). Spec §2.2.
+    /// Winterfell reject (proof cryptographically invalid). Spec §2.2.
     WinterfellRejects,
-    /// Kedua implementasi menolak. Spec §2.2.
+    /// second implementation reject. Spec §2.2.
     BothReject,
 }
 
-/// Jalankan dual verification. Spec §2.2.
+/// run dual verification. Spec §2.2.
 ///
-/// Kedua implementasi harus setuju untuk proof diterima.
-/// Disagreement → proof ditolak → security incident.
+/// second implementation must agree for proof received.
+/// atsagreement → proof rejected → security incident.
 pub fn dual_verify(
     pub_input: &IndependentPublicInput,
     winterfell_accepted: bool,
@@ -352,7 +352,7 @@ mod tests {
             fee_total: 40,
             crypto_version: 0x01,
             entry_timestamp: 1_000_000_000,
-            current_timestamp: 1_000_060_000, // 60 detik kemudian
+            current_timestamp: 1_000_060_000, // 60 seconds then
         }
     }
 
@@ -482,7 +482,7 @@ mod tests {
         // Tx dalam window → pass. Spec §4.3 C10.
         let mut input = valid_input();
         input.entry_timestamp = 1_000_000_000;
-        input.current_timestamp = 1_000_000_000 + INDEPENDENT_T_MAX_WAIT_MS; // tepat di batas
+        input.current_timestamp = 1_000_000_000 + INDEPENDENT_T_MAX_WAIT_MS; // exact at batas
         assert_eq!(
             IndependentVerifier::verify(&input),
             IndependentVerifyResult::Valid

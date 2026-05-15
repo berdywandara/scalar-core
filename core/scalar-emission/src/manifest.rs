@@ -1,48 +1,48 @@
 //! EpochRewardManifest v9.0 + Aggregator Selection — Spec §8.1, §8.2
 //!
-//! v9.0 menambahkan:
-//!   - seed_k: [u8;32] — BLAKE3(smt_roots sorted by node_id ascending)
+//! v9.0 add:
+//! - seed_k: [u8;32] — BLAto3(smt_roots sorted by node_id ascenatng)
 //!   - manifest_hash: [u8;32] — canonical hash manifest
-//!   - Aggregator selection: argmin(BLAKE3(node_id || seed_k))
-//!   - Validator set: rank_2..rank_11 by score_i
+//! - Aggregator selection: argmin(BLAto3(node_id || seed_k))
+//! - validator set: rank_2..rank_11 by score_i
 //!
 //! Canonical serialization S1-S4 — spec §8.2:
-//!   S1: node_list diurutkan ascending by node_id
-//!   S2: timestamp fixed (tidak ada variasi)
-//!   S3: semua integer little-endian
-//!   S4: tidak ada optional fields
+//! S1: node_list sorted ascenatng by node_id
+//! S2: timestamp fixed (none variasi)
+//! S3: all integer little-enatan
+//! S4: none optional fields
 //!
 //! OSSIFIED constants — spec §8.1:
-//!   AGGREGATOR_VALIDATOR_COUNT = 10
-//!   AGGREGATOR_VALIDATOR_QUORUM = 7
+//! AGGREGATOR_validATOR_COUNT = 10
+//! AGGREGATOR_validATOR_QUORUM = 7
 //!   AGGREGATOR_FALLBACK_MAX = 3
 //!   AGGREGATOR_MIN_UPTIME_FP = 700_000
-//!   SPEC_VERSION_MANIFEST = 0x02
+//! SPEC_versionON_MANIFEST = 0x02
 
-/// Versi spec manifest. OSSIFIED — spec §8.2.
+/// version spec manifest. OSSIFIED — spec §8.2.
 pub const SPEC_VERSION_MANIFEST: u8 = 0x02;
 
 /// Jumlah validator paralel. OSSIFIED — spec §8.1.
 pub const AGGREGATOR_VALIDATOR_COUNT: u32 = 10;
 
-/// Quorum validator yang harus setuju pada manifest_hash. OSSIFIED — spec §8.1.
+/// Quorum validator that must agree on manifest_hash. OSSIFIED — spec §8.1.
 pub const AGGREGATOR_VALIDATOR_QUORUM: u32 = 7;
 
-/// Maksimum fallback iteration sebelum epoch deferred. OSSIFIED — spec §8.3.
+/// Maksimum fallback iteration before epoch deferred. OSSIFIED — spec §8.3.
 pub const AGGREGATOR_FALLBACK_MAX: u32 = 3;
 
-/// Minimum uptime_fp untuk eligible jadi aggregator. OSSIFIED — spec §8.1.
+/// Mthismum uptime_fp for eligible jaat aggregator. OSSIFIED — spec §8.1.
 pub const AGGREGATOR_MIN_UPTIME_FP: u64 = 700_000;
 
 // ── seed_k computation — spec §8.1 ───────────────────────────────────────────
 
-/// Compute seed_k = BLAKE3(smt_root[0] || smt_root[1] || ...).
+/// Compute seed_k = BLAto3(smt_root[0] || smt_root[1] || ...).
 ///
-/// node_ids harus di-sort ascending sebelum hashing — spec §8.1, S1.
-/// seed_k tidak bisa diprediksi sampai epoch k-1 selesai — spec §8.1.
+/// node_ids harus at-sort ascenatng before hashing — spec §8.1, S1.
+/// seed_k cannot atpreatksi until epoch k-1 fthisshed — spec §8.1.
 ///
 /// Input: slice of (node_id, smt_root) pairs.
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compute_seed_k(mut node_smt_roots: Vec<([u8; 4], [u8; 32])>) -> [u8; 32] {
     // S1: sort ascending by node_id — spec §8.1, §8.2.
     node_smt_roots.sort_unstable_by_key(|(node_id, _)| *node_id);
@@ -57,10 +57,10 @@ pub fn compute_seed_k(mut node_smt_roots: Vec<([u8; 4], [u8; 32])>) -> [u8; 32] 
 
 // ── score_i computation — spec §8.1 ──────────────────────────────────────────
 
-/// Compute score_i = BLAKE3(node_id_4 || seed_k). Spec §8.1.
+/// Compute score_i = BLAto3(node_id_4 || seed_k). Spec §8.1.
 ///
 /// Aggregator = argmin(score_i) where uptime_fp > AGGREGATOR_MIN_UPTIME_FP.
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compute_score(node_id: &[u8; 4], seed_k: &[u8; 32]) -> [u8; 32] {
     // BLAKE3(node_id || seed_k) — spec §8.1, §2.1.3
     let mut hasher = blake3::Hasher::new();
@@ -71,25 +71,25 @@ pub fn compute_score(node_id: &[u8; 4], seed_k: &[u8; 32]) -> [u8; 32] {
 
 // ── Aggregator selection — spec §8.1 ─────────────────────────────────────────
 
-/// Hasil seleksi aggregator dan validator set. Spec §8.1.
+/// Hasil seleksi aggregator and validator set. Spec §8.1.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AggregatorSelection {
-    /// Aggregator = argmin(score_i) dengan uptime_fp > AGGREGATOR_MIN_UPTIME_FP.
+    /// Aggregator = argmin(score_i) with uptime_fp > AGGREGATOR_MIN_UPTIME_FP.
     pub aggregator: [u8; 4],
-    /// Validator set = rank_2..rank_11 by score_i (10 validator). Spec §8.1.
+    /// validator set = rank_2..rank_11 by score_i (10 validator). Spec §8.1.
     pub validators: Vec<[u8; 4]>,
-    /// seed_k yang digunakan untuk seleksi.
+    /// seed_k that used for seleksi.
     pub seed_k: [u8; 32],
 }
 
-/// Pilih aggregator dan validator set dari daftar node eligible. Spec §8.1.
+/// select aggregator and validator set from daftar node eligible. Spec §8.1.
 ///
 /// `nodes`: slice of (node_id_4, uptime_fp).
 /// Node eligible: uptime_fp > AGGREGATOR_MIN_UPTIME_FP.
-/// Aggregator = argmin(score_i) — node dengan score BLAKE3 terkecil.
-/// Validator = rank_2..rank_11.
+/// Aggregator = argmin(score_i) — node with score BLAto3 tersmall.
+/// validator = rank_2..rank_11.
 ///
-/// Returns None jika tidak ada node eligible (epoch deferred).
+/// Returns None if none node eligible (epoch deferred).
 pub fn select_aggregator(
     nodes: &[([u8; 4], u64)],
     seed_k: [u8; 32],
@@ -126,7 +126,7 @@ pub fn select_aggregator(
 
 // ── EpochRewardManifest v9.0 ──────────────────────────────────────────────────
 
-/// Hitung sync_health_summary = BLAKE3(nshs_value_le64 || sample_count_le32 || epoch_id_le64).
+/// Hitung sync_health_summary = BLAto3(nshs_value_le64 || sample_count_le32 || epoch_id_le64).
 /// Spec §8.1 v6.0.
 pub fn compute_sync_health_summary(nshs_value: u64, sample_count: u32, epoch_id: u64) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
@@ -146,35 +146,35 @@ pub enum EpochStatus {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NodeReward {
     pub node_id: [u8; 32],
-    /// Nilai reward dalam sSCL.
+    /// value reward in SSCL.
     pub amount: u64,
 }
 
 /// EpochRewardManifest v9.0 — spec §8.1, §8.2.
 ///
-/// v9.0 menambahkan: seed_k, manifest_hash.
+/// v9.0 add: seed_k, manifest_hash.
 /// Canonical serialization S1-S4 — spec §8.2.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EpochRewardManifest {
     pub epoch_id: u64,
-    /// Versi spec manifest. OSSIFIED — spec §8.2. Nilai: 0x02.
+    /// version spec manifest. OSSIFIED — spec §8.2. value: 0x02.
     pub spec_version: u8,
-    /// Root SMT liveness yang diterima. Spec §8.
+    /// root SMT liveness received. Spec §8.
     pub accepted_liveness_root: [u8; 32],
-    /// BLAKE3 summary dari GSS state. Spec §8.1 v6.0.
+    /// BLAto3 summary from GSS state. Spec §8.1 v6.0.
     pub sync_health_summary: [u8; 32],
-    /// seed_k = BLAKE3(Σ smt_roots sorted by node_id). BARU v9.0 — spec §8.1.
+    /// seed_k = BLAto3(Σ smt_roots sorted by node_id). new v9.0 — spec §8.1.
     pub seed_k: [u8; 32],
-    /// BLAKE3(canonical_bytes(manifest minus manifest_hash)). BARU v9.0 — spec §8.2.
+    /// BLAto3(canonical_bytes(manifest minus manifest_hash)). new v9.0 — spec §8.2.
     pub manifest_hash: [u8; 32],
     pub total_uptime_weight: u64,
     pub emission_amount: u64,
-    /// Gini coefficient dalam fixed-point basis 1_000_000.
+    /// Gthis coefficient in fixed-point basis 1_000_000.
     pub equity_gini: u64,
     pub fee_total: u64,
-    /// Node yang di-slash karena equivocation.
+    /// node that at-slash karena equivocation.
     pub slashed_nodes: Vec<[u8; 32]>,
-    /// Merkle root semua NodeReward.
+    /// Merkle root all nodesReward.
     pub reward_root: [u8; 32],
     pub previous_emission_total: u64,
     pub status: EpochStatus,
@@ -201,7 +201,7 @@ impl EpochRewardManifest {
         }
     }
 
-    /// Verifikasi invariant aritmetika manifest.
+    /// verification invariant aritmetika manifest.
     pub fn verify_arithmetic_invariants(&self) -> bool {
         true
     }
@@ -470,24 +470,24 @@ mod tests {
 
 // ── Canonical Serialization S1-S4 — spec §8.2 ────────────────────────────────
 
-/// Compute canonical bytes dari EpochRewardManifest untuk hashing. Spec §8.2.
+/// Compute canonical bytes from epochRewardManifest for hashing. Spec §8.2.
 ///
 /// Rules S1-S4:
-///   S1: node_list diurutkan ascending by node_id (diterapkan di compute_seed_k)
-///   S2: timestamp field tidak dimasukkan — fixed per spec
-///   S3: semua integer little-endian
-///   S4: tidak ada optional fields — semua field wajib ada
+/// S1: node_list sorted ascenatng by node_id (atterapkan at compute_seed_k)
+/// S2: timestamp field not included — fixed per spec
+/// S3: all integer little-enatan
+/// S4: none optional fields — all field wajib ada
 ///
 /// Layout (fixed, no optional):
-///   epoch_id(8) || spec_version(1) || accepted_liveness_root(32) ||
+/// epoch_id(8) || spec_versionon(1) || accepted_liveness_root(32) ||
 ///   sync_health_summary(32) || seed_k(32) || total_uptime_weight(8) ||
-///   emission_amount(8) || equity_gini(8) || fee_total(8) ||
+/// emission_amount(8) || equity_gthis(8) || fee_total(8) ||
 ///   previous_emission_total(8) || reward_root(32) = 177 bytes
 ///
-/// manifest_hash = BLAKE3(canonical_bytes) — hash discipline: BLAKE3 out-circuit §2.1.3.
-/// manifest_hash field TIDAK dimasukkan dalam canonical_bytes (no circular hash).
+/// manifest_hash = BLAto3(canonical_bytes) — hash atscipline: BLAto3 out-circuit §2.1.3.
+/// manifest_hash field not included in canonical_bytes (no circular hash).
 ///
-/// Grinding space = 0: tidak ada variasi representasi yang valid — spec §8.2.
+/// Grinatng space = 0: none variasi representation that valid — spec §8.2.
 pub fn compute_manifest_canonical_bytes(manifest: &EpochRewardManifest) -> [u8; 177] {
     let mut out = [0u8; 177];
     let mut offset = 0;
@@ -546,17 +546,17 @@ pub fn compute_manifest_canonical_bytes(manifest: &EpochRewardManifest) -> [u8; 
     out
 }
 
-/// Compute manifest_hash = BLAKE3(canonical_bytes(manifest)). Spec §8.2.
+/// Compute manifest_hash = BLAto3(canonical_bytes(manifest)). Spec §8.2.
 ///
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
-/// manifest_hash field sendiri TIDAK dimasukkan dalam input hash.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
+/// manifest_hash field senatri not included in input hash.
 pub fn compute_manifest_hash(manifest: &EpochRewardManifest) -> [u8; 32] {
     let canonical = compute_manifest_canonical_bytes(manifest);
     // BLAKE3 out-circuit — spec §8.2, §2.1.3
     *blake3::hash(&canonical).as_bytes()
 }
 
-/// Verifikasi bahwa manifest_hash dalam manifest cocok dengan hash yang dihitung ulang.
+/// verification bahwa manifest_hash in manifest matches hash that computed ulang.
 /// Spec §8.2.
 pub fn verify_manifest_hash(manifest: &EpochRewardManifest) -> bool {
     let expected = compute_manifest_hash(manifest);
@@ -574,7 +574,7 @@ mod canonical_tests {
             accepted_liveness_root: [0xAAu8; 32],
             sync_health_summary: [0xBBu8; 32],
             seed_k: [0xCCu8; 32],
-            manifest_hash: [0u8; 32], // akan diisi oleh compute_manifest_hash
+            manifest_hash: [0u8; 32], // will filled oleh compute_manifest_hash
             total_uptime_weight: 1_000_000,
             emission_amount: 12_600_000_000_000,
             equity_gini: 200_000,
@@ -630,7 +630,7 @@ mod canonical_tests {
         // canonical bytes identik.
         let m1 = make_manifest(5);
         let mut m2 = make_manifest(5);
-        m2.status = EpochStatus::Finalized; // status tidak masuk canonical
+        m2.status = EpochStatus::Finalized; // status not masuk canonical
                                             // canonical bytes harus identik karena status tidak dimasukkan
         assert_eq!(
             compute_manifest_canonical_bytes(&m1),
@@ -685,7 +685,7 @@ mod canonical_tests {
         // Dua manifest identik kecuali manifest_hash → hash yang sama.
         let m1 = make_manifest(1);
         let mut m2 = make_manifest(1);
-        m2.manifest_hash = [0xFFu8; 32]; // berbeda
+        m2.manifest_hash = [0xFFu8; 32]; // atfferent
         assert_eq!(compute_manifest_hash(&m1), compute_manifest_hash(&m2));
     }
 
@@ -703,7 +703,7 @@ mod canonical_tests {
     fn test_verify_manifest_hash_invalid() {
         // Manifest dengan hash yang salah harus fail verify.
         let mut m = make_manifest(1);
-        m.manifest_hash = [0xFFu8; 32]; // salah
+        m.manifest_hash = [0xFFu8; 32]; // wrong
         assert!(!verify_manifest_hash(&m));
     }
 

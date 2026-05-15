@@ -1,6 +1,6 @@
 //! C8: Authorization Constraint
-//! Sesuai Concept 5, SPHINCS+ diverifikasi di luar sirkuit secara publik.
-//! Sirkuit ini hanya membuktikan kepemilikan spending_key terhadap komitmen publik.
+//! per concept 5, SPHINCS+ verified outside sirkuit secara publik.
+//! Sirkuit this only memproofkan topemilikan spenatng_toy terhadap komitmen publik.
 
 pub fn enforce_authorization(spending_key: u64, expected_pubkey_commitment: u64) -> bool {
     // Poseidon2(spending_key) == pubkey_commitment

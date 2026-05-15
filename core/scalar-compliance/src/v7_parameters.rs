@@ -1,6 +1,6 @@
-//! Compliance Tests — Parameter OSSIFIED v7.0 + SCL-SPEC-SEED-001
+//! Compliance Tests — parameter OSSIFIED v7.0 + SCL-SPEC-SEED-001
 //!
-//! Mencakup semua konstanta baru dari sesi 4, 5, dan SCL-SPEC-SEED-001:
+//! Mencakup all constant new from sesi 4, 5, and SCL-SPEC-SEED-001:
 //!   §10.3 Institutional Nodes
 //!   §10.4 Succession Protocol
 //!   §11.7 Fork Protocol
@@ -9,7 +9,7 @@
 
 // ── SCL-SPEC-SEED-001 §8.1 — Argon2id Seed KDF OSSIFIED ─────────────────────
 
-/// Memory Argon2id seed KDF dalam KiB (64 MB). OSSIFIED — SCL-SPEC-SEED-001 §8.1.
+/// Memory Argon2id seed KDF in KiB (64 MB). OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const ARGON2ID_SEED_MEMORY_KIB: u32 = 65536;
 
 /// Iterasi Argon2id seed KDF. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
@@ -18,13 +18,13 @@ pub const ARGON2ID_SEED_ITER: u32 = 3;
 /// Parallelism Argon2id seed KDF. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const ARGON2ID_SEED_PARALLEL: u32 = 1;
 
-/// Output length Argon2id seed KDF dalam bytes. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
+/// Output length Argon2id seed KDF in bytes. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const ARGON2ID_SEED_OUTPUT_LEN: usize = 64;
 
-/// Salt prefix versi v2. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
+/// Salt prefix version v2. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const SEED_SALT_PREFIX_V2: &[u8] = b"scalar_v2";
 
-/// Versi seed derivation. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
+/// version seed derivation. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const SEED_VERSION: u8 = 0x02;
 
 /// Salt total length: 9 prefix + 32 genesis_hash = 41 bytes. OSSIFIED — SCL-SPEC-SEED-001 §3.3.

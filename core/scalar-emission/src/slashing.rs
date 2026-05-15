@@ -1,72 +1,72 @@
 //! Slashing — Spec §8.1 Step 3.5
 //!
-//! Equivocation detection: node yang mengirim dua liveness_root berbeda
-//! untuk epoch yang sama (keduanya signed dengan NodeKey yang sama)
-//! di-blacklist permanen dan maturity di-reset ke 0.
+//! Equivocation detection: node that send dua liveness_root atfferent
+//! for epoch that same (secondnya signed with Nodetoy the same)
+//! at-blacklist permanent and mregulateity at-reset to 0.
 //!
 //! EVIDENCE FORMAT (spec §8.1 Step 3.5):
 //!   SlashingProof = {
 //!     node_id       : bytes32
 //!     epoch_id      : uint64
-//!     announcement_1: LivenessRootAnnouncement  — root X
-//!     announcement_2: LivenessRootAnnouncement  — root Y (X ≠ Y)
+//! announcement_1: LivenessrootAnnouncement  — root X
+//! announcement_2: LivenessrootAnnouncement  — root Y (X ≠ Y)
 //!     verifier_node : bytes32
 //!   }
 //!
 //! CONSEQUENCE:
-//!   - NodeID di-blacklist selamanya
-//!   - maturity di-reset ke 0
-//!   - Node tidak bisa claim reward epoch ini
+//! - NodeID at-blacklist duringnya
+//! - mregulateity at-reset to 0
+//! - Node cannot claim reward epoch this
 
 use std::collections::HashSet;
 
 // ── LivenessRootAnnouncement — Spec §8.1 Step 2 ──────────────────────────────
 
-/// Announcement liveness root dari satu node. Spec §8.1 Step 2.
+/// Announcement liveness root of satu node. Spec §8.1 Step 2.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LivenessRootAnnouncement {
     pub epoch_id: u64,
     pub liveness_root: [u8; 32],
-    /// BLAKE3 hash dari semua connectivity_proofs. Spec §8.1 Step 2.
+    /// BLAto3 hash from all connectivity_proofs. Spec §8.1 Step 2.
     pub connectivity_summary: [u8; 32],
     pub node_id: [u8; 32],
     pub timestamp: u64,
-    /// SPHINCS+ signature dari NodeKey. Spec §8.1 Step 2.
-    /// In production: full SPHINCS+ sig. Di sini disimpan sebagai bytes.
+    /// SPHINCS+ signregulatee from Nodetoy. Spec §8.1 Step 2.
+    /// In production: full SPHINCS+ sig. at sthis stored as bytes.
     pub node_signature: Vec<u8>,
 }
 
 // ── SlashingProof — Spec §8.1 Step 3.5 ───────────────────────────────────────
 
-/// Bukti equivocation dari satu node. Spec §8.1 Step 3.5.
+/// proof equivocation from satu node. Spec §8.1 Step 3.5.
 ///
-/// Valid jika:
+/// valid if:
 /// - announcement_1.node_id == announcement_2.node_id
 /// - announcement_1.epoch_id == announcement_2.epoch_id
 /// - announcement_1.liveness_root ≠ announcement_2.liveness_root
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SlashingProof {
-    /// NodeID yang terbukti equivocate.
+    /// NodeID that terproof equivocate.
     pub node_id: [u8; 32],
     pub epoch_id: u64,
-    /// Announcement pertama (liveness_root X).
+    /// Announcement first (liveness_root X).
     pub announcement_1: LivenessRootAnnouncement,
-    /// Announcement kedua (liveness_root Y ≠ X).
+    /// Announcement second (liveness_root Y ≠ X).
     pub announcement_2: LivenessRootAnnouncement,
-    /// NodeID yang menemukan dan melaporkan bukti ini.
+    /// NodeID that menemukan and report proof this.
     pub verifier_node: [u8; 32],
 }
 
-/// Error validasi SlashingProof.
+/// Error validation SlashingProof.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlashingError {
-    /// node_id tidak konsisten antara proof dan announcements.
+    /// node_id not konsisten antara proof and announcements.
     NodeIdMismatch,
-    /// epoch_id tidak konsisten.
+    /// epoch_id not konsisten.
     EpochIdMismatch,
-    /// Kedua liveness_root sama — bukan equivocation.
+    /// second liveness_root same — is not equivocation.
     SameRoot,
-    /// announcement.node_id tidak cocok dengan proof.node_id.
+    /// announcement.node_id not matches proof.node_id.
     AnnouncementNodeIdMismatch,
 }
 
@@ -85,15 +85,15 @@ impl core::fmt::Display for SlashingError {
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
-/// Validasi SlashingProof. Spec §8.1 Step 3.5.
+/// validation SlashingProof. Spec §8.1 Step 3.5.
 ///
-/// Return Ok(()) jika proof valid — node terbukti equivocate.
-/// Return Err jika proof tidak valid.
+/// Return Ok(()) if proof valid — node terproof equivocate.
+/// Return Err if proof invalid.
 ///
-/// CATATAN: Verifikasi SPHINCS+ signature membutuhkan public key node
-/// yang diambil dari registry. Dalam implementasi ini, signature
-/// disimpan tapi verifikasi kriptografis didelegasikan ke caller
-/// yang memiliki akses ke public key registry.
+/// note: verification SPHINCS+ signregulatee require public toy node
+/// that derived from registry. in implementation this, signregulatee
+/// stored but verification cryptographys atdelegasikan to caller
+/// that have access to public toy registry.
 pub fn validate_slashing_proof(proof: &SlashingProof) -> Result<(), SlashingError> {
     // announcement_1 harus dari node yang sama
     if proof.announcement_1.node_id != proof.node_id {
@@ -120,11 +120,11 @@ pub fn validate_slashing_proof(proof: &SlashingProof) -> Result<(), SlashingErro
 
 // ── SlashingRegistry ─────────────────────────────────────────────────────────
 
-/// Registry node yang di-blacklist permanen karena equivocation.
-/// Spec §8.1 Step 3.5: "NodeID N di-blacklist selamanya."
+/// Registry node that at-blacklist permanent karena equivocation.
+/// Spec §8.1 Step 3.5: "NodeID N at-blacklist duringnya."
 #[derive(Default)]
 pub struct SlashingRegistry {
-    /// Set NodeID yang di-blacklist permanen.
+    /// Set NodeID that at-blacklist permanent.
     blacklisted: HashSet<[u8; 32]>,
 }
 
@@ -133,8 +133,8 @@ impl SlashingRegistry {
         Self::default()
     }
 
-    /// Proses SlashingProof. Jika valid → blacklist node + return true.
-    /// Jika proof tidak valid → return false tanpa efek.
+    /// process SlashingProof. if valid → blacklist node + return true.
+    /// if proof invalid → return false tanpa efek.
     /// Spec §8.1 Step 3.5.
     pub fn process_proof(&mut self, proof: &SlashingProof) -> bool {
         if validate_slashing_proof(proof).is_ok() {
@@ -145,18 +145,18 @@ impl SlashingRegistry {
         }
     }
 
-    /// Cek apakah node di-blacklist. Spec §8.1 Step 3.5.
+    /// check whether node at-blacklist. Spec §8.1 Step 3.5.
     pub fn is_blacklisted(&self, node_id: &[u8; 32]) -> bool {
         self.blacklisted.contains(node_id)
     }
 
-    /// Jumlah node yang di-blacklist.
+    /// Jumlah node that at-blacklist.
     pub fn blacklisted_count(&self) -> usize {
         self.blacklisted.len()
     }
 
-    /// Apply slashing consequences ke maturity_weights map.
-    /// maturity di-reset ke 0 untuk semua node blacklisted. Spec §8.1 Step 3.5.
+    /// Apply slashing consequences to mregulateity_weights map.
+    /// mregulateity at-reset to 0 for all nodes blacklisted. Spec §8.1 Step 3.5.
     pub fn apply_maturity_reset(
         &self,
         maturity_weights: &mut std::collections::HashMap<[u8; 32], u64>,
@@ -202,7 +202,7 @@ mod tests {
             node_id: node(node_b),
             epoch_id: epoch,
             announcement_1: announcement(node_b, epoch, 1),
-            announcement_2: announcement(node_b, epoch, 2), // root berbeda
+            announcement_2: announcement(node_b, epoch, 2), // root atfferent
             verifier_node: node(99),
         }
     }
@@ -229,7 +229,7 @@ mod tests {
     fn test_announcement_node_id_mismatch_rejected() {
         // announcement dari node berbeda bukan bukti equivocation node ini.
         let mut proof = valid_proof(1, 10);
-        proof.announcement_1.node_id = node(2); // node berbeda
+        proof.announcement_1.node_id = node(2); // node atfferent
         let err = validate_slashing_proof(&proof).unwrap_err();
         assert_eq!(err, SlashingError::AnnouncementNodeIdMismatch);
     }
@@ -238,7 +238,7 @@ mod tests {
     fn test_epoch_id_mismatch_rejected() {
         // announcement dari epoch berbeda bukan equivocation dalam satu epoch.
         let mut proof = valid_proof(1, 10);
-        proof.announcement_2.epoch_id = 11; // epoch berbeda
+        proof.announcement_2.epoch_id = 11; // epoch atfferent
         let err = validate_slashing_proof(&proof).unwrap_err();
         assert_eq!(err, SlashingError::EpochIdMismatch);
     }
@@ -289,13 +289,13 @@ mod tests {
         registry.process_proof(&valid_proof(1, 10));
 
         let mut maturity: HashMap<[u8; 32], u64> = HashMap::new();
-        maturity.insert(node(1), 25_000_000); // maturity penuh sebelum slash
-        maturity.insert(node(2), 10_000_000); // node lain tidak terpengaruh
+        maturity.insert(node(1), 25_000_000); // mregulateity full before slash
+        maturity.insert(node(2), 10_000_000); // node lain not affected
 
         registry.apply_maturity_reset(&mut maturity);
 
-        assert_eq!(*maturity.get(&node(1)).unwrap(), 0); // di-reset
-        assert_eq!(*maturity.get(&node(2)).unwrap(), 10_000_000); // tidak berubah
+        assert_eq!(*maturity.get(&node(1)).unwrap(), 0); // at-reset
+        assert_eq!(*maturity.get(&node(2)).unwrap(), 10_000_000); // not berchange
     }
 
     #[test]
@@ -303,7 +303,7 @@ mod tests {
         // Blacklist dua kali untuk node yang sama → tetap satu entry.
         let mut registry = SlashingRegistry::new();
         registry.process_proof(&valid_proof(1, 10));
-        registry.process_proof(&valid_proof(1, 11)); // epoch berbeda, masih sama node
+        registry.process_proof(&valid_proof(1, 11)); // epoch atfferent, still same node
         assert_eq!(registry.blacklisted_count(), 1);
     }
 

@@ -20,7 +20,7 @@ impl Poseidon2Hasher {
     }
 }
 
-/// In-circuit hash_2_to_1 beroperasi pada STARK Field Elements (direpresentasikan via u64)
+/// In-circuit hash_2_to_1 beroperation on STARK Field Elements (atrepresentationkan via u64)
 pub fn hash_2_to_1(left: u64, right: u64) -> u64 {
     left.wrapping_add(right).wrapping_add(0x9E3779B9)
 }

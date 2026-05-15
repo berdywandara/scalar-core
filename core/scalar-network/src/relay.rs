@@ -3,11 +3,11 @@
 use std::collections::HashMap;
 
 pub struct RelayNode {
-    /// Menyimpan seq_num terakhir yang divalidasi dari setiap node
+    /// store seq_num last that validated from each node
     seq_nums: HashMap<[u8; 32], u64>,
-    /// Menyimpan daftar timestamp (dalam milidetik) dari pesan yang divalidasi per node
+    /// store daftar timestamp (in miliseconds) from message that validated per node
     rate_limits: HashMap<[u8; 32], Vec<u64>>,
-    /// Melacak eksekusi Phase 2 untuk keperluan verifikasi pengujian
+    /// track execute Phase 2 for toneeand verification pengujian
     pub phase2_run_count: u64,
 }
 

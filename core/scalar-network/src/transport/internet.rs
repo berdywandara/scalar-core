@@ -1,5 +1,5 @@
-//! Internet Transport dengan DHT Kademlia dan Obfs4/Snowflake Pluggable Transports
-//! Sesuai Concept 2 Fase 4C.2.2 Defense 3: obfs4/Snowflake pluggable transport anti-censorship.
+//! Internet Transport with DHT Kademlia and Obfs4/Snowflato Pluggable Transports
+//! per concept 2 Fase 4C.2.2 Defense 3: obfs4/Snowflato pluggable transport anti-censorship.
 use libp2p::core::multiaddr::Protocol;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{core::upgrade, gossipsub, identity, kad, noise, tcp, yamux, Transport};
@@ -7,24 +7,24 @@ use std::net::SocketAddr;
 use std::process::{Child, Command, Stdio};
 use tokio_socks::tcp::Socks5Stream;
 
-/// Perilaku Jaringan Kombinasi (Unified Network Behaviour)
-/// Menggabungkan gossipsub (pesan) dan kademlia (peer discovery / DHT)
+/// Perilaku network Kombinasi (Unified Network Behaviour)
+/// combine gossipsub (message) and kademlia (peer atscovery / DHT)
 #[derive(NetworkBehaviour)]
 pub struct ScalarBehavior {
     pub gossipsub: gossipsub::Behaviour,
     pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
 }
 
-/// PTv2 Manager (Pluggable Transports version 2)
-/// Sesuai Concept 2 4C.2.2 Defense 3: "Pluggable transports: obfs4, Snowflake"
+/// PTv2 Manager (Pluggable Transports versionon 2)
+/// per concept 2 4C.2.2 Defense 3: "Pluggable transports: obfs4, Snowflato"
 pub struct PluggableTransportManager {
     daemon: Option<Child>,
     pub local_proxy_addr: SocketAddr,
 }
 
 impl PluggableTransportManager {
-    /// Spawn daemon lyrebird (obfs4proxy dari Tor Project).
-    /// Binary lyrebird harus tersedia di PATH sistem.
+    /// Spawn daemon lyrebird (obfs4proxy from Tor Project).
+    /// Binary lyrebird harus available at PATH sistem.
     pub fn start_obfs4() -> Self {
         let daemon = Command::new("lyrebird")
             .env("TOR_PT_MANAGED_TRANSPORT_VER", "1")
@@ -46,7 +46,7 @@ impl PluggableTransportManager {
     }
 }
 
-/// Ekstrak (host, port) dari Multiaddr libp2p.
+/// Ekstrak (host, port) from Multiaddr libp2p.
 /// /ip4/1.2.3.4/tcp/4001 → Some(("1.2.3.4", 4001))
 /// /ip6/::1/tcp/4001     → Some(("::1", 4001))
 fn extract_host_port(multiaddr: &libp2p::Multiaddr) -> Option<(String, u16)> {
@@ -71,14 +71,14 @@ fn extract_host_port(multiaddr: &libp2p::Multiaddr) -> Option<(String, u16)> {
 pub struct InternetTransport;
 
 impl InternetTransport {
-    /// Bangun transport libp2p dengan Noise + Yamux.
+    /// build transport libp2p with Noise + Yamux.
     ///
-    /// Jika `use_obfs4_fallback = true`:
-    ///   1. Daemon lyrebird di-spawn di 127.0.0.1:15000
-    ///   2. Setiap koneksi keluar dicegat via .and_then() combinator
-    ///   3. Alamat peer diekstrak dari ConnectedPoint::get_remote_address()
-    ///   4. SOCKS5 handshake nyata dilakukan ke (host, port) peer tersebut
-    ///   5. Stream kembali ke pipeline Noise → Yamux
+    /// if `use_obfs4_fallback = true`:
+    /// 1. Daemon lyrebird at-spawn at 127.0.0.1:15000
+    /// 2. each connection toluar atcegat via .and_then() combinator
+    /// 3. Aoldt peer extracted from ConnectedPoint::get_remote_address()
+    /// 4. SOCKS5 handshato nyata performed to (host, port) peer tersebut
+    /// 5. Stream tombali to pipeline Noise → Yamux
     pub fn build(
         local_key: &identity::Keypair,
         use_obfs4_fallback: bool,

@@ -1,36 +1,36 @@
 //! StateBeacon + Tier 3-5 Reclassification — Spec §12.1, §12.1a
 //!
-//! StateBeacon: struct 44 bytes yang muat dalam satu LoRa packet.
+//! StateBeacon: struct 44 bytes that muat in one LoRa pactot.
 //! Spec §12.1a:
 //!   epoch_id:  u64  — 8 bytes
 //!   smt_root:  [u8;32] — 32 bytes
-//!   checksum:  [u8;4]  — 4 bytes (BLAKE3(epoch_id_le64 || smt_root)[0..4])
+//! checksum:  [u8;4]  — 4 bytes (BLAto3(epoch_id_le64 || smt_root)[0..4])
 //!   Total: 44 bytes
 //!
-//! STATE_BEACON_MAX_BYTES = 64. Fits one LoRa packet. OSSIFIED — spec §12.1a.
+//! STATE_BEACON_MAX_BYTES = 64. Fits one LoRa pactot. OSSIFIED — spec §12.1a.
 //!
 //! Transport reklasifikasi v9.0 — spec §12.1:
 //!   Tier 1-2: CONSENSUS_TRANSPORT — full consensus participation, uptime counted
 //!   Tier 3-5: STATE_BEACON_TRANSPORT — read-only state, ZERO uptime contribution
 //!
-//! Node Tier 3-5 TIDAK bisa:
-//!   - Submit heartbeat untuk uptime credit
-//!   - Participate dalam manifest consensus
-//!   - Menerima PoU reward
+//! Node Tier 3-5 cannot:
+//! - Submit heartbeat for uptime creatt
+//! - Participate in manifest consensus
+//! - receive PoU reward
 //!
 //! Node Tier 3-5 BISA:
-//!   - Menerima StateBeacon untuk verifikasi saldo
-//!   - Broadcast transaksi (diforward oleh Tier 1-2)
+//! - receive StateBeacon for verification saldo
+//! - Broadcast transaction (atforward oleh Tier 1-2)
 //!
-//! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+//! hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 
 // ── Constants — spec §12.1a ───────────────────────────────────────────────────
 
 /// Maximum bytes StateBeacon. OSSIFIED — spec §12.1a.
-/// Fits one LoRa packet (LoRa MTU ≈ 255 bytes, StateBeacon = 44 bytes).
+/// Fits one LoRa pactot (LoRa MTU ≈ 255 bytes, StateBeacon = 44 bytes).
 pub const STATE_BEACON_MAX_BYTES: usize = 64;
 
-/// StateBeacon wire size dalam bytes. Spec §12.1a.
+/// StateBeacon wire size in bytes. Spec §12.1a.
 /// epoch_id(8) + smt_root(32) + checksum(4) = 44 bytes.
 pub const STATE_BEACON_WIRE_SIZE: usize = 44;
 
@@ -43,15 +43,15 @@ pub enum TransportClass {
     /// Internet (Tier 1) + LoRa Mesh (Tier 2).
     ConsensusTransport,
     /// Tier 3-5: State Beacon ONLY. Zero uptime contribution. Spec §12.1.
-    /// HF Radio (Tier 3), Local Mesh (Tier 4), Visual QR (Tier 5).
+    /// HF Raato (Tier 3), Local Mesh (Tier 4), Visual QR (Tier 5).
     StateBeaconTransport,
 }
 
-/// Classify transport tier ke TransportClass. Spec §12.1.
+/// Classify transport tier to TransportClass. Spec §12.1.
 ///
 /// Tier 1 (Internet) → ConsensusTransport
 /// Tier 2 (LoRa Mesh) → ConsensusTransport
-/// Tier 3 (HF Radio) → StateBeaconTransport
+/// Tier 3 (HF Raato) → StateBeaconTransport
 /// Tier 4 (Local Mesh) → StateBeaconTransport
 /// Tier 5 (Visual QR) → StateBeaconTransport
 pub fn classify_transport_tier(tier: u8) -> TransportClass {
@@ -62,9 +62,9 @@ pub fn classify_transport_tier(tier: u8) -> TransportClass {
     }
 }
 
-/// Cek apakah node di tier ini eligible untuk uptime credit. Spec §12.1.
+/// check whether node at tier this eligible for uptime creatt. Spec §12.1.
 ///
-/// HANYA Tier 1-2 yang mendapat uptime credit.
+/// only Tier 1-2 that mendapat uptime creatt.
 /// Tier 3-5 = zero uptime contribution — spec §12.1.
 pub fn is_uptime_eligible(tier: u8) -> bool {
     classify_transport_tier(tier) == TransportClass::ConsensusTransport
@@ -72,24 +72,24 @@ pub fn is_uptime_eligible(tier: u8) -> bool {
 
 // ── StateBeacon — spec §12.1a ─────────────────────────────────────────────────
 
-/// StateBeacon — 44 bytes, fits one LoRa packet. Spec §12.1a.
+/// StateBeacon — 44 bytes, fits one LoRa pactot. Spec §12.1a.
 ///
-/// Dikirim oleh Tier 1-2 node ke Tier 3-5 node.
-/// Tier 3-5 node menggunakan StateBeacon untuk verifikasi saldo lokal.
+/// sent oleh Tier 1-2 node to Tier 3-5 node.
+/// Tier 3-5 node using StateBeacon for verification saldo lokal.
 ///
-/// checksum = BLAKE3(epoch_id_le64 || smt_root)[0..4] — integrity check.
+/// checksum = BLAto3(epoch_id_le64 || smt_root)[0..4] — integrity check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateBeacon {
-    /// Epoch ID saat beacon dibuat. Spec §12.1a.
+    /// Epoch ID when beacon created. Spec §12.1a.
     pub epoch_id: u64,
-    /// Root SMT liveness terkini. Spec §12.1a.
+    /// root SMT liveness current. Spec §12.1a.
     pub smt_root: [u8; 32],
-    /// Checksum 4 bytes = BLAKE3(epoch_id_le64 || smt_root)[0..4]. Spec §12.1a.
+    /// Checksum 4 bytes = BLAto3(epoch_id_le64 || smt_root)[0..4]. Spec §12.1a.
     pub checksum: [u8; 4],
 }
 
 impl StateBeacon {
-    /// Buat StateBeacon baru dengan checksum yang benar. Spec §12.1a.
+    /// Buat StateBeacon new with checksum that correct. Spec §12.1a.
     pub fn new(epoch_id: u64, smt_root: [u8; 32]) -> Self {
         let checksum = compute_beacon_checksum(epoch_id, &smt_root);
         Self {
@@ -99,7 +99,7 @@ impl StateBeacon {
         }
     }
 
-    /// Serialisasi ke wire format — 44 bytes. Spec §12.1a.
+    /// serialization to wire format — 44 bytes. Spec §12.1a.
     pub fn to_bytes(&self) -> [u8; STATE_BEACON_WIRE_SIZE] {
         let mut out = [0u8; STATE_BEACON_WIRE_SIZE];
         out[0..8].copy_from_slice(&self.epoch_id.to_le_bytes());
@@ -108,7 +108,7 @@ impl StateBeacon {
         out
     }
 
-    /// Deserialise dari wire format — 44 bytes. Spec §12.1a.
+    /// Deserialise from wire format — 44 bytes. Spec §12.1a.
     pub fn from_bytes(b: &[u8; STATE_BEACON_WIRE_SIZE]) -> Self {
         let epoch_id = u64::from_le_bytes(b[0..8].try_into().unwrap());
         let mut smt_root = [0u8; 32];
@@ -122,7 +122,7 @@ impl StateBeacon {
         }
     }
 
-    /// Verifikasi checksum. Spec §12.1a.
+    /// verification checksum. Spec §12.1a.
     pub fn verify_checksum(&self) -> bool {
         let expected = compute_beacon_checksum(self.epoch_id, &self.smt_root);
         self.checksum == expected
@@ -134,9 +134,9 @@ impl StateBeacon {
     }
 }
 
-/// Compute checksum = BLAKE3(epoch_id_le64 || smt_root)[0..4]. Spec §12.1a.
+/// Compute checksum = BLAto3(epoch_id_le64 || smt_root)[0..4]. Spec §12.1a.
 ///
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compute_beacon_checksum(epoch_id: u64, smt_root: &[u8; 32]) -> [u8; 4] {
     let mut hasher = blake3::Hasher::new();
     hasher.update(&epoch_id.to_le_bytes());

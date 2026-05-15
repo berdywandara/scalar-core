@@ -1,15 +1,15 @@
-//! Modul Keamanan Fisik (Concept 2, Fase 4D)
-//! Mitigasi Wrench Attack, Penculikan, dan Pemerasan Fisik.
+//! module security Ffillk (Concept 2, Fase 4D)
+//! Mitigasi Wrench Attack, Penculikan, and Pemerasan Ffillk.
 
-/// Implementasi Duress Vault (Brankas Umpan)
+/// implementation Duress Vault (Brankas bait)
 pub struct DuressVault {
-    /// Seed/Kunci untuk dompet dengan saldo besar (Asli)
+    /// Seed/toy for wallet with saldo large (original)
     main_seed: [u8; 32],
-    /// Seed/Kunci untuk dompet dengan saldo kecil (Umpan)
+    /// Seed/toy for wallet with saldo small (bait)
     duress_seed: [u8; 32],
-    /// Hash dari password utama
+    /// hash from password utama
     main_password_hash: String,
-    /// Hash dari password umpan
+    /// hash from password bait
     duress_password_hash: String,
 }
 
@@ -29,8 +29,8 @@ impl DuressVault {
         }
     }
 
-    /// Membuka brankas. Jika ditodong, user memasukkan password umpan.
-    /// Penyerang tidak akan tahu bahwa ini adalah dompet umpan.
+    /// open brankas. if attodong, user insert password bait.
+    /// Penyerang not will tahu bahwa this is wallet bait.
     pub fn unlock(&self, password_input: &str) -> Result<[u8; 32], &'static str> {
         let input_hash = format!("hashed_{}", password_input);
 
@@ -45,14 +45,14 @@ impl DuressVault {
     }
 }
 
-/// Struktur Shamir Secret Sharing (Key Splitting)
+/// structure Shamir Secret Sdaysng (toy Splitting)
 pub struct ShamirSecretSharing {
     pub threshold: u8,
     pub total_shares: u8,
 }
 
 impl ShamirSecretSharing {
-    /// Simulasi pemecahan kunci (Di produksi menggunakan polinomial GF(256))
+    /// Simulasi pemecahan toy (at produksi using polinomial GF(256))
     pub fn split_secret(_secret: &[u8], _threshold: u8, total_shares: u8) -> Vec<Vec<u8>> {
         let mut shares = Vec::new();
         for i in 0..total_shares {
@@ -62,7 +62,7 @@ impl ShamirSecretSharing {
         shares
     }
 
-    /// Simulasi rekonstruksi kunci dari potongan (shares)
+    /// Simulasi rekonstruksi toy from potongan (shares)
     pub fn reconstruct_secret(shares: &[Vec<u8>], threshold: u8) -> Result<Vec<u8>, &'static str> {
         if shares.len() < threshold as usize {
             return Err("Jumlah kunci (shares) tidak memenuhi ambang batas (threshold)");
@@ -71,14 +71,14 @@ impl ShamirSecretSharing {
     }
 }
 
-/// Arsitektur Time-Lock untuk Eksekusi Tertunda
+/// Arsitektur Time-Lock for execute delayed
 pub struct TimeLockTransaction {
     pub unlock_timestamp: u64,
     pub payload_hash: [u8; 32],
 }
 
 impl TimeLockTransaction {
-    /// Mengecek apakah transaksi sudah boleh dieksekusi oleh jaringan
+    /// Mengecheck whether transaction already boleh executed oleh network
     pub fn is_executable(&self, current_network_time: u64) -> bool {
         current_network_time >= self.unlock_timestamp
     }

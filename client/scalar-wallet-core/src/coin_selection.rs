@@ -1,29 +1,29 @@
 //! Coin Selection — Step 2b (fee adequacy) + Fee Reserve (§B.4.6 + §B.4.7)
 //!
-//! Spesifikasi: Scalar_Master_Technical_Spec.docx §B.4.6 + §B.4.7
+//! specification: Scalar_Master_Technical_Spec.docx §B.4.6 + §B.4.7
 //!
-//! TAMBAHAN pada algoritma original (§A.2.1) — disisipkan antara Step 2 dan Step 3:
+//! TAMBAHAN on algoritma original (§A.2.1) — dfillsipkan antara Step 2 and Step 3:
 //!
 //! Step 2b: FEE ADEQUACY PRE-CHECK
-//!   Jika selisih coins yang dipilih < fee_total (shortfall):
-//!   → Loop: tambahkan coin terkecil yang menutup shortfall
-//!   → Prioritas: denominasi terkecil yang cukup
+//! if selfillh coins that selected < fee_total (shortfall):
+//! → Loop: add coin tersmall that close shortfall
+//! → Prioritas: denomination tersmall that sufficient
 //!   → Batas: total inputs ≤ MAX_INPUTS (10, OSSIFIED)
-//!   → Jika MAX_INPUTS tercapai + masih shortfall: REQUIRES_CONSOLIDATION
+//! → if MAX_INPUTS terachieve + still shortfall: REQUIRES_CONSOLIDATION
 //!
-//! Step 6: ERROR HANDLING (baru)
-//!   REQUIRES_CONSOLIDATION → sarankan konsolidasi coin kecil dulu
-//!   Saldo tidak cukup → tolak di wallet sebelum broadcast
+//! Step 6: ERROR HANDLING (new)
+//! REQUIRES_CONSOLIDATION → sarankan consolidation coin small dulu
+//! Saldo insufficient → reject at wallet before broadcast
 //!
-//! Fee Reserve (§B.4.7 — rekomendasi, bukan constraint protokol):
+//! Fee Reserve (§B.4.7 — recommendation, openn constraint protokol):
 //!   Target: ≥5 coins d1–d6, total ≥ 10,000 sSCL
-//!   Notifikasi: fee_reserve_total < 1,000 sSCL
+//! notification: fee_reserve_total < 1,000 sSCL
 
-/// Maksimum inputs per transaksi. OSSIFIED (Transfer Circuit C8).
+/// Maksimum inputs per transaction. OSSIFIED (Transfer Circuit C8).
 pub const MAX_INPUTS: usize = 10;
 
-/// Denominasi fixed Scalar dalam sSCL (17 denominasi, §A.2).
-/// Diurutkan ascending untuk coin selection.
+/// denomination fixed Scalar in SSCL (17 denomination, §A.2).
+/// sorted ascenatng for coin selection.
 pub const DENOMINATIONS: [u64; 17] = [
     1,
     5,
@@ -44,69 +44,69 @@ pub const DENOMINATIONS: [u64; 17] = [
     100_000_000,
 ];
 
-/// Index denominasi d1–d6 (1–500 sSCL) untuk fee reserve.
+/// Index denomination d1–d6 (1–500 sSCL) for fee reserve.
 /// d1=1, d2=5, d3=10, d4=50, d5=100, d6=500 sSCL.
-pub const FEE_RESERVE_DENOM_MAX_IDX: usize = 5; // index 0..=5 dalam DENOMINATIONS
+pub const FEE_RESERVE_DENOM_MAX_IDX: usize = 5; // index 0..=5 in DENOMINATIONS
 
-/// Target total fee reserve dalam sSCL (§B.4.7).
+/// Target total fee reserve in SSCL (§B.4.7).
 pub const FEE_RESERVE_TARGET_SSCL: u64 = 10_000;
 
-/// Trigger notifikasi fee reserve dalam sSCL (§B.4.7).
+/// Trigger notification fee reserve in SSCL (§B.4.7).
 pub const FEE_RESERVE_NOTIFY_THRESHOLD_SSCL: u64 = 1_000;
 
-/// Coin yang dimiliki wallet — denomination + jumlah yang tersedia.
+/// Coin that owned wallet — denomination + jumlah that available.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WalletCoin {
-    /// Nilai coin dalam sSCL (harus salah satu dari DENOMINATIONS)
+    /// value coin in SSCL (harus wrong satu from DENOMINATIONS)
     pub value: u64,
-    /// Jumlah coin denomination ini yang dimiliki
+    /// Jumlah coin denomination this that owned
     pub count: u32,
 }
 
 /// Hasil coin selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CoinSelectionResult {
-    /// Coin selection berhasil.
+    /// Coin selection successful.
     Ok {
-        /// Coins yang dipilih (list nilai, bisa duplikat)
+        /// Coins that selected (list value, bisa duplikat)
         selected_coins: Vec<u64>,
-        /// Total nilai yang dipilih
+        /// Total value that selected
         total_selected: u64,
-        /// Change yang dikembalikan (total_selected - target_value - fee_total)
+        /// Change that returned (total_selected - target_value - fee_total)
         change_value: u64,
     },
-    /// Perlu konsolidasi coin kecil sebelum transaksi ini bisa dilakukan.
+    /// need consolidation coin small before transaction this bisa performed.
     RequiresConsolidation { message: &'static str },
-    /// Saldo tidak mencukupi untuk fee.
+    /// Saldo not mensufficienti for fee.
     InsufficientBalance { message: &'static str },
 }
 
 /// Status fee reserve wallet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FeeReserveStatus {
-    /// Fee reserve mencukupi.
+    /// Fee reserve mensufficienti.
     Adequate { total_reserve: u64 },
-    /// Fee reserve di bawah threshold notifikasi.
+    /// Fee reserve below threshold notification.
     Low {
         total_reserve: u64,
         message: &'static str,
     },
-    /// Fee reserve kosong.
+    /// Fee reserve empty.
     Empty,
 }
 
 /// Step 2b: Fee adequacy pre-check.
 ///
-/// Disisipkan antara Step 2 (privacy randomization) dan Step 3 (greedy selection)
-/// dari algoritma original §A.2.1.
+/// Dfillsipkan antara Step 2 (privacy randomization) and Step 3 (greedy selection)
+/// from algoritma original §A.2.1.
 ///
 /// Input:
-///   - `selected_so_far`: coins yang sudah dipilih di Step 1-2
-///   - `available_coins`: semua coin wallet yang belum dipilih, ascending by value
-///   - `target_value`: nilai transfer yang diinginkan
-///   - `fee_total`: FLOOR + PREMIUM + PADDING (publik)
+/// - `selected_so_far`: coins that has been selected at Step 1-2
+/// - `available_coins`: all coin wallet that not yet selected, ascenatng by value
+/// - `target_value`: value transfer that atinginkan
+/// - `fee_total`: FLOOR + PREMIUM + PADatNG (publik)
 ///
-/// Return: CoinSelectionResult dengan coins final atau error.
+/// Return: CoinSelectionResult with coins final or error.
 pub fn step2b_fee_adequacy_check(
     selected_so_far: Vec<u64>,
     available_coins: &[WalletCoin],
@@ -184,10 +184,10 @@ pub fn step2b_fee_adequacy_check(
     }
 }
 
-/// Cek status fee reserve wallet (§B.4.7).
+/// check status fee reserve wallet (§B.4.7).
 ///
-/// Fee reserve = total nilai semua coin denominasi d1–d6 (1–500 sSCL).
-/// Rekomendasi implementasi — bukan constraint protokol.
+/// Fee reserve = total value all coin denomination d1–d6 (1–500 sSCL).
+/// recommendation implementation — is not constraint protokol.
 pub fn check_fee_reserve(wallet_coins: &[WalletCoin]) -> FeeReserveStatus {
     let max_reserve_denom = DENOMINATIONS[FEE_RESERVE_DENOM_MAX_IDX]; // 500 sSCL
 
@@ -209,7 +209,7 @@ pub fn check_fee_reserve(wallet_coins: &[WalletCoin]) -> FeeReserveStatus {
     }
 }
 
-/// Hitung total nilai fee reserve saat ini.
+/// Hitung total value fee reserve when this.
 pub fn total_fee_reserve(wallet_coins: &[WalletCoin]) -> u64 {
     let max_reserve_denom = DENOMINATIONS[FEE_RESERVE_DENOM_MAX_IDX];
     wallet_coins
@@ -267,7 +267,7 @@ mod tests {
                 ..
             } => {
                 assert!(selected_coins.contains(&100));
-                assert_eq!(change_value, 0); // tepat
+                assert_eq!(change_value, 0); // exact
             }
             _ => panic!("Harus Ok"),
         }
@@ -299,7 +299,7 @@ mod tests {
     fn test_max_inputs_exceeded_requires_consolidation() {
         // 10 coins sudah dipilih, masih shortfall → REQUIRES_CONSOLIDATION
         let selected = vec![1u64; MAX_INPUTS]; // 10 coins @ 1 sSCL = 10 sSCL
-        let available = coins(&[(1, 100)]); // banyak coin kecil tapi MAX_INPUTS sudah tercapai
+        let available = coins(&[(1, 100)]); // banyak coin small but MAX_INPUTS already terachieve
         let result = step2b_fee_adequacy_check(selected, &available, 100, 40);
 
         assert!(
@@ -312,7 +312,7 @@ mod tests {
     fn test_insufficient_balance() {
         // Tidak ada coin sama sekali — saldo tidak cukup
         let selected = vec![10u64];
-        let available = vec![]; // tidak ada coin lagi
+        let available = vec![]; // none coin lagi
         let result = step2b_fee_adequacy_check(selected, &available, 1_000, 100);
 
         assert!(
@@ -385,7 +385,7 @@ mod tests {
     #[test]
     fn test_fee_reserve_empty() {
         // Tidak ada coin kecil sama sekali
-        let wallet = coins(&[(1_000_000, 5)]); // hanya coin besar (d7+)
+        let wallet = coins(&[(1_000_000, 5)]); // only coin large (d7+)
         assert!(matches!(
             check_fee_reserve(&wallet),
             FeeReserveStatus::Empty
@@ -423,25 +423,25 @@ mod tests {
 
 // ── Backward compatibility — API lama dari transaction.rs ────────────
 
-/// Mode privasi untuk coin selection (API lama).
+/// Mode privacy for coin selection (API old).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrivacyMode {
-    /// Prioritas kecepatan — pilih coin paling efisien
+    /// Prioritas speed — select coin paling effillen
     Speed,
-    /// Prioritas privasi — shuffle order
+    /// Prioritas privacy — shuffle order
     Privacy,
-    /// Maksimum privasi
+    /// Maksimum privacy
     Maximum,
 }
 
-/// CoinSelector — wrapper coin selection dengan API lama.
-/// Step 2b (fee adequacy) sudah terintegrasi di dalamnya.
+/// CoinSelector — wrapper coin selection with API old.
+/// Step 2b (fee adequacy) already terintegrasi insidenya.
 pub struct CoinSelector;
 
 impl CoinSelector {
-    /// API lama yang digunakan transaction.rs.
-    /// wallet_coins: HashMap<denomination, count>
-    /// total_needed: target_value + fee_total (sudah digabung oleh pemanggil)
+    /// API old used transaction.rs.
+    /// wallet_coins: hashMap<denomination, count>
+    /// total_needed: target_value + fee_total (already atgabung oleh pemanggil)
     pub fn select_coins(
         wallet_coins: &std::collections::HashMap<u64, usize>,
         total_needed: u64,

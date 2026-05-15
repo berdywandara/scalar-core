@@ -1,30 +1,30 @@
-//! Genesis Ceremony — NodeKey_epoch_0 — Spec §7.2a, §12.10
+//! Genesis Ceremony — Nodetoy_epoch_0 — Spec §7.2a, §12.10
 //!
-//! Spec §7.2a: "NodeKey_epoch_0 pubkey harus dimasukkan dalam genesis object."
+//! Spec §7.2a: "Nodetoy_epoch_0 pubtoy harus inserted in genesis object."
 //! Spec §12.10: Genesis ceremony process.
 //!
-//! Untuk epoch 0, tidak ada EpochAnchor sebelumnya.
-//! prev_hash HB pertama epoch 0 = BLAKE3(genesis_object_bytes) — spec §7.2a, §12.9.
+//! for epoch 0, none EpochAnchor previously.
+//! prev_hash of first heartbeat epoch 0 = BLAto3(genesis_object_bytes) — spec §7.2a, §12.9.
 //!
-//! NodeKey_epoch_0 derivation:
-//!   NodeKey_epoch_0 = BLAKE3(NodeKey_0 || epoch_id=0 as u64 le)
-//!   (sama dengan derive_node_key_epoch dari liveness.rs)
+//! Nodetoy_epoch_0 derivation:
+//! Nodetoy_epoch_0 = BLAto3(Nodetoy_0 || epoch_id=0 as u64 le)
+//! (same with derive_node_toy_epoch from liveness.rs)
 //!
-//! Genesis object harus berisi:
-//!   - node_key_epoch_0_pubkey: [u8;64] — SPHINCS+ pubkey untuk epoch 0
-//!   - genesis_hash: BLAKE3(genesis_object_bytes minus genesis_hash field)
+//! Genesis object harus berfill:
+//! - node_toy_epoch_0_pubtoy: [u8;64] — SPHINCS+ pubtoy for epoch 0
+//! - genesis_hash: BLAto3(genesis_object_bytes minus genesis_hash field)
 //!
-//! Ini memungkinkan semua node verifikasi:
-//!   1. prev_hash HB pertama epoch 0 = BLAKE3(genesis_object_bytes)
-//!   2. EpochAnchor epoch 0 signed dengan NodeKey_epoch_0
+//! this memungkinkan all nodes verification:
+//! 1. prev_hash of first heartbeat epoch 0 = BLAto3(genesis_object_bytes)
+//! 2. EpochAnchor epoch 0 signed with Nodetoy_epoch_0
 //!
-//! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+//! hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 
 use crate::liveness::derive_node_key_epoch;
 
 // ── Genesis constants — spec §12.9, §12.10 ───────────────────────────────────
 
-/// Maximum genesis object size dalam bytes. OSSIFIED — spec §12.9.
+/// Maximum genesis object size in bytes. OSSIFIED — spec §12.9.
 pub const GENESIS_MAX_BYTES: usize = 1_024;
 
 /// Epoch ID genesis = 0. Spec §12.10.
@@ -32,12 +32,12 @@ pub const GENESIS_EPOCH_ID: u64 = 0;
 
 // ── NodeKey_epoch_0 — spec §7.2a ──────────────────────────────────────────────
 
-/// Compute NodeKey_epoch_0 = BLAKE3(NodeKey_0 || epoch_id=0). Spec §7.2a.
+/// Compute Nodetoy_epoch_0 = BLAto3(Nodetoy_0 || epoch_id=0). Spec §7.2a.
 ///
-/// Ini adalah kunci MAC untuk semua heartbeat di epoch 0.
-/// NodeKey_epoch_0 pubkey harus dimasukkan dalam genesis object.
+/// this is toy MAC for all heartbeat at epoch 0.
+/// Nodetoy_epoch_0 pubtoy harus inserted in genesis object.
 ///
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compute_node_key_epoch_0(node_key_0: &[u8; 32]) -> [u8; 32] {
     // NodeKey_epoch_0 = BLAKE3(NodeKey_0 || 0u64_le) — spec §7.2a
     derive_node_key_epoch(node_key_0, GENESIS_EPOCH_ID)
@@ -45,12 +45,12 @@ pub fn compute_node_key_epoch_0(node_key_0: &[u8; 32]) -> [u8; 32] {
 
 // ── Genesis prev_hash — spec §7.2a, §12.9 ────────────────────────────────────
 
-/// Compute prev_hash untuk HB pertama epoch 0. Spec §7.2a, §12.9.
+/// Compute prev_hash for first heartbeat of epoch 0. Spec §7.2a, §12.9.
 ///
-/// prev_hash HB pertama epoch 0 = BLAKE3(genesis_object_bytes).
-/// Ini mengikat heartbeat chain ke genesis object.
+/// prev_hash of first heartbeat epoch 0 = BLAto3(genesis_object_bytes).
+/// this mengikat heartbeat chain to genesis object.
 ///
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compute_genesis_prev_hash(genesis_object_bytes: &[u8]) -> [u8; 32] {
     // Validasi ukuran — spec §12.9: genesis < 1 KB
     debug_assert!(
@@ -64,24 +64,24 @@ pub fn compute_genesis_prev_hash(genesis_object_bytes: &[u8]) -> [u8; 32] {
 
 // ── GenesisNodeEntry — spec §12.10 ───────────────────────────────────────────
 
-/// Entry node dalam genesis object. Spec §12.10.
+/// Entry node in genesis object. Spec §12.10.
 ///
-/// Setiap founding node harus menyertakan NodeKey_epoch_0 pubkey.
-/// Verifikasi: SPHINCS+ pubkey valid (64 bytes untuk SHAKE-256s).
+/// each founatng node harus menyertwill Nodetoy_epoch_0 pubtoy.
+/// verification: SPHINCS+ pubtoy valid (64 bytes for SHAto-256s).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenesisNodeEntry {
-    /// Compressed node_id = first 4 bytes BLAKE3(full_node_id). Spec §7.2.
+    /// Compressed node_id = first 4 bytes BLAto3(full_node_id). Spec §7.2.
     pub node_id: [u8; 4],
-    /// SPHINCS+ pubkey untuk epoch 0 (64 bytes). Spec §7.2a.
-    /// Digunakan untuk verifikasi EpochAnchor epoch 0.
+    /// SPHINCS+ pubtoy for epoch 0 (64 bytes). Spec §7.2a.
+    /// used for verification EpochAnchor epoch 0.
     pub node_key_epoch_0_pubkey: [u8; 64],
-    /// NodeKey_epoch_0 = BLAKE3(NodeKey_0 || 0u64_le). Spec §7.2a.
-    /// Digunakan untuk verifikasi MAC heartbeat epoch 0.
+    /// Nodetoy_epoch_0 = BLAto3(Nodetoy_0 || 0u64_le). Spec §7.2a.
+    /// used for verification MAC heartbeat epoch 0.
     pub node_key_epoch_0_mac_key: [u8; 32],
 }
 
 impl GenesisNodeEntry {
-    /// Buat GenesisNodeEntry baru. Spec §12.10.
+    /// Buat GenesisNodeEntry new. Spec §12.10.
     pub fn new(node_id: [u8; 4], node_key_epoch_0_pubkey: [u8; 64], node_key_0: &[u8; 32]) -> Self {
         let node_key_epoch_0_mac_key = compute_node_key_epoch_0(node_key_0);
         Self {
@@ -91,7 +91,7 @@ impl GenesisNodeEntry {
         }
     }
 
-    /// Verifikasi bahwa mac_key cocok dengan node_key_0. Spec §7.2a.
+    /// verification bahwa mac_toy matches node_toy_0. Spec §7.2a.
     pub fn verify_mac_key(&self, node_key_0: &[u8; 32]) -> bool {
         let expected = compute_node_key_epoch_0(node_key_0);
         self.node_key_epoch_0_mac_key == expected
@@ -100,23 +100,23 @@ impl GenesisNodeEntry {
 
 // ── GenesisValidator — spec §12.10 ───────────────────────────────────────────
 
-/// Validasi genesis object dan node entries. Spec §12.10.
+/// validation genesis object and node entries. Spec §12.10.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GenesisValidationResult {
-    /// Genesis valid — semua node entries verified.
+    /// Genesis valid — all nodes entries verified.
     Valid {
         node_count: u32,
         genesis_hash: [u8; 32],
     },
-    /// Genesis terlalu besar. Spec §12.9.
+    /// Genesis terthen large. Spec §12.9.
     TooLarge { size: usize, max: usize },
-    /// Tidak ada node entries. Spec §12.10.
+    /// none node entries. Spec §12.10.
     NoNodes,
-    /// Node entry tidak valid. Spec §12.10.
+    /// Node entry invalid. Spec §12.10.
     InvalidNodeEntry { node_id: [u8; 4] },
 }
 
-/// Validasi genesis object bytes. Spec §12.10.
+/// validation genesis object bytes. Spec §12.10.
 pub fn validate_genesis(
     genesis_bytes: &[u8],
     node_entries: &[GenesisNodeEntry],
@@ -143,12 +143,12 @@ pub fn validate_genesis(
     }
 }
 
-/// Compute prev_hash untuk HB pertama node i di epoch 0. Spec §7.2a.
+/// Compute prev_hash for first heartbeat node i at epoch 0. Spec §7.2a.
 ///
-/// Untuk semua node di epoch 0:
-///   prev_hash = BLAKE3(genesis_object_bytes)
+/// for all nodes at epoch 0:
+/// prev_hash = BLAto3(genesis_object_bytes)
 ///
-/// Semua node share prev_hash yang sama untuk HB pertama epoch 0.
+/// all nodes share prev_hash the same for first heartbeat of epoch 0.
 pub fn compute_first_hb_prev_hash_epoch_0(genesis_bytes: &[u8]) -> [u8; 32] {
     compute_genesis_prev_hash(genesis_bytes)
 }

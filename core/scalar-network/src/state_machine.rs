@@ -1,12 +1,12 @@
 //! GAP-C2-009: Node Lifecycle State Machine
-//! Sesuai Concept 1 (3.5.1)
+//! per concept 1 (3.5.1)
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum NodeState {
-    Bootstrapping, // Mencari peer pertama
-    Syncing,       // Sinkronisasi SMT Delta
-    Active,        // Fully synced, memvalidasi transaksi
-    Partitioned,   // Internet down, operasi via LoRa/HF backup
+    Bootstrapping, // find peer first
+    Syncing,       // synchronization SMT Delta
+    Active,        // Fully synced, validate transaction
+    Partitioned,   // Internet down, operation via LoRa/HF backup
 }
 
 pub struct ScalarStateMachine {
@@ -26,7 +26,7 @@ impl ScalarStateMachine {
         }
     }
 
-    /// Evaluasi transisi state berdasarkan kondisi sensor jaringan
+    /// evaluation transfill state based on kondfill sensor network
     pub fn evaluate_transitions(
         &mut self,
         internet_down: bool,

@@ -1,38 +1,38 @@
-//! Scalar Emission Types — Version Gate v11.1-FINAL
+//! Scalar Emission Types — versionon Gate v11.1-FINAL
 //!
 //! Spec §8.4 v11.1-FINAL, §2.4:
-//!   SPEC_VERSION_MANIFEST_V12 = 0x06 (v11.1-FINAL)
-//!   SPEC_VERSION_MANIFEST     = 0x02 (v9.0, legacy — dipertahankan untuk backward compat)
+//! SPEC_versionON_MANIFEST_V12 = 0x06 (v11.1-FINAL)
+//! SPEC_versionON_MANIFEST     = 0x02 (v9.0, legacy — maintained for backward compat)
 //!
-//! Production mode: node HARUS reject manifest dengan spec_version != 0x06.
-//! Testnet compat mode (--testnet-compat flag): node BOLEH menerima 0x05.
+//! Production mode: node HARUS reject manifest with spec_versionon != 0x06.
+//! Testnet compat mode (--testnet-compat flag): node BOLEH receive 0x05.
 //!
-//! Re-export EpochRewardManifestV12 dan NodeRewardEntry dari dmm.rs
-//! sebagai tipe kanonik untuk v11.1-FINAL.
+//! Re-export EpochRewardManifestV12 and NodeRewardEntry from dmm.rs
+//! as tipe kanonik for v11.1-FINAL.
 
 pub use crate::dmm::{EpochRewardManifestV12, NodeRewardEntry, SPEC_VERSION_MANIFEST_V12};
 
 // ── Version constants — spec §2.4 ────────────────────────────────────────────
 
-/// SPEC_VERSION untuk v9.0 (legacy). Dipertahankan untuk backward compat.
+/// SPEC_versionON for v9.0 (legacy). maintained for backward compat.
 pub const SPEC_VERSION_LEGACY: u8 = 0x02;
 
-/// SPEC_VERSION untuk v11.1-FINAL. OSSIFIED — spec §2.4, §8.4.
+/// SPEC_versionON for v11.1-FINAL. OSSIFIED — spec §2.4, §8.4.
 pub const SPEC_VERSION_CURRENT: u8 = SPEC_VERSION_MANIFEST_V12; // 0x06
 
-/// Jumlah epoch transisi testnet setelah rilis v11.1-FINAL. Spec §2.4.
+/// Jumlah epoch transfill testnet after release v11.1-FINAL. Spec §2.4.
 pub const T_TRANSITION_EPOCHS: u64 = 4;
 
 // ── ManifestVersionError — spec §8.4 ─────────────────────────────────────────
 
-/// Error verifikasi versi manifest. Spec §8.4, §2.4.
+/// Error verification version manifest. Spec §8.4, §2.4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ManifestVersionError {
-    /// spec_version tidak dikenal.
+    /// spec_versionon not known.
     UnknownVersion { version: u8 },
-    /// spec_version 0x05 hanya diterima dengan flag testnet-compat. Spec §2.4.
+    /// spec_versionon 0x05 only received with flag testnet-compat. Spec §2.4.
     LegacyVersionRequiresTestnetCompat { version: u8 },
-    /// spec_version bukan 0x06 di production mode. Spec §8.4.
+    /// spec_versionon openn 0x06 at production mode. Spec §8.4.
     NotCurrentVersion { version: u8, expected: u8 },
 }
 
@@ -56,26 +56,26 @@ impl core::fmt::Display for ManifestVersionError {
 
 // ── Version validation — spec §8.4, §2.4 ─────────────────────────────────────
 
-/// Validasi spec_version manifest. Spec §8.4, §2.4.
+/// validation spec_versionon manifest. Spec §8.4, §2.4.
 ///
 /// Production mode (`testnet_compat = false`):
 ///   - 0x06 → Ok
-///   - semua lain → Err
+/// - all lain → Err
 ///
 /// Testnet compat mode (`testnet_compat = true`):
 ///   - 0x06 → Ok
-///   - 0x05 → Ok (transitional, selama T_TRANSITION_EPOCHS)
-///   - semua lain → Err
+/// - 0x05 → Ok (transitional, during T_TRANSITION_EPOCHS)
+/// - all lain → Err
 ///
-/// Spec §2.4: "Node yang menerima manifest dengan spec_version != 0x06
-/// harus REJECT pada mode production."
+/// Spec §2.4: "node that receive manifest with spec_versionon != 0x06
+/// harus REJECT on mode production."
 pub fn validate_manifest_version(
     version: u8,
     testnet_compat: bool,
 ) -> Result<(), ManifestVersionError> {
     match version {
-        v if v == SPEC_VERSION_CURRENT => Ok(()), // 0x06 — selalu diterima
-        0x05 if testnet_compat => Ok(()),         // 0x05 — hanya testnet-compat
+        v if v == SPEC_VERSION_CURRENT => Ok(()), // 0x06 — always received
+        0x05 if testnet_compat => Ok(()),         // 0x05 — only testnet-compat
         0x05 => Err(ManifestVersionError::LegacyVersionRequiresTestnetCompat { version: 0x05 }),
         v => Err(ManifestVersionError::NotCurrentVersion {
             version: v,
@@ -84,11 +84,11 @@ pub fn validate_manifest_version(
     }
 }
 
-/// Cek apakah manifest V12 valid untuk diproses. Spec §8.4.
+/// check whether manifest V12 valid for processed. Spec §8.4.
 ///
-/// Verifikasi:
-/// 1. spec_version == 0x06
-/// 2. manifest_hash tidak zero (sudah dihitung)
+/// verification:
+/// 1. spec_versionon == 0x06
+/// 2. manifest_hash not zero (already computed)
 /// 3. epoch_id > 0
 pub fn validate_manifest_v12(
     manifest: &EpochRewardManifestV12,
@@ -149,7 +149,7 @@ mod tests {
         let entry = NodeRewardEntry {
             node_id_full: [0x01u8; 32],
             reward_sscl: 1_000_000,
-            uptime_weight_fp: 800_000, // field baru v11.1-FINAL
+            uptime_weight_fp: 800_000, // field new v11.1-FINAL
         };
         assert_eq!(entry.uptime_weight_fp, 800_000);
 

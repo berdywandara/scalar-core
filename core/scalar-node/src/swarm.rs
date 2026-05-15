@@ -3,7 +3,7 @@
 //! Transport: TCP + Noise + Yamux (Tier 1 — CONSENSUS_TRANSPORT)
 //! Behaviour: gossipsub + kademlia + identify
 //!
-//! Spec §12.2: peer discovery via Kademlia DHT.
+//! Spec §12.2: peer atscovery via Kademlia DHT.
 //! Spec §7.2: NodeHeartbeat broadcast via gossipsub topic "scalar/heartbeat/1".
 
 use futures::StreamExt;
@@ -19,11 +19,11 @@ use tokio::sync::mpsc;
 
 // ── Topic constants — spec §12 ────────────────────────────────────────────────
 
-/// Gossipsub topic untuk NodeHeartbeat. Spec §7.2.
+/// Gossipsub topic for nodeHeartbeat. Spec §7.2.
 pub const TOPIC_HEARTBEAT: &str = "scalar/heartbeat/1";
-/// Gossipsub topic untuk GossipMessage. Spec §12.
+/// Gossipsub topic for GossipMessage. Spec §12.
 pub const TOPIC_GOSSIP: &str = "scalar/gossip/1";
-/// Gossipsub topic untuk StateBeacon. Spec §12.1a.
+/// Gossipsub topic for StateBeacon. Spec §12.1a.
 pub const TOPIC_BEACON: &str = "scalar/beacon/1";
 
 // ── ScalarNodeBehaviour ───────────────────────────────────────────────────────

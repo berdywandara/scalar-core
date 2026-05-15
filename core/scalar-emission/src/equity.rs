@@ -31,7 +31,7 @@ pub fn compute_gini(distributions: &[u64]) -> u64 {
 
 pub fn compute_equity_boost(uptime_rank_percentile: u64, is_sybil: bool) -> u64 {
     if is_sybil {
-        return FIXED_POINT_BASIS; // Sybil tidak mendapatkan bonus (1.0x)
+        return FIXED_POINT_BASIS; // Sybil not mendapatkan bonus (1.0x)
     }
 
     let half = FIXED_POINT_BASIS / 2;

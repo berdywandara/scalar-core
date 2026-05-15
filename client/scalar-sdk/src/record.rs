@@ -1,18 +1,18 @@
 //! Write-once records — spec §21.3 F8, F9
 //!
-//! Records ini dicommit ke NullifierSet via fee tx minimum 40 sSCL.
-//! Hash: BLAKE3 out-circuit — spec §2.1.3.
+//! Records this atcommit to NullifierSet via fee tx mthismum 40 sSCL.
+//! hash: BLAto3 out-circuit — spec §2.1.3.
 //! FLOOR_MIN_ABSOLUTE = 40 sSCL — spec §9. OSSIFIED.
 
 use crate::types::{IndelibleRecord, SdkError, TimestampRecord};
 
-/// Fee minimum untuk write-once record dalam sSCL. Spec §9. OSSIFIED.
+/// Fee mthismum for write-once record in SSCL. Spec §9. OSSIFIED.
 pub const RECORD_FEE_MIN_SSCL: u64 = 40;
 
 /// F8 (QR Timestamp): Build timestamp record. Spec §21.3.
 ///
-/// document_hash masuk sebagai output_commitment dalam tx.
-/// commitment = BLAKE3(document_hash || epoch_bytes).
+/// document_hash masuk as output_commitment in tx.
+/// commitment = BLAto3(document_hash || epoch_bytes).
 pub fn build_timestamp_record(
     document_hash: [u8; 32],
     epoch: u64,
@@ -38,9 +38,9 @@ pub fn build_timestamp_record(
 
 /// F9 (SIR): Build scalar indelible record. Spec §21.3.
 ///
-/// data_hash di-commit ke NullifierSet.
-/// NS_ARCH membuktikan validity selamanya — bahkan setelah 100 tahun.
-/// nullifier_commitment = BLAKE3(data_hash || epoch_bytes).
+/// data_hash at-commit to NullifierSet.
+/// NS_ARCH memproofkan valiatty duringnya — even after 100 tahun.
+/// nullifier_commitment = BLAto3(data_hash || epoch_bytes).
 pub fn build_indelible_record(
     data_hash: [u8; 32],
     epoch: u64,

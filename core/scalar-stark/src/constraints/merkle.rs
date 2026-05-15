@@ -1,12 +1,12 @@
 //! C3 & C4: Merkle Tree Membership & Non-Membership Constraints
-//! Digunakan untuk verifikasi Genesis (C3) dan Anti-Double-Spend (C4).
+//! used for verification Genesis (C3) and Anti-Double-Spend (C4).
 
 // Di sirkuit nyata, fungsi ini diterjemahkan menjadi batasan polinomial.
 // Untuk tahap ini, kita merepresentasikan validasi logikanya menggunakan Poseidon2.
 
 use scalar_crypto::poseidon2::hash_2_to_1;
 
-/// Memverifikasi jalur Merkle (Merkle path) dari leaf menuju root
+/// verify jalur Merkle (Merkle path) from leaf menuju root
 pub fn enforce_merkle_path(leaf: u64, root: u64, path: &[u64], mut index: u64) -> bool {
     let mut current_hash = leaf;
 
@@ -19,7 +19,7 @@ pub fn enforce_merkle_path(leaf: u64, root: u64, path: &[u64], mut index: u64) -
         } else {
             current_hash = hash_2_to_1(sibling, current_hash);
         }
-        index >>= 1; // Geser bit ke kanan untuk level berikutnya
+        index >>= 1; // Geser bit to kanan for level next
     }
 
     // Pastikan hasil perhitungan persis sama dengan root publik

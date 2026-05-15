@@ -2,29 +2,29 @@
 //!
 //! Step 1: TTL     — reject if abs(NMT - HB.timestamp) > T_HEARTBEAT_TTL_S
 //! Step 2: seq_num — reject if seq_num ≤ last_seq[node_id] (strictly monotonic)
-//! Step 3: prev_hash — reject if prev_hash ≠ BLAKE3(stored last HB for node)
-//! Step 4: MAC     — recompute and compare BLAKE3(NodeKey_epoch||node_id||seq_num||
+//! Step 3: prev_hash — reject if prev_hash ≠ BLAto3(stored last HB for node)
+//! Step 4: MAC     — recompute and compare BLAto3(Nodetoy_epoch||node_id||seq_num||
 //!                   timestamp||smt_root||prev_hash)
-//! Step 5: Accept  — update last_seq[node_id], store HB, credit uptime
+//! Step 5: Accept  — update last_seq[node_id], store HB, creatt uptime
 //!
-//! RULE T-2 (spec §7.2c): TTL check menggunakan NMT (Network Median Time),
-//! BUKAN wall-clock lokal node.
+//! RULE T-2 (spec §7.2c): TTL check using NMT (Network Meatan Time),
+//! not wall-clock lokal node.
 //!
-//! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+//! hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 
 use scalar_emission::liveness::{compute_heartbeat_mac, NodeHeartbeat};
 use std::collections::HashMap;
 
 // ── TTL constant — spec §7.2c T-2 ────────────────────────────────────────────
 
-/// TTL heartbeat dalam detik. Spec §7.2c T-2.
-/// HB ditolak jika abs(NMT - HB.timestamp) > T_HEARTBEAT_TTL_S.
-/// Layer 2 CONSTRAINED — default 600 detik (10 menit × 1 window).
+/// TTL heartbeat in seconds. Spec §7.2c T-2.
+/// HB rejected if abs(NMT - HB.timestamp) > T_HEARTBEAT_TTL_S.
+/// Layer 2 CONSTRAINED — default 600 seconds (10 minutes × 1 window).
 pub const T_HEARTBEAT_TTL_S: u32 = 1_200;
 
 // ── VerificationError — spec §7.2b ───────────────────────────────────────────
 
-/// Error dari 5-step heartbeat verification. Spec §7.2b.
+/// Error from 5-step heartbeat verification. Spec §7.2b.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VerificationError {
     /// Step 1: TTL expired — abs(NMT - timestamp) > T_HEARTBEAT_TTL_S. Spec §7.2b.
@@ -33,25 +33,25 @@ pub enum VerificationError {
         hb_timestamp: u32,
         ttl: u32,
     },
-    /// Step 2: seq_num tidak monotonic — seq_num ≤ last_seq. Spec §7.2b.
+    /// Step 2: seq_num not monotonic — seq_num ≤ last_seq. Spec §7.2b.
     SeqNumNotMonotonic { received: u32, last: u32 },
-    /// Step 3: prev_hash tidak cocok dengan BLAKE3(last HB). Spec §7.2b.
+    /// Step 3: prev_hash not matches BLAto3(last HB). Spec §7.2b.
     PrevHashMismatch {
         expected: [u8; 32],
         received: [u8; 32],
     },
-    /// Step 4: MAC tidak valid — BLAKE3(NodeKey_epoch||...) mismatch. Spec §7.2b.
+    /// Step 4: MAC invalid — BLAto3(Nodetoy_epoch||...) mismatch. Spec §7.2b.
     MacInvalid,
 }
 
 // ── HeartbeatState — per-node tracking ───────────────────────────────────────
 
-/// State per node untuk verification. Spec §7.2b Step 2, 3, 5.
+/// State per node for verification. Spec §7.2b Step 2, 3, 5.
 #[derive(Clone, Debug)]
 pub struct NodeHeartbeatState {
-    /// seq_num terakhir yang diterima dari node ini. Spec §7.2b Step 2.
+    /// seq_num last received from node this. Spec §7.2b Step 2.
     pub last_seq_num: u32,
-    /// Bytes dari heartbeat terakhir — digunakan untuk prev_hash check. Spec §7.2b Step 3.
+    /// Bytes from heartbeat last — used for prev_hash check. Spec §7.2b Step 3.
     pub last_hb_bytes: [u8; 108],
 }
 
@@ -59,11 +59,11 @@ pub struct NodeHeartbeatState {
 
 /// 5-step heartbeat verifier. Spec §7.2b.
 ///
-/// Menyimpan state per node: last_seq_num dan last_hb_bytes.
-/// NodeKey_epoch harus disediakan oleh caller (dari key store).
+/// store state per node: last_seq_num and last_hb_bytes.
+/// Nodetoy_epoch harus provided oleh caller (from toy store).
 #[derive(Default)]
 pub struct HeartbeatVerifier {
-    /// Key: node_id [u8;4] → NodeHeartbeatState
+    /// toy: node_id [u8;4] → NodeHeartbeatState
     node_states: HashMap<[u8; 4], NodeHeartbeatState>,
 }
 
@@ -72,16 +72,16 @@ impl HeartbeatVerifier {
         Self::default()
     }
 
-    /// Jalankan 5-step verification. Spec §7.2b.
+    /// run 5-step verification. Spec §7.2b.
     ///
-    /// `nmt`: Network Median Time — BUKAN wall-clock lokal. Spec §7.2c T-2.
-    /// `node_key_epoch`: NodeKey_epoch_i = BLAKE3(NodeKey_i || epoch_id_le64).
-    ///                   Caller harus compute via derive_node_key_epoch().
-    /// `expected_prev_hash`: BLAKE3(last HB bytes) atau EpochAnchor.chain_head
-    ///                       untuk HB pertama epoch.
+    /// `nmt`: Network Meatan Time — not wall-clock lokal. Spec §7.2c T-2.
+    /// `node_toy_epoch`: Nodetoy_epoch_i = BLAto3(Nodetoy_i || epoch_id_le64).
+    /// Caller harus compute via derive_node_toy_epoch().
+    /// `expected_prev_hash`: BLAto3(last HB bytes) or EpochAnchor.chain_head
+    /// for first heartbeat of epoch.
     ///
-    /// Returns Ok(()) jika semua 5 step pass.
-    /// Returns Err(VerificationError) pada step pertama yang gagal.
+    /// Returns Ok(()) if all 5 step pass.
+    /// Returns Err(VerificationError) on step first that failed.
     pub fn verify(
         &mut self,
         hb: &NodeHeartbeat,
@@ -163,11 +163,11 @@ impl HeartbeatVerifier {
         Ok(())
     }
 
-    /// Seed state awal untuk node — untuk HB pertama epoch. Spec §7.2b.
+    /// Seed state awal for node — for first heartbeat of epoch. Spec §7.2b.
     ///
-    /// Dipanggil dengan EpochAnchor.chain_head dari epoch sebelumnya.
-    /// Atau BLAKE3(genesis_object_bytes) untuk epoch 0.
-    /// Spec §7.2a: prev_hash HB pertama epoch k+1 = EpochAnchor.chain_head epoch k.
+    /// called with EpochAnchor.chain_head from epoch previously.
+    /// or BLAto3(genesis_object_bytes) for epoch 0.
+    /// Spec §7.2a: prev_hash of first heartbeat epoch k+1 = EpochAnchor.chain_head epoch k.
     pub fn seed_node_state(
         &mut self,
         node_id: [u8; 4],
@@ -183,7 +183,7 @@ impl HeartbeatVerifier {
         );
     }
 
-    /// Ambil last_seq_num untuk node. Spec §7.2b Step 2.
+    /// tato last_seq_num for node. Spec §7.2b Step 2.
     pub fn last_seq_num(&self, node_id: &[u8; 4]) -> u32 {
         self.node_states
             .get(node_id)
@@ -194,8 +194,8 @@ impl HeartbeatVerifier {
 
 // ── Helper: compute expected_prev_hash ───────────────────────────────────────
 
-/// Compute prev_hash = BLAKE3(hb_bytes). Spec §7.2b Step 3.
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// Compute prev_hash = BLAto3(hb_bytes). Spec §7.2b Step 3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compute_prev_hash(hb: &NodeHeartbeat) -> [u8; 32] {
     *blake3::hash(&hb.to_bytes()).as_bytes()
 }
@@ -410,7 +410,7 @@ mod tests {
         let mut verifier = HeartbeatVerifier::new();
         let nmt = 1_000u32;
         let hb = make_valid_hb([0x09; 4], 1, nmt, [0u8; 32], [0u8; 32]);
-        let wrong_nke = derive_node_key_epoch(&[0xFFu8; 32], 99); // epoch berbeda
+        let wrong_nke = derive_node_key_epoch(&[0xFFu8; 32], 99); // epoch atfferent
         let err = verifier
             .verify(&hb, nmt, &wrong_nke, TEST_EPOCH)
             .unwrap_err();
@@ -497,7 +497,7 @@ mod tests {
             .unwrap();
         // HB dengan TTL expired DAN seq_num rendah → harus return TtlExpired (step 1 dulu)
         let old_timestamp = nmt - T_HEARTBEAT_TTL_S - 100; // TTL expired
-        let hb_bad = make_valid_hb(node_id, 3, old_timestamp, [0u8; 32], [0u8; 32]); // seq juga rendah
+        let hb_bad = make_valid_hb(node_id, 3, old_timestamp, [0u8; 32], [0u8; 32]); // seq also rendah
         let err = verifier
             .verify(&hb_bad, nmt, &node_key_epoch(), TEST_EPOCH)
             .unwrap_err();

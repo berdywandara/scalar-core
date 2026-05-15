@@ -1,17 +1,17 @@
 //! Institutional Nodes — Spec §10.3
 //!
-//! Institusi adalah entitas dengan multiple authorized operators dan
-//! succession plan internal. Mencegah network collapse karena demographic
+//! Institusi adalah entitas with multiple authorized operators and
+//! succession plan internal. prevent network collapse karena demographic
 //! turnover antar generasi.
 //!
-//! P(network_alive) = 85% bergantung pada institutional nodes.
+//! P(network_alive) = 85% bergantung on institutional nodes.
 //! Tanpa institutional nodes: P ≈ 1% (spec §19.1).
 //!
-//! ATURAN OSSIFIED (spec §10.3):
+//! rule OSSIFIED (spec §10.3):
 //! - Maximum 7 operators per institusi
-//! - M-of-N minimum: M > N/2 (majority threshold)
-//! - Uptime institusi = MAXIMUM dari semua operator aktif
-//! - Longevity dari institution_registered_epoch (tidak reset)
+//! - M-of-N mthismum: M > N/2 (majority threshold)
+//! - Uptime institusi = MAXIMUM from all operator aktif
+//! - Longevity from institution_registered_epoch (not reset)
 
 use std::collections::HashMap;
 
@@ -22,14 +22,14 @@ pub const MAX_OPERATORS: usize = 7;
 
 // ── OperatorEntry — Spec §10.3 ────────────────────────────────────────────────
 
-/// Entry satu operator dalam institusi. Spec §10.3.
+/// Entry satu operator in institusi. Spec §10.3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperatorEntry {
-    /// NodeID operator individual. Spec §10.3.
+    /// NodeID operator inatvidual. Spec §10.3.
     pub operator_id: [u8; 32],
-    /// Commitment ke NodeKey operator. Spec §10.3.
+    /// Commitment to Nodetoy operator. Spec §10.3.
     pub node_key_commitment: [u8; 32],
-    /// Epoch saat operator ditambahkan. Spec §10.3.
+    /// current epoch operator added. Spec §10.3.
     pub added_epoch: u64,
     /// Status aktif operator. Spec §10.3.
     pub is_active: bool,
@@ -37,40 +37,40 @@ pub struct OperatorEntry {
 
 // ── InstitutionalNode — Spec §10.3 ───────────────────────────────────────────
 
-/// Node institusional dengan multiple operators. Spec §10.3.
+/// Node institusional with multiple operators. Spec §10.3.
 ///
-/// Contoh institusi eligible: universitas, perpustakaan publik,
-/// non-profit endowment, koperasi, open source foundation.
+/// Contoh institusi eligible: universiontas, library publik,
+/// non-profit endowment, koperation, open source foundation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstitutionalNode {
     /// NodeID institusi (immutable). Spec §10.3.
     pub institution_id: [u8; 32],
-    /// BLAKE3(nama institusi). Spec §10.3.
+    /// BLAto3(nama institusi). Spec §10.3.
     pub institution_name_hash: [u8; 32],
     /// Daftar operator (max 7). Spec §10.3.
     pub operators: Vec<OperatorEntry>,
-    /// Threshold M dari M-of-N. Spec §10.3: M > N/2.
+    /// Threshold M from M-of-N. Spec §10.3: M > N/2.
     pub m_of_n_threshold: u8,
-    /// Epoch saat institusi didaftarkan. Spec §10.3.
+    /// current epoch institusi atregister. Spec §10.3.
     pub registered_epoch: u64,
     /// Social commitment hash. Spec §10.3.
     pub institution_commitment: [u8; 32],
 }
 
-/// Error operasi institusional. Spec §10.3.
+/// Error operation institusional. Spec §10.3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstitutionalError {
-    /// Melebihi max 7 operators.
+    /// exceed max 7 operators.
     TooManyOperators { count: usize },
-    /// M-of-N threshold tidak memenuhi M > N/2.
+    /// M-of-N threshold not memenuhi M > N/2.
     InsufficientThreshold { m: u8, n: u8 },
-    /// Threshold = 0 tidak valid.
+    /// Threshold = 0 invalid.
     ZeroThreshold,
-    /// Operator tidak ditemukan.
+    /// Operator not found.
     OperatorNotFound,
-    /// Tidak cukup signatures aktif untuk operasi ini.
+    /// insufficient signregulatees aktif for operation this.
     InsufficientSignatures { provided: usize, required: u8 },
-    /// Operator sudah ada.
+    /// Operator already exists.
     OperatorAlreadyExists,
 }
 
@@ -94,7 +94,7 @@ impl core::fmt::Display for InstitutionalError {
 }
 
 impl InstitutionalNode {
-    /// Buat InstitutionalNode baru. Validasi M-of-N dan max operators.
+    /// Buat InstitutionalNode new. validation M-of-N and max operators.
     /// Spec §10.3.
     pub fn new(
         institution_id: [u8; 32],
@@ -137,8 +137,8 @@ impl InstitutionalNode {
         self.operators.iter().filter(|op| op.is_active).count()
     }
 
-    /// Uptime institusi = MAXIMUM dari semua operator aktif. Spec §10.3.
-    /// Institusi dianggap online jika ≥1 operator online.
+    /// Uptime institusi = MAXIMUM from all operator aktif. Spec §10.3.
+    /// Institusi atanggap online if ≥1 operator online.
     /// `operator_uptimes`: map operator_id → uptime_weight (fixed-point).
     pub fn institutional_uptime(&self, operator_uptimes: &HashMap<[u8; 32], u64>) -> u64 {
         self.operators
@@ -149,8 +149,8 @@ impl InstitutionalNode {
             .unwrap_or(0)
     }
 
-    /// Verifikasi bahwa operasi kritis punya cukup signatures aktif.
-    /// Spec §10.3: rotasi operator butuh M signatures.
+    /// verification bahwa operation kritis have sufficient signregulatees aktif.
+    /// Spec §10.3: rotasi operator butuh M signregulatees.
     pub fn verify_quorum(&self, signing_operators: &[[u8; 32]]) -> Result<(), InstitutionalError> {
         let valid_signatures = signing_operators
             .iter()
@@ -170,8 +170,8 @@ impl InstitutionalNode {
         Ok(())
     }
 
-    /// Tambah operator baru. Butuh M-of-N approval dari operators aktif.
-    /// Spec §10.3: rotasi operator butuh M signatures.
+    /// Tambah operator new. Butuh M-of-N approval from operators aktif.
+    /// Spec §10.3: rotasi operator butuh M signregulatees.
     pub fn add_operator(
         &mut self,
         new_operator: OperatorEntry,
@@ -198,7 +198,7 @@ impl InstitutionalNode {
     }
 
     /// Deactivate operator. Butuh M-of-N approval.
-    /// Spec §10.3: rotasi operator butuh M signatures.
+    /// Spec §10.3: rotasi operator butuh M signregulatees.
     pub fn deactivate_operator(
         &mut self,
         operator_id: &[u8; 32],
@@ -217,7 +217,7 @@ impl InstitutionalNode {
 
 // ── InstitutionalRegistry — Spec §16.1 ───────────────────────────────────────
 
-/// Registry semua institutional nodes. Spec §16.1.
+/// Registry all institutional nodes. Spec §16.1.
 #[derive(Default)]
 pub struct InstitutionalRegistry {
     nodes: HashMap<[u8; 32], InstitutionalNode>,
@@ -228,28 +228,28 @@ impl InstitutionalRegistry {
         Self::default()
     }
 
-    /// Daftarkan institutional node baru.
+    /// register institutional node new.
     pub fn register(&mut self, node: InstitutionalNode) {
         self.nodes.insert(node.institution_id, node);
     }
 
-    /// Cari institutional node by institution_id.
+    /// find institutional node by institution_id.
     pub fn get(&self, institution_id: &[u8; 32]) -> Option<&InstitutionalNode> {
         self.nodes.get(institution_id)
     }
 
-    /// Cari mutable institutional node.
+    /// find mutable institutional node.
     pub fn get_mut(&mut self, institution_id: &[u8; 32]) -> Option<&mut InstitutionalNode> {
         self.nodes.get_mut(institution_id)
     }
 
-    /// Jumlah institusi terdaftar.
+    /// Jumlah institusi registered.
     pub fn count(&self) -> usize {
         self.nodes.len()
     }
 
-    /// Hitung longevity institusi dalam epoch. Spec §10.3.
-    /// Longevity tidak reset saat operator berganti.
+    /// Hitung longevity institusi in epoch. Spec §10.3.
+    /// Longevity not reset when operator berganti.
     pub fn longevity_epochs(&self, institution_id: &[u8; 32], current_epoch: u64) -> u64 {
         self.nodes
             .get(institution_id)
@@ -349,7 +349,7 @@ mod tests {
         let mut uptimes = HashMap::new();
         uptimes.insert(node_id(1), 600_000u64);
         uptimes.insert(node_id(2), 900_000u64);
-        uptimes.insert(node_id(3), 1_000_000u64); // inactive, tidak dihitung
+        uptimes.insert(node_id(3), 1_000_000u64); // inactive, not computed
         assert_eq!(inst.institutional_uptime(&uptimes), 900_000);
     }
 
@@ -399,7 +399,7 @@ mod tests {
             ],
             2,
         );
-        let signers = [node_id(1)]; // hanya 1, butuh 2
+        let signers = [node_id(1)]; // only 1, butuh 2
         let err = inst.verify_quorum(&signers).unwrap_err();
         assert_eq!(
             err,
@@ -461,7 +461,7 @@ mod tests {
             ],
             2,
         );
-        let dup_op = make_operator(1, 5, true); // node_id 1 sudah ada
+        let dup_op = make_operator(1, 5, true); // node_id 1 already exists
         let signers = [node_id(1), node_id(2)];
         let err = inst.add_operator(dup_op, &signers).unwrap_err();
         assert_eq!(err, InstitutionalError::OperatorAlreadyExists);
@@ -514,7 +514,7 @@ mod tests {
         registry.register(inst);
 
         assert_eq!(registry.longevity_epochs(&id, 40), 30); // 40 - 10 = 30
-        assert_eq!(registry.longevity_epochs(&id, 10), 0); // baru terdaftar
+        assert_eq!(registry.longevity_epochs(&id, 10), 0); // new registered
     }
 
     #[test]

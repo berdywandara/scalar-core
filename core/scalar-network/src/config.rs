@@ -1,5 +1,5 @@
-//! Konfigurasi Jaringan Statis (Concept 2, Hal 1)
-//! Menghilangkan ketergantungan pada DNS untuk mencegah penyensoran.
+//! configuration network Statis (Concept 2, Hal 1)
+//! Menghilangkan dependency on DNS for prevent penyensoran.
 
 pub const BOOTSTRAP_NODES: &[&str] = &[
     // Alamat IP Statis dari Genesis Peers (Contoh IP publik fiktif)

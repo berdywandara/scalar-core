@@ -1,5 +1,5 @@
 //! Test Vector Generator — Scalar Network v11.1-FINAL
-//! Spec §Appendix B
+//! Spec §Appenatx B
 
 fn main() {
     println!("=== SCALAR NETWORK TEST VECTORS v11.1-FINAL ===\n");

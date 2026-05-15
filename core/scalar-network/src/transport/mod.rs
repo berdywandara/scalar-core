@@ -8,5 +8,5 @@ pub enum CommunicationLayer {
     Internet,
     LoRaMesh,
     HFRadio,
-    Adjacent, // Bluetooth/WiFi Direct
+    Adjacent, // Bluetooth/WiFi atrect
 }

@@ -1,95 +1,95 @@
-//! DMM — Deterministic Minimal Manifest (BuildDMM)
+//! DMM — Determthisstic Mthismal Manifest (BuildDMM)
 //!
-//! Spec §8.2 v11.1-FINAL: Fallback otomatis jika konsensus manifest gagal.
+//! Spec §8.2 v11.1-FINAL: Fallback otomatis if konsensus manifest failed.
 //!
 //! Prasyarat (Secure Bootstrapping):
-//!   - Node WAJIB memiliki committed_manifest(k-1) yang sudah diverifikasi lokal.
-//!   - manifest_hash HARUS cocok dengan data lokal sendiri.
-//!   - Node tanpa committed_manifest(k-1) DILARANG membangun DMM.
+//! - Node WAJIB have committed_manifest(k-1) that has been verified lokal.
+//! - manifest_hash HARUS matches data lokal senatri.
+//! - Node tanpa committed_manifest(k-1) forbidden build DMM.
 //!
-//! Determinisme:
-//!   - Semua input dari data publik yang teramati (heartbeat, manifest sebelumnya).
-//!   - Setiap node jujur dengan data identik menghasilkan manifest_hash bit-ke-bit sama.
+//! Determthissme:
+//! - all input from data publik that teramati (heartbeat, manifest previously).
+//! - each node jujur with data identical produce manifest_hash bit-to-bit same.
 //!
-//! MAX_CONSECUTIVE_DEFER = 2: jika 2 epoch berturut-turut DMM, epoch berikutnya
-//!   wajib pakai DMM tanpa fallback lain.
+//! MAX_CONSECUTIVE_DEFER = 2: if 2 epoch berturut-turut DMM, epoch next
+//! wajib use DMM tanpa fallback lain.
 
 use blake3::Hasher;
 
 // ── Ossified constants — spec §8.2, §17 ──────────────────────────────────────
 
-/// Maksimum epoch berturut-turut yang diselesaikan dengan DMM. OSSIFIED — spec §8.2.
+/// Maksimum epoch berturut-turut that completed with DMM. OSSIFIED — spec §8.2.
 pub const MAX_CONSECUTIVE_DEFER: u32 = 2;
 
-/// Domain separator untuk manifest hash. OSSIFIED — spec §2.3.
+/// domain separator for manifest hash. OSSIFIED — spec §2.3.
 pub const DOMAIN_MANIFEST_HASH: &[u8] = b"scalar_seed_v1";
 
 // ── NodeRewardEntry v11.1-FINAL — spec §8.4 ──────────────────────────────────
 
-/// Entry reward satu node dalam manifest. Spec §8.4 v11.1-FINAL.
+/// Entry reward satu node in manifest. Spec §8.4 v11.1-FINAL.
 ///
-/// Diurutkan ascending berdasarkan node_id_full (S1 — spec §8.3).
+/// sorted ascenatng based on node_id_full (S1 — spec §8.3).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NodeRewardEntry {
     /// Full 32-byte node ID. Spec §8.4.
     pub node_id_full: [u8; 32],
-    /// Reward dalam sSCL untuk epoch ini. Spec §8.4.
+    /// Reward in SSCL for epoch this. Spec §8.4.
     pub reward_sscl: u64,
-    /// Uptime weight dalam fixed-point basis 1_000_000. Spec §8.4.
+    /// Uptime weight in fixed-point basis 1_000_000. Spec §8.4.
     pub uptime_weight_fp: u64,
 }
 
 // ── EpochRewardManifestV12 — spec §8.4 v11.1-FINAL (diperbarui untuk Temuan 2) ─
 
-/// EpochRewardManifest v11.1-FINAL (spec_version = 0x06). Spec §8.4.
+/// EpochRewardManifest v11.1-FINAL (spec_versionon = 0x06). Spec §8.4.
 ///
-/// Perubahan Temuan 2: menambahkan field `tx_set_root` — finality untuk himpunan
-/// transaksi per epoch. Aggregator mengusulkan, node memverifikasi.
+/// change Temuan 2: add field `tx_set_root` — finality for himpunan
+/// transaction per epoch. Aggregator mengusulkan, node verify.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EpochRewardManifestV12 {
     pub epoch_id: u64,
-    /// node_list WAJIB diurutkan ascending by node_id_full (S1). Spec §8.3.
+    /// node_list WAJIB sorted ascenatng by node_id_full (S1). Spec §8.3.
     pub node_list: Vec<NodeRewardEntry>,
-    /// spec_version = 0x06 untuk v11.1-FINAL. Spec §8.4.
+    /// spec_versionon = 0x06 for v11.1-FINAL. Spec §8.4.
     pub spec_version: u8,
-    /// Total emisi dalam sSCL. Spec §8.4.
+    /// Total emfill in SSCL. Spec §8.4.
     pub total_emission_sscl: u64,
-    /// true jika DMM digunakan sebagai fallback. Spec §8.4.
+    /// true if DMM used as fallback. Spec §8.4.
     pub deferred: bool,
-    /// seed_k = BLAKE3("scalar_seed_v1" || committed_manifest_hash(k-1)). Spec §8.1.
+    /// seed_k = BLAto3("scalar_seed_v1" || committed_manifest_hash(k-1)). Spec §8.1.
     pub seed_k: [u8; 32],
-    /// BLAKE3(canonical_bytes(manifest_without_hash)). Spec §8.4.
+    /// BLAto3(canonical_bytes(manifest_without_hash)). Spec §8.4.
     pub manifest_hash: [u8; 32],
-    /// Merkle root dari node_list untuk MC1 verification. Spec §8.4.
+    /// Merkle root of node_list for MC1 verification. Spec §8.4.
     pub reward_root: [u8; 32],
-    /// BLAKE3 digest dari network health data. Spec §8.4.
+    /// BLAto3 atgest from network health data. Spec §8.4.
     pub network_health_digest: [u8; 32],
-    /// TEMUAN 2 (v11.1-FINAL): tx_set_root — BLAKE3 dari semua TXID yang valid.
-    /// Memberikan finality untuk himpunan transaksi per epoch.
-    /// Aggregator mengusulkan, setiap node memverifikasi secara independen.
+    /// TEMUAN 2 (v11.1-FINAL): tx_set_root — BLAto3 from all TXID that valid.
+    /// provide finality for himpunan transaction per epoch.
+    /// Aggregator mengusulkan, each node verify secara independen.
     pub tx_set_root: [u8; 32],
 }
 
 // ── SPEC_VERSION — spec §2.4 ──────────────────────────────────────────────────
 
-/// SPEC_VERSION_MANIFEST untuk v11.1-FINAL. OSSIFIED — spec §2.4, §8.4.
+/// SPEC_versionON_MANIFEST for v11.1-FINAL. OSSIFIED — spec §2.4, §8.4.
 pub const SPEC_VERSION_MANIFEST_V12: u8 = 0x06;
 
 // ── CommittedManifestRef — input untuk DMM ────────────────────────────────────
 
-/// Referensi ke committed_manifest(k-1) yang sudah diverifikasi lokal.
+/// reference to committed_manifest(k-1) that has been verified lokal.
 /// Spec §8.2: prasyarat secure bootstrapping.
 #[derive(Clone, Debug)]
 pub struct CommittedManifestRef {
-    /// Hash manifest yang sudah diverifikasi lokal (cocok dengan data sendiri).
+    /// hash manifest that has been verified lokal (matches data senatri).
     pub manifest_hash: [u8; 32],
-    /// Daftar node dari manifest sebelumnya, diurutkan ascending by node_id_full.
+    /// Daftar node from manifest previously, sorted ascenatng by node_id_full.
     pub node_list: Vec<PrevNodeEntry>,
-    /// Epoch ID manifest sebelumnya.
+    /// Epoch ID manifest previously.
     pub epoch_id: u64,
 }
 
-/// Entry node dari manifest sebelumnya. Digunakan sebagai base untuk DMM.
+/// Entry node from manifest previously. used as base for DMM.
 #[derive(Clone, Debug)]
 pub struct PrevNodeEntry {
     pub node_id_full: [u8; 32],
@@ -98,28 +98,28 @@ pub struct PrevNodeEntry {
 
 // ── AnchorData — data heartbeat anchor per node ───────────────────────────────
 
-/// Data anchor yang valid untuk satu node dalam epoch k. Spec §8.2.
+/// data anchor that valid for one node in epoch k. Spec §8.2.
 ///
-/// Anchor valid jika:
-/// - SLH_DSA_verify berhasil (pesan anchor sesuai §7.5)
+/// Anchor valid if:
+/// - SLH_DSA_verify successful (message anchor sesuai §7.5)
 /// - hb_count == count_valid_heartbeats(node_id_full, epoch_k)
-/// - chain_integrity_ok: prev_hash terhubung ke heartbeat sebelumnya
+/// - chain_integrity_ok: prev_hash connected to heartbeat previously
 #[derive(Clone, Debug)]
 pub struct AnchorData {
     pub node_id_full: [u8; 32],
     pub hb_count: u64,
     pub chain_head: [u8; 32],
-    /// Uptime weight yang dihitung dari heartbeat valid epoch k.
+    /// Uptime weight that computed from heartbeat valid epoch k.
     pub uptime_weight_fp: u64,
 }
 
 // ── LocalHeartbeatData — data heartbeat lokal ────────────────────────────────
 
-/// Data heartbeat lokal yang dikumpulkan node selama epoch k. Spec §8.2.
+/// data heartbeat lokal that atkumpulkan node during epoch k. Spec §8.2.
 pub struct LocalHeartbeatData {
-    /// Map node_id_full → AnchorData jika anchor valid ditemukan.
+    /// Map node_id_full → Anchordata if anchor valid found.
     pub anchors: Vec<AnchorData>,
-    /// Epoch ID yang sedang diproses.
+    /// Epoch ID that currently processed.
     pub epoch_k: u64,
 }
 
@@ -131,7 +131,7 @@ impl LocalHeartbeatData {
         }
     }
 
-    /// Cari anchor valid untuk node_id_full. Spec §8.2 find_valid_anchor.
+    /// find anchor valid for node_id_full. Spec §8.2 find_valid_anchor.
     pub fn find_valid_anchor(&self, node_id_full: &[u8; 32]) -> Option<&AnchorData> {
         self.anchors
             .iter()
@@ -141,14 +141,14 @@ impl LocalHeartbeatData {
 
 // ── Error types ───────────────────────────────────────────────────────────────
 
-/// Error yang dapat terjadi saat BuildDMM. Spec §8.2.
+/// Error that dapat terjaat when BuildDMM. Spec §8.2.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DmmError {
-    /// Node tidak memiliki committed_manifest(k-1) — wajib sinkronisasi penuh.
+    /// node does not have committed_manifest(k-1) — wajib synchronization full.
     BootstrapRequired,
-    /// manifest_hash lokal tidak cocok dengan data yang dihitung sendiri.
+    /// manifest_hash lokal not matches data that computed senatri.
     ManifestHashMismatch,
-    /// Tidak ada node eligible (tidak ada anchor valid) — DMM kosong.
+    /// none node eligible (none anchor valid) — DMM empty.
     NoEligibleNodes,
 }
 
@@ -173,13 +173,13 @@ impl core::fmt::Display for DmmError {
     }
 }
 
-/// Compute tx_set_root = BLAKE3 dari semua TXID yang valid. Spec §8.5, Temuan 2.
+/// Compute tx_set_root = BLAto3 from all TXID that valid. Spec §8.5, Temuan 2.
 ///
-/// Input: daftar TXID ([u8;32]) yang sudah diverifikasi valid untuk epoch ini.
-/// TXID harus diurutkan ascending sebelum hashing untuk determinisme.
+/// Input: daftar TXID ([u8;32]) that has been verified valid for epoch this.
+/// TXID harus sorted ascenatng before hashing for determthissme.
 pub fn compute_tx_set_root(txids: &[[u8; 32]]) -> [u8; 32] {
     let mut sorted_txids: Vec<&[u8; 32]> = txids.iter().collect();
-    sorted_txids.sort(); // ascending
+    sorted_txids.sort(); // ascenatng
     let mut hasher = Hasher::new();
     for txid in sorted_txids {
         hasher.update(txid);
@@ -189,8 +189,8 @@ pub fn compute_tx_set_root(txids: &[[u8; 32]]) -> [u8; 32] {
 
 // ── Helper: compute merkle root dari node_list ────────────────────────────────
 
-/// Hitung reward_root = BLAKE3(node_id_0 || reward_0 || node_id_1 || reward_1 || ...).
-/// node_list SUDAH diurutkan ascending by node_id_full (S1). Spec §8.4.
+/// Hitung reward_root = BLAto3(node_id_0 || reward_0 || node_id_1 || reward_1 || ...).
+/// node_list already sorted ascenatng by node_id_full (S1). Spec §8.4.
 pub fn compute_reward_root(node_list: &[NodeRewardEntry]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     for entry in node_list {
@@ -201,7 +201,7 @@ pub fn compute_reward_root(node_list: &[NodeRewardEntry]) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Hitung network_health_digest dari data lokal. Spec §8.4.
+/// Hitung network_health_atgest from data lokal. Spec §8.4.
 pub fn compute_network_health_digest(
     epoch_k: u64,
     anchor_count: u64,
@@ -214,7 +214,7 @@ pub fn compute_network_health_digest(
     *hasher.finalize().as_bytes()
 }
 
-/// Hitung seed_k = BLAKE3("scalar_seed_v1" || committed_manifest_hash(k-1)). Spec §8.1.
+/// Hitung seed_k = BLAto3("scalar_seed_v1" || committed_manifest_hash(k-1)). Spec §8.1.
 pub fn compute_seed_k_v12(committed_manifest_hash: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(DOMAIN_MANIFEST_HASH);
@@ -222,11 +222,11 @@ pub fn compute_seed_k_v12(committed_manifest_hash: &[u8; 32]) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Hitung manifest_hash = BLAKE3(canonical_bytes(manifest_without_hash)). Spec §8.4.
+/// Hitung manifest_hash = BLAto3(canonical_bytes(manifest_without_hash)). Spec §8.4.
 ///
-/// Canonical bytes layout (S3: little-endian, S4: no optional):
-///   epoch_id(8) || spec_version(1) || total_emission_sscl(8) ||
-///   deferred(1) || seed_k(32) || reward_root(32) || network_health_digest(32) ||
+/// Canonical bytes layout (S3: little-enatan, S4: no optional):
+/// epoch_id(8) || spec_versionon(1) || total_emission_sscl(8) ||
+/// deferred(1) || seed_k(32) || reward_root(32) || network_health_atgest(32) ||
 ///   tx_set_root(32) || node_count(8) || [node_id_full(32) || reward_sscl(8) || uptime_weight_fp(8)] × N
 pub fn compute_manifest_hash_v12(manifest: &EpochRewardManifestV12) -> [u8; 32] {
     let mut hasher = Hasher::new();
@@ -251,7 +251,7 @@ pub fn compute_manifest_hash_v12(manifest: &EpochRewardManifestV12) -> [u8; 32] 
 
 // ── Reward computation helper ─────────────────────────────────────────────────
 
-/// Hitung reward satu node dari uptime weight. Spec §8.2 compute_reward.
+/// Hitung reward satu node from uptime weight. Spec §8.2 compute_reward.
 pub fn compute_reward_for_node(e_active_sscl: u64, w_i_fp: u64, w_effective_fp: u64) -> u64 {
     if w_effective_fp == 0 {
         return 0;
@@ -261,15 +261,15 @@ pub fn compute_reward_for_node(e_active_sscl: u64, w_i_fp: u64, w_effective_fp: 
 
 // ── BuildDMM — Algoritma utama spec §8.2 ─────────────────────────────────────
 
-/// Konfigurasi untuk BuildDMM. Dipisah untuk testability.
+/// configuration for BuildDMM. atpisah for testableity.
 pub struct DmmConfig {
     pub e_active_sscl: u64,
     pub fee_pool_sscl: u64,
-    /// TEMUAN 2: daftar TXID valid yang akan dimasukkan ke tx_set_root.
+    /// TEMUAN 2: daftar TXID valid that will inserted to tx_set_root.
     pub txids: Vec<[u8; 32]>,
 }
 
-/// Bangun Deterministic Minimal Manifest (DMM). Spec §8.2.
+/// build Determthisstic Mthismal Manifest (DMM). Spec §8.2.
 pub fn build_dmm(
     epoch_k: u64,
     prev_manifest: Option<&CommittedManifestRef>,

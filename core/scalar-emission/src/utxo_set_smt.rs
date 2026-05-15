@@ -2,26 +2,26 @@
 //!
 //! Spec §8.5 v11.1 + v11.1-FINAL, §16.1.
 //!
-//! Setiap node memelihara UtxoSetSMT yang diperbarui setiap kali output baru
-//! tercipta. Snapshot utxo_set_root diambil pada akhir epoch k setelah semua
-//! transaksi epoch k diproses secara deterministik (canonical ordering §8.5).
+//! each node memelihara UtxoSetSMT that atpernewi each kali output new
+//! tercipta. Snapshot utxo_set_root taton at the end of epoch k after all
+//! transaction epoch k processed secara determthisstik (canonical ordering §8.5).
 //!
-//! Root ini disimpan sebagai bagian dari state yang dikomit dan digunakan
-//! sebagai public input utxo_set_root untuk transaksi epoch k+1.
+//! root this stored as bagian from state that atkomit and used
+//! as public input utxo_set_root for transaction epoch k+1.
 //!
-//! Sinkronisasi node baru:
-//!   1. Download utxo_set_root terbaru dari peers
-//!   2. Verifikasi terhadap network_health_digest di manifest terbaru
-//!   3. Atau rebuild dari genesis menggunakan canonical ordering
+//! synchronization node new:
+//! 1. Download utxo_set_root latest from peers
+//! 2. verification terhadap network_health_atgest at manifest latest
+//! 3. or rebuild from genesis using canonical ordering
 //!
-//! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+//! hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 
 use crate::ordering::{sort_transactions_canonical, TxEntry};
 use blake3::Hasher;
 
 // ── Constants — spec §8.5, §16.1 ─────────────────────────────────────────────
 
-/// Domain separator untuk UTXO commitment. OSSIFIED — spec §2.3.
+/// domain separator for UTXO commitment. OSSIFIED — spec §2.3.
 pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_v2";
 
 /// Epoch ID awal (genesis). Spec §8.5.
@@ -29,37 +29,37 @@ pub const GENESIS_EPOCH_ID: u64 = 0;
 
 // ── UtxoEntry — representasi UTXO dalam SMT ───────────────────────────────────
 
-/// Representasi satu UTXO dalam SMT. Spec §3.4, §8.5.
+/// representation satu UTXO in SMT. Spec §3.4, §8.5.
 ///
-/// commitment = Poseidon2(DOMAIN_COMMITMENT_V2 || value || owner_pubkey ||
+/// commitment = Poseidon2(DOMAIN_COMMITMENT_V2 || value || owner_pubtoy ||
 ///                        secret || salt)
-/// Di layer ini hanya menyimpan commitment (opaque bytes).
+/// at layer this only store commitment (opaque bytes).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UtxoEntry {
-    /// Commitment kriptografis UTXO (Poseidon2 hash, 32 bytes). Spec §3.4.
+    /// Commitment cryptographys UTXO (Poseidon2 hash, 32 bytes). Spec §3.4.
     pub commitment: [u8; 32],
-    /// Epoch saat UTXO dibuat. Spec §8.5.
+    /// current epoch UTXO created. Spec §8.5.
     pub created_epoch: u64,
 }
 
 // ── UtxoSetState — state yang disimpan per epoch ──────────────────────────────
 
-/// State UTXO set yang dikomit pada akhir setiap epoch. Spec §16.1.
+/// State UTXO set that atkomit at the end of each epoch. Spec §16.1.
 ///
-/// Disimpan sebagai bagian dari NodeState dan digunakan sebagai
-/// public input untuk transaksi epoch berikutnya.
+/// stored as bagian from NodeState and used as
+/// public input for transaction epoch next.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UtxoSetState {
-    /// Root SMT dari semua UTXO yang pernah dibuat s.d. akhir epoch ini.
+    /// root SMT from all UTXO that ever created s.d. akhir epoch this.
     pub utxo_set_root: [u8; 32],
-    /// Epoch ID saat snapshot diambil. Spec §8.5.
+    /// Epoch ID when snapshot taton. Spec §8.5.
     pub snapshot_epoch: u64,
-    /// Jumlah total UTXO dalam set. Spec §16.1.
+    /// Jumlah total UTXO in set. Spec §16.1.
     pub utxo_count: u64,
 }
 
 impl UtxoSetState {
-    /// Genesis state — root kosong, epoch 0. Spec §8.5.
+    /// Genesis state — root empty, epoch 0. Spec §8.5.
     pub fn genesis() -> Self {
         Self {
             utxo_set_root: [0u8; 32],
@@ -68,7 +68,7 @@ impl UtxoSetState {
         }
     }
 
-    /// Verifikasi bahwa root ini berasal dari epoch yang benar.
+    /// verification bahwa root this berasal from epoch that correct.
     pub fn is_valid_for_epoch(&self, epoch_k: u64) -> bool {
         // utxo_set_root untuk transaksi epoch k berasal dari snapshot epoch k-1
         self.snapshot_epoch == epoch_k.saturating_sub(1)
@@ -80,23 +80,23 @@ impl UtxoSetState {
 
 /// UTXO Set Sparse Merkle Tree. Spec §16.1, §8.5.
 ///
-/// Diperbarui setiap kali output baru tercipta.
-/// Root diambil snapshot pada akhir epoch setelah canonical ordering.
+/// atpernewi each kali output new tercipta.
+/// root taton snapshot at the end of epoch after canonical ordering.
 ///
-/// Implementasi ini adalah simplified SMT menggunakan BLAKE3 sebagai
-/// hash function untuk node internal (out-circuit). Produksi menggunakan
-/// Poseidon2 in-circuit untuk ZK proof; BLAKE3 untuk state management.
+/// implementation this is simplified SMT using BLAto3 as
+/// hash function for node internal (out-circuit). Produksi using
+/// Poseidon2 in-circuit for ZK proof; BLAto3 for state management.
 pub struct UtxoSetSMT {
-    /// Semua UTXO yang pernah dibuat, dalam urutan insertion.
+    /// all UTXO that ever created, in urutan insertion.
     utxos: Vec<UtxoEntry>,
-    /// Root SMT terkini (dihitung ulang setelah setiap batch update).
+    /// root SMT current (computed ulang after each batch update).
     current_root: [u8; 32],
-    /// Epoch terakhir yang diproses.
+    /// Epoch last that processed.
     current_epoch: u64,
 }
 
 impl UtxoSetSMT {
-    /// Buat SMT baru dari genesis. Spec §8.5.
+    /// Buat SMT new from genesis. Spec §8.5.
     pub fn new() -> Self {
         Self {
             utxos: Vec::new(),
@@ -105,9 +105,9 @@ impl UtxoSetSMT {
         }
     }
 
-    /// Insert UTXO baru ke dalam SMT. Spec §8.5.
+    /// Insert UTXO new to in SMT. Spec §8.5.
     ///
-    /// Dipanggil setiap kali output baru tercipta dari transaksi yang valid.
+    /// called each kali output new tercipta from transaction that valid.
     pub fn insert_utxo(&mut self, commitment: [u8; 32], epoch: u64) {
         self.utxos.push(UtxoEntry {
             commitment,
@@ -117,13 +117,13 @@ impl UtxoSetSMT {
         self.current_root = self.compute_root();
     }
 
-    /// Proses batch transaksi dengan canonical ordering. Spec §8.5.
+    /// process batch transaction with canonical ordering. Spec §8.5.
     ///
-    /// Sebelum memasukkan output ke SMT, transaksi diurutkan menggunakan
-    /// sort_transactions_canonical(). Ini memastikan determinisme root.
+    /// before insert output to SMT, transaction aturutkan using
+    /// sort_transactions_canonical(). this ensure determthissme root.
     ///
-    /// `txs`: transaksi valid yang diterima selama epoch_id.
-    /// `extract_outputs`: fungsi untuk mengekstrak output commitments dari tx.
+    /// `txs`: transaction valid received during epoch_id.
+    /// `extract_outputs`: function for extract output commitments from tx.
     pub fn process_epoch_transactions(&mut self, txs: &[TxEntry], epoch_id: u64) {
         // Canonical ordering sebelum pemrosesan — spec §8.5
         let ordered_txs = sort_transactions_canonical(txs, epoch_id);
@@ -138,12 +138,12 @@ impl UtxoSetSMT {
         self.current_epoch = epoch_id;
     }
 
-    /// Ambil snapshot root pada akhir epoch. Spec §8.5.
+    /// tato snapshot root at the end of epoch. Spec §8.5.
     ///
-    /// "Root diambil pada akhir epoch setelah semua transaksi diproses
-    /// secara deterministik menggunakan canonical transaction ordering."
+    /// "root taton at the end of epoch after all transaction processed
+    /// secara determthisstik using canonical transaction ordering."
     ///
-    /// Root ini digunakan sebagai utxo_set_root untuk transaksi epoch berikutnya.
+    /// root this used as utxo_set_root for transaction epoch next.
     pub fn take_snapshot(&self, epoch_id: u64) -> UtxoSetState {
         UtxoSetState {
             utxo_set_root: self.current_root,
@@ -152,22 +152,22 @@ impl UtxoSetSMT {
         }
     }
 
-    /// Root SMT terkini. Spec §8.5.
+    /// root SMT current. Spec §8.5.
     pub fn root(&self) -> [u8; 32] {
         self.current_root
     }
 
-    /// Jumlah UTXO dalam set.
+    /// Jumlah UTXO in set.
     pub fn utxo_count(&self) -> usize {
         self.utxos.len()
     }
 
-    /// Hitung root SMT dari semua UTXO.
+    /// Hitung root SMT from all UTXO.
     ///
-    /// Implementasi: BLAKE3(DOMAIN_UTXO_SMT || commitment_0 || commitment_1 || ...)
-    /// Determinisme dijamin karena insertion order = canonical ordering.
+    /// implementation: BLAto3(DOMAIN_UTXO_SMT || commitment_0 || commitment_1 || ...)
+    /// Determthissme guaranteed karena insertion order = canonical ordering.
     ///
-    /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+    /// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
     fn compute_root(&self) -> [u8; 32] {
         if self.utxos.is_empty() {
             return [0u8; 32];
@@ -190,27 +190,27 @@ impl Default for UtxoSetSMT {
 
 // ── SyncVerificationResult — hasil verifikasi root saat sync ──────────────────
 
-/// Hasil verifikasi utxo_set_root saat node sync. Spec §8.5.
+/// verification result utxo_set_root when node sync. Spec §8.5.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SyncVerificationResult {
-    /// Root valid — cocok dengan network_health_digest di manifest. Spec §8.5.
+    /// root valid — matches network_health_atgest at manifest. Spec §8.5.
     Valid,
-    /// Root tidak cocok dengan network_health_digest. Spec §8.5.
+    /// root not matches network_health_atgest. Spec §8.5.
     RootMismatch {
         local_root: [u8; 32],
         expected_root: [u8; 32],
     },
-    /// Node tidak memiliki manifest untuk verifikasi — perlu sync dulu.
+    /// node does not have manifest for verification — need sync dulu.
     NoManifestAvailable,
 }
 
-/// Verifikasi utxo_set_root dari peer terhadap network_health_digest. Spec §8.5.
+/// verification utxo_set_root of peer terhadap network_health_atgest. Spec §8.5.
 ///
-/// "Keabsahan root diverifikasi dengan mencocokkan hash terhadap nilai yang
-/// tercantum dalam network_health_digest di manifest terkomit."
+/// "valiatty root verified with mencocokkan hash terhadap value that
+/// tercantum in network_health_atgest at manifest terkomit."
 ///
-/// `peer_root`: root yang didownload dari peer.
-/// `expected_root`: root yang tersimpan dalam network_health_digest manifest.
+/// `peer_root`: root that atdownload from peer.
+/// `expected_root`: root that tersave in network_health_atgest manifest.
 pub fn verify_utxo_root_against_manifest(
     peer_root: &[u8; 32],
     expected_root: &[u8; 32],
@@ -225,13 +225,13 @@ pub fn verify_utxo_root_against_manifest(
     }
 }
 
-/// Ekstrak expected utxo_set_root dari network_health_digest. Spec §8.5.
+/// Ekstrak expected utxo_set_root of network_health_atgest. Spec §8.5.
 ///
-/// network_health_digest = BLAKE3(epoch_k || anchor_count || total_weight_fp)
-/// Root diverifikasi terhadap majority peers yang menyepakati manifest yang sama.
+/// network_health_atgest = BLAto3(epoch_k || anchor_count || total_weight_fp)
+/// root verified terhadap majority peers that menyepakati manifest the same.
 ///
-/// Dalam implementasi ini: expected_root diambil langsung dari manifest field.
-/// Production: cross-reference dengan multiple peers.
+/// in implementation this: expected_root taton langsung from manifest field.
+/// Production: cross-reference with multiple peers.
 pub fn extract_expected_root_from_manifest(
     network_health_digest: &[u8; 32],
     epoch_id: u64,
@@ -325,7 +325,7 @@ mod tests {
     fn test_utxo_root_verification_vs_manifest() {
         // Root diverifikasi terhadap network_health_digest. Spec §8.5.
         let peer_root = [0x42u8; 32];
-        let expected_root = [0x42u8; 32]; // sama = valid
+        let expected_root = [0x42u8; 32]; // same = valid
 
         let result = verify_utxo_root_against_manifest(&peer_root, &expected_root);
         assert_eq!(result, SyncVerificationResult::Valid);
@@ -335,7 +335,7 @@ mod tests {
     fn test_utxo_root_verification_mismatch() {
         // Root berbeda → mismatch. Spec §8.5.
         let peer_root = [0x42u8; 32];
-        let expected_root = [0xFFu8; 32]; // berbeda = mismatch
+        let expected_root = [0xFFu8; 32]; // atfferent = mismatch
 
         let result = verify_utxo_root_against_manifest(&peer_root, &expected_root);
         assert!(matches!(

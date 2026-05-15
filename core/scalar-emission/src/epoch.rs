@@ -1,13 +1,13 @@
-//! Epoch boundary dan slashing detection. Spec §7.2c T-1.
+//! Epoch boundary and slashing detection. Spec §7.2c T-1.
 //!
-//! RULE T-1 (OSSIFIED — spec §7.2c): Epoch boundary ditentukan oleh seq_num,
-//! BUKAN wall-clock. Node mendeteksi END_EPOCH dengan tracking seq_num sendiri.
-//! Wall-clock TIDAK PERNAH digunakan untuk epoch boundary.
+//! RULE T-1 (OSSIFIED — spec §7.2c): Epoch boundary determined oleh seq_num,
+//! not wall-clock. Node detect END_EPOCH with tracking seq_num senatri.
+//! Wall-clock not ever used for epoch boundary.
 
 use std::collections::HashMap;
 
-/// Verifikasi konektivitas peer. Spec §7.2.
-/// Node valid jika terhubung ke ≥67% peer yang diharapkan.
+/// verification konektivitas peer. Spec §7.2.
+/// Node valid if connected to ≥67% peer that atharapkan.
 pub fn verify_step_1_5_connectivity(connected_peers: usize, total_expected_peers: usize) -> bool {
     if total_expected_peers == 0 {
         return false;
@@ -22,8 +22,8 @@ pub struct Announcement {
     pub claim_hash: [u8; 32],
 }
 
-/// Slashing untuk mendeteksi equivocation. Spec §7.2.
-/// Node masuk daftar slash jika memberikan claim berbeda pada epoch yang sama.
+/// Slashing for detect equivocation. Spec §7.2.
+/// Node masuk daftar slash if provide claim atfferent on epoch that same.
 pub fn verify_step_3_5_slashing(announcements: &[Announcement]) -> Vec<[u8; 32]> {
     let mut node_claims: HashMap<[u8; 32], Vec<[u8; 32]>> = HashMap::new();
     let mut slashed = Vec::new();

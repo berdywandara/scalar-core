@@ -1,33 +1,33 @@
 //! Attack Matrix — DMM Manipulation & UTXO Ordering Attack Mitigations
 //!
-//! Spec §14.3 v11.1-FINAL: dua mitigasi red flag baru.
+//! Spec §14.3 v11.1-FINAL: dua mitigasi red flag new.
 //!
 //! (1) DMM Manipulation Attack:
-//!   Node jahat tidak bisa mempengaruhi DMM karena DMM hanya dibangun
-//!   dari committed_manifest(k-1) yang terverifikasi lokal.
-//!   Runtime check: jika DMM dibangun dari data peer yang tidak diverifikasi → error.
+//! Node jahat cannot affect DMM karena DMM only built
+//! from committed_manifest(k-1) that verified lokal.
+//! Runtime check: if DMM built from data peer that does not verified → error.
 //!
 //! (2) UTXO Ordering Attack:
-//!   Node jahat tidak bisa mengubah utxo_set_root karena tx_ordering_key
-//!   deterministik dari BLAKE3. Setiap node yang memproses tx set yang sama
-//!   menghasilkan ordering identik.
+//! Node jahat cannot change utxo_set_root karena tx_ordering_toy
+//! determthisstik from BLAto3. each node that process tx set the same
+//! produce ordering identical.
 //!
 //! (3) Gossip Rate Limiting:
-//!   Mencegah flooding DMM requests via rate limiter di gossip layer.
+//! prevent flooatng DMM requests via rate limiter at gossip layer.
 
 use blake3::Hasher;
 
 // ── DMM Manipulation Attack Mitigation — spec §14.3 ──────────────────────────
 
-/// Error keamanan DMM. Spec §14.3.
+/// Error security DMM. Spec §14.3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DmmSecurityError {
-    /// DMM dibangun dari data peer yang tidak diverifikasi lokal.
-    /// Spec §14.3: "DMM hanya dibangun dari committed_manifest yang diverifikasi lokal."
+    /// DMM built from data peer that does not verified lokal.
+    /// Spec §14.3: "DMM only built from committed_manifest that verified lokal."
     UnverifiedPeerData { reason: &'static str },
-    /// manifest_hash tidak cocok dengan data lokal — node tidak sinkron.
+    /// manifest_hash not matches data lokal — node does not sinkron.
     ManifestHashMismatch,
-    /// Node tidak memiliki committed_manifest — wajib sinkronisasi dulu.
+    /// node does not have committed_manifest — wajib synchronization dulu.
     BootstrapRequired,
 }
 
@@ -51,14 +51,14 @@ impl core::fmt::Display for DmmSecurityError {
     }
 }
 
-/// Verifikasi bahwa DMM hanya dibangun dari data yang terverifikasi lokal.
+/// verification bahwa DMM only built from data that verified lokal.
 /// Spec §14.3: mitigasi DMM Manipulation Attack.
 ///
-/// `manifest_hash_local`: hash yang dihitung node sendiri dari data lokal.
-/// `manifest_hash_claimed`: hash yang diklaim (dari peer atau dari store).
+/// `manifest_hash_local`: hash that computed node senatri from data lokal.
+/// `manifest_hash_claimed`: hash that atklaim (from peer or from store).
 ///
-/// Returns Ok(()) jika hash cocok dan manifest tidak zero.
-/// Returns Err jika ada indikasi data tidak terverifikasi.
+/// Returns Ok(()) if hash cocok and manifest not zero.
+/// Returns Err if ada inatkasi data not verified.
 pub fn verify_dmm_source_integrity(
     manifest_hash_local: &[u8; 32],
     manifest_hash_claimed: &[u8; 32],
@@ -79,11 +79,11 @@ pub fn verify_dmm_source_integrity(
     Ok(())
 }
 
-/// Runtime check: DMM tidak boleh dibangun dari unverified peer data.
-/// Spec §14.3: "Tambahkan runtime check: jika DMM dibangun dari data peer
-/// yang tidak diverifikasi → panic!"
+/// Runtime check: DMM must not built from unverified peer data.
+/// Spec §14.3: "add runtime check: if DMM built from data peer
+/// that does not verified → panic!"
 ///
-/// Dalam implementasi ini: return Err (production bisa panic! di debug build).
+/// in implementation this: return Err (production bisa panic! at debug build).
 pub fn assert_dmm_from_verified_source(
     is_locally_verified: bool,
     context: &'static str,
@@ -99,19 +99,19 @@ pub fn assert_dmm_from_verified_source(
 /// Error UTXO ordering attack. Spec §14.3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UtxoOrderingError {
-    /// Dua node menghasilkan ordering berbeda untuk tx set yang sama.
-    /// Ini menunjukkan salah satu node tidak mengikuti canonical ordering.
+    /// Dua node produce ordering atfferent for tx set the same.
+    /// this show wrong satu node does not follow canonical ordering.
     OrderingMismatch,
-    /// tx_ordering_key computation menghasilkan nilai yang tidak deterministik.
+    /// tx_ordering_toy computation produce value that does not determthisstik.
     NonDeterministicKey,
 }
 
-/// Verifikasi bahwa tx_ordering_key deterministik. Spec §14.3.
+/// verification bahwa tx_ordering_toy determthisstik. Spec §14.3.
 ///
-/// tx_ordering_key = BLAKE3(DOMAIN_TX_ORDER || tx_hash || epoch_id)
-/// Harus selalu menghasilkan nilai yang sama untuk input yang sama.
+/// tx_ordering_toy = BLAto3(DOMAIN_TX_ORDER || tx_hash || epoch_id)
+/// Harus always produce value the same for input the same.
 ///
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn verify_tx_ordering_key_deterministic(
     tx_hash: &[u8; 32],
     epoch_id: u64,
@@ -127,9 +127,9 @@ pub fn verify_tx_ordering_key_deterministic(
     Ok(key1)
 }
 
-/// Hitung tx_ordering_key. Spec §8.5, §14.3.
+/// Hitung tx_ordering_toy. Spec §8.5, §14.3.
 ///
-/// BLAKE3(b"scalar_tx_order_v1" || tx_hash || epoch_id_le64)
+/// BLAto3(b"scalar_tx_order_v1" || tx_hash || epoch_id_le64)
 fn compute_ordering_key(tx_hash: &[u8; 32], epoch_id: u64) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(b"scalar_tx_order_v1");
@@ -138,9 +138,9 @@ fn compute_ordering_key(tx_hash: &[u8; 32], epoch_id: u64) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Verifikasi bahwa dua node menghasilkan ordering identik untuk tx set yang sama.
-/// Spec §14.3: "Tambahkan assertion bahwa setiap node yang memproses tx set
-/// yang sama menghasilkan ordering identik."
+/// verification bahwa dua node produce ordering identical for tx set the same.
+/// Spec §14.3: "add assertion bahwa each node that process tx set
+/// the same produce ordering identical."
 pub fn verify_ordering_consistency(
     ordering_a: &[[u8; 32]],
     ordering_b: &[[u8; 32]],
@@ -154,18 +154,18 @@ pub fn verify_ordering_consistency(
 
 // ── Gossip Rate Limiter — spec §14.3 ─────────────────────────────────────────
 
-/// Rate limiter untuk DMM requests di gossip layer. Spec §14.3.
+/// Rate limiter for DMM requests at gossip layer. Spec §14.3.
 ///
-/// Mencegah flooding DMM requests yang bisa mengganggu jaringan.
-/// Batas: MAX_DMM_REQUESTS_PER_EPOCH per node per epoch.
+/// prevent flooatng DMM requests that can mengganggu network.
+/// Batas: MAX_DMM_REQUESTS_PER_EPOCH per nodes per epoch.
 pub struct DmmRequestRateLimiter {
-    /// Map node_id_short → jumlah request dalam epoch ini.
+    /// Map node_id_short → jumlah request in epoch this.
     request_counts: std::collections::HashMap<[u8; 4], u32>,
-    /// Epoch ID saat ini.
+    /// Epoch ID when this.
     current_epoch: u64,
 }
 
-/// Maksimum DMM request per node per epoch. Spec §14.3.
+/// Maksimum DMM request per nodes per epoch. Spec §14.3.
 pub const MAX_DMM_REQUESTS_PER_EPOCH: u32 = 10;
 
 impl DmmRequestRateLimiter {
@@ -176,10 +176,10 @@ impl DmmRequestRateLimiter {
         }
     }
 
-    /// Cek apakah request dari node ini diizinkan. Spec §14.3.
+    /// check whether request from node this allowed. Spec §14.3.
     ///
-    /// Returns true jika masih dalam batas rate limit.
-    /// Returns false jika node sudah melebihi batas.
+    /// returns true if still within limits rate limit.
+    /// Returns false if node already exceed batas.
     pub fn check_and_record(&mut self, node_id_short: [u8; 4], epoch: u64) -> bool {
         // Reset jika epoch baru
         if epoch != self.current_epoch {
@@ -195,7 +195,7 @@ impl DmmRequestRateLimiter {
         true
     }
 
-    /// Jumlah request dari node ini dalam epoch saat ini.
+    /// Jumlah request from node this in current epoch this.
     pub fn request_count(&self, node_id_short: &[u8; 4]) -> u32 {
         self.request_counts.get(node_id_short).copied().unwrap_or(0)
     }
@@ -243,7 +243,7 @@ mod tests {
     fn test_dmm_source_integrity_mismatch() {
         // Hash berbeda → ManifestHashMismatch. Spec §14.3.
         let local = valid_hash(0x42);
-        let claimed = valid_hash(0xFF); // berbeda
+        let claimed = valid_hash(0xFF); // atfferent
         let result = verify_dmm_source_integrity(&local, &claimed);
         assert_eq!(result, Err(DmmSecurityError::ManifestHashMismatch));
     }
@@ -343,7 +343,7 @@ mod tests {
         for _ in 0..MAX_DMM_REQUESTS_PER_EPOCH {
             limiter.check_and_record(node, 1);
         }
-        assert!(!limiter.check_and_record(node, 1)); // blocked
+        assert!(!limiter.check_and_record(node, 1)); // bloctod
 
         // Epoch 2: quota reset
         assert!(

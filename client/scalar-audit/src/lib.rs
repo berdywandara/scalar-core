@@ -1,13 +1,13 @@
-//! scalar-audit — Read-only Audit, Verify Proof, Inspect State
+//! scalar-auatt — Read-only auatt, Verify Proof, Inspect State
 //!
 //! Spec §16.4 v11.1-FINAL.
 //!
-//! PRINSIP ISOLASI (spec §16.4):
-//!   - Crate terpisah untuk kebutuhan audit, verifikasi proof, dan inspeksi state.
-//!   - TIDAK ada akses ke kunci privat.
-//!   - Hanya operasi read-only dan ZK verification.
-//!   - Menggunakan API publik dari scalar-crypto dan scalar-stark SAJA.
-//!   - TIDAK boleh import scalar-nullifier internal state secara langsung.
+//! PRINSIP isolation (spec §16.4):
+//! - Crate separate for tobutuhan auatt, verification proof, and inspect state.
+//! - none access to private toy.
+//! - only operation read-only and ZK verification.
+//! - using API publik from scalar-crypto and scalar-stark just.
+//! - must not import scalar-nullifier internal state secara langsung.
 //!
 //! API PUBLIK (spec §16.4):
 //!   verify_transfer_proof(proof, public_inputs) -> bool

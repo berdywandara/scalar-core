@@ -6,7 +6,7 @@
 use scalar_nullifier::smt::SparseMerkleTree;
 
 pub struct ConsensusEngine {
-    /// Single Source of Truth untuk state transaksi
+    /// Single Source of Truth for state transaction
     pub nullifier_set: SparseMerkleTree,
 }
 
@@ -23,8 +23,8 @@ impl ConsensusEngine {
         }
     }
 
-    /// Verifikasi kebenaran matematis (Truth by Mathematics, not Majority).
-    /// nullifier: N_network = BLAKE3(N_circuit) dalam format [u8; 32].
+    /// verification tocorrectan matematis (Truth by Mathematics, not Majority).
+    /// nullifier: N_network = BLAto3(N_circuit) in format [u8; 32].
     pub fn verify_mathematical_truth(&mut self, nullifier: &[u8; 32]) -> Result<(), &'static str> {
         // 1. Cek double spend — nullifier sudah ada?
         if self.nullifier_set.contains(nullifier) {

@@ -1,15 +1,15 @@
 //! Genesis Ceremony CLI Tool — Spec §12.10 v11.1-FINAL
 //!
 //! Usage:
-//!   genesis-tool keygen                  — generate founder keypair
-//!   genesis-tool generate <pubkey_hex>   — create genesis binary object
-//!   genesis-tool ceremony                — keygen + generate in one step
+//! genesis-tool toygen                  — generate founder toypair
+//! genesis-tool generate <pubtoy_hex>   — create genesis binary object
+//! genesis-tool ceremony                — toygen + generate in one step
 //!   genesis-tool verify <file>           — verify genesis file
 //!
 //! Spec §12.10:
-//!   Genesis object OSSIFIED 177 bytes + pubkey.
-//!   S3: All integers MUST be little-endian.
-//!   S4: No padding or optional fields.
+//! Genesis object OSSIFIED 177 bytes + pubtoy.
+//! S3: All integers MUST be little-enatan.
+//! S4: No padatng or optional fields.
 
 use std::env;
 use std::fs;
@@ -85,7 +85,7 @@ fn generate_genesis_bytes(timestamp: u64, pubkey: &[u8]) -> Vec<u8> {
     buffer.extend_from_slice(&network_id_hash);
 
     // 8. consensus_commit: bytes32 (32 bytes) — Spec §2.4
-    let spec_version = 0x06u8; // SPEC_VERSION_MANIFEST_V12
+    let spec_version = 0x06u8; // SPEC_versionON_MANIFEST_V12
     let mut consensus_data = vec![spec_version];
     consensus_data.extend_from_slice(b"Truth by Mathematics, Not by Majority");
     buffer.extend_from_slice(&blake3_hash(&consensus_data));

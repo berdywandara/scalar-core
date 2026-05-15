@@ -1,5 +1,5 @@
-//! Spec Compliance: Ossified Parameters
-//! Verifikasi semua parameter OSSIFIED sesuai spec v11.1-FINAL §17
+//! Spec Compliance: Ossified parameters
+//! verification all parameter OSSIFIED per spec v11.1-FINAL §17
 
 // ── §3.2 Supply ───────────────────────────────────────────────────────────────
 

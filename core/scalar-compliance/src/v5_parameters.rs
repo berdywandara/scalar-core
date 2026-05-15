@@ -5,8 +5,8 @@
 // Sumber kebenaran: §2.6, §4.4, §6, §7, §9, §12, §18.1
 
 // ── §2.6 CryptoVersion Registry ─────────────────────────────────────
-/// T_TRANSITION_EPOCHS: selama 2 epoch, kedua versi (lama+baru) valid.
-/// Spec §2.6: "T_TRANSITION_EPOCHS = 2 epoch (60 hari)"
+/// T_TRANSITION_EPOCHS: during 2 epoch, second version (old+new) valid.
+/// Spec §2.6: "T_TRANSITION_EPOCHS = 2 epoch (60 days)"
 pub const V5_TRANSITION_WINDOW_EPOCHS: u64 = 2;
 
 pub const V5_CRYPTO_VERSION: u8 = 0x01;
@@ -25,7 +25,7 @@ pub const V5_FIXED_POINT_BASIS: u64 = 1_000_000;
 pub const V5_E0_SSCL: u64 = 126_000 * 100_000_000;
 /// S_E = 18_900_000 SCL = 1_890_000_000_000_000 sSCL
 pub const V5_S_E_SSCL: u64 = 18_900_000 * 100_000_000;
-/// Expected heartbeats per epoch (30 hari × 144 blok/hari).
+/// Expected heartbeats per epoch (30 days × 144 block/days).
 pub const V5_EXPECTED_HEARTBEATS_PER_EPOCH: u32 = 4320;
 
 // ── §9 Fee Model ──────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ pub const V5_EXPECTED_HEARTBEATS_PER_EPOCH: u32 = 4320;
 pub const V5_FLOOR_MIN_ABSOLUTE: u64 = 40;
 /// Score formula intra-batch: PREMIUM / (1 + (io) × 0.1). OSSIFIED.
 pub const V5_MAX_FANOUT: usize = 15;
-/// MAX_ROOT_CANDIDATES. OSSIFIED §12.
+/// MAX_root_CANatDATES. OSSIFIED §12.
 pub const V5_MAX_ROOT_CANDIDATES: usize = 100;
 
 // ── §2.5 Proving Time ─────────────────────────────────────────────────

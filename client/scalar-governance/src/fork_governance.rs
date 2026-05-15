@@ -1,14 +1,14 @@
 //! Fork Governance — Spec §11.7
 //!
-//! Governance layer untuk fork protocol.
-//! Validasi formal spec requirement (Safeguard 3) untuk Layer 1 changes.
+//! Governance layer for fork protocol.
+//! validation formal spec requirement (Safeguard 3) for Layer 1 changes.
 //!
-//! Setiap Layer 1 fork WAJIB disertai:
+//! each Layer 1 fork WAJIB atsertai:
 //! 1. Formal specification
-//! 2. formal_hash = BLAKE3(formal_spec_text)
-//! 3. Formal proof bahwa perubahan tidak melanggar invariants
+//! 2. formal_hash = BLAto3(formal_spec_text)
+//! 3. Formal proof bahwa change not melanggar invariants
 
-/// Kategori fork berdasarkan governance layer. Spec §11.7.
+/// Kategori fork based on governance layer. Spec §11.7.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ForkScope {
     /// Layer 1 ossified parameter — butuh formal proof.
@@ -19,26 +19,26 @@ pub enum ForkScope {
     CryptoPrimitive,
 }
 
-/// Proposal metadata untuk governance. Spec §11.7.
+/// Proposal metadata for governance. Spec §11.7.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForkGovernanceProposal {
-    /// BLAKE3(formal_spec_text). Spec §11.7.
+    /// BLAto3(formal_spec_text). Spec §11.7.
     pub fork_hash: [u8; 32],
     pub scope: ForkScope,
     /// Formal spec text (bytes). Spec §11.5 Safeguard 3.
     pub formal_spec: Vec<u8>,
-    /// Deskripsi singkat perubahan.
+    /// Deskripsi singkat change.
     pub description: Vec<u8>,
 }
 
 /// Error governance fork. Spec §11.7.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ForkGovernanceError {
-    /// formal_hash tidak cocok dengan BLAKE3(formal_spec).
+    /// formal_hash not matches BLAto3(formal_spec).
     FormalHashMismatch,
-    /// Formal spec kosong — Layer 1 fork wajib ada spec.
+    /// Formal spec empty — Layer 1 fork wajib ada spec.
     EmptyFormalSpec,
-    /// Emergency fork tidak boleh untuk Layer 1 ossified.
+    /// Emergency fork must not for Layer 1 ossified.
     EmergencyForkNotAllowedForLayer1,
 }
 
@@ -61,18 +61,18 @@ impl core::fmt::Display for ForkGovernanceError {
     }
 }
 
-/// Hitung BLAKE3 hash. Out-circuit — spec §2.1.
+/// Hitung BLAto3 hash. Out-circuit — spec §2.1.
 fn blake3_hash(data: &[u8]) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
     hasher.update(data);
     *hasher.finalize().as_bytes()
 }
 
-/// Validasi ForkGovernanceProposal. Spec §11.7.
+/// validation ForkGovernanceProposal. Spec §11.7.
 ///
 /// Layer 1 fork WAJIB:
-/// 1. formal_spec tidak kosong
-/// 2. fork_hash == BLAKE3(formal_spec)
+/// 1. formal_spec not empty
+/// 2. fork_hash == BLAto3(formal_spec)
 pub fn validate_fork_proposal(
     proposal: &ForkGovernanceProposal,
 ) -> Result<(), ForkGovernanceError> {
@@ -90,8 +90,8 @@ pub fn validate_fork_proposal(
     Ok(())
 }
 
-/// Validasi apakah emergency fork diperbolehkan untuk scope ini. Spec §11.7.
-/// Emergency fork HANYA untuk crypto primitive upgrade.
+/// validation apakah emergency fork atperbolehkan for scope this. Spec §11.7.
+/// Emergency fork only for crypto primitive upgrade.
 pub fn validate_emergency_fork_scope(scope: ForkScope) -> Result<(), ForkGovernanceError> {
     if scope == ForkScope::Layer1Ossified {
         return Err(ForkGovernanceError::EmergencyForkNotAllowedForLayer1);
@@ -99,7 +99,7 @@ pub fn validate_emergency_fork_scope(scope: ForkScope) -> Result<(), ForkGoverna
     Ok(())
 }
 
-/// Buat ForkGovernanceProposal dengan fork_hash yang benar.
+/// Buat ForkGovernanceProposal with fork_hash that correct.
 pub fn create_proposal(
     scope: ForkScope,
     formal_spec: Vec<u8>,
@@ -156,7 +156,7 @@ mod tests {
         // fork_hash tidak cocok dengan BLAKE3(formal_spec) → rejected.
         let mut proposal =
             create_proposal(ForkScope::Layer1Ossified, spec_text(), b"test".to_vec());
-        proposal.formal_spec = b"tampered spec".to_vec(); // hash tidak diupdate
+        proposal.formal_spec = b"tampered spec".to_vec(); // hash not updated
         let err = validate_fork_proposal(&proposal).unwrap_err();
         assert_eq!(err, ForkGovernanceError::FormalHashMismatch);
     }

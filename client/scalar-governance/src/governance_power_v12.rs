@@ -7,20 +7,20 @@
 //!     - Tier A/B: 1_000_000 (full power)
 //!     - Tier C (prefix 0xFE): 200_000 fp
 //!
-//! Tier C tetap memiliki suara tetapi tidak dapat mendominasi bahkan
-//! dengan jumlah yang sangat banyak. Mencegah governance capture
-//! melalui node murah. Spec §11.2.
+//! Tier C tetap have suara but not dapat mendominasi even
+//! with jumlah that sangat banyak. prevent governance capture
+//! metheni node murah. Spec §11.2.
 //!
-//! Historis (v11.1): governance weight Tier C dapat mencapai 1_000_000.
-//! Diperbaiki di v11.1-FINAL menjadi 200_000 fp — spec §11.2 catatan historis.
+//! Historis (v11.1): governance weight Tier C dapat achieve 1_000_000.
+//! fixed at v11.1-FINAL menjaat 200_000 fp — spec §11.2 note historis.
 
 // ── Ossified constants — spec §11.2, §17 ─────────────────────────────────────
 
-/// Maksimum Governance Power untuk node Tier C. OSSIFIED — spec §11.2, §17.
-/// Mencegah governance capture melalui proliferasi node murah.
+/// Maksimum Governance Power for node Tier C. OSSIFIED — spec §11.2, §17.
+/// prevent governance capture metheni proliferasi node murah.
 pub const TIER_C_MAX_GOV_POWER: u64 = 200_000;
 
-/// Maksimum Governance Power untuk node Tier A/B. Spec §11.2.
+/// Maksimum Governance Power for node Tier A/B. Spec §11.2.
 pub const TIER_AB_MAX_GOV_POWER: u64 = 1_000_000;
 
 /// Prefix byte node Tier C. Spec §10.1.
@@ -31,14 +31,14 @@ pub const FIXED_POINT_BASIS: u64 = 1_000_000;
 
 // ── Tier detection — spec §10.1 ───────────────────────────────────────────────
 
-/// Deteksi Tier C berdasarkan node_id_full prefix. Spec §10.1.
+/// detection Tier C based on node_id_full prefix. Spec §10.1.
 ///
 /// node_id_full[0] == 0xFE → Tier C.
 pub fn is_tier_c_node(node_id_full: &[u8; 32]) -> bool {
     node_id_full[0] == TIER_C_PREFIX
 }
 
-/// Ambil governance power cap berdasarkan tier. Spec §11.2.
+/// tato governance power cap based on tier. Spec §11.2.
 ///
 /// GOV_MAX_FP_FOR_TIER(i):
 ///   - Tier A/B: 1_000_000
@@ -53,12 +53,12 @@ pub fn gov_max_fp_for_tier(node_id_full: &[u8; 32]) -> u64 {
 
 // ── GP Formula v11.1-FINAL — spec §11.2 ──────────────────────────────────────
 
-/// Hitung BaseGP sebelum tier cap. Spec §11.2.
+/// Hitung BaseGP before tier cap. Spec §11.2.
 ///
-/// BaseGP(i,t) = conviction_factor_fp(t_days) × min(maturity, W_MATURE) / 1_000_000
+/// BaseGP(i,t) = conviction_factor_fp(t_days) × min(mregulateity, W_MregulateE) / 1_000_000
 ///
-/// `conviction_factor_fp`: dari ConvictionTable (0..1_000_000)
-/// `maturity_fp`: dari MaturityStore::gov_weight() (0..1_000_000)
+/// `conviction_factor_fp`: from ConvictionTable (0..1_000_000)
+/// `mregulateity_fp`: from MregulateityStore::gov_weight() (0..1_000_000)
 pub fn compute_base_gp(conviction_factor_fp: u64, maturity_fp: u64) -> u64 {
     // BaseGP = conviction × maturity / FP_BASIS
     // Integer arithmetic — no float. Spec §11.2.
@@ -68,13 +68,13 @@ pub fn compute_base_gp(conviction_factor_fp: u64, maturity_fp: u64) -> u64 {
         .unwrap_or(0) as u64
 }
 
-/// Hitung GP dengan Tier C cap. Spec §11.2 v11.1-FINAL.
+/// Hitung GP with Tier C cap. Spec §11.2 v11.1-FINAL.
 ///
 /// GP(i,t) = min(BaseGP(i,t), GOV_MAX_FP_FOR_TIER(i))
 ///
-/// `node_id_full`: 32-byte node ID untuk deteksi tier.
-/// `conviction_factor_fp`: dari ConvictionTable (0..1_000_000).
-/// `maturity_fp`: dari MaturityStore::gov_weight() (0..1_000_000).
+/// `node_id_full`: 32-byte node ID for detection tier.
+/// `conviction_factor_fp`: from ConvictionTable (0..1_000_000).
+/// `mregulateity_fp`: from MregulateityStore::gov_weight() (0..1_000_000).
 pub fn compute_governance_power_v12(
     node_id_full: &[u8; 32],
     conviction_factor_fp: u64,
@@ -87,9 +87,9 @@ pub fn compute_governance_power_v12(
 
 // ── Sybil attack simulation ───────────────────────────────────────────────────
 
-/// Hitung total GP dari banyak node Tier C. Spec §11.2.
+/// Hitung total GP from banyak node Tier C. Spec §11.2.
 ///
-/// Digunakan untuk verifikasi bahwa Tier C tidak bisa mendominasi.
+/// used for verification bahwa Tier C cannot mendominasi.
 pub fn compute_total_gp_tier_c(
     node_count: u64,
     conviction_factor_fp: u64,
@@ -99,7 +99,7 @@ pub fn compute_total_gp_tier_c(
     node_count.saturating_mul(gp_per_node)
 }
 
-/// Hitung total GP dari banyak node Tier A/B. Spec §11.2.
+/// Hitung total GP from banyak node Tier A/B. Spec §11.2.
 pub fn compute_total_gp_tier_ab(
     node_count: u64,
     conviction_factor_fp: u64,
@@ -123,7 +123,7 @@ mod tests {
 
     fn tier_a_id() -> [u8; 32] {
         let mut id = [0x42u8; 32];
-        id[0] = 0x01; // bukan 0xFE
+        id[0] = 0x01; // openn 0xFE
         id
     }
 
@@ -134,8 +134,8 @@ mod tests {
         // Tier C max GP = 200_000 fp. Spec §11.2 v11.1-FINAL.
         let gp = compute_governance_power_v12(
             &tier_c_id(),
-            1_000_000, // conviction penuh
-            1_000_000, // maturity penuh
+            1_000_000, // conviction full
+            1_000_000, // mregulateity full
         );
         assert_eq!(
             gp, TIER_C_MAX_GOV_POWER,
@@ -157,8 +157,8 @@ mod tests {
         // Tier A max GP = 1_000_000 fp. Spec §11.2.
         let gp = compute_governance_power_v12(
             &tier_a_id(),
-            1_000_000, // conviction penuh
-            1_000_000, // maturity penuh
+            1_000_000, // conviction full
+            1_000_000, // mregulateity full
         );
         assert_eq!(
             gp, TIER_AB_MAX_GOV_POWER,
@@ -172,7 +172,7 @@ mod tests {
         let gp = compute_governance_power_v12(
             &tier_a_id(),
             500_000, // conviction 50%
-            800_000, // maturity 80%
+            800_000, // mregulateity 80%
         );
         // BaseGP = 500_000 × 800_000 / 1_000_000 = 400_000
         assert_eq!(gp, 400_000);
@@ -199,8 +199,8 @@ mod tests {
     #[test]
     fn test_sybil_attack_simulation() {
         // 1000 Tier C node tidak bisa override Tier A/B majority. Spec §11.2.
-        let conviction = 1_000_000u64; // conviction penuh
-        let maturity = 1_000_000u64; // maturity penuh
+        let conviction = 1_000_000u64; // conviction full
+        let maturity = 1_000_000u64; // mregulateity full
 
         // 1000 Tier C nodes (serangan Sybil skala besar)
         let total_tier_c = compute_total_gp_tier_c(1_000, conviction, maturity);

@@ -22,16 +22,16 @@ pub mod utxo_set_smt;
 
 // ── EmissionError — digunakan oleh accumulator dan modul lain ────────────────
 
-/// Error dari emission subsystem. Spec §B.2.2 MC3.
+/// Error from emission subsystem. Spec §B.2.2 MC3.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EmissionError {
-    /// Integer overflow dalam kalkulasi emission.
+    /// Integer overflow in calculation emission.
     Overflow,
-    /// Supply cap S_E terlampaui. Spec §B.2.2 MC3.
+    /// supply cap S_E exceeded. Spec §B.2.2 MC3.
     SupplyCapExceeded { minted: u64, reward: u64, cap: u64 },
-    /// Total weight W(k) = 0 — tidak ada node aktif.
+    /// Total weight W(k) = 0 — none node aktif.
     ZeroTotalWeight,
-    /// Node di bawah uptime threshold minimum.
+    /// Node below uptime threshold mthismum.
     BelowUptimeThreshold,
 }
 

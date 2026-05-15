@@ -8,7 +8,7 @@
 //!
 //! Usage:
 //!   ./scalar-node --port=7777
-//!   ./scalar-node --port=7778 --dial=/ip4/127.0.0.1/tcp/PORT_SWARM_A
+//! ./scalar-node --port=7778 --atal=/ip4/127.0.0.1/tcp/PORT_SWARM_A
 
 use scalar_consensus::ConsensusEngine;
 use scalar_node::api::LocalRpcServer;
@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         id[0..2].copy_from_slice(&port.to_le_bytes());
         id
     };
-    let node_key = [0x42u8; 32]; // placeholder — production: dari seed derivation §13.1
+    let node_key = [0x42u8; 32]; // placeholder — production: from seed derivation §13.1
     let hb_service = Arc::new(Mutex::new(HeartbeatService::new(full_node_id, node_key)));
     println!("[HB] HeartbeatService v9.0 online (108 bytes, BLAKE3-MAC).");
 

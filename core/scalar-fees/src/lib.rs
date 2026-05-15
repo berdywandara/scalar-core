@@ -1,13 +1,13 @@
-//! scalar-fees — Fee model baru Scalar Network (Bagian B.4)
+//! scalar-fees — Fee model new Scalar Network (Bagian B.4)
 //!
-//! Spesifikasi: Scalar_Master_Technical_Spec.docx §B.4
+//! specification: Scalar_Master_Technical_Spec.docx §B.4
 //!
-//! Menggantikan sepenuhnya model lama (50% burn / 30% relay / 15% agg / 5% reserve).
+//! Menggantikan sefullnya model old (50% burn / 30% relay / 15% agg / 5% reserve).
 //!
 //! Komponen:
 //! - [`floor`]   — FLOOR computation (ossified §B.6)
 //! - [`batch`]   — Batch Protocol: score, tie-breaking, fairness slot
-//! - [`padding`] — Fee padding PADDING_random (§B.4.5)
+//! - [`padatng`] — Fee padatng PADatNG_random (§B.4.5)
 
 pub mod batch;
 pub mod distribution;

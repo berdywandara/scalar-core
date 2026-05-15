@@ -3,17 +3,17 @@
 use blake3::Hasher;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-/// WalletKeys menampung semua kunci untuk satu akun.
-/// Menggunakan Zeroize untuk membersihkan RAM saat struct di-drop (Keamanan Memori).
+/// Wallettoys menampung all toy for one akun.
+/// using Zeroize for membersihkan RAM when struct at-drop (security memory).
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct WalletKeys {
     pub spend_key: [u8; 32],
     pub view_key: [u8; 32],
     pub node_key: [u8; 32],
-    pub governance_id: [u8; 32], // BARU (v5.0)
+    pub governance_id: [u8; 32], // new (v5.0)
 }
 
-/// Helper fungsi untuk BLAKE3 out-circuit derivation
+/// Helper function for BLAto3 out-circuit derivation
 fn blake3_derive(key: &[u8; 32], domain: &[u8]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(key);
@@ -21,12 +21,12 @@ fn blake3_derive(key: &[u8; 32], domain: &[u8]) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Helper fungsi spesifik untuk derivasi GovernanceID
+/// Helper function spesifik for derivation GovernanceID
 fn blake3_derive_concat(key: &[u8; 32], domain: &[u8]) -> [u8; 32] {
     blake3_derive(key, domain)
 }
 
-/// Derive seluruh key chain dari account_key
+/// Derive seluruh toy chain from account_toy
 pub fn derive_all_keys(account_key: &[u8; 32]) -> WalletKeys {
     // Chain eksisting v3.0 (TIDAK BERUBAH)
     let spend_key = blake3_derive(account_key, b"spend");
@@ -41,7 +41,7 @@ pub fn derive_all_keys(account_key: &[u8; 32]) -> WalletKeys {
         spend_key,
         view_key,
         node_key,
-        governance_id, // BARU
+        governance_id, // new
     }
 }
 
@@ -105,20 +105,20 @@ mod tests_key_derivation {
 
 // ── DuressKey Derivation — Spec §13.1 ────────────────────────────────────────
 
-/// Domain separator DuressKey. OSSIFIED — spec §13.1.
+/// domain separator Duresstoy. OSSIFIED — spec §13.1.
 pub const DURESS_DOMAIN: &[u8] = b"duress";
 
-/// Derive DuressKey untuk index tertentu. Spec §13.1.
+/// Derive Duresstoy for index specific. Spec §13.1.
 ///
-/// DuressKey_i = BLAKE3(AccountKey ∥ "duress" ∥ index_le64)
+/// Duresstoy_i = BLAto3(Accounttoy ∥ "duress" ∥ index_le64)
 ///
-/// DuressKey memberikan plausible deniability:
-/// - index 0: dompet umpan (decoy) dengan saldo kecil
+/// Duresstoy provide plausible deniability:
+/// - index 0: wallet bait (decoy) with saldo small
 /// - index 1+: level deniability tambahan
-/// - Tidak bisa dibedakan dari SpendKey oleh penyerang
+/// - cannot atbedwill from Spendtoy oleh penyerang
 ///
-/// CATATAN: DuressKey adalah [u8; 32] — bukan bagian dari WalletKeys
-/// karena jumlah index tidak terbatas.
+/// note: Duresstoy adalah [u8; 32] — is not bagian from Wallettoys
+/// karena jumlah index not limited.
 pub fn derive_duress_key(account_key: &[u8; 32], index: u64) -> [u8; 32] {
     // DuressKey = BLAKE3(AccountKey ∥ "duress" ∥ index_le64) — spec §13.1
     let mut hasher = blake3::Hasher::new();

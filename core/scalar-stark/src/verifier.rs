@@ -18,7 +18,7 @@ pub enum VerifyError {
     InvalidProof,
 }
 
-/// Verifikasi STARK proof Transfer Circuit v5.0.
+/// verification STARK proof Transfer Circuit v5.0.
 pub fn verify_proof(proof: &[u8], pub_inputs: ScalarPublicInputs) -> Result<(), VerifyError> {
     if proof.is_empty() {
         return Err(VerifyError::InvalidProof);
@@ -100,7 +100,7 @@ mod tests {
     fn test_verify_expired_tx_rejected() {
         let mut pi = valid_inputs();
         pi.entry_timestamp = 1_000_000_000;
-        pi.timestamp = 1_000_000_000 + 2_000_000; // 33 menit
+        pi.timestamp = 1_000_000_000 + 2_000_000; // 33 minutes
         assert!(matches!(
             verify_proof(&[0xAB; 10], pi),
             Err(VerifyError::CensorshipViolation)

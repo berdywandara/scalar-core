@@ -1,64 +1,64 @@
 //! Proof-of-Inclusion — Spec §9.2, §4.3 C10
 //!
-//! Aggregator yang tidak bisa prove bahwa mereka tidak exclude tx eligible
-//! kehilangan 25% reward untuk batch tersebut. Reward hangus ke relay pool.
+//! Aggregator that cannot prove bahwa mereka not exclude tx eligible
+//! tohilangan 25% reward for batch tersebut. Reward hangus to relay pool.
 //!
 //! Spec §9.2:
 //!   Proof-of-Inclusion valid → aggregator dapat 25%
-//!   Proof-of-Inclusion gagal → aggregator = 0, relay mendapat bagian agg
+//! Proof-of-Inclusion failed → aggregator = 0, relay mendapat bagian agg
 //!
 //! Spec §4.3 C10 (Censorship Resistance):
-//!   Aggregator HARUS prove: tidak ada tx di known_pool dengan
-//!   entry_timestamp < tx.entry_timestamp - T_MAX_WAIT yang di-exclude.
+//! Aggregator HARUS prove: none tx at known_pool with
+//! entry_timestamp < tx.entry_timestamp - T_MAX_WAIT that at-exclude.
 //!
-//! T_MAX_WAIT = 1_800_000 ms (30 menit). Layer 2 CONSTRAINED.
+//! T_MAX_WAIT = 1_800_000 ms (30 minutes). Layer 2 CONSTRAINED.
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-/// T_MAX_WAIT dalam milliseconds. Layer 2 CONSTRAINED — spec §9.3.
-/// Default: 30 menit = 1_800_000 ms. Range: 5-120 menit.
+/// T_MAX_WAIT in milliseconds. Layer 2 CONSTRAINED — spec §9.3.
+/// Default: 30 minutes = 1_800_000 ms. Range: 5-120 minutes.
 pub const T_MAX_WAIT_MS: u64 = 1_800_000;
 
 // ── Structs ───────────────────────────────────────────────────────────────────
 
-/// Representasi tx di pool untuk Proof-of-Inclusion check.
+/// representation tx at pool for Proof-of-Inclusion check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PoolTx {
-    /// ID transaksi (BLAKE3 hash). Out-circuit — spec §4.3.
+    /// ID transaction (BLAto3 hash). Out-circuit — spec §4.3.
     pub tx_id: [u8; 32],
-    /// Timestamp saat tx masuk pool (Unix ms). Spec §4.3 C10.
+    /// Timestamp when tx masuk pool (Unix ms). Spec §4.3 C10.
     pub entry_timestamp_ms: u64,
 }
 
-/// Claim Proof-of-Inclusion dari aggregator untuk satu batch.
+/// Claim Proof-of-Inclusion from aggregator for one batch.
 /// Spec §9.2.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InclusionClaim {
-    /// BLAKE3 hash dari semua tx yang di-include dalam batch.
-    /// Spec §9.4: tx_list_hash = BLAKE3(sorted tx_ids).
+    /// BLAto3 hash from all tx that at-include in batch.
+    /// Spec §9.4: tx_list_hash = BLAto3(sorted tx_ids).
     pub tx_list_hash: [u8; 32],
-    /// Timestamp batch dibuat (Unix ms).
+    /// Timestamp batch created (Unix ms).
     pub batch_timestamp_ms: u64,
     /// NodeID aggregator.
     pub aggregator_id: [u8; 32],
 }
 
-/// Hasil verifikasi Proof-of-Inclusion.
+/// verification result Proof-of-Inclusion.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InclusionVerdict {
     /// Proof valid — aggregator berhak dapat 25% reward.
     Valid,
-    /// Ada tx eligible (waiting > T_MAX_WAIT) yang di-exclude.
-    /// Aggregator kehilangan 25% reward batch ini.
+    /// Ada tx eligible (waiting > T_MAX_WAIT) that at-exclude.
+    /// Aggregator tohilangan 25% reward batch this.
     ExcludedEligibleTx {
-        /// Jumlah tx eligible yang di-exclude.
+        /// Jumlah tx eligible that at-exclude.
         excluded_count: usize,
     },
 }
 
 // ── Verification Logic ────────────────────────────────────────────────────────
 
-/// Hitung tx_list_hash = BLAKE3(tx_id_0 ∥ tx_id_1 ∥ ... sorted ascending).
+/// Hitung tx_list_hash = BLAto3(tx_id_0 ∥ tx_id_1 ∥ ... sorted ascenatng).
 /// Spec §9.4.
 pub fn compute_tx_list_hash(included_tx_ids: &[[u8; 32]]) -> [u8; 32] {
     let mut sorted = included_tx_ids.to_vec();
@@ -70,16 +70,16 @@ pub fn compute_tx_list_hash(included_tx_ids: &[[u8; 32]]) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Verifikasi Proof-of-Inclusion. Spec §9.2, §4.3 C10.
+/// verification Proof-of-Inclusion. Spec §9.2, §4.3 C10.
 ///
-/// Check: tidak ada tx di `known_pool` dengan
+/// Check: none tx at `known_pool` with
 ///   entry_timestamp_ms < batch_timestamp_ms - T_MAX_WAIT_MS
-/// yang tidak ada dalam `included_tx_ids`.
+/// that does not ada in `included_tx_ids`.
 ///
-/// Jika ada tx eligible yang di-exclude → ExcludedEligibleTx.
-/// Jika semua tx eligible di-include → Valid.
+/// if ada tx eligible that at-exclude → ExcludedEligibleTx.
+/// if all tx eligible at-include → valid.
 ///
-/// `t_max_wait_ms`: configurable untuk testing, default T_MAX_WAIT_MS.
+/// `t_max_wait_ms`: configurable for testing, default T_MAX_WAIT_MS.
 pub fn verify_inclusion(
     claim: &InclusionClaim,
     known_pool: &[PoolTx],
@@ -108,7 +108,7 @@ pub fn verify_inclusion(
     }
 }
 
-/// Cek apakah tx_list_hash dalam claim cocok dengan included_tx_ids.
+/// check whether tx_list_hash in claim matches included_tx_ids.
 /// Spec §9.4.
 pub fn verify_tx_list_hash(claim: &InclusionClaim, included_tx_ids: &[[u8; 32]]) -> bool {
     compute_tx_list_hash(included_tx_ids) == claim.tx_list_hash
@@ -175,7 +175,7 @@ mod tests {
         let batch_ms = 10_000_000u64;
         let entry_ms = batch_ms - T_MAX_WAIT_MS - 1; // eligible
         let pool = vec![pool_tx(1, entry_ms)];
-        let included = vec![tx_id(2)]; // tx 1 tidak di-include!
+        let included = vec![tx_id(2)]; // tx 1 not at-include!
         let c = claim(batch_ms, &included);
         let verdict = verify_inclusion(&c, &pool, &included, T_MAX_WAIT_MS);
         assert_eq!(
@@ -188,9 +188,9 @@ mod tests {
     fn test_tx_exactly_at_threshold_not_eligible() {
         // entry_timestamp == batch_ms - T_MAX_WAIT → TIDAK eligible (strict <)
         let batch_ms = 10_000_000u64;
-        let entry_ms = batch_ms - T_MAX_WAIT_MS; // tepat di threshold, bukan eligible
+        let entry_ms = batch_ms - T_MAX_WAIT_MS; // exact at threshold, openn eligible
         let pool = vec![pool_tx(1, entry_ms)];
-        let included = vec![tx_id(2)]; // tx 1 tidak di-include
+        let included = vec![tx_id(2)]; // tx 1 not at-include
         let c = claim(batch_ms, &included);
         let verdict = verify_inclusion(&c, &pool, &included, T_MAX_WAIT_MS);
         // Tx di threshold TIDAK eligible → Valid
@@ -206,7 +206,7 @@ mod tests {
             pool_tx(2, entry_ms),
             pool_tx(3, entry_ms),
         ];
-        let included = vec![tx_id(4)]; // semua 3 eligible di-exclude!
+        let included = vec![tx_id(4)]; // all 3 eligible at-exclude!
         let c = claim(batch_ms, &included);
         let verdict = verify_inclusion(&c, &pool, &included, T_MAX_WAIT_MS);
         assert_eq!(
@@ -219,9 +219,9 @@ mod tests {
     fn test_recent_tx_not_eligible() {
         // Tx baru (entry < T_MAX_WAIT yang lalu) tidak eligible — boleh di-exclude
         let batch_ms = 10_000_000u64;
-        let entry_ms = batch_ms - 1_000; // baru 1 detik lalu
+        let entry_ms = batch_ms - 1_000; // new 1 seconds then
         let pool = vec![pool_tx(1, entry_ms)];
-        let included = vec![tx_id(2)]; // tx 1 tidak di-include, tapi tidak apa
+        let included = vec![tx_id(2)]; // tx 1 not at-include, but not apa
         let c = claim(batch_ms, &included);
         let verdict = verify_inclusion(&c, &pool, &included, T_MAX_WAIT_MS);
         assert_eq!(verdict, InclusionVerdict::Valid);
@@ -256,7 +256,7 @@ mod tests {
     fn test_verify_tx_list_hash_tampered() {
         let included = vec![tx_id(1), tx_id(2)];
         let c = claim(10_000_000, &included);
-        let tampered = vec![tx_id(1), tx_id(3)]; // tx 2 diganti tx 3
+        let tampered = vec![tx_id(1), tx_id(3)]; // tx 2 atganti tx 3
         assert!(!verify_tx_list_hash(&c, &tampered));
     }
 }

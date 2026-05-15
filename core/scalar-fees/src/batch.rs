@@ -3,53 +3,53 @@
 //! Intra-batch priority:
 //!   score(tx) = PREMIUM / complexity_weight
 //!   complexity_weight = 1 + (num_inputs + num_outputs) × 0.1
-//!   [OSSIFIED §B.6 — formula tidak bisa diubah tanpa fork]
+//! [OSSIFIED §B.6 — formula immutable tanpa fork]
 //!
-//! Inter-batch: aggregator prove batch dengan batch_value tertinggi.
+//! Inter-batch: aggregator prove batch with batch_value tertinggi.
 //!
 //! Tie-breaking (OSSIFIED §B.6):
 //!   winner = argmin(Poseidon2(batch_root ∥ node_id))
 //!
 //! Fairness slot (§B.4.3, Layer 2):
-//!   Setiap N=10 batch, wajib sertakan ≥1 tx dengan score terendah.
+//! each N=10 batch, wajib sertwill ≥1 tx with score terendah.
 
 use scalar_crypto::poseidon2::hash_2_to_1;
 
 // ── Konstanta (sebagian ossified) ────────────────────────────────────
 
-/// N fairness slot — setiap N batch, satu slot wajib tx score terendah.
+/// N fairness slot — each N batch, satu slot wajib tx score terendah.
 /// Layer 2 CONSTRAINED, default: 10, range: 5–50.
 pub const FAIRNESS_N_DEFAULT: u32 = 10;
 
-/// Timeout multiplier untuk batch prove time estimate.
+/// Timeout multiplier for batch prove time estimate.
 /// Layer 2 CONSTRAINED, default: 3×, range: 2×–10×.
 pub const TIMEOUT_MULTIPLIER_DEFAULT: u32 = 3;
 
-/// Fixed-point basis untuk score computation (menghindari float).
+/// Fixed-point basis for score computation (avoid float).
 /// score_fp = (PREMIUM × SCORE_FP_BASIS) / complexity_weight_fp
 const SCORE_FP_BASIS: u128 = 1_000_000;
 
 // ── Score computation (OSSIFIED) ─────────────────────────────────────
 
-/// Representasi transaksi dalam batch untuk scoring.
+/// representation transaction in batch for scoring.
 #[derive(Debug, Clone)]
 pub struct TxForBatch {
     pub tx_id: [u8; 32],
     pub premium: u64, // sSCL
     pub num_inputs: u32,
     pub num_outputs: u32,
-    pub fee_total: u64, // untuk batch_value computation
+    pub fee_total: u64, // for batch_value computation
 }
 
-/// Hitung intra-batch priority score untuk satu transaksi.
+/// Hitung intra-batch priority score for one transaction.
 ///
 /// score(tx) = PREMIUM / complexity_weight
 /// complexity_weight = 1 + (num_inputs + num_outputs) × 0.1
 ///
-/// Implementasi fixed-point (basis 1_000_000) sesuai prinsip
-/// "no floating point" untuk determinisme antar platform.
+/// implementation fixed-point (basis 1_000_000) sesuai prinsip
+/// "no floating point" for determthissme antar platform.
 ///
-/// OSSIFIED: formula ini tidak bisa diubah tanpa fork (§B.6).
+/// OSSIFIED: formula this immutable tanpa fork (§B.6).
 pub fn compute_score_fp(tx: &TxForBatch) -> u128 {
     // complexity_weight_fp = (1 + (inputs + outputs) × 0.1) × 1_000_000
     // = 1_000_000 + (inputs + outputs) × 100_000
@@ -63,8 +63,8 @@ pub fn compute_score_fp(tx: &TxForBatch) -> u128 {
         .unwrap_or(0)
 }
 
-/// Sort transaksi dalam batch: score tertinggi di depan.
-/// Tx dengan score sama: tx_id lebih kecil di depan (tie-break deterministik).
+/// Sort transaction in batch: score tertinggi in front of.
+/// Tx with score same: tx_id lebih small in front of (tie-break determthisstik).
 pub fn sort_batch_by_score(txs: &mut [TxForBatch]) {
     txs.sort_unstable_by(|a, b| {
         let score_a = compute_score_fp(a);
@@ -76,77 +76,77 @@ pub fn sort_batch_by_score(txs: &mut [TxForBatch]) {
 
 // ── Batch value (inter-batch priority) ───────────────────────────────
 
-/// Hitung batch_value = Σ fee_total semua tx dalam batch.
-/// Aggregator prove batch dengan batch_value tertinggi dahulu.
+/// Hitung batch_value = Σ fee_total all tx in batch.
+/// Aggregator prove batch with batch_value tertinggi dahulu.
 pub fn compute_batch_value(txs: &[TxForBatch]) -> u64 {
     txs.iter().map(|tx| tx.fee_total).sum()
 }
 
 // ── Tie-breaking (OSSIFIED) ──────────────────────────────────────────
 
-/// BatchAnnouncement — broadcast saat aggregator mulai prove (§B.4.4).
+/// BatchAnnouncement — broadcast when aggregator start prove (§B.4.4).
 #[derive(Debug, Clone)]
 pub struct BatchAnnouncement {
-    /// Merkle root semua tx dalam batch
+    /// Merkle root all tx in batch
     pub batch_root: [u8; 32],
     /// NodeID aggregator
     pub node_id: [u8; 32],
     pub timestamp: u64,
 }
 
-/// Hitung tie-breaking score untuk satu aggregator.
+/// Hitung tie-breaking score for one aggregator.
 ///
 /// score = Poseidon2(batch_root_lo, node_id_lo)
 /// winner = argmin(score)
 ///
-/// OSSIFIED: formula ini tidak bisa diubah tanpa fork (§B.6).
+/// OSSIFIED: formula this immutable tanpa fork (§B.6).
 pub fn tiebreak_score(ann: &BatchAnnouncement) -> u64 {
     let batch_root_lo = u64::from_le_bytes(ann.batch_root[0..8].try_into().unwrap());
     let node_id_lo = u64::from_le_bytes(ann.node_id[0..8].try_into().unwrap());
     hash_2_to_1(batch_root_lo, node_id_lo)
 }
 
-/// Pilih pemenang dari beberapa BatchAnnouncement dengan batch_root sama.
+/// select pemenang from beberapa BatchAnnouncement with batch_root same.
 ///
 /// winner = argmin(Poseidon2(batch_root ∥ node_id))
-/// Deterministik — setiap node menghitung sendiri tanpa koordinasi.
+/// Determthisstik — each node compute senatri tanpa kooratnasi.
 pub fn select_winner(announcements: &[BatchAnnouncement]) -> Option<&BatchAnnouncement> {
     announcements.iter().min_by_key(|ann| tiebreak_score(ann))
 }
 
 // ── Fairness slot (§B.4.3) ───────────────────────────────────────────
 
-/// Cek apakah batch ke-`batch_number` adalah fairness slot.
+/// check whether batch to-`batch_number` adalah fairness slot.
 ///
-/// Fairness slot: setiap N batch, aggregator WAJIB menyertakan
-/// ≥1 tx dengan score terendah (censorship resistance).
+/// Fairness slot: each N batch, aggregator WAJIB menyertwill
+/// ≥1 tx with score terendah (censorship resistance).
 ///
-/// batch_number dimulai dari 1.
+/// batch_number started from 1.
 pub fn is_fairness_slot(batch_number: u32, fairness_n: u32) -> bool {
     fairness_n > 0 && batch_number % fairness_n == 0
 }
 
-/// Untuk fairness slot: kembalikan tx dengan score terendah dari pool.
-/// Tx ini WAJIB disertakan dalam batch.
+/// for fairness slot: return tx with score terendah from pool.
+/// Tx this WAJIB atsertwill in batch.
 pub fn fairness_tx(tx_pool: &[TxForBatch]) -> Option<&TxForBatch> {
     tx_pool.iter().min_by_key(|tx| compute_score_fp(tx))
 }
 
 // ── Timeout computation ───────────────────────────────────────────────
 
-/// Estimasi timeout batch dalam detik.
+/// estimation timeout batch in seconds.
 ///
-/// T_timeout = prove_time_estimasi × multiplier
-/// prove_time_estimasi = batch_size × complexity_avg_ms / 1000
+/// T_timeout = prove_time_estimation × multiplier
+/// prove_time_estimation = batch_size × complexity_avg_ms / 1000
 ///
-/// Untuk implementasi produksi: K_hardware_ref dari genesis benchmark.
-/// Di sini menggunakan estimasi sederhana per tx.
+/// for implementation produksi: K_hardware_ref from genesis benchmark.
+/// at sthis using estimation simple per tx.
 pub fn compute_batch_timeout_secs(
     batch_size: u32,
     prove_time_per_tx_ms: u64,
     multiplier: u32,
 ) -> u64 {
-    let prove_time_secs = (batch_size as u64 * prove_time_per_tx_ms).saturating_add(999) / 1000; // ceiling division
+    let prove_time_secs = (batch_size as u64 * prove_time_per_tx_ms).saturating_add(999) / 1000; // ceiling atvfillon
     prove_time_secs.saturating_mul(multiplier as u64)
 }
 

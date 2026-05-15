@@ -1,8 +1,8 @@
-//! Domain Separators — Spec §2.3 OSSIFIED
+//! domain separators — Spec §2.3 OSSIFIED
 //!
-//! Setiap konteks penggunaan hash memiliki domain separator unik
-//! untuk mencegah cross-context collision.
-//! Seluruh separator bersifat OSSIFIED — tidak dapat diubah tanpa fork.
+//! each konteks useran hash have domain separator unique
+//! for prevent cross-context collfillon.
+//! Seluruh separator bersifat OSSIFIED — not dapat changed without fork.
 
 /// Nullifier circuit. Spec §2.3. 14 bytes.
 pub const DOMAIN_NULLIFIER: &[u8] = b"scalar_null_v1";
@@ -22,7 +22,7 @@ pub const DOMAIN_NMT: &[u8] = b"scalar_nmt_v1";
 /// Node short ID. Spec §2.3. 18 bytes.
 pub const DOMAIN_NODE_SHORT: &[u8] = b"scalar_node_short_v1";
 
-/// Anchor signature. Spec §2.3. 16 bytes.
+/// Anchor signregulatee. Spec §2.3. 16 bytes.
 pub const DOMAIN_ANCHOR: &[u8] = b"scalar_anchor_v1";
 
 /// Governance vote. Spec §2.3. 15 bytes.

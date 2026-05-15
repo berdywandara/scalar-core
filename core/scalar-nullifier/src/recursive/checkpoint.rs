@@ -2,19 +2,19 @@
 
 use std::collections::HashSet;
 
-/// Representasi Mock dari Recursive STARK Proof.
-/// Diimplementasikan secara penuh pada milestone M5/M6.
+/// representation Mock from Recursive STARK Proof.
+/// implemented secara full on milestone M5/M6.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecursiveProof {
     pub data: Vec<u8>,
 }
 
 /// NS_ARCH: STARK Checkpoint layer (Interface & Stub)
-/// Menyimpan root state dari lapisan COLD yang telah di-roll-up menjadi STARK proof.
+/// store root state from layer COLD that has at-roll-up menjaat STARK proof.
 pub struct ArchCheckpoint {
     pub latest_epoch: u64,
-    pub latest_root: [u8; 32], // Merepresentasikan Poseidon2 root
-    verified_nullifiers: HashSet<[u8; 32]>, // Stub: Fast lookup untuk item yang terbukti masuk arch
+    pub latest_root: [u8; 32], // Merepresentationkan Poseidon2 root
+    verified_nullifiers: HashSet<[u8; 32]>, // Stub: Fast lookup for item that terproof masuk arch
 }
 
 impl ArchCheckpoint {
@@ -26,19 +26,19 @@ impl ArchCheckpoint {
         }
     }
 
-    /// Mengecek apakah sebuah nullifier sudah divalidasi dan masuk ke NS_ARCH
+    /// Mengecheck whether sebuah nullifier already validated and masuk to NS_ARCH
     pub fn contains(&self, nullifier: &[u8; 32]) -> bool {
         self.verified_nullifiers.contains(nullifier)
     }
 
-    /// Antarmuka verifikasi Recursive STARK Proof.
-    /// Saat ini (v5.0 M5) melakukan mock verification dan memvalidasi aturan sistem.
+    /// interface verification Recursive STARK Proof.
+    /// when this (v5.0 M5) perform mock verification and validate rule sistem.
     pub fn verify_and_apply_checkpoint(
         &mut self,
         epoch: u64,
         new_root: [u8; 32],
         proof: &RecursiveProof,
-        archived_items: &[[u8; 32]], // Data public input untuk merekonstruksi state
+        archived_items: &[[u8; 32]], // data public input for merekonstruksi state
     ) -> Result<(), &'static str> {
         if epoch <= self.latest_epoch {
             return Err("Epoch harus monotonic (strictly increasing)");

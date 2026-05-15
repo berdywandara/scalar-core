@@ -1,18 +1,18 @@
-//! Parallel Validation + Fallback Protocol — Spec §8.1, §8.3
+//! Parallel validation + Fallback Protocol — Spec §8.1, §8.3
 //!
 //! Flow v9.0:
 //!   Step 1: Aggregator compute manifest + manifest_hash
-//!   Step 2: Broadcast ke 10 validator paralel (rank_2..rank_11)
-//!   Step 3: Quorum check — 7/10 validator harus setuju pada manifest_hash
-//!   Step 4: Jika quorum gagal → fallback ke rank berikutnya (max 3x)
-//!   Step 5: Jika fallback_count > AGGREGATOR_FALLBACK_MAX → epoch DEFERRED
+//! Step 2: Broadcast to 10 validator paralel (rank_2..rank_11)
+//! Step 3: Quorum check — 7/10 validator must agree on manifest_hash
+//! Step 4: if quorum failed → fallback to rank next (max 3x)
+//! Step 5: if fallback_count > AGGREGATOR_FALLBACK_MAX → epoch DEFERRED
 //!
-//! OSSIFIED constants (dari manifest.rs):
-//!   AGGREGATOR_VALIDATOR_COUNT = 10  — validator paralel
-//!   AGGREGATOR_VALIDATOR_QUORUM = 7  — quorum minimum
-//!   AGGREGATOR_FALLBACK_MAX = 3      — max fallback sebelum deferred
+//! OSSIFIED constants (from manifest.rs):
+//! AGGREGATOR_validATOR_COUNT = 10  — validator paralel
+//! AGGREGATOR_validATOR_QUORUM = 7  — quorum mthismum
+//! AGGREGATOR_FALLBACK_MAX = 3      — max fallback before deferred
 //!
-//! Epoch boundary: seq_num based — Rule T-1 §7.2c. BUKAN wall-clock.
+//! Epoch boundary: seq_num based — Rule T-1 §7.2c. not wall-clock.
 
 use crate::manifest::{
     verify_manifest_hash, AggregatorSelection, EpochRewardManifest, EpochStatus,
@@ -21,14 +21,14 @@ use crate::manifest::{
 
 // ── ValidationVote — spec §8.1 ────────────────────────────────────────────────
 
-/// Vote dari satu validator. Spec §8.1 Step 3.
+/// Vote from satu validator. Spec §8.1 Step 3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidationVote {
-    /// Validator node_id yang memberikan vote.
+    /// validator node_id that provide vote.
     pub validator_id: [u8; 4],
-    /// manifest_hash yang di-vote validator. Spec §8.1.
+    /// manifest_hash that at-vote validator. Spec §8.1.
     pub manifest_hash: [u8; 32],
-    /// true = setuju dengan manifest_hash aggregator.
+    /// true = agree with manifest_hash aggregator.
     pub agrees: bool,
 }
 
@@ -37,16 +37,16 @@ pub struct ValidationVote {
 /// Hasil quorum check. Spec §8.1 Step 3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuorumResult {
-    /// Quorum tercapai — manifest_hash disetujui ≥7/10 validator.
+    /// Quorum terachieve — manifest_hash approved ≥7/10 validator.
     Achieved { agree_count: u32 },
-    /// Quorum gagal — kurang dari 7 validator setuju.
+    /// Quorum failed — kurang from 7 validator agree.
     Failed { agree_count: u32 },
 }
 
-/// Jalankan quorum check: hitung berapa validator setuju pada manifest_hash. Spec §8.1.
+/// run quorum check: hitung berapa validator agree on manifest_hash. Spec §8.1.
 ///
-/// Quorum = 7/10 validator harus memiliki manifest_hash yang identik.
-/// AGGREGATOR_VALIDATOR_QUORUM = 7. OSSIFIED — spec §8.1.
+/// Quorum = 7/10 validator harus have manifest_hash that identical.
+/// AGGREGATOR_validATOR_QUORUM = 7. OSSIFIED — spec §8.1.
 pub fn check_quorum(votes: &[ValidationVote], expected_manifest_hash: &[u8; 32]) -> QuorumResult {
     let agree_count = votes
         .iter()
@@ -65,7 +65,7 @@ pub fn check_quorum(votes: &[ValidationVote], expected_manifest_hash: &[u8; 32])
 /// State fallback aggregator. Spec §8.3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FallbackState {
-    /// Masih dalam fallback — coba aggregator berikutnya.
+    /// still in fallback — coba aggregator next.
     Retry {
         fallback_count: u32,
         next_aggregator: [u8; 4],
@@ -74,11 +74,11 @@ pub enum FallbackState {
     EpochDeferred,
 }
 
-/// Jalankan fallback protocol. Spec §8.3.
+/// run fallback protocol. Spec §8.3.
 ///
-/// Jika quorum gagal, coba rank berikutnya dari validator set.
+/// if quorum failed, coba rank next from validator set.
 /// fallback_max = AGGREGATOR_FALLBACK_MAX = 3. OSSIFIED — spec §8.3.
-/// Jika sudah 3x fallback → epoch DEFERRED.
+/// if already 3x fallback → epoch DEFERRED.
 pub fn try_fallback(
     fallback_count: u32,
     selection: &AggregatorSelection,
@@ -114,7 +114,7 @@ pub enum ConsensusState {
 /// ConsensusEngine v9.0 — parallel validation + fallback. Spec §8.1, §8.3.
 pub struct ConsensusEngine {
     pub state: ConsensusState,
-    /// Jumlah fallback yang sudah dilakukan dalam epoch ini. Spec §8.3.
+    /// Jumlah fallback that has been performed in epoch this. Spec §8.3.
     pub fallback_count: u32,
 }
 
@@ -129,9 +129,9 @@ impl ConsensusEngine {
         }
     }
 
-    /// Finalize manifest setelah quorum tercapai. Spec §8.1 Step 3.
+    /// Finalize manifest after quorum terachieve. Spec §8.1 Step 3.
     ///
-    /// Verifikasi:
+    /// verification:
     ///   1. manifest.status == Finalized
     ///   2. manifest.verify_arithmetic_invariants()
     ///   3. verify_manifest_hash(manifest) — canonical hash valid
@@ -153,9 +153,9 @@ impl ConsensusEngine {
         Ok(())
     }
 
-    /// Proses votes dari validator set. Spec §8.1 Step 3.
+    /// process votes from validator set. Spec §8.1 Step 3.
     ///
-    /// Returns QuorumResult — caller bertanggung jawab untuk fallback jika gagal.
+    /// Returns QuorumResult — caller bertanggung jawab for fallback if failed.
     pub fn process_votes(
         &self,
         votes: &[ValidationVote],
@@ -164,7 +164,7 @@ impl ConsensusEngine {
         check_quorum(votes, manifest_hash)
     }
 
-    /// Increment fallback counter dan cek apakah epoch harus deferred. Spec §8.3.
+    /// Increment fallback counter and check whether epoch harus deferred. Spec §8.3.
     pub fn increment_fallback(&mut self) -> FallbackState {
         self.fallback_count += 1;
         if self.fallback_count > AGGREGATOR_FALLBACK_MAX {
@@ -270,7 +270,7 @@ mod tests {
         let expected = [0x42u8; 32];
         let wrong = [0xFFu8; 32];
         let votes: Vec<ValidationVote> = (0..10)
-            .map(|i| make_vote(i, wrong, true)) // semua agree tapi hash salah
+            .map(|i| make_vote(i, wrong, true)) // all agree but hash wrong
             .collect();
         assert_eq!(
             check_quorum(&votes, &expected),

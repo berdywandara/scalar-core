@@ -1,7 +1,7 @@
 //! Integration Test: Nullifier Lifecycle
 //! Spec §6 NullifierSet — pre-mainnet mandatory
 
-/// Test 1: Nullifier baru tidak ada di set kosong
+/// Test 1: Nullifier new none at set empty
 #[test]
 fn test_new_nullifier_not_in_empty_set() {
     use scalar_nullifier::formal::assert_cc_invariant;
@@ -10,7 +10,7 @@ fn test_new_nullifier_not_in_empty_set() {
     assert!(result.is_ok(), "Nullifier baru harus non-member");
 }
 
-/// Test 2: Double-spend terdeteksi — nullifier di NS_ACTIVE
+/// Test 2: double-spend detected — nullifier at NS_ACTIVE
 #[test]
 fn test_double_spend_detected_active() {
     use scalar_nullifier::formal::assert_cc_invariant;
@@ -19,7 +19,7 @@ fn test_double_spend_detected_active() {
     assert!(result.is_err(), "Nullifier di NS_ACTIVE harus ditolak");
 }
 
-/// Test 3: Double-spend terdeteksi — nullifier di NS_CHECKPOINT
+/// Test 3: double-spend detected — nullifier at NS_CHECKPOINT
 #[test]
 fn test_double_spend_detected_checkpoint() {
     use scalar_nullifier::formal::assert_cc_invariant;
@@ -28,7 +28,7 @@ fn test_double_spend_detected_checkpoint() {
     assert!(result.is_err(), "Nullifier di NS_CHECKPOINT harus ditolak");
 }
 
-/// Test 4: Zero-Gap Property — nullifier harus masuk checkpoint sebelum keluar active
+/// Test 4: zero-gap property — nullifier harus masuk checkpoint before exiting active
 #[test]
 fn test_zero_gap_property_enforced() {
     use scalar_nullifier::formal::assert_zero_gap_property;

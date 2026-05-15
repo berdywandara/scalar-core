@@ -3,13 +3,13 @@
 use std::collections::HashMap;
 
 pub const FIXED_POINT_BASIS: u64 = 1_000_000;
-pub const TAU_MIN: u64 = 1_000; // 0.001 dalam fixed-point
-pub const TAU_MAX: u64 = 10_000_000; // 10.0 dalam fixed-point
+pub const TAU_MIN: u64 = 1_000; // 0.001 in fixed-point
+pub const TAU_MAX: u64 = 10_000_000; // 10.0 in fixed-point
 pub const MAX_ROOT_CANDIDATES: usize = 100; // OSSIFIED
-pub const RHO: u64 = 3_000; // Evaporation rate 0.003 per detik
+pub const RHO: u64 = 3_000; // Evaporation rate 0.003 per seconds
 
 pub struct PheromoneState {
-    /// Pheromone level per candidate root (Semua kalkulasi fixed-point u64)
+    /// Pheromone level per canatdate root (all calculation fixed-point u64)
     pheromones: HashMap<[u8; 32], u64>,
     #[allow(dead_code)]
     last_update: std::time::Instant,
@@ -44,13 +44,13 @@ impl PheromoneState {
         #[cfg(test)]
         {
             let secs = self.mock_elapsed_secs;
-            self.mock_elapsed_secs = 0; // Konsumsi mock waktu
+            self.mock_elapsed_secs = 0; // consumption mock waktu
             secs
         }
     }
 
-    /// Update pheromone setelah Phase 2 PASS
-    /// deposit_q wajib dalam format fixed-point basis 1.000.000 (contoh: 1.0 = 1_000_000)
+    /// Update pheromone after Phase 2 PASS
+    /// deposit_q wajib in format fixed-point basis 1.000.000 (contoh: 1.0 = 1_000_000)
     pub fn update(&mut self, received_root: [u8; 32], w_sender: u64, deposit_q: u64) {
         let elapsed_secs = self.get_elapsed_secs();
 
@@ -86,7 +86,7 @@ impl PheromoneState {
         }
     }
 
-    /// Tentukan accepted_root jika dominance ≥ 67%
+    /// determine accepted_root if dominantce ≥ 67%
     pub fn decide(&self) -> ReconciliationDecision {
         if self.pheromones.is_empty() {
             return ReconciliationDecision::NoConsensus;

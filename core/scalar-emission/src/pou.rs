@@ -2,8 +2,8 @@
 
 pub const FIXED_POINT_BASIS: u64 = 1_000_000;
 
-/// Menghitung bobot uptime berdasarkan 3 komponen sesuai spesifikasi v5.0.
-/// Pembagian bobot: Uptime 60%, Root Alignment 30%, Phase Coherence 10%.
+/// compute bobot uptime based on 3 komponen per specification v5.0.
+/// Pembagian bobot: Uptime 60%, root Alignment 30%, Phase Coherence 10%.
 pub fn compute_uptime_weight(
     uptime_ratio: u64,
     root_alignment_score: u64,

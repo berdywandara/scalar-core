@@ -1,4 +1,4 @@
-//! GAP B-008: Peer Discovery (Kademlia DHT, 50 Bootstrap Nodes, PEX)
+//! GAP B-008: Peer atscovery (Kademlia DHT, 50 Bootstrap Nodes, PEX)
 
 pub struct BootstrapPeer {
     pub ip_or_onion: String,
@@ -19,8 +19,8 @@ impl Default for PeerDiscovery {
 }
 
 impl PeerDiscovery {
-    /// Menghasilkan 50 Hardcoded Bootstrap Nodes yang tersebar di 10 yurisdiksi
-    /// untuk memastikan ketahanan desentralisasi tingkat negara (Concept 2).
+    /// produce 50 Hardcoded Bootstrap Nodes that tersebar at 10 yurisatksi
+    /// for ensure totahanan decentralization tingkat negara (Concept 2).
     pub fn new() -> Self {
         let jurisdictions = ["US", "EU", "SG", "JP", "CH", "IS", "BR", "ZA", "AE", "AU"];
         let mut bootstrap_nodes = Vec::with_capacity(50);

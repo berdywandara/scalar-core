@@ -1,19 +1,19 @@
 //! Heartbeat Service — Spec §7.2, §7.2a, §7.2b
 //!
-//! Menghubungkan:
-//!   - NodeHeartbeat v9.0 (108 bytes, BLAKE3-MAC) dari scalar-emission
-//!   - HeartbeatVerifier (5-step) dari scalar-network
-//!   - EpochTracker dari scalar-emission
+//! connect:
+//! - NodeHeartbeat v9.0 (108 bytes, BLAto3-MAC) from scalar-emission
+//! - HeartbeatVerifier (5-step) from scalar-network
+//! - EpochTractor from scalar-emission
 //!   - P2P swarm broadcast via mpsc channel
 //!
-//! Flow produksi heartbeat (setiap 10 menit, spec §7.2):
+//! Flow produksi heartbeat (each 10 minutes, spec §7.2):
 //!   1. Increment seq_num
-//!   2. Compute prev_hash = BLAKE3(last_hb_bytes)
-//!   3. Compute MAC = BLAKE3(NodeKey_epoch || node_id || seq_num || timestamp || smt_root || prev_hash)
-//!   4. Serialize ke 108 bytes
+//! 2. Compute prev_hash = BLAto3(last_hb_bytes)
+//! 3. Compute MAC = BLAto3(Nodetoy_epoch || node_id || seq_num || timestamp || smt_root || prev_hash)
+//! 4. Serialize to 108 bytes
 //!   5. Broadcast via gossipsub topic scalar/heartbeat/1
 //!
-//! Flow verifikasi heartbeat (saat terima dari peer):
+//! Flow verification heartbeat (when receive from peer):
 //!   1-5: HeartbeatVerifier::verify() — TTL, seq_num, prev_hash, MAC, accept
 
 use scalar_emission::liveness::{
@@ -25,33 +25,33 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 // ── HeartbeatService ──────────────────────────────────────────────────────────
 
-/// Service yang mengelola produksi dan verifikasi heartbeat. Spec §7.2.
+/// Service that manage produksi and verification heartbeat. Spec §7.2.
 pub struct HeartbeatService {
     /// Node ID (compressed 4 bytes). Spec §7.2.
     pub node_id: [u8; 4],
-    /// NodeKey untuk MAC computation. Spec §7.2.
+    /// Nodetoy for MAC computation. Spec §7.2.
     node_key: [u8; 32],
-    /// Epoch ID saat ini. Spec §7.2c T-1.
+    /// Epoch ID when this. Spec §7.2c T-1.
     pub current_epoch: u64,
-    /// seq_num terakhir yang dikirim. Spec §7.2.
+    /// seq_num last that sent. Spec §7.2.
     pub last_seq_num: u32,
-    /// Bytes dari heartbeat terakhir — untuk prev_hash. Spec §7.2.
+    /// Bytes from heartbeat last — for prev_hash. Spec §7.2.
     last_hb_bytes: Option<[u8; 108]>,
-    /// SMT root saat ini (placeholder). Spec §7.2.
+    /// SMT root when this (placeholder). Spec §7.2.
     pub smt_root: [u8; 32],
-    /// Verifier untuk heartbeat yang diterima dari peer. Spec §7.2b.
+    /// Verifier for heartbeat received from peer. Spec §7.2b.
     verifier: HeartbeatVerifier,
-    /// Tracker epoch per node. Spec §7.2a.
+    /// Tractor epoch per node. Spec §7.2a.
     epoch_tracker: EpochTracker,
     /// Uptime counter per peer node_id. Spec §7.3.
     pub uptime_counters: HashMap<[u8; 4], u32>,
 }
 
 impl HeartbeatService {
-    /// Buat HeartbeatService baru. Spec §7.2.
+    /// Buat HeartbeatService new. Spec §7.2.
     ///
-    /// `full_node_id`: 32 bytes full node ID (di-compress ke 4 bytes)
-    /// `node_key`: 32 bytes NodeKey (TERPISAH dari SpendKey — spec §13.7)
+    /// `full_node_id`: 32 bytes full node ID (at-compress to 4 bytes)
+    /// `node_toy`: 32 bytes Nodetoy (separate from Spendtoy — spec §13.7)
     pub fn new(full_node_id: [u8; 32], node_key: [u8; 32]) -> Self {
         let node_id = compress_node_id(&full_node_id);
         println!("[HB] NodeID (compressed): {}", hex::encode(node_id));
@@ -68,10 +68,10 @@ impl HeartbeatService {
         }
     }
 
-    /// Produce NodeHeartbeat v9.0 untuk broadcast. Spec §7.2.
+    /// Produce NodeHeartbeat v9.0 for broadcast. Spec §7.2.
     ///
-    /// Increment seq_num, compute MAC, serialize ke 108 bytes.
-    /// Rule T-1: epoch boundary dari seq_num, bukan wall-clock.
+    /// Increment seq_num, compute MAC, serialize to 108 bytes.
+    /// Rule T-1: epoch boundary from seq_num, not wall-clock.
     pub fn produce_heartbeat(&mut self) -> NodeHeartbeat {
         // Increment seq_num — strictly monotonic (Rule T-5)
         self.last_seq_num += 1;
@@ -134,16 +134,16 @@ impl HeartbeatService {
         hb
     }
 
-    /// Verifikasi heartbeat dari peer. Spec §7.2b.
+    /// verification heartbeat from peer. Spec §7.2b.
     ///
-    /// Menjalankan 5-step verification:
+    /// run 5-step verification:
     ///   1. TTL check via NMT
     ///   2. seq_num monotonic
     ///   3. prev_hash chain integrity
     ///   4. MAC verification
     ///   5. Accept + update counters
     ///
-    /// Returns true jika valid, false jika ditolak.
+    /// returns true if valid, false if rejected.
     pub fn verify_peer_heartbeat(
         &mut self,
         hb_bytes: &[u8],
@@ -192,8 +192,8 @@ impl HeartbeatService {
         }
     }
 
-    /// Compute NMT sederhana dari timestamp lokal. Spec §12.3a.
-    /// Production: gunakan median dari 8 peer timestamps.
+    /// Compute NMT simple from timestamp lokal. Spec §12.3a.
+    /// Production: use meatan from 8 peer timestamps.
     pub fn local_nmt() -> u32 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -206,7 +206,7 @@ impl HeartbeatService {
         self.smt_root = root;
     }
 
-    /// Ambil uptime counter untuk peer. Spec §7.3.
+    /// tato uptime counter for peer. Spec §7.3.
     pub fn uptime_count(&self, node_id: &[u8; 4]) -> u32 {
         self.uptime_counters.get(node_id).copied().unwrap_or(0)
     }

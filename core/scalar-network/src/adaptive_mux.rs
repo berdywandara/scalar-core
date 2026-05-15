@@ -2,14 +2,14 @@
 //!
 //! CONDUCTIVITY per transport channel (i,j,tier):
 //!   dD(i,j,tier)/dt = |Flow(i,j,tier)|^γ - decay × D(i,j,tier)
-//!   γ = 0.8 (< 1 untuk fault tolerance)
+//! γ = 0.8 (< 1 for fault tolerance)
 //!   decay = 0.01 per second
 //!
 //! CHANNEL SELECTION (probabilistic):
 //!   P(route via tier t) = D(t)^2 / Σ D(t')^2
 //!
-//! NO FLOAT: γ=0.8 diapproximasi dengan fixed-point integer arithmetic.
-//! |Flow|^0.8 ≈ |Flow|^(4/5) menggunakan integer Newton's method.
+//! NO FLOAT: γ=0.8 atapproximasi with fixed-point integer arithmetic.
+//! |Flow|^0.8 ≈ |Flow|^(4/5) using integer Newton's method.
 
 use std::collections::HashMap;
 
@@ -22,14 +22,14 @@ pub const DECAY_RATE_FP: u64 = 10_000; // 0.01 × 1_000_000
 /// Fixed-point basis. Spec §7.3.
 pub const FIXED_POINT_BASIS: u64 = 1_000_000;
 
-/// Conductivity minimum (tidak pernah 0 — selalu ada kemungkinan eksplorasi).
+/// Conductivity mthismum (not ever 0 — always ada tomungkinan eksplorasi).
 pub const CONDUCTIVITY_MIN: u64 = 1_000; // 0.001 × 1_000_000
 
 /// Conductivity maksimum.
 pub const CONDUCTIVITY_MAX: u64 = 10_000_000; // 10.0 × 1_000_000
 
-/// Gamma numerator untuk approximasi γ=0.8=4/5. Spec §12.5.
-/// Digunakan dalam integer approximation.
+/// Gamma numerator for approximasi γ=0.8=4/5. Spec §12.5.
+/// used in integer approximation.
 pub const GAMMA_NUMERATOR: u32 = 4;
 pub const GAMMA_DENOMINATOR: u32 = 5;
 
@@ -42,7 +42,7 @@ pub enum TransportTier {
     Internet = 0,
     /// Tier 2: LoRa Mesh. Spec §12.2.
     LoRa = 1,
-    /// Tier 3: HF Radio. Spec §12.2.
+    /// Tier 3: HF Raato. Spec §12.2.
     HfRadio = 2,
     /// Tier 4: Local Mesh. Spec §12.2.
     LocalMesh = 3,
@@ -51,7 +51,7 @@ pub enum TransportTier {
 }
 
 impl TransportTier {
-    /// Semua tier dalam urutan priority. Spec §12.2.
+    /// all tier in urutan priority. Spec §12.2.
     pub fn all() -> [TransportTier; 5] {
         [
             TransportTier::Internet,
@@ -69,11 +69,11 @@ impl TransportTier {
 ///
 /// x^(4/5) = (x^4)^(1/5) = fifth_root(x^4)
 ///
-/// Untuk menghindari overflow: x^(4/5) ≈ x × x^(-1/5)
-/// Simplified: gunakan integer sqrt dua kali sebagai approximasi.
+/// for avoid overflow: x^(4/5) ≈ x × x^(-1/5)
+/// Simplified: use integer sqrt dua kali as approximasi.
 ///
-/// Implementasi: x^0.8 ≈ integer_pow_4_5(x) menggunakan:
-/// floor(x^4/5) via Newton's method untuk fifth root.
+/// implementation: x^0.8 ≈ integer_pow_4_5(x) using:
+/// floor(x^4/5) via Newton's method for fifth root.
 pub fn pow_gamma_fp(flow_fp: u64) -> u64 {
     if flow_fp == 0 {
         return 0;
@@ -123,7 +123,7 @@ fn fifth_root_u64(x: u64) -> u64 {
     guess
 }
 
-/// Integer fifth root via Newton's method untuk u128.
+/// Integer fifth root via Newton's method for u128.
 fn fifth_root_u128(x: u128) -> u128 {
     if x == 0 {
         return 0;
@@ -154,7 +154,7 @@ fn fifth_root_u128(x: u128) -> u128 {
 /// State conductivity satu channel (peer, tier). Spec §12.5.
 #[derive(Debug, Clone)]
 pub struct ChannelConductivity {
-    /// Conductivity D dalam fixed-point basis 1_000_000. Spec §12.5.
+    /// Conductivity D in fixed-point basis 1_000_000. Spec §12.5.
     pub conductivity_fp: u64,
 }
 
@@ -171,13 +171,13 @@ impl ChannelConductivity {
         Self::default()
     }
 
-    /// Update conductivity berdasarkan flow dan elapsed time. Spec §12.5.
+    /// Update conductivity based on flow and elapsed time. Spec §12.5.
     ///
     /// dD/dt = |Flow|^γ - decay × D
     /// D(t+dt) = D(t) + dt × (|Flow|^γ - decay × D(t))
     ///
-    /// `flow_fp`: |Flow| dalam fixed-point basis 1_000_000.
-    /// `elapsed_secs_fp`: dt dalam fixed-point basis 1_000_000.
+    /// `flow_fp`: |Flow| in fixed-point basis 1_000_000.
+    /// `elapsed_secs_fp`: dt in fixed-point basis 1_000_000.
     pub fn update(&mut self, flow_fp: u64, elapsed_secs_fp: u64) {
         // |Flow|^γ dalam fixed-point
         let flow_gamma = pow_gamma_fp(flow_fp);
@@ -213,11 +213,11 @@ impl ChannelConductivity {
 
 /// Mycelium Adaptive Transport Mux. Spec §12.5.
 ///
-/// Mengelola conductivity per (peer_id, tier) dan memilih
-/// route secara probabilistik berdasarkan D(t)^2.
+/// manage conductivity per (peer_id, tier) and select
+/// route secara probabilistik based on D(t)^2.
 #[derive(Default)]
 pub struct AdaptiveMux {
-    /// Key: (peer_id, tier) → conductivity
+    /// toy: (peer_id, tier) → conductivity
     channels: HashMap<([u8; 32], TransportTier), ChannelConductivity>,
 }
 
@@ -226,7 +226,7 @@ impl AdaptiveMux {
         Self::default()
     }
 
-    /// Get atau buat channel conductivity untuk (peer, tier).
+    /// Get or buat channel conductivity for (peer, tier).
     pub fn channel_mut(
         &mut self,
         peer_id: [u8; 32],
@@ -235,7 +235,7 @@ impl AdaptiveMux {
         self.channels.entry((peer_id, tier)).or_default()
     }
 
-    /// Update conductivity channel setelah flow. Spec §12.5.
+    /// Update conductivity channel after flow. Spec §12.5.
     pub fn record_flow(
         &mut self,
         peer_id: [u8; 32],
@@ -247,11 +247,11 @@ impl AdaptiveMux {
             .update(flow_fp, elapsed_secs_fp);
     }
 
-    /// Hitung probabilitas pemilihan setiap tier untuk peer tertentu.
+    /// Hitung probabilitas pemilihan each tier for peer specific.
     ///
     /// P(tier t) = D(t)^2 / Σ D(t')^2 — spec §12.5.
     ///
-    /// Return: Vec<(tier, prob_fp)> diurutkan descending probability.
+    /// Return: Vec<(tier, prob_fp)> aturutkan descenatng probability.
     pub fn tier_probabilities(&self, peer_id: [u8; 32]) -> Vec<(TransportTier, u64)> {
         let tiers = TransportTier::all();
 
@@ -294,7 +294,7 @@ impl AdaptiveMux {
         probs
     }
 
-    /// Pilih tier terbaik untuk peer (tier dengan probabilitas tertinggi).
+    /// select tier terbaik for peer (tier with probabilitas tertinggi).
     pub fn best_tier(&self, peer_id: [u8; 32]) -> TransportTier {
         self.tier_probabilities(peer_id)
             .into_iter()
@@ -303,7 +303,7 @@ impl AdaptiveMux {
             .unwrap_or(TransportTier::Internet)
     }
 
-    /// Jumlah channel yang terdaftar.
+    /// Jumlah channel that registered.
     pub fn channel_count(&self) -> usize {
         self.channels.len()
     }
@@ -380,10 +380,10 @@ mod tests {
     #[test]
     fn test_conductivity_decays_without_flow() {
         let mut ch = ChannelConductivity::new();
-        ch.conductivity_fp = 1_000_000; // set ke 1.0
+        ch.conductivity_fp = 1_000_000; // set to 1.0
 
         // Tanpa flow (flow=0), conductivity harus turun
-        ch.update(0, FIXED_POINT_BASIS); // 1 detik tanpa flow
+        ch.update(0, FIXED_POINT_BASIS); // 1 seconds tanpa flow
         assert!(
             ch.conductivity_fp < 1_000_000,
             "Conductivity harus turun tanpa flow"

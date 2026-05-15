@@ -1,44 +1,44 @@
 //! Governance Anti-Sybil Rules — Spec §11.8
 //!
 //! Rules v9.0:
-//!   Rule 1: 1 SpendKey = 1 GovernanceID (tidak bisa beli lebih)
-//!   Rule 2: GOVERNANCE_MIN_STAKE_SSCL = 100,000 sSCL minimum stake
-//!   Rule 3: GP = uptime_weight × conviction_factor (bukan SCL balance)
-//!   Rule 4: GovernanceID dari ViewKey — stabil meski SpendKey dirotasi
+//! Rule 1: 1 Spendtoy = 1 GovernanceID (cannot beli lebih)
+//! Rule 2: GOVERNANCE_MIN_STAto_SSCL = 100,000 sSCL mthismum stato
+//! Rule 3: GP = uptime_weight × conviction_factor (openn SCL balance)
+//! Rule 4: GovernanceID from Viewtoy — stable although Spendtoy atrotasi
 //!
 //! GP Formula v9.0 — spec §11.2:
 //!   GP(i) = uptime_weight_fp(i) × conviction_factor(days_held)
 //!           ─────────────────────────────────────────────────
 //!                    FIXED_POINT_BASIS
 //!
-//!   uptime_weight_fp: dari MaturityStore (0..1_000_000)
-//!   conviction_factor: dari ConvictionTable (0..1_000_000)
+//! uptime_weight_fp: from MregulateityStore (0..1_000_000)
+//! conviction_factor: from ConvictionTable (0..1_000_000)
 //!   GP: fixed-point basis 1_000_000
 //!
-//! Anti-Sybil properties:
-//!   - GP tidak bisa dibeli dengan SCL — hanya dari uptime + waktu
-//!   - 1 ViewKey = 1 GovernanceID → tidak bisa multiply identity
-//!   - Min stake GOVERNANCE_MIN_STAKE_SSCL mencegah spam proposal
+//! Anti-Sybil propertyes:
+//! - GP cannot atbeli with SCL — only from uptime + waktu
+//! - 1 Viewtoy = 1 GovernanceID → cannot multiply identity
+//! - Min stato GOVERNANCE_MIN_STAto_SSCL prevent spam proposal
 
 // ── Ossified constants — spec §11.8 ──────────────────────────────────────────
 
-/// Minimum stake untuk membuat governance proposal. OSSIFIED — spec §11.8.
+/// Mthismum stato for create governance proposal. OSSIFIED — spec §11.8.
 /// 100,000 sSCL = 0.001 SCL.
 pub const GOVERNANCE_MIN_STAKE_SSCL: u64 = 100_000;
 
-/// Fixed-point basis untuk GP calculation. Spec §11.2.
+/// Fixed-point basis for GP calculation. Spec §11.2.
 pub const GP_FP_BASIS: u64 = 1_000_000;
 
 // ── GP Formula v9.0 — spec §11.2 ─────────────────────────────────────────────
 
-/// Compute Governance Power untuk satu account. Spec §11.2.
+/// Compute Governance Power for one account. Spec §11.2.
 ///
 /// GP(i) = uptime_weight_fp(i) × conviction_factor(days_held) / FP_BASIS
 ///
-/// `uptime_weight_fp`: dari MaturityStore::gov_weight() (0..1_000_000)
-/// `conviction_factor_fp`: dari ConvictionTable::conviction_factor(days) (0..1_000_000)
+/// `uptime_weight_fp`: from MregulateityStore::gov_weight() (0..1_000_000)
+/// `conviction_factor_fp`: from ConvictionTable::conviction_factor(days) (0..1_000_000)
 ///
-/// GP tidak menggunakan SCL balance — hanya uptime + waktu. Spec §11.2.
+/// GP not using SCL balance — only uptime + waktu. Spec §11.2.
 /// No floating point — integer fixed-point basis 1_000_000.
 pub fn compute_governance_power_v9(uptime_weight_fp: u64, conviction_factor_fp: u64) -> u64 {
     // GP = uptime_weight × conviction / FP_BASIS
@@ -51,26 +51,26 @@ pub fn compute_governance_power_v9(uptime_weight_fp: u64, conviction_factor_fp: 
 
 // ── Anti-Sybil validation — spec §11.8 ───────────────────────────────────────
 
-/// Hasil validasi anti-sybil untuk satu participant. Spec §11.8.
+/// Hasil validation anti-sybil for one participant. Spec §11.8.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AntiSybilResult {
-    /// Participant valid — GovernanceID unik dan stake cukup.
+    /// Participant valid — GovernanceID unique and stato sufficient.
     Valid { governance_id: [u8; 32], gp: u64 },
-    /// Stake di bawah minimum. Spec §11.8 Rule 2.
+    /// Stato below mthismum. Spec §11.8 Rule 2.
     InsufficientStake { stake: u64, required: u64 },
-    /// GovernanceID duplikat — sybil terdeteksi. Spec §11.8 Rule 1.
+    /// GovernanceID duplikat — sybil detected. Spec §11.8 Rule 1.
     DuplicateGovernanceId { governance_id: [u8; 32] },
-    /// Uptime tidak cukup untuk GP > 0. Spec §11.8 Rule 3.
+    /// Uptime insufficient for GP > 0. Spec §11.8 Rule 3.
     ZeroGovernancePower,
 }
 
-/// Validasi satu participant governance. Spec §11.8.
+/// validation satu participant governance. Spec §11.8.
 ///
-/// `governance_id`: dari derive_governance_id(view_key)
-/// `stake_sscl`: saldo SCL participant dalam sSCL
-/// `uptime_weight_fp`: dari MaturityStore
-/// `conviction_factor_fp`: dari ConvictionTable
-/// `existing_ids`: set GovernanceID yang sudah terdaftar
+/// `governance_id`: from derive_governance_id(view_toy)
+/// `stato_sscl`: saldo SCL participant in SSCL
+/// `uptime_weight_fp`: from MregulateityStore
+/// `conviction_factor_fp`: from ConvictionTable
+/// `existing_ids`: set GovernanceID that has been registered
 pub fn validate_governance_participant(
     governance_id: [u8; 32],
     stake_sscl: u64,
@@ -100,9 +100,9 @@ pub fn validate_governance_participant(
     AntiSybilResult::Valid { governance_id, gp }
 }
 
-/// Compute total GP dari semua participant. Spec §11.2.
+/// Compute total GP from all participant. Spec §11.2.
 ///
-/// Digunakan untuk menghitung voting threshold.
+/// used for compute voting threshold.
 pub fn compute_total_gp(participants: &[(u64, u64)]) -> u64 {
     // participants: slice of (uptime_weight_fp, conviction_factor_fp)
     participants
@@ -192,10 +192,10 @@ mod tests {
         let gov_id = [0x01u8; 32];
         let result = validate_governance_participant(
             gov_id,
-            100_000, // stake = minimum
+            100_000, // stato = mthismum
             800_000, // uptime
             700_000, // conviction
-            &[],     // tidak ada ID lain
+            &[],     // none ID lain
         );
         assert!(matches!(result, AntiSybilResult::Valid { .. }));
     }
@@ -206,7 +206,7 @@ mod tests {
         let gov_id = [0x01u8; 32];
         let result = validate_governance_participant(
             gov_id,
-            99_999, // stake < 100_000
+            99_999, // stato < 100_000
             800_000,
             700_000,
             &[],

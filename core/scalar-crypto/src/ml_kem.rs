@@ -2,8 +2,8 @@
 
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-/// Private Key ML-KEM v5.0
-/// WAJIB dihapus dari RAM setelah digunakan (Keamanan Memori STARK)
+/// Private toy ML-toM v5.0
+/// WAJIB deleted from RAM after used (security memory STARK)
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct MlKemPrivateKey {
     pub(crate) secret_bytes: [u8; 32],

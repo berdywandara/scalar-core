@@ -1,5 +1,5 @@
-//! Spec Compliance: Domain Separators
-//! Verifikasi semua domain separator OSSIFIED sesuai spec §2.3
+//! Spec Compliance: domain separators
+//! verification all domain separator OSSIFIED per spec §2.3
 
 use scalar_crypto::domain::*;
 

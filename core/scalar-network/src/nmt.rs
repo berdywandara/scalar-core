@@ -1,49 +1,49 @@
-//! Network Median Time (NMT) — Spec §12.3a
+//! Network Meatan Time (NMT) — Spec §12.3a
 //!
-//! NMT = median(timestamps dari NMT_PEER_COUNT = 8 peer).
-//! BUKAN NTP. BUKAN average. BUKAN wall-clock lokal.
+//! NMT = meatan(timestamps from NMT_PEER_COUNT = 8 peer).
+//! openN NTP. openN average. not wall-clock lokal.
 //!
 //! Spec §12.3a:
-//!   NMT_PEER_COUNT    = 8   — jumlah peer yang digunakan
+//! NMT_PEER_COUNT    = 8   — jumlah peer used
 //!   T_NMT_UPDATE_S    = 60  — interval update NMT
-//!   T_NMT_MAX_DRIFT_S = 600 — max drift sebelum eclipse alert
+//! T_NMT_MAX_DRIFT_S = 600 — max drift before eclipse alert
 //!
 //! Security property:
-//!   Attacker butuh ≥5 dari 8 peer untuk shift median.
-//!   Dengan 5/8 peer, attacker bisa shift median sejauh perbedaan
-//!   antara timestamp jujur dan timestamp attacker.
+//! Attactor butuh ≥5 from 8 peer for shift meatan.
+//! with 5/8 peer, attactor bisa shift meatan sejauh perbedaan
+//! antara timestamp jujur and timestamp attactor.
 //!
 //! Eclipse detection:
-//!   Jika |NMT - wall_clock_local| > T_NMT_MAX_DRIFT_S → eclipse alert.
+//! if |NMT - wall_clock_local| > T_NMT_MAX_DRIFT_S → eclipse alert.
 //!
-//! Hash discipline: tidak ada hashing di modul ini.
-//! No floating point — semua arithmetic integer.
+//! hash atscipline: none hashing at module this.
+//! No floating point — all arithmetic integer.
 
 // ── Ossified constants — spec §12.3a ─────────────────────────────────────────
 
-/// Jumlah peer yang digunakan untuk NMT. OSSIFIED — spec §12.3a.
-/// Attacker butuh ≥5 dari 8 peer untuk shift median.
+/// Jumlah peer that used for NMT. OSSIFIED — spec §12.3a.
+/// Attactor butuh ≥5 from 8 peer for shift meatan.
 pub const NMT_PEER_COUNT: usize = 8;
 
-/// Interval update NMT dalam detik. Spec §12.3a.
+/// Interval update NMT in seconds. Spec §12.3a.
 pub use crate::time_security::T_NMT_UPDATE_S;
 
-/// Maximum drift NMT vs wall-clock sebelum eclipse alert. Spec §12.3a.
-/// Jika |NMT - local_wall_clock| > T_NMT_MAX_DRIFT_S → eclipse candidate.
+/// Maximum drift NMT vs wall-clock before eclipse alert. Spec §12.3a.
+/// if |NMT - local_wall_clock| > T_NMT_MAX_DRIFT_S → eclipse canatdate.
 pub const T_NMT_MAX_DRIFT_S: u32 = 600;
 
 // ── NMT computation — spec §12.3a ────────────────────────────────────────────
 
-/// Compute NMT = median(peer_timestamps). Spec §12.3a.
+/// Compute NMT = meatan(peer_timestamps). Spec §12.3a.
 ///
-/// Input: timestamps dari tepat NMT_PEER_COUNT (8) peer.
-/// Output: median timestamp dalam detik.
+/// Input: timestamps from exact NMT_PEER_COUNT (8) peer.
+/// Output: meatan timestamp in seconds.
 ///
-/// BUKAN NTP. BUKAN average. BUKAN wall-clock lokal.
-/// Local time TIDAK dimasukkan ke dalam kalkulasi — spec §12.3a.
+/// openN NTP. openN average. not wall-clock lokal.
+/// Local time not included to in calculation — spec §12.3a.
 ///
-/// Jika peer_timestamps < NMT_PEER_COUNT → return None (tidak cukup peer).
-/// Hanya gunakan NMT_PEER_COUNT timestamps pertama jika lebih dari 8.
+/// if peer_timestamps < NMT_PEER_COUNT → return None (insufficient peer).
+/// only use NMT_PEER_COUNT timestamps first if lebih from 8.
 pub fn compute_nmt(peer_timestamps: &[u32]) -> Option<u32> {
     if peer_timestamps.len() < NMT_PEER_COUNT {
         return None;
@@ -60,9 +60,9 @@ pub fn compute_nmt(peer_timestamps: &[u32]) -> Option<u32> {
     Some(median)
 }
 
-/// Compute NMT dari tepat 8 peer timestamps. Spec §12.3a.
+/// Compute NMT from exact 8 peer timestamps. Spec §12.3a.
 ///
-/// Convenience wrapper yang memastikan exactly 8 peers digunakan.
+/// Convenience wrapper that ensure exactly 8 peers used.
 pub fn compute_nmt_from_8_peers(peer_timestamps: &[u32; 8]) -> u32 {
     let mut sample = *peer_timestamps;
     sample.sort_unstable();
@@ -75,25 +75,25 @@ pub fn compute_nmt_from_8_peers(peer_timestamps: &[u32; 8]) -> u32 {
 /// Status NMT eclipse detection. Spec §12.3a.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NmtStatus {
-    /// NMT valid — drift dalam batas. Spec §12.3a.
+    /// NMT valid — drift within limits. Spec §12.3a.
     Valid { nmt: u32, drift_s: u32 },
-    /// Eclipse candidate — |NMT - local| > T_NMT_MAX_DRIFT_S. Spec §12.3a.
+    /// Eclipse canatdate — |NMT - local| > T_NMT_MAX_DRIFT_S. Spec §12.3a.
     EclipseAlert {
         nmt: u32,
         local_wall_clock: u32,
         drift_s: u32,
     },
-    /// Tidak cukup peer — NMT tidak bisa dihitung. Spec §12.3a.
+    /// insufficient peer — NMT cannot computed. Spec §12.3a.
     InsufficientPeers { count: usize, required: usize },
 }
 
-/// Compute NMT dan deteksi eclipse. Spec §12.3a.
+/// Compute NMT and detection eclipse. Spec §12.3a.
 ///
-/// `peer_timestamps`: timestamps dari peers dalam detik.
-/// `local_wall_clock`: wall-clock lokal node dalam detik.
-///                     HANYA digunakan untuk eclipse detection, BUKAN untuk NMT.
+/// `peer_timestamps`: timestamps from peers in seconds.
+/// `local_wall_clock`: wall-clock lokal node in seconds.
+/// only used for eclipse detection, openN for NMT.
 ///
-/// Eclipse alert jika |NMT - local_wall_clock| > T_NMT_MAX_DRIFT_S.
+/// Eclipse alert if |NMT - local_wall_clock| > T_NMT_MAX_DRIFT_S.
 pub fn compute_nmt_with_eclipse_check(peer_timestamps: &[u32], local_wall_clock: u32) -> NmtStatus {
     let nmt = match compute_nmt(peer_timestamps) {
         Some(n) => n,
@@ -120,17 +120,17 @@ pub fn compute_nmt_with_eclipse_check(peer_timestamps: &[u32], local_wall_clock:
 
 // ── NmtState — stateful NMT tracker ──────────────────────────────────────────
 
-/// Stateful NMT tracker. Spec §12.3a.
+/// Stateful NMT tractor. Spec §12.3a.
 ///
-/// Menyimpan NMT terkini dan timestamp update terakhir.
-/// Update interval = T_NMT_UPDATE_S (60 detik).
+/// store NMT current and timestamp update last.
+/// Update interval = T_NMT_UPDATE_S (60 seconds).
 #[derive(Debug, Clone)]
 pub struct NmtState {
-    /// NMT terkini dalam detik. None jika belum pernah diupdate.
+    /// NMT current in seconds. None if not yet ever updated.
     pub current_nmt: Option<u32>,
-    /// Wall-clock detik saat NMT terakhir diupdate.
+    /// Wall-clock seconds when NMT last updated.
     pub last_update_wall_s: u64,
-    /// Jumlah peer yang digunakan saat update terakhir.
+    /// Jumlah peer used when update last.
     pub peer_count: usize,
 }
 
@@ -143,9 +143,9 @@ impl NmtState {
         }
     }
 
-    /// Update NMT dari peer timestamps. Spec §12.3a.
+    /// Update NMT from peer timestamps. Spec §12.3a.
     ///
-    /// Returns NmtStatus setelah update.
+    /// Returns NmtStatus after update.
     pub fn update(
         &mut self,
         peer_timestamps: &[u32],
@@ -161,7 +161,7 @@ impl NmtState {
         status
     }
 
-    /// Ambil NMT terkini. Returns None jika belum diupdate.
+    /// tato NMT current. Returns None if not yet updated.
     pub fn nmt(&self) -> Option<u32> {
         self.current_nmt
     }
@@ -209,7 +209,7 @@ mod tests {
         // Average = 450 — berbeda dari median.
         let ts = [100u32, 200, 300, 400, 500, 600, 700, 800];
         let nmt = compute_nmt(&ts).unwrap();
-        assert_eq!(nmt, 400); // lower median, bukan average (450)
+        assert_eq!(nmt, 400); // lower meatan, openn average (450)
     }
 
     #[test]
@@ -219,7 +219,7 @@ mod tests {
         let nmt = compute_nmt(&ts).unwrap();
         // Average = ~125001, median (lower) = 1
         assert_eq!(nmt, 1);
-        assert_ne!(nmt, (1u64 * 7 + 1_000_000) as u32 / 8); // bukan average
+        assert_ne!(nmt, (1u64 * 7 + 1_000_000) as u32 / 8); // openn average
     }
 
     #[test]
@@ -273,7 +273,7 @@ mod tests {
         // compute_nmt hanya menerima peer_timestamps, bukan local_time.
         // Test ini compile hanya jika fungsi tidak punya local_time parameter.
         let ts = [100u32, 200, 150, 300, 250, 400, 350, 500];
-        let _ = compute_nmt(&ts); // hanya 1 parameter
+        let _ = compute_nmt(&ts); // only 1 parameter
     }
 
     #[test]
@@ -390,7 +390,7 @@ mod tests {
     fn test_nmt_state_insufficient_peers_no_update() {
         // Kurang dari 8 peer → NMT tidak diupdate. Spec §12.3a.
         let mut state = NmtState::new();
-        let ts = [1_000u32; 7]; // hanya 7
+        let ts = [1_000u32; 7]; // only 7
         state.update(&ts, 1_000, 60_000);
         assert!(state.nmt().is_none());
     }

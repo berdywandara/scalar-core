@@ -20,8 +20,8 @@ pub struct DutyCycleManager {
 }
 
 impl DutyCycleManager {
-    /// EU Duty Cycle 1%: Full proof (50KB) TIDAK FEASIBLE via LoRa di Eropa.
-    /// Hanya mengizinkan state sync (Nullifier & SMT Root).
+    /// EU Duty Cycle 1%: Full proof (50KB) not FEASIBLE via LoRa at Eropa.
+    /// only allow state sync (Nullifier & SMT root).
     pub fn can_transmit_full_proof(&self) -> bool {
         match self.region {
             LoraRegion::EU868 => false,
@@ -30,7 +30,7 @@ impl DutyCycleManager {
     }
 }
 
-/// Fragmentasi dengan Reed-Solomon FEC (Forward Error Correction) 20-30%
+/// Fragmentasi with Reed-Solomon FEC (Forward Error Correction) 20-30%
 pub fn fragment_payload_for_radio(payload: &[u8], chunk_size: usize) -> Vec<Vec<u8>> {
     payload.chunks(chunk_size).map(|c| c.to_vec()).collect()
 }

@@ -1,22 +1,22 @@
-//! scalar-sdk — Boundary Crate antara Protocol Layer dan Client-Utility Layer
+//! scalar-sdk — Boundary Crate antara Protocol Layer and Client-Utility Layer
 //!
 //! Spec §21.2 v9.0
 //!
-//! PRINSIP ISOLASI (spec §21.1):
-//!   - Client code WAJIB import dari scalar-sdk, BUKAN dari protocol crates langsung
-//!   - scalar-sdk tidak mengekspos internal protocol
-//!   - Protocol layer tidak tahu tentang scalar-sdk (dependency satu arah)
-//!   - scalar-sdk TIDAK di-ossify — bisa breaking change tanpa fork
+//! PRINSIP isolation (spec §21.1):
+//! - Client code WAJIB import from scalar-sdk, openN from protocol crates langsung
+//! - scalar-sdk not mengekspos internal protocol
+//! - Protocol layer not tahu tentang scalar-sdk (dependency satu arah)
+//! - scalar-sdk not at-ossify — bisa breaking change tanpa fork
 //!
-//! DEPENDENCY YANG DIIZINKAN (spec §21.2):
-//!   scalar-sdk → scalar-crypto, scalar-fees, blake3, thiserror
+//! DEPENDENCY that allowed (spec §21.2):
+//! scalar-sdk → scalar-crypto, scalar-fees, blato3, thiserror
 //!
-//! DEPENDENCY YANG DILARANG (spec §21.1 Aturan 1):
-//!   scalar-sdk TIDAK BOLEH import: scalar-emission, scalar-stark,
+//! DEPENDENCY that forbidden (spec §21.1 rule 1):
+//! scalar-sdk must not import: scalar-emission, scalar-stark,
 //!   scalar-nullifier, scalar-network
 //!
 //! QA CHECK: grep -r 'use scalar_emission\|use scalar_stark\|use scalar_nullifier' \
-//!   crates/scalar-sdk/src/ → harus kosong
+//! crates/scalar-sdk/src/ → harus empty
 //!
 //! API PUBLIK (spec §21.3):
 //!   query::*  — F1, F2, F3, F4, F7, F11 — read-only, zero onchain cost
@@ -380,7 +380,7 @@ mod tests_sprint7_9 {
     fn test_mpas_above_e0_deviation() {
         // emission > E0 → deviation > 0. Spec §21.3 F2.
         let report = query_monetary_policy_score(SDK_E0_SSCL + SDK_E0_SSCL, 1);
-        assert_eq!(report.deviation_fp, 1_000_000); // 100% di atas E0
+        assert_eq!(report.deviation_fp, 1_000_000); // 100% above E0
     }
 
     // ── F5: STP — additional edge cases ──────────────────────────────────────

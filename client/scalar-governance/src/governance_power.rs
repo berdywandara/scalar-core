@@ -9,10 +9,10 @@ impl GovernancePowerCalculator {
     ///            × gov_weight(i)
     ///            × ai_resistance_multiplier(conviction_days)
     ///
-    /// Semua dalam fixed-point basis 1,000,000
+    /// all in fixed-point basis 1,000,000
     pub fn compute_governance_power(
         conviction_days: u32,
-        gov_weight: u64, // dari maturity, basis 1,000,000
+        gov_weight: u64, // from mregulateity, basis 1,000,000
     ) -> u64 {
         let cf = ConvictionTable::conviction_factor(conviction_days);
         let ai_mult = Self::ai_resistance_multiplier(conviction_days);
@@ -25,7 +25,7 @@ impl GovernancePowerCalculator {
 
     /// AI Resistance Multiplier (Safeguard 1: Conviction Cliff)
     /// conviction_days < 7:  → 1% power (10,000 / 1,000,000)
-    /// 7 ≤ days < 30:        → Linear 1% ke 100%
+    /// 7 ≤ days < 30:        → Linear 1% to 100%
     /// days ≥ 30:            → 100% power (1,000,000 / 1,000,000)
     pub fn ai_resistance_multiplier(conviction_days: u32) -> u64 {
         match conviction_days {

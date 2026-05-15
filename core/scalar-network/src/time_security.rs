@@ -7,7 +7,7 @@
 //! T-5: Pre-computation attack prevention — HB with future timestamp rejected.
 //! T-6: Wall-clock NEVER used for epoch boundary — seq_num is the only source.
 //!
-//! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+//! hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 //! No floating point — all arithmetic integer fixed-point basis 1_000_000.
 
 use scalar_emission::liveness::EPOCH_HB_COUNT;
@@ -15,30 +15,30 @@ use std::collections::HashMap;
 
 // ── Time constants — spec §7.2c ───────────────────────────────────────────────
 
-/// T-4: Minimum interval antar heartbeat dalam detik. Spec §7.2c T-4.
-/// 1 HB per 10 menit = 600 detik. Bunching attack: reject HB < interval ini.
+/// T-4: Mthismum interval antar heartbeat in seconds. Spec §7.2c T-4.
+/// 1 HB per 10 minutes = 600 seconds. Bunching attack: reject HB < interval this.
 pub const T_HB_MIN_INTERVAL_S: u32 = 300;
 
-/// T-3: Interval update NMT dalam detik. Spec §12.3a.
-/// NMT harus di-update setiap 60 detik dari 8 peer.
+/// T-3: Interval update NMT in seconds. Spec §12.3a.
+/// NMT harus at-update each 60 seconds from 8 peer.
 pub const T_NMT_UPDATE_S: u32 = 60;
 
-/// T-3: Maximum NMT staleness sebelum HB ditolak. Spec §7.2c T-3.
-/// Jika NMT tidak di-update > T_NMT_STALE_S → tolak semua HB.
+/// T-3: Maximum NMT staleness before HB rejected. Spec §7.2c T-3.
+/// if NMT not at-update > T_NMT_STALE_S → reject all HB.
 pub const T_NMT_STALE_S: u32 = 120; // 2× T_NMT_UPDATE_S
 
-/// T-5: Maximum future timestamp yang ditoleransi dalam detik. Spec §7.2c T-5.
+/// T-5: Maximum future timestamp that attoleransi in seconds. Spec §7.2c T-5.
 /// HB.timestamp > NMT + T_FUTURE_TOLERANCE_S → pre-computation attack → reject.
 pub const T_FUTURE_TOLERANCE_S: u32 = 30;
 
 // ── T-1: Epoch boundary via seq_num — spec §7.2c ─────────────────────────────
 
-/// T-1: Verifikasi epoch boundary via seq_num. Spec §7.2c T-1. OSSIFIED.
+/// T-1: verification epoch boundary via seq_num. Spec §7.2c T-1. OSSIFIED.
 ///
 /// Epoch k = seq_num range [(k × EPOCH_HB_COUNT + 1), ((k+1) × EPOCH_HB_COUNT)].
-/// Wall-clock TIDAK PERNAH menentukan epoch boundary.
+/// Wall-clock not ever determine epoch boundary.
 ///
-/// Returns epoch_id berdasarkan seq_num.
+/// Returns epoch_id based on seq_num.
 pub fn epoch_from_seq_num(seq_num: u32) -> u64 {
     // Spec §7.2c T-1: epoch_id = (seq_num - 1) / EPOCH_HB_COUNT
     // seq_num dimulai dari 1, epoch_id dimulai dari 0.
@@ -48,22 +48,22 @@ pub fn epoch_from_seq_num(seq_num: u32) -> u64 {
     ((seq_num - 1) / EPOCH_HB_COUNT) as u64
 }
 
-/// T-1: Verifikasi seq_num berada dalam epoch yang benar. Spec §7.2c T-1.
+/// T-1: verification seq_num berada in epoch that correct. Spec §7.2c T-1.
 ///
-/// Returns true jika seq_num berada dalam range epoch_id.
+/// returns true if seq_num berada in range epoch_id.
 pub fn verify_seq_num_in_epoch(seq_num: u32, epoch_id: u64) -> bool {
     epoch_from_seq_num(seq_num) == epoch_id
 }
 
 // ── T-3: NMT staleness check — spec §7.2c ────────────────────────────────────
 
-/// T-3: Cek apakah NMT masih fresh. Spec §7.2c T-3.
+/// T-3: check whether NMT still fresh. Spec §7.2c T-3.
 ///
-/// `nmt_last_update_s`: wall-clock seconds saat NMT terakhir diupdate.
-/// `current_wall_clock_s`: wall-clock seconds sekarang.
+/// `nmt_last_update_s`: wall-clock seconds when NMT last updated.
+/// `current_wall_clock_s`: wall-clock seconds now.
 ///
-/// NMT stale jika (current - last_update) > T_NMT_STALE_S.
-/// Wall-clock HANYA digunakan untuk NMT staleness check — BUKAN epoch boundary.
+/// NMT stale if (current - last_update) > T_NMT_STALE_S.
+/// Wall-clock only used for NMT staleness check — is not epoch boundary.
 pub fn is_nmt_fresh(nmt_last_update_s: u64, current_wall_clock_s: u64) -> bool {
     let elapsed = current_wall_clock_s.saturating_sub(nmt_last_update_s);
     elapsed <= T_NMT_STALE_S as u64
@@ -73,11 +73,11 @@ pub fn is_nmt_fresh(nmt_last_update_s: u64, current_wall_clock_s: u64) -> bool {
 
 /// T-4: Rate limiter per node. Spec §7.2c T-4.
 ///
-/// Tolak HB jika interval dari HB sebelumnya < T_HB_MIN_INTERVAL_S.
-/// Mencegah bunching attack: 100 HB dalam 10 detik → semua ditolak kecuali 1.
+/// reject HB if interval from HB previously < T_HB_MIN_INTERVAL_S.
+/// prevent bunching attack: 100 HB in 10 seconds → all rejected except 1.
 #[derive(Default)]
 pub struct HeartbeatRateLimiter {
-    /// Key: node_id [u8;4] → timestamp HB terakhir yang diterima
+    /// toy: node_id [u8;4] → timestamp HB last received
     last_hb_timestamp: HashMap<[u8; 4], u32>,
 }
 
@@ -86,10 +86,10 @@ impl HeartbeatRateLimiter {
         Self::default()
     }
 
-    /// T-4: Cek apakah HB ini boleh diterima berdasarkan rate limit. Spec §7.2c T-4.
+    /// T-4: check whether HB this boleh received based on rate limit. Spec §7.2c T-4.
     ///
-    /// Returns true jika HB boleh diterima (interval cukup atau HB pertama).
-    /// Returns false jika HB terlalu cepat → tolak (bunching attack).
+    /// returns true if HB boleh received (interval sufficient or first heartbeat).
+    /// Returns false if HB terthen fast → reject (bunching attack).
     pub fn check_and_update(&mut self, node_id: [u8; 4], hb_timestamp: u32) -> bool {
         if let Some(&last_ts) = self.last_hb_timestamp.get(&node_id) {
             // Interval = hb_timestamp - last_ts (timestamp delta)
@@ -108,7 +108,7 @@ impl HeartbeatRateLimiter {
         true
     }
 
-    /// Reset state untuk node — dipanggil saat epoch baru dimulai.
+    /// Reset state for node — called when epoch new started.
     pub fn reset_node(&mut self, node_id: &[u8; 4]) {
         self.last_hb_timestamp.remove(node_id);
     }
@@ -116,10 +116,10 @@ impl HeartbeatRateLimiter {
 
 // ── T-5: Pre-computation attack prevention — spec §7.2c ──────────────────────
 
-/// T-5: Cek future timestamp — pre-computation attack prevention. Spec §7.2c T-5.
+/// T-5: check future timestamp — pre-computation attack prevention. Spec §7.2c T-5.
 ///
 /// HB.timestamp > NMT + T_FUTURE_TOLERANCE_S → reject.
-/// Mencegah attacker pre-compute HB dengan timestamp jauh di masa depan.
+/// prevent attactor pre-compute HB with timestamp jauh at masa depan.
 pub fn check_future_timestamp(hb_timestamp: u32, nmt: u32) -> bool {
     // HB valid jika timestamp ≤ NMT + tolerance
     hb_timestamp <= nmt.saturating_add(T_FUTURE_TOLERANCE_S)
@@ -127,10 +127,10 @@ pub fn check_future_timestamp(hb_timestamp: u32, nmt: u32) -> bool {
 
 // ── T-6: Wall-clock prohibition — spec §7.2c ─────────────────────────────────
 
-/// T-6: Dokumentasi prohibition wall-clock untuk epoch boundary. Spec §7.2c T-6.
+/// T-6: Dokumentasi prohibition wall-clock for epoch boundary. Spec §7.2c T-6.
 ///
-/// Fungsi ini TIDAK menggunakan wall-clock untuk epoch boundary.
-/// Digunakan sebagai assertion point dalam kode untuk memastikan compliance.
+/// function this not using wall-clock for epoch boundary.
+/// used as assertion point in kode for ensure compliance.
 ///
 /// "Epoch by Sequence, Not by Clock." — Scalar Network Core Principle.
 pub fn assert_no_wall_clock_epoch_boundary() {
@@ -142,14 +142,14 @@ pub fn assert_no_wall_clock_epoch_boundary() {
 
 // ── TimeSecurityRules — combined checker — spec §7.2c ────────────────────────
 
-/// Combined time security checker. Spec §7.2c T-1 sampai T-6.
+/// Combined time security chector. Spec §7.2c T-1 until T-6.
 ///
-/// Menggabungkan semua rules dalam satu interface.
+/// combine all rules in one interface.
 #[derive(Default)]
 pub struct TimeSecurityChecker {
     /// T-4: Rate limiter per node.
     pub rate_limiter: HeartbeatRateLimiter,
-    /// T-3: Timestamp NMT terakhir diupdate (wall-clock seconds).
+    /// T-3: Timestamp NMT last updated (wall-clock seconds).
     pub nmt_last_update_wall_s: u64,
 }
 
@@ -163,10 +163,10 @@ impl TimeSecurityChecker {
         self.nmt_last_update_wall_s = wall_clock_s;
     }
 
-    /// Jalankan semua time security checks untuk satu HB. Spec §7.2c.
+    /// run all time security checks for one HB. Spec §7.2c.
     ///
-    /// Returns Ok(()) jika semua checks pass.
-    /// Returns Err(TimeSecurityViolation) pada check pertama yang gagal.
+    /// Returns Ok(()) if all checks pass.
+    /// Returns Err(TimeSecurityViolation) on check first that failed.
     pub fn check_all(
         &mut self,
         node_id: [u8; 4],
@@ -211,16 +211,16 @@ impl TimeSecurityChecker {
     }
 }
 
-/// Violation dari time security rules. Spec §7.2c.
+/// Violation from time security rules. Spec §7.2c.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TimeSecurityViolation {
-    /// T-1: seq_num tidak sesuai dengan epoch_id. Spec §7.2c T-1.
+    /// T-1: seq_num not in accorandce with epoch_id. Spec §7.2c T-1.
     T1EpochBoundaryViolation {
         seq_num: u32,
         expected_epoch: u64,
         actual_epoch: u64,
     },
-    /// T-3: NMT stale — tidak di-update > T_NMT_STALE_S. Spec §7.2c T-3.
+    /// T-3: NMT stale — not at-update > T_NMT_STALE_S. Spec §7.2c T-3.
     T3NmtStale { last_update_s: u64, current_s: u64 },
     /// T-4: Rate limit exceeded — bunching attack. Spec §7.2c T-4.
     T4RateLimitExceeded { node_id: [u8; 4] },
@@ -359,12 +359,12 @@ mod tests {
         // Spec §7.2c T-4.
         let mut rl = HeartbeatRateLimiter::new();
         let node = [0x02u8; 4];
-        assert!(rl.check_and_update(node, 1_000)); // diterima
-        assert!(!rl.check_and_update(node, 1_002)); // 2 detik → tolak
-        assert!(!rl.check_and_update(node, 1_004)); // 4 detik → tolak
-        assert!(!rl.check_and_update(node, 1_100)); // 100 detik → tolak
-        assert!(!rl.check_and_update(node, 1_299)); // 299 detik → tolak
-        assert!(rl.check_and_update(node, 1_300)); // 300 detik → diterima
+        assert!(rl.check_and_update(node, 1_000)); // received
+        assert!(!rl.check_and_update(node, 1_002)); // 2 seconds → reject
+        assert!(!rl.check_and_update(node, 1_004)); // 4 seconds → reject
+        assert!(!rl.check_and_update(node, 1_100)); // 100 seconds → reject
+        assert!(!rl.check_and_update(node, 1_299)); // 299 seconds → reject
+        assert!(rl.check_and_update(node, 1_300)); // 300 seconds → received
     }
 
     #[test]
@@ -373,7 +373,7 @@ mod tests {
         let mut rl = HeartbeatRateLimiter::new();
         let node = [0x03u8; 4];
         rl.check_and_update(node, 1_000);
-        assert!(!rl.check_and_update(node, 999)); // mundur → tolak
+        assert!(!rl.check_and_update(node, 999)); // mundur → reject
     }
 
     #[test]
@@ -429,7 +429,7 @@ mod tests {
         let e1 = epoch_from_seq_num(4_320);
         let e2 = epoch_from_seq_num(4_320);
         assert_eq!(e1, e2);
-        assert_eq!(e1, 0); // epoch 0, bukan wall-clock
+        assert_eq!(e1, 0); // epoch 0, not wall-clock
     }
 
     #[test]
@@ -475,9 +475,9 @@ mod tests {
     fn test_combined_t3_violation() {
         // T-3: NMT stale. Spec §7.2c T-3.
         let mut checker = TimeSecurityChecker::new();
-        checker.update_nmt_timestamp(0); // last update di t=0
+        checker.update_nmt_timestamp(0); // last update at t=0
         let result = checker.check_all(
-            [0x01; 4], 600, 1, 0, 600, 200, // 200 detik setelah update → stale (> 120)
+            [0x01; 4], 600, 1, 0, 600, 200, // 200 seconds after update → stale (> 120)
         );
         assert!(matches!(
             result,
@@ -494,7 +494,7 @@ mod tests {
         checker.check_all([0x01; 4], 600, 1, 0, 600, 1_060).unwrap();
         // HB kedua terlalu cepat → T4
         let result = checker.check_all(
-            [0x01; 4], 601, // hanya 1 detik setelah sebelumnya
+            [0x01; 4], 601, // only 1 seconds after previously
             2, 0, 601, 1_061,
         );
         assert!(matches!(
@@ -510,7 +510,7 @@ mod tests {
         checker.update_nmt_timestamp(1_000);
         let result = checker.check_all(
             [0x01; 4],
-            700 + T_FUTURE_TOLERANCE_S + 1, // timestamp jauh di masa depan
+            700 + T_FUTURE_TOLERANCE_S + 1, // timestamp jauh at masa depan
             1,
             0,
             600, // nmt = 600

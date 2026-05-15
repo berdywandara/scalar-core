@@ -1,10 +1,10 @@
 //! Read-only state queries — spec §21.3 F1, F2, F3, F4, F7, F11
 //!
-//! Semua fungsi di modul ini bersifat read-only: zero onchain cost.
-//! Tidak ada state baru yang dibuat di protocol layer — spec §21.6 Aturan 3.
+//! all function at module this bersifat read-only: zero onchain cost.
+//! none state new that created at protocol layer — spec §21.6 rule 3.
 //!
-//! ISOLASI: modul ini TIDAK import dari protocol crates — spec §21.1 Aturan 1.
-//! Konstanta ossified di-copy secara eksplisit dengan referensi spec.
+//! isolation: module this not import from protocol crates — spec §21.1 rule 1.
+//! constant ossified at-copy secara eksplfillt with reference spec.
 
 use crate::types::{
     MpasReport, NhiReport, NrsReport, PaymentProof, ScarcityProof, SdkError, SlaReport,
@@ -22,9 +22,9 @@ pub const SDK_E0_SSCL: u64 = 12_600_000_000_000;
 
 // ── F1 ───────────────────────────────────────────────────────────────────────
 
-/// F1: Query scarcity proof — bukti matematis M_E(k) ≤ S_E. Spec §21.3.
+/// F1: Query scarcity proof — proof matematis M_E(k) ≤ S_E. Spec §21.3.
 ///
-/// Tidak memerlukan akses ke node penuh — cukup total minted dari caller.
+/// not require access to node full — sufficient total minted from caller.
 pub fn query_scarcity_proof(total_minted_sscl: u64, epoch: u64) -> ScarcityProof {
     // Spec §21.3 F1: is_valid = M_E(k) ≤ S_E. OSSIFIED.
     let is_valid = total_minted_sscl <= SDK_S_E_SSCL;
@@ -38,10 +38,10 @@ pub fn query_scarcity_proof(total_minted_sscl: u64, epoch: u64) -> ScarcityProof
 
 // ── F2 ───────────────────────────────────────────────────────────────────────
 
-/// F2: Query monetary policy audit score. Spec §21.3.
+/// F2: Query monetary policy auatt score. Spec §21.3.
 ///
 /// Hitung deviasi E(k) aktual vs E₀ proyeksi awal.
-/// Deviasi 0 = kebijakan berjalan persis sesuai formula.
+/// Deviasi 0 = policy running exactly sesuai formula.
 pub fn query_monetary_policy_score(emission_actual_sscl: u64, epoch: u64) -> MpasReport {
     // Deviasi = |actual - E0| / E0 dalam fp basis 1_000_000 — spec §21.3 F2
     let deviation_fp = if emission_actual_sscl >= SDK_E0_SSCL {
@@ -68,7 +68,7 @@ pub fn query_monetary_policy_score(emission_actual_sscl: u64, epoch: u64) -> Mpa
 
 /// F3: Query network health index. Spec §21.3.
 ///
-/// Komposit dari uptime, deferred epochs, dan slashing events.
+/// Komposit from uptime, deferred epochs, and slashing events.
 pub fn query_network_health(
     avg_uptime_fp: u64,
     epoch_deferred_count: u32,
@@ -87,9 +87,9 @@ pub fn query_network_health(
 
 /// F4: Query node reputation score. Spec §21.3.
 ///
-/// Menerima gov_weight_fp dan maturity_raw sebagai raw values dari caller.
-/// Caller bertanggung jawab query MaturityStore — sdk tidak tahu internal protocol.
-/// Spec §21.1 Aturan 1: sdk tidak import scalar_emission.
+/// receive gov_weight_fp and mregulateity_raw as raw values from caller.
+/// Caller bertanggung jawab query MregulateityStore — sdk not tahu internal protocol.
+/// Spec §21.1 rule 1: sdk not import scalar_emission.
 pub fn query_node_reputation(
     node_id: [u8; 32],
     gov_weight_fp: u64,
@@ -109,10 +109,10 @@ pub fn query_node_reputation(
 
 // ── F7 ───────────────────────────────────────────────────────────────────────
 
-/// F7: Build payment proof dari tx record. Spec §21.3.
+/// F7: Build payment proof from tx record. Spec §21.3.
 ///
-/// BLAKE3(tx_commitment || epoch_bytes || amount_bytes) — out-circuit.
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// BLAto3(tx_commitment || epoch_bytes || amount_bytes) — out-circuit.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn build_payment_proof(
     tx_commitment: [u8; 32],
     tx_epoch: u64,
@@ -136,8 +136,8 @@ pub fn build_payment_proof(
 
 /// F11: Query uptime SLA report. Spec §21.3.
 ///
-/// Menerima uptime_actual_fp dari caller — sdk tidak query MaturityStore langsung.
-/// Spec §21.1 Aturan 1: sdk tidak import scalar_emission.
+/// receive uptime_actual_fp from caller — sdk not query MregulateityStore langsung.
+/// Spec §21.1 rule 1: sdk not import scalar_emission.
 pub fn query_uptime_sla(
     node_id: [u8; 32],
     uptime_actual_fp: u64,

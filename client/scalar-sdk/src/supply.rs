@@ -1,36 +1,36 @@
 //! Supply Query API — spec §20.2 v11.1-FINAL, Gap G-18
 //!
-//! PR-V12-SDK-002: Tambahkan fungsi query supply ke scalar-sdk.
+//! PR-V12-SDK-002: add function query supply to scalar-sdk.
 //!
 //! Spec §20.2 v11.1-FINAL:
 //!   query_total_minted() -> u64
 //!   query_deferred_pool() -> u64
 //!   query_security_fund() -> u64
 //!
-//! Semua fungsi read-only. Data diambil dari AccountingState via parameter.
-//! Tidak ada akses ke scalar-emission internal. Isolasi terjaga.
+//! all function read-only. data derived from AccountingState via parameter.
+//! none access to scalar-emission internal. isolation terjaga.
 //!
-//! ISOLASI (spec §20.1, §21.1):
-//!   scalar-sdk TIDAK boleh import scalar-emission langsung.
-//!   Data AccountingState disupply oleh caller dari protocol layer.
+//! isolation (spec §20.1, §21.1):
+//! scalar-sdk must not import scalar-emission langsung.
+//! data AccountingState atsupply oleh caller from protocol layer.
 
 // ── AccountingSnapshot — snapshot state untuk query ──────────────────────────
 
-/// Snapshot AccountingState untuk supply queries. Spec §20.2.
+/// Snapshot AccountingState for supply queries. Spec §20.2.
 ///
-/// Caller (dari protocol layer) mengisi struct ini dari AccountingState.
-/// scalar-sdk tidak mengakses AccountingState langsung — isolasi terjaga.
+/// Caller (from protocol layer) fill struct this from AccountingState.
+/// scalar-sdk not mengakses AccountingState langsung — isolation terjaga.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccountingSnapshot {
-    /// Total PoU minted dalam sSCL. Spec §20.2.
+    /// Total PoU minted in SSCL. Spec §20.2.
     pub total_pou_minted_sscl: u64,
-    /// Saldo Deferred Emission Pool dalam sSCL. Spec §20.2.
+    /// Saldo Deferred Emission Pool in SSCL. Spec §20.2.
     pub deferred_emission_pool_sscl: u64,
-    /// Saldo Security Fund dalam sSCL. Spec §20.2.
+    /// Saldo Security Fund in SSCL. Spec §20.2.
     pub security_fund_accumulator_sscl: u64,
-    /// Total reserve yang sudah direlease dalam sSCL. Spec §20.2.
+    /// Total reserve that has been atrelease in SSCL. Spec §20.2.
     pub total_reserve_released_sscl: u64,
-    /// Epoch saat snapshot diambil.
+    /// current epoch snapshot taton.
     pub snapshot_epoch: u64,
 }
 
@@ -39,11 +39,11 @@ pub struct AccountingSnapshot {
 /// Hasil query supply. Spec §20.2.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SupplyQueryResult {
-    /// Nilai dalam sSCL.
+    /// value in SSCL.
     pub value_sscl: u64,
-    /// Epoch saat snapshot.
+    /// current epoch snapshot.
     pub snapshot_epoch: u64,
-    /// Nama field yang di-query.
+    /// Nama field that at-query.
     pub field: &'static str,
 }
 
@@ -51,8 +51,8 @@ pub struct SupplyQueryResult {
 
 /// Query total PoU minted. Spec §20.2.
 ///
-/// Returns total SCL yang sudah di-mint dari pool emisi S_E.
-/// Read-only — tidak mengubah state. Isolasi: tidak import scalar-emission.
+/// Returns total SCL that has been at-mint from pool emfill S_E.
+/// Read-only — not change state. isolation: not import scalar-emission.
 pub fn query_total_minted(snapshot: &AccountingSnapshot) -> SupplyQueryResult {
     SupplyQueryResult {
         value_sscl: snapshot.total_pou_minted_sscl,
@@ -63,8 +63,8 @@ pub fn query_total_minted(snapshot: &AccountingSnapshot) -> SupplyQueryResult {
 
 /// Query saldo Deferred Emission Pool. Spec §20.2.
 ///
-/// Returns saldo residual yang belum didistribusikan.
-/// Read-only — tidak mengubah state. Isolasi: tidak import scalar-emission.
+/// Returns saldo residual that not yet atatstributionkan.
+/// Read-only — not change state. isolation: not import scalar-emission.
 pub fn query_deferred_pool(snapshot: &AccountingSnapshot) -> SupplyQueryResult {
     SupplyQueryResult {
         value_sscl: snapshot.deferred_emission_pool_sscl,
@@ -75,8 +75,8 @@ pub fn query_deferred_pool(snapshot: &AccountingSnapshot) -> SupplyQueryResult {
 
 /// Query saldo Security Fund. Spec §20.2.
 ///
-/// Returns saldo Security Fund dari fee residual.
-/// Read-only — tidak mengubah state. Isolasi: tidak import scalar-emission.
+/// Returns saldo Security Fund from fee residual.
+/// Read-only — not change state. isolation: not import scalar-emission.
 pub fn query_security_fund(snapshot: &AccountingSnapshot) -> SupplyQueryResult {
     SupplyQueryResult {
         value_sscl: snapshot.security_fund_accumulator_sscl,
@@ -85,12 +85,12 @@ pub fn query_security_fund(snapshot: &AccountingSnapshot) -> SupplyQueryResult {
     }
 }
 
-/// Verifikasi supply conservation invariant. Spec §20.2, §15.5.
+/// verification supply conservation invariant. Spec §20.2, §15.5.
 ///
 /// Invariant: total_minted + deferred_pool + security_fund ≤ S_E + S_R
-/// (semua SCL harus bisa diakuntansi).
+/// (all SCL harus bisa atakuntansi).
 ///
-/// Returns true jika invariant terpenuhi.
+/// returns true if invariant terfulli.
 pub fn verify_supply_conservation(snapshot: &AccountingSnapshot) -> bool {
     // S_E + S_R = S_MAX = 2_100_000_000_000_000 sSCL (21M SCL)
     const S_MAX_SSCL: u64 = 2_100_000_000_000_000;
@@ -190,7 +190,7 @@ mod tests {
     fn test_supply_conservation_exceeded() {
         // Jika total > S_MAX → invariant dilanggar. Spec §20.2.
         let snapshot = AccountingSnapshot {
-            total_pou_minted_sscl: 2_100_000_000_000_000, // S_MAX penuh
+            total_pou_minted_sscl: 2_100_000_000_000_000, // S_MAX full
             deferred_emission_pool_sscl: 1,               // overflow
             security_fund_accumulator_sscl: 0,
             total_reserve_released_sscl: 0,

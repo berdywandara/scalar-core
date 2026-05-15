@@ -18,22 +18,22 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 // ── Constraint counts per komponen (OSSIFIED §4.4) ────────────────────────────
 pub const CONSTRAINTS_C1_PER_INPUT: usize = 200;
 pub const CONSTRAINTS_C2_PER_INPUT: usize = 200;
-/// SMT depth-32 genesis membership. Spec §4.3 CB (sebelumnya C3).
+/// SMT depth-32 genesis membership. Spec §4.3 CB (previously C3).
 pub const CONSTRAINTS_C3_PER_INPUT: usize = 6_464;
-/// SMT depth-32 non-membership. Spec §4.3 CC (sebelumnya C4).
+/// SMT depth-32 non-membership. Spec §4.3 CC (previously C4).
 pub const CONSTRAINTS_C4_PER_INPUT: usize = 12_800;
 pub const CONSTRAINTS_C5: usize = 10;
 /// Range proof via bit decomposition. Spec §4.3 C6.
 pub const CONSTRAINTS_C6_PER_VALUE: usize = 163;
 pub const CONSTRAINTS_C7_PER_OUTPUT: usize = 200;
-/// In-circuit authorization. Spec §4.3 CF (sebelumnya C8).
+/// In-circuit authorization. Spec §4.3 CF (previously C8).
 pub const CONSTRAINTS_C8: usize = 200;
-/// Version compatibility. Spec §4.3 CG (sebelumnya C9).
+/// versionon compatibility. Spec §4.3 CG (previously C9).
 pub const CONSTRAINTS_C9: usize = 10;
-/// Censorship resistance. Spec §4.3 CG (sebelumnya C10).
+/// Censorship resistance. Spec §4.3 CG (previously C10).
 pub const CONSTRAINTS_C10: usize = 50;
 
-/// T_MAX_WAIT = 30 menit dalam milidetik. Layer 2 CONSTRAINED. Spec §4.3 CG.
+/// T_MAX_WAIT = 30 minutes in miliseconds. Layer 2 CONSTRAINED. Spec §4.3 CG.
 pub const T_MAX_WAIT_MS: u64 = 30 * 60 * 1_000; // 1_800_000 ms
 
 pub const VALID_CRYPTO_VERSIONS: [u8; 1] = [0x01];
@@ -42,39 +42,39 @@ pub const VALID_CRYPTO_VERSIONS: [u8; 1] = [0x01];
 
 /// Public Input Transfer Circuit v11.1-FINAL.
 ///
-/// Spec §4.2 — field baru vs v5.0:
+/// Spec §4.2 — field new vs v5.0:
 ///   + utxo_set_root : [u8;32] — CB: UTXO Set Membership constraint
 ///
 /// CB CONSTRAINT (spec §4.3 CB, §8.5 v11.1-FINAL):
-///   utxo_set_root adalah snapshot deterministik dari SMT seluruh UTXO
-///   pada akhir epoch k-1, dihasilkan via canonical transaction ordering.
+/// utxo_set_root adalah snapshot determthisstik from SMT seluruh UTXO
+/// at the end of epoch k-1, generated via canonical transaction ordering.
 ///
-///   WAJIB: root dari epoch k-1 (committed), BUKAN dari epoch yang sama (k).
-///   Ini mencegah pengeluaran UTXO pada epoch yang sama dengan pembuatannya.
+/// WAJIB: root from epoch k-1 (committed), openN from epoch that same (k).
+/// this prevent spenatng UTXO on epoch that same with pembuatannya.
 ///
-///   Verifikasi: MerkleVerify(leaf=input_commitment, path, root=utxo_set_root) == TRUE
+/// verification: MerkleVerify(leaf=input_commitment, path, root=utxo_set_root) == TRUE
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TransferCircuitPublicInput {
-    /// CB: Root SMT dari semua UTXO epoch k-1 (canonical ordering). Spec §4.2, §4.3 CB.
-    /// ANTI-DOUBLE-SPEND: harus dari epoch k-1, BUKAN epoch k saat ini.
-    /// Dihasilkan via sort_transactions_canonical() — PR-V12-003.
-    /// Disimpan via UtxoSetSMT::take_snapshot() — PR-V12-004.
+    /// CB: root SMT from all UTXO epoch k-1 (canonical ordering). Spec §4.2, §4.3 CB.
+    /// ANTI-DOUBLE-SPEND: harus from epoch k-1, openN epoch k when this.
+    /// generated via sort_transactions_canonical() — PR-V12-003.
+    /// stored via UtxoSetSMT::tato_snapshot() — PR-V12-004.
     pub utxo_set_root: [u8; 32],
-    /// CG: versi kriptografi aktif. Harus ∈ valid_versions(current_epoch).
+    /// CG: version cryptography aktif. Harus ∈ valid_versionons(current_epoch).
     pub crypto_version: u8,
     /// CG: waktu tx masuk pool (unix ms). Enforce T_MAX_WAIT.
     pub entry_timestamp: u64,
-    /// Unix timestamp saat proving.
+    /// Unix timestamp when proving.
     pub current_timestamp: u64,
 }
 
 impl TransferCircuitPublicInput {
-    /// Validasi CB constraint: utxo_set_root harus dari epoch k-1. Spec §4.3 CB.
+    /// validation CB constraint: utxo_set_root harus from epoch k-1. Spec §4.3 CB.
     ///
-    /// `snapshot_epoch`: epoch dari mana root diambil.
-    /// `current_epoch`: epoch transaksi saat ini (k).
+    /// `snapshot_epoch`: epoch from mana root taton.
+    /// `current_epoch`: epoch transaction when this (k).
     ///
-    /// Returns true jika root valid untuk digunakan dalam transfer di epoch k.
+    /// returns true if root valid for used in transfer at epoch k.
     /// ANTI-DOUBLE-SPEND: snapshot_epoch HARUS == current_epoch - 1.
     pub fn validate_cb_utxo_root_epoch(&self, snapshot_epoch: u64, current_epoch: u64) -> bool {
         // CB constraint: root dari epoch k-1 (committed), bukan epoch k
@@ -86,34 +86,34 @@ impl TransferCircuitPublicInput {
         snapshot_epoch == current_epoch - 1
     }
 
-    /// Verifikasi bahwa utxo_set_root bukan zero (uninitialized). Spec §4.3 CB.
+    /// verification bahwa utxo_set_root openn zero (unthistialized). Spec §4.3 CB.
     pub fn validate_cb_root_non_zero(&self) -> bool {
         self.utxo_set_root != [0u8; 32]
     }
 }
 
-/// Public Input lengkap untuk verifier node — digunakan oleh scalar-node.
+/// Public Input complete for verifier node — used oleh scalar-node.
 ///
-/// Diupdate di v11.1-FINAL: tambah utxo_set_root untuk CB constraint.
+/// updated at v11.1-FINAL: tambah utxo_set_root for CB constraint.
 /// Spec §4.2.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScalarPublicInputs {
-    /// Legacy genesis root (v5.0). Dipertahankan untuk backward compat.
+    /// Legacy genesis root (v5.0). maintained for backward compat.
     pub genesis_smt_root: u64,
-    /// CB: UTXO Set Root dari epoch k-1 (canonical ordering). Spec §4.2 v11.1-FINAL.
-    /// Menggantikan genesis_smt_root sebagai primary UTXO membership root.
+    /// CB: UTXO Set root from epoch k-1 (canonical ordering). Spec §4.2 v11.1-FINAL.
+    /// Menggantikan genesis_smt_root as primary UTXO membership root.
     pub utxo_set_root: [u8; 32],
     pub current_nullifier_smt_root: u64,
     pub fee_value: u64,
     pub timestamp: u64,
     /// CG: waktu tx masuk pool
     pub entry_timestamp: u64,
-    /// CG: versi kriptografi
+    /// CG: version cryptography
     pub crypto_version: u8,
 }
 
-/// Private Witness — WAJIB di-zeroize dari RAM setelah digunakan.
-/// Spec §2.4: immediate zeroize setelah signing.
+/// Private Witness — WAJIB at-zeroize from RAM after used.
+/// Spec §2.4: immeatate zeroize after signing.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct TransferWitness {
     pub(crate) secret_key: [u8; 32],
@@ -121,7 +121,7 @@ pub struct TransferWitness {
 
 // ── C9/CG: Version Compatibility ─────────────────────────────────────────────
 
-/// Verifikasi crypto_version ∈ valid_versions. Spec §4.3 CG (~10 constraints).
+/// verification crypto_versionon ∈ valid_versionons. Spec §4.3 CG (~10 constraints).
 pub fn verify_c9_crypto_version(version: u8) -> Result<(), &'static str> {
     if VALID_CRYPTO_VERSIONS.contains(&version) {
         Ok(())
@@ -132,8 +132,8 @@ pub fn verify_c9_crypto_version(version: u8) -> Result<(), &'static str> {
 
 // ── C10/CG: Censorship Resistance ────────────────────────────────────────────
 
-/// CG: Tx harus diproses dalam T_MAX_WAIT dari entry_timestamp.
-/// Spec §4.3 CG: T_MAX_WAIT = 30 menit (1_800_000 ms).
+/// CG: Tx harus processed in T_MAX_WAIT from entry_timestamp.
+/// Spec §4.3 CG: T_MAX_WAIT = 30 minutes (1_800_000 ms).
 pub fn verify_c10_tx_within_wait_window(entry_ts_ms: u64, current_ts_ms: u64) -> bool {
     if current_ts_ms < entry_ts_ms {
         return false;
@@ -141,7 +141,7 @@ pub fn verify_c10_tx_within_wait_window(entry_ts_ms: u64, current_ts_ms: u64) ->
     (current_ts_ms - entry_ts_ms) <= T_MAX_WAIT_MS
 }
 
-/// CG: Cek apakah tx sudah expired.
+/// CG: check whether tx already expired.
 pub fn is_tx_censorship_expired(entry_ts_ms: u64, current_ts_ms: u64) -> bool {
     if current_ts_ms < entry_ts_ms {
         return false;
@@ -154,15 +154,15 @@ pub fn is_tx_censorship_expired(entry_ts_ms: u64, current_ts_ms: u64) -> bool {
 /// Error CB constraint. Spec §4.3 CB.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CbConstraintError {
-    /// utxo_set_root berasal dari epoch yang sama (k) — anti-double-spend violation.
-    /// Spec §4.3 CB: root harus dari epoch k-1.
+    /// utxo_set_root berasal from epoch that same (k) — anti-double-spend violation.
+    /// Spec §4.3 CB: root harus from epoch k-1.
     RootFromCurrentEpoch {
         snapshot_epoch: u64,
         current_epoch: u64,
     },
-    /// utxo_set_root adalah zero — tidak diinisialisasi.
+    /// utxo_set_root adalah zero — not thistialized.
     ZeroRoot,
-    /// snapshot_epoch lebih baru dari current_epoch — tidak valid.
+    /// snapshot_epoch lebih new from current_epoch — invalid.
     FutureSnapshot {
         snapshot_epoch: u64,
         current_epoch: u64,
@@ -198,20 +198,20 @@ impl core::fmt::Display for CbConstraintError {
     }
 }
 
-/// Validasi CB constraint untuk utxo_set_root. Spec §4.3 CB, §8.5 v11.1-FINAL.
+/// validation CB constraint for utxo_set_root. Spec §4.3 CB, §8.5 v11.1-FINAL.
 ///
-/// `utxo_set_root`: root yang disuplai pada proof.
-/// `snapshot_epoch`: epoch dari mana root diambil (dari UtxoSetState).
-/// `current_epoch`: epoch transaksi saat ini (k).
+/// `utxo_set_root`: root that atsuplai on proof.
+/// `snapshot_epoch`: epoch from mana root taton (from UtxoSetState).
+/// `current_epoch`: epoch transaction when this (k).
 ///
-/// Verifikasi:
+/// verification:
 /// 1. utxo_set_root != zero
-/// 2. snapshot_epoch == current_epoch - 1 (atau genesis edge case)
-/// 3. snapshot_epoch tidak lebih baru dari current_epoch
+/// 2. snapshot_epoch == current_epoch - 1 (or genesis edge case)
+/// 3. snapshot_epoch not lebih new from current_epoch
 ///
-/// Spec §4.2: "utxo_set_root adalah snapshot dari SMT seluruh UTXO pada
-/// epoch terkomit sebelumnya — diambil setelah semua transaksi epoch k-1
-/// diproses secara deterministik menggunakan canonical transaction ordering."
+/// Spec §4.2: "utxo_set_root adalah snapshot from SMT seluruh UTXO on
+/// epoch terkomit previously — taton after all transaction epoch k-1
+/// processed secara determthisstik using canonical transaction ordering."
 pub fn validate_cb_utxo_root(
     utxo_set_root: &[u8; 32],
     snapshot_epoch: u64,
@@ -250,7 +250,7 @@ pub fn validate_cb_utxo_root(
 
 // ── Constraint count ──────────────────────────────────────────────────────────
 
-/// Hitung total constraints berdasarkan jumlah input/output. Spec §4.4.
+/// Hitung total constraints based on jumlah input/output. Spec §4.4.
 pub fn compute_total_constraints(num_inputs: usize, num_outputs: usize) -> usize {
     let c1 = CONSTRAINTS_C1_PER_INPUT * num_inputs;
     let c2 = CONSTRAINTS_C2_PER_INPUT * num_inputs;

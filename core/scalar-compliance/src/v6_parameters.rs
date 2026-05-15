@@ -6,35 +6,35 @@
 
 // ── §7.4 v6.0 Uptime Weight ───────────────────────────────────────────────────
 
-/// Bobot uptime dalam formula w_i(k). OSSIFIED — spec §7.4 v6.0.
-/// Naik dari 600_000 (v5.0) ke 700_000 (v6.0) karena phase_coherence dihapus.
+/// Bobot uptime in formula w_i(k). OSSIFIED — spec §7.4 v6.0.
+/// Naik from 600_000 (v5.0) to 700_000 (v6.0) karena phase_coherence deleted.
 pub const V6_UPTIME_WEIGHT_FACTOR: u64 = 700_000;
 
-/// Bobot root alignment dalam formula w_i(k). OSSIFIED — spec §7.4 v6.0.
+/// Bobot root alignment in formula w_i(k). OSSIFIED — spec §7.4 v6.0.
 pub const V6_ALIGNMENT_WEIGHT_FACTOR: u64 = 300_000;
 
-/// Phase coherence factor DIHAPUS di v6.0. Nilai 0 untuk dokumentasi.
+/// Phase coherence factor deleted at v6.0. value 0 for dokumentasi.
 pub const V6_PHASE_COHERENCE_FACTOR: u64 = 0;
 
-/// uptime_weight_floor: komponen uptime selalu >= 70% dari total weight.
+/// uptime_weight_floor: komponen uptime always >= 70% from total weight.
 /// OSSIFIED — spec §7.4 v6.0 Invariant W-1.
 pub const V6_UPTIME_WEIGHT_FLOOR: u64 = 700_000;
 
 // ── §8.1 v6.0 Manifest ───────────────────────────────────────────────────────
 
-/// Versi spec manifest v6.0. OSSIFIED — spec §8.1 v6.0.
-/// Node v5.0 akan REJECT manifest dengan spec_version = 0x02.
+/// version spec manifest v6.0. OSSIFIED — spec §8.1 v6.0.
+/// Node v5.0 will REJECT manifest with spec_versionon = 0x02.
 pub const V6_SPEC_VERSION_MANIFEST: u8 = 0x02;
 
 // ── §12.3 v6.0 GSS ───────────────────────────────────────────────────────────
 
-/// Latency maksimum untuk GSS score. OSSIFIED — spec §12.3 v6.0.
+/// Latency maksimum for GSS score. OSSIFIED — spec §12.3 v6.0.
 pub const V6_GSS_MAX_LATENCY_MS: u64 = 300_000;
 
-/// Threshold staleness heartbeat untuk GSS. OSSIFIED — spec §12.3 v6.0.
+/// Threshold staleness heartbeat for GSS. OSSIFIED — spec §12.3 v6.0.
 pub const V6_GSS_HEARTBEAT_STALENESS_S: u64 = 900;
 
-/// Threshold GSS untuk eclipse detection Layer 1. OSSIFIED — spec §12.8 v6.0.
+/// Threshold GSS for eclipse detection Layer 1. OSSIFIED — spec §12.8 v6.0.
 pub const V6_GSS_ECLIPSE_THRESHOLD: u64 = 400_000;
 
 // ── §12.5 v6.0 Fanout Thresholds ─────────────────────────────────────────────

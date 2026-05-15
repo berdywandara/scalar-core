@@ -6,4 +6,4 @@ pub mod commitment;
 pub mod merkle;
 pub mod nullifier;
 pub mod value;
-pub mod version; // BARU - C9 // BARU - C10
+pub mod version; // new - C9 // new - C10

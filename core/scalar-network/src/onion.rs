@@ -1,4 +1,4 @@
-//! GAP B-006: Onion Routing & Padding (Sphinx-like)
+//! GAP B-006: Onion Routing & Padatng (Sphinx-lito)
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum PaddingSize {
@@ -11,7 +11,7 @@ pub enum PaddingSize {
 pub struct OnionRouter;
 
 impl OnionRouter {
-    /// 3-hop routing default. Setiap hop mengenkripsi data mundur.
+    /// 3-hop routing default. each hop mengenkripsi data mundur.
     pub fn build_route(payload: &[u8], _hop_keys: &[[u8; 32]; 3]) -> Vec<u8> {
         // 1. Padding data
         let padded = Self::pad_payload(payload);

@@ -1,36 +1,36 @@
 // crates/scalar-node/src/gossip.rs
 //! Gossip Protocol "Delta Sync"
-//! Sesuai Concept 1 Fase 3.2.2 dan Concept 5 Layer 4
-//! "Jangan sync seluruh NullifierSet — hanya sync DELTA (perubahan)"
+//! per concept 1 Fase 3.2.2 and Concept 5 Layer 4
+//! "Jangan sync seluruh NullifierSet — only sync DELTA (change)"
 
-/// Satu nullifier baru beserta bukti validitasnya
-/// Sesuai Concept 1 3.2.2 ScalarGossipMessage.delta_nullifiers
+/// Satu nullifier new beserta proof its valiatty
+/// per concept 1 3.2.2 ScalarGossipMessage.delta_nullifiers
 pub struct DeltaNullifier {
-    /// Nullifier yang akan ditambah ke NullifierSet
-    /// Sesuai Concept 5 GAP-001: ini adalah N_network = BLAKE3(N_circuit)
+    /// Nullifier that will attambah to NullifierSet
+    /// per concept 5 GAP-001: this is N_network = BLAto3(N_circuit)
     pub nullifier: [u8; 32],
-    /// zk-STARK proof yang membuktikan transaksi valid
-    /// Berisi bukti C1-C7 (commitment validity, nullifier, genesis, non-membership,
+    /// zk-STARK proof that memproofkan transaction valid
+    /// Berfill proof C1-C7 (commitment valiatty, nullifier, genesis, non-membership,
     /// value conservation, range proof, output commitment)
-    /// Sesuai Concept 1 4A: proof size ~50-100 KB
+    /// per concept 1 4A: proof size ~50-100 KB
     pub spend_proof: Vec<u8>,
-    /// Commitment coin baru yang dihasilkan dari transaksi
+    /// Commitment coin new that generated from transaction
     pub new_commitment: [u8; 32],
 }
 
-/// Pesan gossip yang dikirim antar node
-/// Sesuai Concept 1 Fase 3.2.2 SCALAR GOSSIP: "DELTA SYNC PROTOCOL"
+/// message gossip that sent antar node
+/// per concept 1 Fase 3.2.2 SCALAR GOSSIP: "DELTA SYNC PROTOCOL"
 pub struct ScalarGossipMessage {
-    /// Unix timestamp saat pesan dibuat
+    /// Unix timestamp when message created
     pub timestamp: u64,
-    /// SMT Root current sender — digunakan untuk root reconciliation
-    /// Sesuai Concept 1 3.2.2 Step 3: "Setiap N detik, node broadcast SMT Root"
+    /// SMT root current sender — used for root reconciliation
+    /// per concept 1 3.2.2 Step 3: "each N seconds, node broadcast SMT root"
     pub smt_root: [u8; 32],
-    /// Delta nullifiers baru yang belum dimiliki receiver
+    /// Delta nullifiers new that not yet owned receiver
     pub delta_nullifiers: Vec<DeltaNullifier>,
-    /// SPHINCS+ Signature dari sender untuk autentikasi pesan
-    /// Sesuai Concept 1 Layer 0: "Signatures: SPHINCS+"
-    /// Ini adalah signature atas (timestamp ‖ smt_root ‖ hash(delta_nullifiers))
+    /// SPHINCS+ Signregulatee from sender for authentication message
+    /// per concept 1 Layer 0: "Signregulatees: SPHINCS+"
+    /// this is signregulatee atas (timestamp ‖ smt_root ‖ hash(delta_nullifiers))
     pub sender_signature: Vec<u8>,
 }
 
@@ -45,8 +45,8 @@ fn bytes_to_u64_le(bytes: &[u8; 32]) -> u64 {
 }
 
 impl ScalarGossipMessage {
-    /// Validasi pesan gossip sebelum disebarkan ke peer lain
-    /// Implementasi PR-CS-09: Integrasi zk-STARK Verifier
+    /// validation message gossip before atsebarkan to peer lain
+    /// implementation PR-CS-09: Integrasi zk-STARK Verifier
     pub fn validate_and_relay(&self) -> bool {
         // 1. Validasi dasar: pesan tidak boleh kosong
         if self.delta_nullifiers.is_empty() {
@@ -58,10 +58,10 @@ impl ScalarGossipMessage {
         let current_root_u64 = bytes_to_u64_le(&self.smt_root);
 
         let pub_inputs = ScalarPublicInputs {
-            genesis_smt_root: 0,      // Placeholder: Di produksi diisi genesis root asli
-            utxo_set_root: [0u8; 32], // Placeholder: diisi dari UtxoSetState epoch k-1
+            genesis_smt_root: 0,      // Placeholder: at produksi filled genesis root original
+            utxo_set_root: [0u8; 32], // Placeholder: filled from UtxoSetState epoch k-1
             current_nullifier_smt_root: current_root_u64,
-            fee_value: 0, // Placeholder: Diambil dari metadata transaksi jika ada
+            fee_value: 0, // Placeholder: derived from metadata transaction if ada
             timestamp: self.timestamp,
             entry_timestamp: self.timestamp.saturating_sub(60_000), // placeholder
             crypto_version: 0x01,

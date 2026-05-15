@@ -15,18 +15,18 @@ use std::collections::HashMap;
 
 // ── Konstanta Spec §12.7 ──────────────────────────────────────────────
 
-/// Probabilitas transisi STEM → FLUFF per hop. Spec §12.7.
-/// Setiap node memiliki peluang STEM_TO_FLUFF_PROB untuk beralih ke fluff.
-/// Nilai tipikal Dandelion++: ~10% per hop.
+/// Probabilitas transfill STEM → FLUFF per hop. Spec §12.7.
+/// each node have peluang STEM_TO_FLUFF_PROB for beralih to fluff.
+/// value tipikal anddelion++: ~10% per hop.
 pub const STEM_TO_FLUFF_PROB_PERCENT: u64 = 10;
 
-/// Maximum hop STEM sebelum paksa masuk FLUFF. Anti-infinite-stem.
+/// Maximum hop STEM before paksa masuk FLUFF. Anti-infthiste-stem.
 pub const MAX_STEM_HOPS: u64 = 10;
 
-/// Random delay maksimum sebelum broadcast: 10 detik. Spec §12.7.
+/// Random delay maksimum before broadcast: 10 seconds. Spec §12.7.
 pub const MAX_BROADCAST_DELAY_SECS: u64 = 10;
 
-/// Ukuran padding standar (bytes). Spec §12.7: 1KB/16KB/64KB/256KB.
+/// size padatng standar (bytes). Spec §12.7: 1KB/16KB/64KB/256KB.
 pub const PADDING_SIZES: [usize; 4] = [1_024, 16_384, 65_536, 262_144];
 
 /// Proving time target (ms). Spec §12.7: normalized 300ms ± 10ms.
@@ -37,32 +37,32 @@ pub const PROVING_TIME_TOLERANCE_MS: u64 = 10;
 
 // ── Phase State ───────────────────────────────────────────────────────
 
-/// Phase propagasi pesan Dandelion++.
+/// Phase propagasi message anddelion++.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DandelionPhase {
-    /// STEM: forward ke satu peer saja. Menyembunyikan origin.
+    /// STEM: forward to satu peer just. Menyembunyikan origin.
     Stem {
-        /// Jumlah hop STEM yang sudah ditempuh.
+        /// Jumlah hop STEM that has been attempuh.
         hops_remaining: u64,
     },
-    /// FLUFF: broadcast ke semua peers seperti gossip biasa.
+    /// FLUFF: broadcast to all peers seperti gossip biasa.
     Fluff,
 }
 
 impl DandelionPhase {
-    /// Buat STEM phase baru dengan max hop.
+    /// Buat STEM phase new with max hop.
     pub fn new_stem() -> Self {
         DandelionPhase::Stem {
             hops_remaining: MAX_STEM_HOPS,
         }
     }
 
-    /// True jika masih dalam STEM phase.
+    /// true if still in STEM phase.
     pub fn is_stem(&self) -> bool {
         matches!(self, DandelionPhase::Stem { .. })
     }
 
-    /// True jika sudah masuk FLUFF phase.
+    /// true if already masuk FLUFF phase.
     pub fn is_fluff(&self) -> bool {
         matches!(self, DandelionPhase::Fluff)
     }
@@ -70,8 +70,8 @@ impl DandelionPhase {
 
 // ── Message Padding ───────────────────────────────────────────────────
 
-/// Pilih ukuran padding terkecil yang ≥ payload_size. Spec §12.7.
-/// Jika payload melebihi ukuran terbesar, gunakan ukuran terbesar.
+/// select size padatng tersmall that ≥ payload_size. Spec §12.7.
+/// if payload exceed size terlarge, use size terlarge.
 pub fn select_padding_size(payload_size: usize) -> usize {
     for &size in &PADDING_SIZES {
         if payload_size <= size {
@@ -82,7 +82,7 @@ pub fn select_padding_size(payload_size: usize) -> usize {
     *PADDING_SIZES.last().unwrap()
 }
 
-/// Hitung jumlah padding bytes yang harus ditambahkan.
+/// Hitung jumlah padatng bytes that harus added.
 pub fn compute_padding_bytes(payload_size: usize) -> usize {
     let target = select_padding_size(payload_size);
     target.saturating_sub(payload_size)
@@ -90,39 +90,39 @@ pub fn compute_padding_bytes(payload_size: usize) -> usize {
 
 // ── Timing Defense ────────────────────────────────────────────────────
 
-/// Validasi proving time dalam range yang diizinkan spec §12.7.
-/// Proving time WAJIB 300ms ± 10ms untuk mencegah timing side-channel.
+/// validation proving time in range that allowed spec §12.7.
+/// Proving time WAJIB 300ms ± 10ms for prevent timing side-channel.
 pub fn is_proving_time_valid(proving_time_ms: u64) -> bool {
     let min = PROVING_TIME_TARGET_MS.saturating_sub(PROVING_TIME_TOLERANCE_MS);
     let max = PROVING_TIME_TARGET_MS + PROVING_TIME_TOLERANCE_MS;
     proving_time_ms >= min && proving_time_ms <= max
 }
 
-/// Validasi broadcast delay dalam range 0-10 detik. Spec §12.7.
+/// validation broadcast delay in range 0-10 seconds. Spec §12.7.
 pub fn is_broadcast_delay_valid(delay_secs: u64) -> bool {
     delay_secs <= MAX_BROADCAST_DELAY_SECS
 }
 
 // ── Stem Routing ──────────────────────────────────────────────────────
 
-/// Hasil routing keputusan untuk satu pesan.
+/// Hasil routing toputusan for one message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RoutingDecision {
-    /// Teruskan ke satu peer (STEM).
+    /// Teruskan to satu peer (STEM).
     ForwardStem { next_peer_idx: usize },
-    /// Broadcast ke semua peers (FLUFF).
+    /// Broadcast to all peers (FLUFF).
     Broadcast,
 }
 
-/// Tentukan routing decision untuk pesan dalam STEM phase.
+/// determine routing decfillon for message in STEM phase.
 ///
-/// Menggunakan deterministic pseudo-random berdasarkan:
-/// - tx_id: ID transaksi (sebagai entropy source)
-/// - hop_count: hop ke berapa
-/// - num_peers: jumlah peers yang tersedia
+/// using determthisstic pseudo-random based on:
+/// - tx_id: ID transaction (as entropy source)
+/// - hop_count: hop to berapa
+/// - num_peers: jumlah peers that available
 ///
-/// Transisi ke FLUFF jika:
-/// 1. hops_remaining == 0, atau
+/// Transfill to FLUFF if:
+/// 1. hops_remathisng == 0, or
 /// 2. pseudo-random < STEM_TO_FLUFF_PROB_PERCENT
 pub fn decide_stem_routing(
     phase: &DandelionPhase,
@@ -154,8 +154,8 @@ pub fn decide_stem_routing(
     }
 }
 
-/// Advance STEM phase: kurangi hops_remaining.
-/// Jika hops_remaining sudah 0, transisi ke FLUFF.
+/// Advance STEM phase: kurangi hops_remathisng.
+/// if hops_remathisng already 0, transfill to FLUFF.
 pub fn advance_stem_phase(phase: DandelionPhase) -> DandelionPhase {
     match phase {
         DandelionPhase::Stem { hops_remaining } => {
@@ -173,8 +173,8 @@ pub fn advance_stem_phase(phase: DandelionPhase) -> DandelionPhase {
 
 // ── Stem Path Tracker ─────────────────────────────────────────────────
 
-/// Melacak jalur STEM per transaksi untuk anti-correlation.
-/// Spec §12.7: setiap tx harus menggunakan path yang berbeda.
+/// track jalur STEM per transaction for anti-correlation.
+/// Spec §12.7: each tx harus using path that atfferent.
 pub struct StemPathTracker {
     /// tx_id → (stem_peer_idx, hop_count)
     paths: HashMap<u64, (usize, u64)>,
@@ -187,23 +187,23 @@ impl StemPathTracker {
         }
     }
 
-    /// Rekam peer yang digunakan untuk STEM forwarding tx ini.
+    /// Rekam peer that used for STEM forwaratng tx this.
     pub fn record_stem_hop(&mut self, tx_id: u64, peer_idx: usize) {
         let entry = self.paths.entry(tx_id).or_insert((peer_idx, 0));
         entry.1 += 1;
     }
 
-    /// Ambil jumlah hop STEM yang sudah ditempuh tx ini.
+    /// tato jumlah hop STEM that has been attempuh tx this.
     pub fn hop_count(&self, tx_id: u64) -> u64 {
         self.paths.get(&tx_id).map(|(_, hops)| *hops).unwrap_or(0)
     }
 
-    /// Hapus tracking setelah masuk FLUFF (hemat memori).
+    /// delete tracking after masuk FLUFF (hemat memory).
     pub fn clear_tx(&mut self, tx_id: u64) {
         self.paths.remove(&tx_id);
     }
 
-    /// Jumlah transaksi yang sedang dalam STEM phase.
+    /// Jumlah transaction that currently in STEM phase.
     pub fn active_stem_count(&self) -> usize {
         self.paths.len()
     }
@@ -217,8 +217,8 @@ impl Default for StemPathTracker {
 
 // ── Helper ────────────────────────────────────────────────────────────
 
-/// Simple deterministic hash untuk routing decision (non-crypto, hanya untuk test).
-/// Production: gunakan ChaCha20 CSPRNG.
+/// Simple determthisstic hash for routing decfillon (non-crypto, only for test).
+/// Production: use ChaCha20 CSPRNG.
 fn simple_hash(a: u64, b: u64) -> u64 {
     // FNV-1a style mix
     let mut h: u64 = 14_695_981_039_346_656_037;

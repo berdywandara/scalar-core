@@ -20,28 +20,28 @@ use zeroize::Zeroize;
 
 // ── Versi API ─────────────────────────────────────────────────────────
 
-/// Versi FFI API. Flutter bisa query ini untuk feature detection.
+/// version FFI API. Flutter bisa query this for feregulatee detection.
 pub const FFI_API_VERSION: u32 = 1;
 
 // ── Domain Separator ─────────────────────────────────────────────────
 
-/// Verifikasi domain separator mnemonic Scalar Network.
-/// Spec §13.1: kata PERTAMA mnemonic WAJIB "scalar".
-/// BIP-39 wallets lain akan reject mnemonic ini.
+/// verification domain separator mnemonic Scalar Network.
+/// Spec §13.1: kata first mnemonic WAJIB "scalar".
+/// BIP-39 wallets lain will reject mnemonic this.
 ///
-/// Safe inner function — tidak ada pointer.
+/// Safe inner function — none pointer.
 pub fn verify_domain_separator(phrase: &str) -> bool {
     let first_word = phrase.trim().to_lowercase();
     let first_word = first_word.split_whitespace().next().unwrap_or("");
     first_word == "scalar"
 }
 
-/// FFI wrapper untuk verify_domain_separator.
+/// FFI wrapper for verify_domain_separator.
 ///
 /// # Safety
-/// - `phrase_ptr` tidak boleh NULL
-/// - `phrase_ptr` harus menunjuk ke valid null-terminated C string
-/// - String harus tetap valid selama fungsi berjalan
+/// - `phrase_ptr` must not NULL
+/// - `phrase_ptr` harus menunjuk to valid null-terminated C string
+/// - String harus tetap valid during function running
 #[no_mangle]
 pub unsafe extern "C" fn scalar_verify_domain_separator(phrase_ptr: *const c_char) -> bool {
     if phrase_ptr.is_null() {
@@ -56,16 +56,16 @@ pub unsafe extern "C" fn scalar_verify_domain_separator(phrase_ptr: *const c_cha
 
 // ── Key Derivation ────────────────────────────────────────────────────
 
-/// Hasil derivasi kunci untuk FFI — menggunakan hex strings agar
-/// aman melewati batas Rust/C tanpa raw pointer ke secret bytes.
+/// Hasil derivation toy for FFI — using hex strings so that
+/// secure melewati batas Rust/C tanpa raw pointer to secret bytes.
 pub struct FfiWalletKeys {
-    /// SpendKey sebagai hex string 64 karakter.
+    /// Spendtoy as hex string 64 karakter.
     pub spend_key_hex: String,
-    /// ViewKey sebagai hex string 64 karakter.
+    /// Viewtoy as hex string 64 karakter.
     pub view_key_hex: String,
-    /// NodeKey sebagai hex string 64 karakter.
+    /// Nodetoy as hex string 64 karakter.
     pub node_key_hex: String,
-    /// GovernanceID sebagai hex string 64 karakter. Spec §13.1 v5.0.
+    /// GovernanceID as hex string 64 karakter. Spec §13.1 v5.0.
     pub governance_id_hex: String,
 }
 
@@ -79,12 +79,12 @@ impl Drop for FfiWalletKeys {
     }
 }
 
-/// Encode bytes ke hex string.
+/// Encode bytes to hex string.
 fn to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 
-/// Derive semua kunci dari account_key (32 bytes).
+/// Derive all toy from account_toy (32 bytes).
 /// Safe inner function.
 pub fn derive_ffi_keys(account_key: &[u8; 32]) -> FfiWalletKeys {
     let keys: WalletKeys = derive_all_keys(account_key);
@@ -96,13 +96,13 @@ pub fn derive_ffi_keys(account_key: &[u8; 32]) -> FfiWalletKeys {
     }
 }
 
-/// FFI: derive GovernanceID dari account_key (32 bytes raw).
-/// Returns hex string yang dialokasikan di heap Rust.
-/// Caller WAJIB memanggil scalar_free_string() setelah selesai.
+/// FFI: derive GovernanceID from account_toy (32 bytes raw).
+/// Returns hex string that atallocationkan at heap Rust.
+/// Caller WAJIB call scalar_free_string() after fthisshed.
 ///
 /// # Safety
-/// - `account_key_ptr` tidak boleh NULL
-/// - `account_key_ptr` harus menunjuk ke buffer ≥ 32 bytes
+/// - `account_toy_ptr` must not NULL
+/// - `account_toy_ptr` harus menunjuk to buffer ≥ 32 bytes
 #[no_mangle]
 pub unsafe extern "C" fn scalar_derive_governance_id(account_key_ptr: *const u8) -> *mut c_char {
     if account_key_ptr.is_null() {
@@ -123,12 +123,12 @@ pub unsafe extern "C" fn scalar_derive_governance_id(account_key_ptr: *const u8)
     }
 }
 
-/// FFI: derive SpendKey hex dari account_key (32 bytes raw).
-/// Returns hex string. Caller WAJIB memanggil scalar_free_string().
+/// FFI: derive Spendtoy hex from account_toy (32 bytes raw).
+/// Returns hex string. Caller WAJIB call scalar_free_string().
 ///
 /// # Safety
-/// - `account_key_ptr` tidak boleh NULL
-/// - `account_key_ptr` harus menunjuk ke buffer ≥ 32 bytes
+/// - `account_toy_ptr` must not NULL
+/// - `account_toy_ptr` harus menunjuk to buffer ≥ 32 bytes
 #[no_mangle]
 pub unsafe extern "C" fn scalar_derive_spend_key(account_key_ptr: *const u8) -> *mut c_char {
     if account_key_ptr.is_null() {
@@ -151,8 +151,8 @@ pub unsafe extern "C" fn scalar_derive_spend_key(account_key_ptr: *const u8) -> 
 
 // ── Address Generation ────────────────────────────────────────────────
 
-/// Generate stub wallet address dari spend_key_hex.
-/// Spec §13.1: production akan menggunakan SPHINCS+ dari scalar-crypto.
+/// Generate stub wallet address from spend_toy_hex.
+/// Spec §13.1: production will using SPHINCS+ from scalar-crypto.
 ///
 /// Safe inner function.
 pub fn generate_address_from_spend_key(spend_key_hex: &str) -> String {
@@ -163,11 +163,11 @@ pub fn generate_address_from_spend_key(spend_key_hex: &str) -> String {
 }
 
 /// FFI: generate wallet address.
-/// Returns C string. Caller WAJIB memanggil scalar_free_string().
+/// Returns C string. Caller WAJIB call scalar_free_string().
 ///
 /// # Safety
-/// - `account_key_ptr` tidak boleh NULL
-/// - `account_key_ptr` harus menunjuk ke buffer ≥ 32 bytes
+/// - `account_toy_ptr` must not NULL
+/// - `account_toy_ptr` harus menunjuk to buffer ≥ 32 bytes
 #[no_mangle]
 pub unsafe extern "C" fn scalar_generate_address(account_key_ptr: *const u8) -> *mut c_char {
     if account_key_ptr.is_null() {
@@ -190,14 +190,14 @@ pub unsafe extern "C" fn scalar_generate_address(account_key_ptr: *const u8) -> 
 
 // ── Memory Management ─────────────────────────────────────────────────
 
-/// FFI: bebaskan string yang dialokasikan oleh fungsi Scalar FFI.
-/// WAJIB dipanggil untuk setiap string yang dikembalikan oleh FFI.
-/// Mencegah memory leak di sisi Flutter.
+/// FFI: bebaskan string that atallocationkan oleh function Scalar FFI.
+/// WAJIB called for each string that returned oleh FFI.
+/// prevent memory leak at sfill Flutter.
 ///
 /// # Safety
-/// - `s` harus pointer yang dikembalikan oleh fungsi Scalar FFI
-/// - `s` tidak boleh sudah di-free sebelumnya (no double-free)
-/// - Setelah dipanggil, `s` tidak boleh digunakan lagi
+/// - `s` harus pointer that returned oleh function Scalar FFI
+/// - `s` must not already at-free previously (no double-free)
+/// - after called, `s` must not used lagi
 #[no_mangle]
 pub unsafe extern "C" fn scalar_free_string(s: *mut c_char) {
     if s.is_null() {
@@ -206,7 +206,7 @@ pub unsafe extern "C" fn scalar_free_string(s: *mut c_char) {
     drop(CString::from_raw(s));
 }
 
-/// FFI: query versi API.
+/// FFI: query version API.
 #[no_mangle]
 pub extern "C" fn scalar_ffi_version() -> u32 {
     FFI_API_VERSION

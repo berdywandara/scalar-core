@@ -2,8 +2,8 @@
 //!
 //! EMPIRICAL-4: Pre-computation attack (4320 HB → TTL reject)   — Spec §7.2c
 //! EMPIRICAL-5: Clock drift test (±2 jam, 3 node)               — Spec §7.2c
-//! EMPIRICAL-6: Bunching attack test (100 HB / 10 detik)         — Spec §7.2c
-//! EMPIRICAL-7: NMT manipulation test (5/8 attacker → eclipse)  — Spec §12.3a
+//! EMPIRICAL-6: Bunching attack test (100 HB / 10 seconds)         — Spec §7.2c
+//! EMPIRICAL-7: NMT manipulation test (5/8 attactor → eclipse)  — Spec §12.3a
 
 #[cfg(test)]
 mod empirical_tests {

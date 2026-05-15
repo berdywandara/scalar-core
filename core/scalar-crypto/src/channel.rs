@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 //! GAP B-002: Encrypted Channel (ChaCha20-Poly1305)
-//! Semua koneksi antar node WAJIB melalui channel ini.
+//! all connection antar node WAJIB metheni channel this.
 
 use crate::CryptoError;
 use chacha20poly1305::{aead::Aead, ChaCha20Poly1305, Key, KeyInit, Nonce};
@@ -11,7 +11,7 @@ pub struct EncryptedChannel {
 }
 
 impl EncryptedChannel {
-    /// Inisialisasi channel setelah ML-KEM Key Exchange
+    /// thistialize channel after ML-toM toy Exchange
     pub fn establish(shared_secret: &[u8; 32]) -> Self {
         let key = Key::from_slice(shared_secret);
         Self {
@@ -19,7 +19,7 @@ impl EncryptedChannel {
         }
     }
 
-    /// Enkripsi data dengan random nonce
+    /// Enkripsi data with random nonce
     pub fn send<R: RngCore + CryptoRng>(
         &self,
         data: &[u8],

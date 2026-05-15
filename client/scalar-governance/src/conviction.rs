@@ -1,13 +1,13 @@
 // File: crates/scalar-governance/src/conviction.rs
 
-/// Conviction Factor menggunakan tabel diskrit precomputed
-/// OSSIFIED: semua client menggunakan tabel yang sama
-/// Tidak ada floating point runtime computation
+/// Conviction Factor using tabel atskrit precomputed
+/// OSSIFIED: all client using tabel the same
+/// none floating point runtime computation
 pub struct ConvictionTable;
 
 impl ConvictionTable {
     /// CF(t) = round((1 - (9/10)^t) × 1,000,000)
-    /// Precomputed untuk deterministik lintas platform
+    /// Precomputed for determthisstik lintas platform
     pub fn conviction_factor(t_days: u32) -> u64 {
         match t_days {
             0 => 0,
@@ -22,7 +22,7 @@ impl ConvictionTable {
             22 => 901_504,
             30 => 957_584,
             60 => 998_187,
-            365..=u32::MAX => 1_000_000, // Saturated
+            365..=u32::MAX => 1_000_000, // Sregulateated
             // Interpolasi linear untuk nilai di antara
             t => Self::interpolate(t),
         }
@@ -51,6 +51,6 @@ impl ConvictionTable {
                 return v1 + (v2 - v1) * progress / range;
             }
         }
-        1_000_000 // Default: saturated
+        1_000_000 // Default: sregulateated
     }
 }

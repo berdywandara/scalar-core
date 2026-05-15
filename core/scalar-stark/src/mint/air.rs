@@ -7,10 +7,10 @@ pub struct MintClaimPublicInput {
     pub emission_accumulator_root: [u8; 32],
     pub mint_nullifier: [u8; 32],
     pub output_commitments: Vec<[u8; 32]>,
-    pub crypto_version: u8, // BARU — v5.0 (Konsisten dengan C9)
+    pub crypto_version: u8, // new — v5.0 (Konsisten with C9)
 }
 
-#[allow(dead_code)] // Mencegah clippy warning saat fase mock
+#[allow(dead_code)] // prevent clippy warning when fase mock
 pub struct MintClaimAir {
     pub_inputs: MintClaimPublicInput,
 }
@@ -27,7 +27,7 @@ pub fn prove_mint_claim(
     _witness: &(),
     public_input: &MintClaimPublicInput,
 ) -> Result<Vec<u8>, &'static str> {
-    let valid_versions = [0x01]; // Diambil dari CryptoVersion Registry
+    let valid_versions = [0x01]; // derived from Cryptoversionon Registry
     if !valid_versions.contains(&public_input.crypto_version) {
         return Err("Invalid crypto version (MC failure)");
     }
@@ -47,7 +47,7 @@ pub fn build_test_mint_public_input() -> MintClaimPublicInput {
         emission_accumulator_root: [2u8; 32],
         mint_nullifier: [3u8; 32],
         output_commitments: vec![[4u8; 32]],
-        crypto_version: 0x01, // BARU
+        crypto_version: 0x01, // new
     }
 }
 
@@ -65,7 +65,7 @@ mod tests {
             emission_accumulator_root: [2u8; 32],
             mint_nullifier: [3u8; 32],
             output_commitments: vec![[4u8; 32]],
-            crypto_version: 0x01, // BARU
+            crypto_version: 0x01, // new
         };
 
         // Prove + verify dengan crypto_version field
@@ -77,7 +77,7 @@ mod tests {
     #[test]
     fn test_mint_claim_rejects_invalid_crypto_version() {
         let public_input = MintClaimPublicInput {
-            crypto_version: 0xFF, // tidak valid
+            crypto_version: 0xFF, // invalid
             ..build_test_mint_public_input()
         };
         let result = prove_mint_claim(&build_test_mint_witness(), &public_input);

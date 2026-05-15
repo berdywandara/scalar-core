@@ -9,35 +9,35 @@
 //   Layer 4: Proof-of-Network-Connectivity (connectivity_proof)
 //   Layer 5: Anti-partition halt (CP property)
 
-/// H_THRESHOLD = 50% dari H_ideal. Spec §12.5.
+/// H_THRESHOLD = 50% from H_ideal. Spec §12.5.
 pub const H_THRESHOLD_PERCENT: u64 = 50;
 
-/// FIXED_POINT_BASIS untuk kalkulasi fixed-point.
+/// FIXED_POINT_BASIS for calculation fixed-point.
 pub const FIXED_POINT_BASIS: u64 = 1_000_000;
 
-/// Threshold CRITICAL: satu kontributor > 80% dari deposits. Spec §12.5.
+/// Threshold CRITICAL: satu kontributor > 80% from deposits. Spec §12.5.
 pub const ECLIPSE_CRITICAL_THRESHOLD: u64 = 800_000;
 
-/// Threshold WARNING: satu kontributor > 60% dari deposits. Spec §12.5.
+/// Threshold WARNING: satu kontributor > 60% from deposits. Spec §12.5.
 pub const ECLIPSE_WARNING_THRESHOLD: u64 = 600_000;
 
-/// Minimum jumlah geographic region yang harus terlihat. Spec §12.6 Layer 3.
+/// Mthismum jumlah geographic region that harus vfillble. Spec §12.6 Layer 3.
 pub const MIN_GEOGRAPHIC_REGIONS: usize = 2;
 
 // ── Layer 2: Pheromone Entropy Monitor ───────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EclipseStatus {
-    /// Tidak ada indikasi eclipse.
+    /// none inatkasi eclipse.
     Clean,
-    /// Satu peer mendominasi >60% pheromone deposits. Aktifkan LoRa.
+    /// Satu peer mendominasi >60% pheromone deposits. activate LoRa.
     Warning { dominant_fraction_fp: u64 },
-    /// Satu peer mendominasi >80% pheromone deposits. Pause internet, aktifkan LoRa+HF.
+    /// Satu peer mendominasi >80% pheromone deposits. Pause internet, activate LoRa+HF.
     Critical { dominant_fraction_fp: u64 },
 }
 
-/// Hitung entropy Shannon dari distribusi pheromone deposits.
-/// H = -Σᵢ pᵢ log₂(pᵢ) dalam fixed-point basis 1_000_000.
+/// Hitung entropy Shannon from atstribution pheromone deposits.
+/// H = -Σᵢ pᵢ log₂(pᵢ) in fixed-point basis 1_000_000.
 pub fn compute_pheromone_entropy_fp(deposits: &[u64]) -> u64 {
     let total: u64 = deposits.iter().sum();
     if total == 0 || deposits.is_empty() {
@@ -58,7 +58,7 @@ pub fn compute_pheromone_entropy_fp(deposits: &[u64]) -> u64 {
     entropy_fp
 }
 
-/// H_ideal = log₂(N) untuk N sender yang semuanya equal.
+/// H_ideal = log₂(N) for N sender that allnya equal.
 pub fn compute_ideal_entropy_fp(num_senders: usize) -> u64 {
     if num_senders <= 1 {
         return 0;
@@ -68,7 +68,7 @@ pub fn compute_ideal_entropy_fp(num_senders: usize) -> u64 {
     log2_n * FIXED_POINT_BASIS
 }
 
-/// Layer 2: Deteksi eclipse via pheromone entropy monitor. Spec §12.5.
+/// Layer 2: detection eclipse via pheromone entropy monitor. Spec §12.5.
 pub fn detect_eclipse_via_entropy(deposits: &[u64]) -> EclipseStatus {
     let total: u64 = deposits.iter().sum();
     if total == 0 || deposits.is_empty() {
@@ -92,7 +92,7 @@ pub fn detect_eclipse_via_entropy(deposits: &[u64]) -> EclipseStatus {
 
 // ── Layer 3: Geographic Diversity Sampling ────────────────────────────
 
-/// Region geografis untuk diversity check. Spec §12.6 Layer 3.
+/// Region geografis for atversionty check. Spec §12.6 Layer 3.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GeoRegion {
     Americas,
@@ -101,7 +101,7 @@ pub enum GeoRegion {
     Unknown,
 }
 
-/// Layer 3: Cek apakah peer set mencakup ≥2 geographic regions. Spec §12.6.
+/// Layer 3: check whether peer set mencakup ≥2 geographic regions. Spec §12.6.
 pub fn check_geographic_diversity(peer_regions: &[GeoRegion]) -> bool {
     let unique_known: std::collections::HashSet<&GeoRegion> = peer_regions
         .iter()
@@ -112,16 +112,16 @@ pub fn check_geographic_diversity(peer_regions: &[GeoRegion]) -> bool {
 
 // ── Layer 5: Anti-partition halt ──────────────────────────────────────
 
-/// Status partisi node. Spec §12.6 Layer 5.
+/// Status partfill node. Spec §12.6 Layer 5.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartitionStatus {
-    /// Node terhubung normal.
+    /// Node connected normal.
     Connected,
-    /// Node ter-partisi — HALT pemrosesan transaksi baru (CP property).
+    /// Node ter-partfill — HALT pemrosesan transaction new (CP property).
     Partitioned,
 }
 
-/// Layer 5: Tentukan status partisi. Spec §12.6: jika <67% peers agree → PARTITIONED.
+/// Layer 5: determine status partfill. Spec §12.6: if <67% peers agree → PARTITIONED.
 pub fn evaluate_partition_status(
     connected_peers: usize,
     total_expected_peers: usize,
@@ -138,12 +138,12 @@ pub fn evaluate_partition_status(
 
 // ── Full Report ───────────────────────────────────────────────────────
 
-/// Evaluasi keseluruhan eclipse defense — gabungan semua layer. Spec §12.6.
+/// evaluation toseluruhan eclipse defense — gabungan all layer. Spec §12.6.
 pub struct EclipseDefenseReport {
     pub entropy_status: EclipseStatus,
     pub geographic_diversity_ok: bool,
     pub partition_status: PartitionStatus,
-    /// True jika ada indikasi eclipse dari layer manapun.
+    /// true if ada inatkasi eclipse from layer manapun.
     pub eclipse_detected: bool,
 }
 

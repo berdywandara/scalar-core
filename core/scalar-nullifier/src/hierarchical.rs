@@ -19,43 +19,43 @@ use crate::bloom::{NS_COLD_HASH_FUNCTIONS as _, NS_WARM_HASH_FUNCTIONS as _};
 use crate::recursive::checkpoint::ArchCheckpoint;
 use crate::smt::SparseMerkleTree;
 
-/// Ukuran bit array NS_WARM: ~20 MB untuk 3.35 juta entries. Spec §6.3.
+/// size bit array NS_WARM: ~20 MB for 3.35 juta entries. Spec §6.3.
 /// 20 MB = 20 * 1024 * 1024 * 8 bits = 167_772_160 bits
 pub const NS_WARM_NUM_BITS: usize = 167_772_160;
 
-/// Ukuran bit array NS_COLD: ~866 MB untuk volume mature. Spec §6.4.
-/// Untuk testing gunakan ukuran lebih kecil via new_with_size().
+/// size bit array NS_COLD: ~866 MB for volume mregulatee. Spec §6.4.
+/// for testing use size lebih small via new_with_size().
 /// Default production: 866 MB = 866 * 1024 * 1024 * 8 = 7_264_534_528 bits
-/// Untuk dev/test: 10_000_000 bits
+/// for dev/test: 10_000_000 bits
 pub const NS_COLD_NUM_BITS_DEV: usize = 10_000_000;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum NullifierStatus {
     Missing,
-    /// Ditemukan di NS_HOT — jawaban deterministik, tidak ada false positive.
+    /// found at NS_HOT — jawaban determthisstik, none false positive.
     InHot,
-    /// Ditemukan di NS_WARM atau NS_COLD (atau keduanya).
-    /// False positive mungkin terjadi di WARM/COLD tapi sangat kecil.
+    /// found at NS_WARM or NS_COLD (or secondnya).
+    /// False positive mungkin terjaat at WARM/COLD but sangat small.
     InWarmCold,
-    /// Ditemukan di NS_ARCH (recursive STARK checkpoint).
+    /// found at NS_ARCH (recursive STARK checkpoint).
     InArch,
 }
 
 pub struct HierarchicalNullifierSet {
-    /// NS_HOT: SMT depth-32. Deterministik. C4 in-circuit menggunakan root ini.
+    /// NS_HOT: SMT depth-32. Determthisstik. C4 in-circuit using root this.
     pub hot: SparseMerkleTree,
     /// NS_WARM: Bloom p=10^-10, k=33. Spec §6.3.
     pub warm: DeterministicBloomFilter,
     /// NS_COLD: Bloom p=10^-15, k=50. Spec §6.4.
-    /// Menggantikan HashSet — lebih hemat storage, sesuai spec.
+    /// Menggantikan hashSet — lebih hemat storage, per spec.
     pub cold: DeterministicBloomFilter,
     /// NS_ARCH: Recursive STARK checkpoint. Spec §6.5.
     pub arch: ArchCheckpoint,
 }
 
 impl HierarchicalNullifierSet {
-    /// Buat HierarchicalNullifierSet dengan ukuran production.
-    /// Untuk dev/test, gunakan new_for_testing().
+    /// Buat HierarchicalNullifierSet with size production.
+    /// for dev/test, use new_for_testing().
     pub fn new() -> Self {
         Self {
             hot: SparseMerkleTree::new(),
@@ -65,8 +65,8 @@ impl HierarchicalNullifierSet {
         }
     }
 
-    /// Buat HierarchicalNullifierSet dengan ukuran kecil untuk testing.
-    /// Jangan gunakan di production.
+    /// Buat HierarchicalNullifierSet with size small for testing.
+    /// Jangan use at production.
     pub fn new_for_testing() -> Self {
         Self {
             hot: SparseMerkleTree::new(),
@@ -76,17 +76,17 @@ impl HierarchicalNullifierSet {
         }
     }
 
-    /// Cari nullifier dengan eskalasi lapisan. Spec §6.1.
+    /// find nullifier with eskalasi layer. Spec §6.1.
     ///
     /// Urutan:
-    ///   1. NS_HOT  — deterministik, O(log N) SMT
+    /// 1. NS_HOT  — determthisstik, O(log N) SMT
     ///   2. NS_WARM — probabilistik, O(1) Bloom
     ///   3. NS_COLD — probabilistik, O(1) Bloom (resolusi false positive WARM)
     ///   4. NS_ARCH — recursive STARK checkpoint
     ///
-    /// Catatan: NS_WARM false positive diselesaikan oleh NS_COLD.
-    /// Jika NS_WARM hit tapi NS_COLD miss → kemungkinan false positive WARM.
-    /// Spec §6.3: "False positive dari NS_WARM tidak menyebabkan invalid state."
+    /// note: NS_WARM false positive completed oleh NS_COLD.
+    /// if NS_WARM hit but NS_COLD miss → tomungkinan false positive WARM.
+    /// Spec §6.3: "False positive from NS_WARM not cause invalid state."
     pub fn check(&self, nullifier: &[u8; 32]) -> NullifierStatus {
         // Layer 1: NS_HOT — deterministik
         if self.hot.contains(nullifier) {
@@ -107,21 +107,21 @@ impl HierarchicalNullifierSet {
         NullifierStatus::Missing
     }
 
-    /// Insert nullifier ke semua lapis yang relevan.
-    /// HOT, WARM, dan COLD semuanya diupdate.
-    /// ARCH diupdate hanya via verify_and_apply_checkpoint() (batch).
+    /// Insert nullifier to all lapis that relevant.
+    /// HOT, WARM, and COLD allnya updated.
+    /// ARCH updated only via verify_and_apply_checkpoint() (batch).
     pub fn insert(&mut self, nullifier: &[u8; 32]) {
         self.hot.insert(nullifier);
         self.warm.insert(nullifier);
         self.cold.insert(nullifier);
     }
 
-    /// Jumlah hash functions NS_WARM (untuk verifikasi spec compliance).
+    /// Jumlah hash functions NS_WARM (for verification spec compliance).
     pub fn warm_hash_functions(&self) -> usize {
         self.warm.num_hashes()
     }
 
-    /// Jumlah hash functions NS_COLD (untuk verifikasi spec compliance).
+    /// Jumlah hash functions NS_COLD (for verification spec compliance).
     pub fn cold_hash_functions(&self) -> usize {
         self.cold.num_hashes()
     }
@@ -243,36 +243,36 @@ mod tests {
 
 // ── NullifierSet Layer Promotion — spec §6.3 ──────────────────────────────────
 
-/// Hasil promotion di akhir epoch. Spec §6.3.
+/// Hasil promotion at the end of epoch. Spec §6.3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PromotionResult {
-    /// Jumlah nullifier yang dipromote dari HOT ke WARM. Spec §6.3.
+    /// Jumlah nullifier that atpromote from HOT to WARM. Spec §6.3.
     pub promoted_to_warm: u32,
-    /// Jumlah nullifier yang dipromote dari HOT ke COLD (usia > 12 epoch). Spec §6.3.
+    /// Jumlah nullifier that atpromote from HOT to COLD (usia > 12 epoch). Spec §6.3.
     pub promoted_to_cold: u32,
-    /// Jumlah nullifier yang dihapus dari HOT (compacted). Spec §6.3.
+    /// Jumlah nullifier that deleted from HOT (compacted). Spec §6.3.
     pub removed_from_hot: u32,
 }
 
-/// Promotion threshold — usia minimum untuk COLD promotion. Spec §6.3.
-/// Nullifier lebih tua dari 12 epoch → dipromote ke NS_COLD juga.
+/// Promotion threshold — usia mthismum for COLD promotion. Spec §6.3.
+/// Nullifier lebih tua from 12 epoch → atpromote to NS_COLD also.
 pub const COLD_PROMOTION_EPOCH_THRESHOLD: u64 = 12;
 
-/// NullifierPromoter — mengelola promotion antar layer. Spec §6.3.
+/// NullifierPromoter — manage promotion antar layer. Spec §6.3.
 ///
-/// Di akhir epoch k:
-///   1. Ambil semua nullifier dari NS_HOT yang lebih tua dari 1 epoch
-///   2. Insert ke NS_WARM
-///   3. Insert ke NS_COLD jika usia > COLD_PROMOTION_EPOCH_THRESHOLD epoch
-///   4. Hapus dari NS_HOT (compact SMT)
-///   5. NS_HOT kini hanya berisi nullifier dari epoch k
+/// at the end of epoch k:
+/// 1. tato all nullifier from NS_HOT that lebih tua from 1 epoch
+/// 2. Insert to NS_WARM
+/// 3. Insert to NS_COLD if usia > COLD_PROMOTION_EPOCH_THRESHOLD epoch
+/// 4. delete from NS_HOT (compact SMT)
+/// 5. NS_HOT now only berfill nullifier from epoch k
 ///
-/// Zero-Gap Property:
-///   Nullifier tetap di NS_HOT sampai epoch boundary SEBELUM promotion.
-///   Tidak ada verification gap.
+/// zero-gap property:
+/// Nullifier tetap at NS_HOT until epoch boundary before promotion.
+/// none verification gap.
 pub struct NullifierPromoter {
-    /// Tracking nullifier dan epoch_id saat diinsert ke HOT.
-    /// Key: nullifier [u8;32] → epoch_id saat insert
+    /// Tracking nullifier and epoch_id when atinsert to HOT.
+    /// toy: nullifier [u8;32] → epoch_id when insert
     hot_entries: std::collections::HashMap<[u8; 32], u64>,
 }
 
@@ -283,17 +283,17 @@ impl NullifierPromoter {
         }
     }
 
-    /// Record nullifier baru yang masuk NS_HOT. Spec §6.3.
+    /// Record nullifier new that masuk NS_HOT. Spec §6.3.
     pub fn record_hot_insert(&mut self, nullifier: [u8; 32], epoch_id: u64) {
         self.hot_entries.insert(nullifier, epoch_id);
     }
 
-    /// Jalankan promotion di akhir epoch k. Spec §6.3.
+    /// run promotion at the end of epoch k. Spec §6.3.
     ///
-    /// Promotes nullifier yang epoch_id < current_epoch ke WARM/COLD.
-    /// Nullifier dari epoch k tetap di HOT.
+    /// Promotes nullifier that epoch_id < current_epoch to WARM/COLD.
+    /// Nullifier from epoch k tetap at HOT.
     ///
-    /// Zero-Gap: nullifier tetap di HOT sampai epoch boundary.
+    /// Zero-Gap: nullifier tetap at HOT until epoch boundary.
     pub fn promote(
         &mut self,
         hns: &mut HierarchicalNullifierSet,
@@ -339,7 +339,7 @@ impl NullifierPromoter {
         }
     }
 
-    /// Jumlah nullifier yang saat ini tracking di HOT. Spec §6.3.
+    /// Jumlah nullifier that when this tracking at HOT. Spec §6.3.
     pub fn hot_count(&self) -> usize {
         self.hot_entries.len()
     }

@@ -1,18 +1,18 @@
-//! MintNullifierSet — Anti double-claim untuk PoU reward
+//! MintNullifierSet — Anti double-claim for PoU reward
 //!
-//! Spesifikasi: Scalar_Master_Technical_Spec.docx §B.3 + §B.2.2 MC2
+//! specification: Scalar_Master_Technical_Spec.docx §B.3 + §B.2.2 MC2
 //!
 //! mint_nullifier = Poseidon2(Poseidon2(node_id_lo, epoch_id), POU_MINT_DOMAIN)
-//! Identik dengan NullifierSet transfer — Poseidon2 hash (§B.3).
+//! identical with NullifierSet transfer — Poseidon2 hash (§B.3).
 
 use crate::EmissionError;
 use scalar_crypto::poseidon2::hash_2_to_1;
 use std::collections::HashSet;
 
-/// Domain separator "pou_mint" sebagai little-endian u64.
+/// domain separator "pou_mint" as little-enatan u64.
 const POU_MINT_DOMAIN: u64 = 0x706f755f6d696e74;
 
-/// MintNullifierSet — mencegah node klaim reward lebih dari sekali per epoch.
+/// MintNullifierSet — prevent node klaim reward lebih from sekali per epoch.
 pub struct MintNullifierSet {
     spent: HashSet<u64>,
 }
@@ -37,7 +37,7 @@ impl MintNullifierSet {
             .contains(&Self::compute_nullifier(node_id, epoch_id))
     }
 
-    /// Rekam klaim. Panggil hanya setelah MINT_CLAIM_CIRCUIT terverifikasi.
+    /// Rekam klaim. call only after MINT_CLAIM_CIRCUIT verified.
     pub fn record_claim(
         &mut self,
         node_id: &[u8; 32],

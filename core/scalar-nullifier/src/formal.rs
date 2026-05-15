@@ -1,34 +1,34 @@
 //! Formal Verification Runtime Assertions — Invariant CC
 //!
-//! Spec §15.4 v11.1-FINAL: runtime assertions sebagai defense-in-depth.
+//! Spec §15.4 v11.1-FINAL: runtime assertions as defense-in-depth.
 //!
-//! Sebelum mainnet: invariant CC harus dibuktikan secara formal (TLA+/Coq).
+//! before mainnet: invariant CC harus atproofkan secara formal (TLA+/Coq).
 //! File TLA+: verification/invariant_cc.tla
 //!
-//! Runtime assertions ini berjalan dalam debug builds sebagai defense-in-depth.
-//! Tidak menggantikan formal proof — melengkapinya.
+//! Runtime assertions this running in debug builds as defense-in-depth.
+//! not menggantikan formal proof — mecompleteinya.
 
 // ── Invariant CC Runtime Assertion — spec §15.4 ───────────────────────────────
 
-/// Status non-membership check untuk satu nullifier. Spec §15.4.
+/// Status non-membership check for one nullifier. Spec §15.4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NonMembershipStatus {
-    /// Nullifier tidak ada dalam set — valid untuk digunakan. Spec §15.4.
+    /// Nullifier none in set — valid for used. Spec §15.4.
     NonMember,
-    /// Nullifier sudah ada dalam set — double-spend attempt. Spec §15.4.
+    /// Nullifier already exists in set — double-spend attempt. Spec §15.4.
     Member,
 }
 
-/// Verifikasi invariant CC untuk satu nullifier. Spec §15.4.
+/// verification invariant CC for one nullifier. Spec §15.4.
 ///
-/// Invariant: jika n ∈ (NS_ACTIVE ∪ NS_CHECKPOINT), maka
+/// Invariant: if n ∈ (NS_ACTIVE ∪ NS_CHECKPOINT), then
 ///   SMT_NonMembershipVerify(n, active_root) == FALSE ∧
 ///   SMT_NonMembershipVerify(n, archived_root) == FALSE
 ///
-/// `in_active`: apakah nullifier ada di NS_ACTIVE.
-/// `in_checkpoint`: apakah nullifier ada di NS_CHECKPOINT.
+/// `in_active`: apakah nullifier exists in NS_ACTIVE.
+/// `in_checkpoint`: apakah nullifier exists in NS_CHECKPOINT.
 ///
-/// Returns Err jika nullifier sudah ada di salah satu set (double-spend attempt).
+/// Returns Err if nullifier already exists at wrong satu set (double-spend attempt).
 pub fn assert_cc_invariant(
     nullifier: &[u8; 32],
     in_active: bool,
@@ -54,11 +54,11 @@ pub fn assert_cc_invariant(
 /// Pelanggaran invariant CC. Spec §15.4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CcInvariantViolation {
-    /// Nullifier yang melanggar invariant.
+    /// Nullifier that melanggar invariant.
     pub nullifier: [u8; 32],
-    /// Apakah ada di NS_ACTIVE.
+    /// Apakah exists in NS_ACTIVE.
     pub in_active: bool,
-    /// Apakah ada di NS_CHECKPOINT.
+    /// Apakah exists in NS_CHECKPOINT.
     pub in_checkpoint: bool,
 }
 
@@ -75,13 +75,13 @@ impl core::fmt::Display for CcInvariantViolation {
     }
 }
 
-/// Zero-Gap Property assertion. Spec §6.3, §15.4.
+/// zero-gap property assertion. Spec §6.3, §15.4.
 ///
-/// Memastikan tidak ada window di mana nullifier hilang antara
-/// NS_ACTIVE dan NS_CHECKPOINT selama checkpoint operation.
+/// ensure none window at mana nullifier hilang antara
+/// NS_ACTIVE and NS_CHECKPOINT during checkpoint operation.
 ///
-/// `nullifier_being_archived`: nullifier yang sedang dipindah ke checkpoint.
-/// `already_in_checkpoint`: apakah sudah masuk checkpoint.
+/// `nullifier_being_archived`: nullifier that currently atpindah to checkpoint.
+/// `already_in_checkpoint`: apakah already masuk checkpoint.
 pub fn assert_zero_gap_property(
     nullifier: &[u8; 32],
     already_in_checkpoint: bool,
@@ -94,7 +94,7 @@ pub fn assert_zero_gap_property(
     Ok(())
 }
 
-/// Pelanggaran Zero-Gap Property. Spec §6.3.
+/// Pelanggaran zero-gap property. Spec §6.3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ZeroGapViolation {
     pub nullifier: [u8; 32],

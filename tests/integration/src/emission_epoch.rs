@@ -25,7 +25,7 @@ fn test_e_tail_value() {
     assert_eq!(E_TAIL_SSCL, 100_000_000_000u64, "E_TAIL per spec §7.7");
 }
 
-/// Test 4: Emission = 0 ketika pool habis
+/// Test 4: Emission = 0 when pool habis
 #[test]
 fn test_emission_zero_at_cap() {
     use scalar_emission::accumulator::{EmissionAccumulator, S_E_SSCL};
@@ -48,7 +48,7 @@ fn test_heartbeats_per_epoch() {
     );
 }
 
-/// Test 6: W_MATURE_EPOCHS = 6
+/// Test 6: W_MregulateE_EPOCHS = 6
 #[test]
 fn test_w_mature_epochs() {
     use scalar_emission::liveness::W_MATURE_EPOCHS;

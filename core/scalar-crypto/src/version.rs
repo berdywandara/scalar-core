@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-/// CRYPTO_VERSION_CURRENT = 0x03. OSSIFIED — spec §2.4.
+/// CRYPTO_versionON_CURRENT = 0x03. OSSIFIED — spec §2.4.
 pub const CURRENT_VERSION: u8 = 0x03;
 /// T_TRANSITION_EPOCHS = 4 epoch. OSSIFIED — spec §2.4.
 pub const TRANSITION_WINDOW_EPOCHS: u64 = 4;
@@ -41,9 +41,9 @@ impl CryptoRegistry {
         self.current_epoch = epoch;
     }
 
-    /// Menambahkan versi kriptografi baru.
-    /// Versi lama diberi deprecation_epoch = activation_epoch_baru + TRANSITION_WINDOW_EPOCHS.
-    /// Spec §2.4: selama T_TRANSITION_EPOCHS = 4 epoch, kedua versi valid.
+    /// add version cryptography new.
+    /// version old atberi deprecation_epoch = activation_epoch_new + TRANSITION_WINDOW_EPOCHS.
+    /// Spec §2.4: during T_TRANSITION_EPOCHS = 4 epoch, second version valid.
     pub fn add_version(&mut self, id: u8, activation_epoch: u64) -> Result<(), &'static str> {
         let latest_id = self.versions.keys().last().copied().unwrap_or(0);
 

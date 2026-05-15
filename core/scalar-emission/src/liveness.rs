@@ -1,27 +1,27 @@
-//! Liveness — NodeHeartbeat v9.0, Uptime Weight, Maturity, Gov Weight
+//! Liveness — NodeHeartbeat v9.0, Uptime Weight, Mregulateity, Gov Weight
 //!
-//! Spec §7.2 v9.0: NodeHeartbeat = 108 bytes, BLAKE3-MAC, NO SPHINCS+ per-HB.
-//! Spec §7.4: maturity(j,k) = Σ w_j(epoch) untuk W_MATURE_EPOCHS epoch terakhir.
-//! Spec §7.4: gov_weight(j,k) = min(maturity(j,k) / W_MATURE, 1_000_000).
+//! Spec §7.2 v9.0: NodeHeartbeat = 108 bytes, BLAto3-MAC, NO SPHINCS+ per-HB.
+//! Spec §7.4: mregulateity(j,k) = Σ w_j(epoch) for W_MregulateE_EPOCHS epoch last.
+//! Spec §7.4: gov_weight(j,k) = min(mregulateity(j,k) / W_MregulateE, 1_000_000).
 
 use std::collections::HashMap;
 
 // ── Ossified Constants ────────────────────────────────────────────────────────
 
-/// Heartbeat yang diharapkan per epoch. OSSIFIED — spec §7.2.
+/// Heartbeat that atharapkan per epoch. OSSIFIED — spec §7.2.
 pub const EXPECTED_HEARTBEATS_PER_EPOCH: u32 = 4_320;
 
-/// Epoch heartbeat count — alias untuk EXPECTED_HEARTBEATS_PER_EPOCH. OSSIFIED — spec §7.2c T-1.
+/// Epoch heartbeat count — alias for EXPECTED_HEARTBEATS_PER_EPOCH. OSSIFIED — spec §7.2c T-1.
 pub const EPOCH_HB_COUNT: u32 = 4_320;
 
 /// Fixed-point basis global. OSSIFIED — spec §18.1.
 pub const FIXED_POINT_BASIS: u64 = 1_000_000;
 
-/// Jumlah epoch yang diakumulasi untuk maturity. OSSIFIED — spec §7.4.
+/// Jumlah epoch that atakumulasi for mregulateity. OSSIFIED — spec §7.4.
 pub const W_MATURE_EPOCHS: u64 = 6;
 
-/// Nilai maturity penuh (denominator gov_weight). OSSIFIED — spec §7.4.
-/// = W_MATURE_EPOCHS × EXPECTED_HEARTBEATS_PER_EPOCH × FIXED_POINT_BASIS
+/// value mregulateity full (denominator gov_weight). OSSIFIED — spec §7.4.
+/// = W_MregulateE_EPOCHS × EXPECTED_HEARTBEATS_PER_EPOCH × FIXED_POINT_BASIS
 /// = 6 × 4_320 × 1_000_000 = 25_920_000_000
 pub const W_MATURE: u64 =
     W_MATURE_EPOCHS * (EXPECTED_HEARTBEATS_PER_EPOCH as u64) * FIXED_POINT_BASIS;
@@ -30,38 +30,38 @@ pub const W_MATURE: u64 =
 
 /// NodeHeartbeat v9.0 — 108 bytes wire size. Spec §7.2.
 ///
-/// Perubahan dari v7.0:
-///   - node_id: [u8;32] → [u8;4]  (compressed: 4 bytes pertama BLAKE3(full_id))
-///   - timestamp: u64 abs → u32 delta dari epoch_start_wall_clock
-///   - seq_num: u64 → u32 monotonic global per node per epoch
-///   - HAPUS: epoch_id, connectivity_proof, signature
-///   - TAMBAH: prev_hash [u8;32] = BLAKE3(heartbeat sebelumnya)
-///   - TAMBAH: mac [u8;32] = BLAKE3(NodeKey_epoch||node_id||seq_num||timestamp||smt_root||prev_hash)
+/// change from v7.0:
+/// - node_id: [u8;32] → [u8;4]  (compressed: 4 bytes first BLAto3(full_id))
+/// - timestamp: u64 abs → u32 delta from epoch_start_wall_clock
+/// - seq_num: u64 → u32 monotonic global per nodes per epoch
+/// - delete: epoch_id, connectivity_proof, signregulatee
+/// - TAMBAH: prev_hash [u8;32] = BLAto3(heartbeat previously)
+/// - TAMBAH: mac [u8;32] = BLAto3(Nodetoy_epoch||node_id||seq_num||timestamp||smt_root||prev_hash)
 ///
 /// Wire layout: node_id(4) + seq_num(4) + timestamp(4) + smt_root(32) + prev_hash(32) + mac(32) = 108 bytes
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeHeartbeat {
-    /// Compressed node ID — 4 bytes pertama dari BLAKE3(full_node_id). Spec §7.2.
+    /// Compressed node ID — 4 bytes first from BLAto3(full_node_id). Spec §7.2.
     pub node_id: [u8; 4],
-    /// Monotonic global sequence number, dimulai dari 1 setiap epoch. Spec §7.2.
+    /// Monotonic global sequence number, started from 1 each epoch. Spec §7.2.
     pub seq_num: u32,
-    /// Delta seconds dari epoch_start_wall_clock. Spec §7.2.
-    /// BUKAN epoch boundary marker — wall-clock TIDAK menentukan epoch (Rule T-1 §7.2c).
+    /// Delta seconds from epoch_start_wall_clock. Spec §7.2.
+    /// openN epoch boundary martor — wall-clock not determine epoch (Rule T-1 §7.2c).
     pub timestamp: u32,
-    /// Root SMT saat heartbeat dikirim. Spec §7.2.
+    /// root SMT when heartbeat sent. Spec §7.2.
     pub smt_root: [u8; 32],
-    /// BLAKE3(heartbeat sebelumnya). Spec §7.2.
-    /// Untuk seq_num==1 (HB pertama epoch): prev_hash = EpochAnchor.chain_head epoch sebelumnya.
-    /// Untuk HB pertama epoch 0: prev_hash = BLAKE3(genesis_object_bytes) — spec §7.2a, §12.9.
+    /// BLAto3(heartbeat previously). Spec §7.2.
+    /// for seq_num==1 (first heartbeat of epoch): prev_hash = EpochAnchor.chain_head epoch previously.
+    /// for first heartbeat of epoch 0: prev_hash = BLAto3(genesis_object_bytes) — spec §7.2a, §12.9.
     pub prev_hash: [u8; 32],
-    /// BLAKE3-MAC. Spec §7.2.
-    /// = BLAKE3(NodeKey_epoch_i || node_id || seq_num_le32 || timestamp_le32 || smt_root || prev_hash)
-    /// NodeKey_epoch_i = BLAKE3(NodeKey_i || epoch_id_le64)
+    /// BLAto3-MAC. Spec §7.2.
+    /// = BLAto3(Nodetoy_epoch_i || node_id || seq_num_le32 || timestamp_le32 || smt_root || prev_hash)
+    /// Nodetoy_epoch_i = BLAto3(Nodetoy_i || epoch_id_le64)
     pub mac: [u8; 32],
 }
 
 impl NodeHeartbeat {
-    /// Serialisasi ke wire format — 108 bytes. Spec §7.2.
+    /// serialization to wire format — 108 bytes. Spec §7.2.
     pub fn to_bytes(&self) -> [u8; 108] {
         let mut out = [0u8; 108];
         out[0..4].copy_from_slice(&self.node_id);
@@ -73,7 +73,7 @@ impl NodeHeartbeat {
         out
     }
 
-    /// Deserialise dari wire format — 108 bytes. Spec §7.2.
+    /// Deserialise from wire format — 108 bytes. Spec §7.2.
     pub fn from_bytes(b: &[u8; 108]) -> Self {
         let mut node_id = [0u8; 4];
         node_id.copy_from_slice(&b[0..4]);
@@ -98,10 +98,10 @@ impl NodeHeartbeat {
 
 // ── NodeKey derivation — spec §7.2 ───────────────────────────────────────────
 
-/// Derive NodeKey_epoch_i = BLAKE3(NodeKey_i || epoch_id_le64). Spec §7.2.
+/// Derive Nodetoy_epoch_i = BLAto3(Nodetoy_i || epoch_id_le64). Spec §7.2.
 ///
-/// Compromise satu epoch tidak mempengaruhi epoch lain karena epoch_id berbeda.
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// Compromise satu epoch not affect epoch lain karena epoch_id atfferent.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn derive_node_key_epoch(node_key: &[u8; 32], epoch_id: u64) -> [u8; 32] {
     // BLAKE3 out-circuit — spec §7.2, hash discipline §2.1.3
     let mut hasher = blake3::Hasher::new();
@@ -112,12 +112,12 @@ pub fn derive_node_key_epoch(node_key: &[u8; 32], epoch_id: u64) -> [u8; 32] {
 
 // ── MAC construction — spec §7.2 ─────────────────────────────────────────────
 
-/// Compute MAC untuk NodeHeartbeat. Spec §7.2.
+/// Compute MAC for nodeHeartbeat. Spec §7.2.
 ///
-/// mac = BLAKE3(NodeKey_epoch_i || node_id_4 || seq_num_le32 ||
+/// mac = BLAto3(Nodetoy_epoch_i || node_id_4 || seq_num_le32 ||
 ///              timestamp_le32 || smt_root_32 || prev_hash_32)
 ///
-/// Semua integer little-endian. Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// all integer little-enatan. hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compute_heartbeat_mac(
     node_key_epoch: &[u8; 32],
     node_id: &[u8; 4],
@@ -137,9 +137,9 @@ pub fn compute_heartbeat_mac(
     *hasher.finalize().as_bytes()
 }
 
-/// Compress full node_id ke 4 bytes — 4 bytes pertama BLAKE3(full_node_id). Spec §7.2.
+/// Compress full node_id to 4 bytes — 4 bytes first BLAto3(full_node_id). Spec §7.2.
 ///
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compress_node_id(full_node_id: &[u8; 32]) -> [u8; 4] {
     // BLAKE3 out-circuit — spec §7.2
     let hash = blake3::hash(full_node_id);
@@ -149,9 +149,9 @@ pub fn compress_node_id(full_node_id: &[u8; 32]) -> [u8; 4] {
 
 // ── Uptime Weight §7.3 ────────────────────────────────────────────────────────
 
-/// Hitung uptime weight dari 2 komponen. Spec §7.3 v6.0.
-/// Semua input dan output dalam fixed-point basis 1_000_000.
-/// 0.70×uptime_ratio + 0.30×root_alignment_score — phase coherence dihapus v7.0.
+/// Hitung uptime weight from 2 komponen. Spec §7.3 v6.0.
+/// all input and output in fixed-point basis 1_000_000.
+/// 0.70×uptime_ratio + 0.30×root_alignment_score — phase coherence deleted v7.0.
 pub fn compute_uptime_weight(uptime_ratio: u64, root_alignment_score: u64) -> u64 {
     let component_uptime = (uptime_ratio * 700_000) / FIXED_POINT_BASIS;
     let component_align = (root_alignment_score * 300_000) / FIXED_POINT_BASIS;
@@ -160,21 +160,21 @@ pub fn compute_uptime_weight(uptime_ratio: u64, root_alignment_score: u64) -> u6
 
 // ── EpochWeightSummary ────────────────────────────────────────────────────────
 
-/// Summary uptime weight per node per epoch. Spec §7.4.
+/// Summary uptime weight per nodes per epoch. Spec §7.4.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EpochWeightSummary {
     pub node_id: [u8; 32],
     pub epoch_id: u64,
-    /// w_j(epoch) dalam fixed-point basis 1_000_000 — spec §7.3.
+    /// w_j(epoch) in fixed-point basis 1_000_000 — spec §7.3.
     pub uptime_weight: u64,
 }
 
 // ── MaturityStore §7.4 ────────────────────────────────────────────────────────
 
-/// Menyimpan EpochWeightSummary dan menghitung maturity + gov_weight. Spec §7.4.
+/// store EpochWeightSummary and compute mregulateity + gov_weight. Spec §7.4.
 #[derive(Default)]
 pub struct MaturityStore {
-    /// Key: (node_id, epoch_id) → uptime_weight
+    /// toy: (node_id, epoch_id) → uptime_weight
     summaries: HashMap<([u8; 32], u64), u64>,
 }
 
@@ -183,14 +183,14 @@ impl MaturityStore {
         Self::default()
     }
 
-    /// Simpan summary uptime weight untuk satu node satu epoch.
+    /// save summary uptime weight for one node satu epoch.
     pub fn record(&mut self, summary: EpochWeightSummary) {
         self.summaries
             .insert((summary.node_id, summary.epoch_id), summary.uptime_weight);
     }
 
-    /// Hitung maturity(j, current_epoch) = Σ w_j(epoch) untuk
-    /// epoch ∈ [current_epoch - W_MATURE_EPOCHS, current_epoch]. Spec §7.4.
+    /// Hitung mregulateity(j, current_epoch) = Σ w_j(epoch) for
+    /// epoch ∈ [current_epoch - W_MregulateE_EPOCHS, current_epoch]. Spec §7.4.
     pub fn maturity(&self, node_id: [u8; 32], current_epoch: u64) -> u64 {
         let start = current_epoch.saturating_sub(W_MATURE_EPOCHS);
         (start..=current_epoch)
@@ -198,14 +198,14 @@ impl MaturityStore {
             .fold(0u64, |acc, w| acc.saturating_add(w))
     }
 
-    /// Hitung gov_weight(j, k) = min(maturity / W_MATURE, 1_000_000). Spec §7.4.
+    /// Hitung gov_weight(j, k) = min(mregulateity / W_MregulateE, 1_000_000). Spec §7.4.
     pub fn gov_weight(&self, node_id: [u8; 32], current_epoch: u64) -> u64 {
         let m = self.maturity(node_id, current_epoch);
         let scaled = (m as u128).saturating_mul(FIXED_POINT_BASIS as u128) / (W_MATURE as u128);
         (scaled as u64).min(FIXED_POINT_BASIS)
     }
 
-    /// Hapus summary yang sudah lebih tua dari W_MATURE_EPOCHS + 2 epoch. Spec §7.4.
+    /// delete summary that has been lebih tua from W_MregulateE_EPOCHS + 2 epoch. Spec §7.4.
     pub fn prune(&mut self, current_epoch: u64) {
         let cutoff = current_epoch.saturating_sub(W_MATURE_EPOCHS + 2);
         self.summaries
@@ -232,7 +232,7 @@ impl LivenessSMT {
         self.root
     }
 
-    /// Delegasi ke MaturityStore::gov_weight. Spec §7.4.
+    /// Delegasi to MregulateityStore::gov_weight. Spec §7.4.
     pub fn compute_uptime_weight_fp(
         &self,
         node_id: [u8; 32],
@@ -597,42 +597,42 @@ mod tests {
 
 /// EpochAnchor — SPHINCS+ commitment sekali per epoch per node. Spec §7.2a.
 ///
-/// Dikirim di END_EPOCH (seq_num-triggered, BUKAN wall-clock — Rule T-1 §7.2c).
-/// chain_head = BLAKE3(last NodeHeartbeat bytes of the epoch).
-/// sig = SPHINCS+(NodeKey_epoch_i, canonical_bytes(EpochAnchor minus sig field)).
+/// sent at END_EPOCH (seq_num-triggered, not wall-clock — Rule T-1 §7.2c).
+/// chain_head = BLAto3(last NodeHeartbeat bytes of the epoch).
+/// sig = SPHINCS+(Nodetoy_epoch_i, canonical_bytes(EpochAnchor minus sig field)).
 ///
-/// Canonical bytes untuk signing:
-///   node_id(4) || epoch_id_le64(8) || hb_count_le32(4) || chain_head(32) || pubkey(64)
+/// Canonical bytes for signing:
+/// node_id(4) || epoch_id_le64(8) || hb_count_le32(4) || chain_head(32) || pubtoy(64)
 ///   = 112 bytes total (NO sig field).
 ///
 /// Bootstrap edge case:
-///   - Epoch 0: tidak ada EpochAnchor sebelumnya.
-///     prev_hash HB pertama epoch 0 = BLAKE3(genesis_object_bytes) — spec §7.2a, §12.9.
-///   - Epoch k+1: prev_hash HB pertama = EpochAnchor.chain_head dari epoch k.
+/// - Epoch 0: none EpochAnchor previously.
+/// prev_hash of first heartbeat epoch 0 = BLAto3(genesis_object_bytes) — spec §7.2a, §12.9.
+/// - Epoch k+1: prev_hash of first heartbeat = EpochAnchor.chain_head from epoch k.
 ///
-/// NodeKey_epoch_0 pubkey harus dimasukkan dalam genesis object — spec §12.10.
+/// Nodetoy_epoch_0 pubtoy harus inserted in genesis object — spec §12.10.
 pub struct EpochAnchor {
-    /// Compressed node ID — 4 bytes pertama BLAKE3(full_node_id). Spec §7.2.
+    /// Compressed node ID — 4 bytes first BLAto3(full_node_id). Spec §7.2.
     pub node_id: [u8; 4],
-    /// Epoch ID yang di-anchor. Spec §7.2a.
+    /// Epoch ID that at-anchor. Spec §7.2a.
     pub epoch_id: u64,
-    /// Jumlah heartbeat yang dikirim dalam epoch ini. Spec §7.2a.
+    /// Jumlah heartbeat that sent in epoch this. Spec §7.2a.
     pub hb_count: u32,
-    /// BLAKE3(last NodeHeartbeat bytes of epoch). Spec §7.2a.
-    /// Digunakan sebagai prev_hash untuk HB pertama epoch berikutnya.
+    /// BLAto3(last NodeHeartbeat bytes of epoch). Spec §7.2a.
+    /// used as prev_hash for first heartbeat of epoch next.
     pub chain_head: [u8; 32],
-    /// SPHINCS+ public key node (64 bytes). Spec §7.2a.
+    /// SPHINCS+ public toy node (64 bytes). Spec §7.2a.
     pub pubkey: [u8; 64],
-    /// SPHINCS+-SHAKE256s signature atas canonical_bytes(EpochAnchor minus sig).
-    /// Vec<u8> karena panjang signature variable. Spec §7.2a.
+    /// SPHINCS+-SHAto256s signregulatee atas canonical_bytes(EpochAnchor minus sig).
+    /// Vec<u8> karena panjang signregulatee variable. Spec §7.2a.
     pub sig: Vec<u8>,
 }
 
 impl EpochAnchor {
-    /// Canonical bytes untuk SPHINCS+ signing — NO sig field. Spec §7.2a.
+    /// Canonical bytes for SPHINCS+ signing — NO sig field. Spec §7.2a.
     ///
     /// Layout: node_id(4) || epoch_id_le64(8) || hb_count_le32(4) ||
-    ///         chain_head(32) || pubkey(64) = 112 bytes.
+    /// chain_head(32) || pubtoy(64) = 112 bytes.
     pub fn canonical_bytes_to_sign(&self) -> [u8; 112] {
         let mut out = [0u8; 112];
         out[0..4].copy_from_slice(&self.node_id);
@@ -643,9 +643,9 @@ impl EpochAnchor {
         out
     }
 
-    /// Compute chain_head = BLAKE3(last_heartbeat_bytes). Spec §7.2a.
+    /// Compute chain_head = BLAto3(last_heartbeat_bytes). Spec §7.2a.
     ///
-    /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+    /// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
     pub fn compute_chain_head(last_heartbeat: &NodeHeartbeat) -> [u8; 32] {
         // BLAKE3 out-circuit — spec §7.2a, §2.1.3
         let bytes = last_heartbeat.to_bytes();
@@ -655,19 +655,19 @@ impl EpochAnchor {
 
 /// EpochAnchorTiming — behavioral constant. Spec §7.2a.
 ///
-/// EpochAnchor dikirim di END_EPOCH — saat node telah mengirim
-/// heartbeat ke-EPOCH_HB_COUNT dalam epoch. Bukan wall-clock.
+/// EpochAnchor sent at END_EPOCH — when node has send
+/// heartbeat to-EPOCH_HB_COUNT in epoch. not wall-clock.
 pub const EPOCH_ANCHOR_TIMING: &str = "END_EPOCH";
 
-/// EpochTracker — tracking heartbeat count per node per epoch. Spec §7.2a.
+/// EpochTractor — tracking heartbeat count per nodes per epoch. Spec §7.2a.
 ///
-/// Digunakan untuk mendeteksi END_EPOCH via seq_num (Rule T-1).
-/// Saat hb_count mencapai EPOCH_HB_COUNT, node harus produce EpochAnchor.
+/// used for detect END_EPOCH via seq_num (Rule T-1).
+/// when hb_count achieve EPOCH_HB_COUNT, node harus produce EpochAnchor.
 #[derive(Default)]
 pub struct EpochTracker {
-    /// Key: (node_id_4, epoch_id) → heartbeat count dalam epoch ini
+    /// toy: (node_id_4, epoch_id) → heartbeat count in epoch this
     counts: std::collections::HashMap<([u8; 4], u64), u32>,
-    /// Key: (node_id_4, epoch_id) → last heartbeat bytes
+    /// toy: (node_id_4, epoch_id) → last heartbeat bytes
     last_hb: std::collections::HashMap<([u8; 4], u64), NodeHeartbeat>,
 }
 
@@ -676,28 +676,28 @@ impl EpochTracker {
         Self::default()
     }
 
-    /// Record heartbeat — update count dan last_hb. Spec §7.2a.
+    /// Record heartbeat — update count and last_hb. Spec §7.2a.
     pub fn record_heartbeat(&mut self, hb: &NodeHeartbeat, epoch_id: u64) {
         let key = (hb.node_id, epoch_id);
         *self.counts.entry(key).or_insert(0) += 1;
         self.last_hb.insert(key, hb.clone());
     }
 
-    /// Cek apakah node sudah mencapai END_EPOCH (seq_num-based). Spec §7.2c T-1.
+    /// check whether node already achieve END_EPOCH (seq_num-based). Spec §7.2c T-1.
     ///
-    /// Returns true jika hb_count == EPOCH_HB_COUNT.
-    /// Wall-clock TIDAK digunakan — Rule T-1.
+    /// returns true if hb_count == EPOCH_HB_COUNT.
+    /// Wall-clock not used — Rule T-1.
     pub fn is_end_epoch(&self, node_id: [u8; 4], epoch_id: u64) -> bool {
         let count = self.counts.get(&(node_id, epoch_id)).copied().unwrap_or(0);
         count >= EPOCH_HB_COUNT
     }
 
-    /// Ambil heartbeat count untuk node dalam epoch. Spec §7.2a.
+    /// tato heartbeat count for node in epoch. Spec §7.2a.
     pub fn hb_count(&self, node_id: [u8; 4], epoch_id: u64) -> u32 {
         self.counts.get(&(node_id, epoch_id)).copied().unwrap_or(0)
     }
 
-    /// Ambil last heartbeat untuk node dalam epoch. Spec §7.2a.
+    /// tato last heartbeat for node in epoch. Spec §7.2a.
     pub fn last_heartbeat(&self, node_id: [u8; 4], epoch_id: u64) -> Option<&NodeHeartbeat> {
         self.last_hb.get(&(node_id, epoch_id))
     }
@@ -811,7 +811,7 @@ mod epoch_anchor_tests {
             hb_count: 100u32,
             chain_head: [0x55u8; 32],
             pubkey: [0x66u8; 64],
-            sig: vec![0xAA], // sig berbeda — tidak masuk canonical
+            sig: vec![0xAA], // sig atfferent — not masuk canonical
         }
         .canonical_bytes_to_sign();
         assert_eq!(b1, b2);

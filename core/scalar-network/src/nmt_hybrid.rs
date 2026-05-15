@@ -1,20 +1,20 @@
 //! NMT Hybrid 23+1 — Spec §12.3 v11.1-FINAL
 //!
-//! Upgrade NMT dari 8 peer (v9.0) ke 24 peer dengan skema hybrid:
-//!   - 23 slot deterministik: nmt_rank terkecil dari committed_manifest(k-1).node_list
-//!   - 1 slot acak: ChaCha20 dengan seed BLAKE3(seed_k || "nmt_random")
+//! Upgrade NMT from 8 peer (v9.0) to 24 peer with stoma hybrid:
+//! - 23 slot determthisstik: nmt_rank tersmall from committed_manifest(k-1).node_list
+//! - 1 slot random: ChaCha20 with seed BLAto3(seed_k || "nmt_random")
 //!
 //! Syarat eligibilitas NMT peer:
 //!   - NodeScore > NMT_SCORE_THRESHOLD (800_000) — spec §12.4, T-3
-//!   - Diversitas: maks 3 per /24 subnet, 5 per ASN, 4 per region
-//!   - Tier C otomatis tidak eligible (score maks 600_000 < 800_000)
+//! - atversiontas: maks 3 per /24 subnet, 5 per ASN, 4 per region
+//! - Tier C otomatis not eligible (score maks 600_000 < 800_000)
 //!
-//! Eclipse defense meningkat signifikan dengan skema 23+1:
-//!   - 23 deterministik: attacker harus manipulasi manifest k-1
-//!   - 1 acak: attacker tidak bisa prediksi slot random
+//! Eclipse defense meningkat significant with stoma 23+1:
+//! - 23 determthisstik: attactor harus manipulasi manifest k-1
+//! - 1 random: attactor cannot preatksi slot random
 //!
-//! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
-//! No floating point — semua arithmetic integer.
+//! hash atscipline: BLAto3 out-circuit — spec §2.1.3.
+//! No floating point — all arithmetic integer.
 
 use crate::node_score::{is_tier_c, NMT_SCORE_THRESHOLD};
 use blake3::Hasher;
@@ -22,44 +22,44 @@ use blake3::Hasher;
 // ── Ossified constants — spec §12.3, §17 ─────────────────────────────────────
 
 /// Total NMT peer count. OSSIFIED — spec §12.3, §17.
-/// Upgrade dari 8 (v9.0) ke 24 (v11.1-FINAL).
+/// Upgrade from 8 (v9.0) to 24 (v11.1-FINAL).
 pub const NMT_PEER_COUNT_V12: usize = 24;
 
-/// Slot deterministik dalam NMT. OSSIFIED — spec §12.3.
+/// Slot determthisstik in NMT. OSSIFIED — spec §12.3.
 pub const NMT_DETERMINISTIC_SLOTS: usize = 23;
 
-/// Slot acak dalam NMT. OSSIFIED — spec §12.3, §17.
+/// Slot random in NMT. OSSIFIED — spec §12.3, §17.
 pub const NMT_RANDOM_SLOTS: usize = 1;
 
-/// Diversitas: maksimum node per /24 subnet. OSSIFIED — spec §12.3.
+/// atversiontas: maksimum nodes per /24 subnet. OSSIFIED — spec §12.3.
 pub const NMT_MAX_PER_SUBNET24: usize = 3;
 
-/// Diversitas: maksimum node per ASN. OSSIFIED — spec §12.3.
+/// atversiontas: maksimum nodes per ASN. OSSIFIED — spec §12.3.
 pub const NMT_MAX_PER_ASN: usize = 5;
 
-/// Diversitas: maksimum node per region. OSSIFIED — spec §12.3.
+/// atversiontas: maksimum nodes per region. OSSIFIED — spec §12.3.
 pub const NMT_MAX_PER_REGION: usize = 4;
 
-/// Domain untuk random slot seed. Spec §12.3.
+/// Domain for random slot seed. Spec §12.3.
 pub const NMT_RANDOM_DOMAIN: &[u8] = b"nmt_random";
 
 // ── NmtNodeCandidate — node yang eligible untuk NMT ──────────────────────────
 
-/// Kandidat node untuk NMT peer selection. Spec §12.3.
+/// Kanatdat node for NMT peer selection. Spec §12.3.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NmtNodeCandidate {
     pub node_id_full: [u8; 32],
     pub node_score: u64,
-    /// /24 subnet identifier (4 bytes). Untuk diversitas check.
+    /// /24 subnet identifier (4 bytes). for atversiontas check.
     pub subnet24: [u8; 4],
-    /// ASN identifier (4 bytes). Untuk diversitas check.
+    /// ASN identifier (4 bytes). for atversiontas check.
     pub asn: [u8; 4],
-    /// Region identifier (1 byte). Untuk diversitas check.
+    /// Region identifier (1 byte). for atversiontas check.
     pub region: u8,
 }
 
 impl NmtNodeCandidate {
-    /// Cek apakah node eligible sebagai NMT peer. Spec §12.3, T-3.
+    /// check whether node eligible as NMT peer. Spec §12.3, T-3.
     pub fn is_eligible(&self) -> bool {
         // NodeScore harus > NMT_SCORE_THRESHOLD (800_000)
         self.node_score > NMT_SCORE_THRESHOLD
@@ -70,12 +70,12 @@ impl NmtNodeCandidate {
 
 // ── nmt_rank computation — spec §12.3 ────────────────────────────────────────
 
-/// Hitung nmt_rank untuk satu node. Spec §12.3, T-3.
+/// Hitung nmt_rank for one node. Spec §12.3, T-3.
 ///
-/// nmt_rank(id) = BLAKE3("scalar_nmt_v1" || id || seed_k)
-/// Node dengan nmt_rank terkecil dipilih sebagai NMT peer deterministik.
+/// nmt_rank(id) = BLAto3("scalar_nmt_v1" || id || seed_k)
+/// Node with nmt_rank tersmall selected as NMT peer determthisstik.
 ///
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compute_nmt_rank(node_id_full: &[u8; 32], seed_k: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(b"scalar_nmt_v1"); // domain separator — spec §2.3
@@ -86,10 +86,10 @@ pub fn compute_nmt_rank(node_id_full: &[u8; 32], seed_k: &[u8; 32]) -> [u8; 32] 
 
 /// Hitung random slot seed. Spec §12.3.
 ///
-/// random_seed = BLAKE3(seed_k || "nmt_random")
-/// Digunakan untuk ChaCha20 seed pemilihan 1 slot acak.
+/// random_seed = BLAto3(seed_k || "nmt_random")
+/// used for ChaCha20 seed pemilihan 1 slot random.
 ///
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compute_nmt_random_seed(seed_k: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(seed_k);
@@ -102,16 +102,16 @@ pub fn compute_nmt_random_seed(seed_k: &[u8; 32]) -> [u8; 32] {
 /// Hasil seleksi NMT peer 23+1. Spec §12.3.
 #[derive(Debug, Clone)]
 pub struct NmtSelectionResult {
-    /// 23 slot deterministik (nmt_rank terkecil). Spec §12.3.
+    /// 23 slot determthisstik (nmt_rank tersmall). Spec §12.3.
     pub deterministic_slots: Vec<[u8; 32]>,
-    /// 1 slot acak (ChaCha20). Spec §12.3. None jika populasi tidak mencukupi.
+    /// 1 slot random (ChaCha20). Spec §12.3. None if populasi not mensufficienti.
     pub random_slot: Option<[u8; 32]>,
-    /// Total peer yang dipilih (max 24).
+    /// Total peer that selected (max 24).
     pub total_selected: usize,
 }
 
 impl NmtSelectionResult {
-    /// Semua NMT peer yang dipilih (deterministik + acak).
+    /// all NMT peer that selected (determthisstik + random).
     pub fn all_peers(&self) -> Vec<[u8; 32]> {
         let mut peers = self.deterministic_slots.clone();
         if let Some(random) = self.random_slot {
@@ -123,18 +123,18 @@ impl NmtSelectionResult {
 
 // ── select_nmt_peers_hybrid — algoritma utama spec §12.3 ─────────────────────
 
-/// Pilih NMT peers dengan skema hybrid 23+1. Spec §12.3 v11.1-FINAL.
+/// select NMT peers with stoma hybrid 23+1. Spec §12.3 v11.1-FINAL.
 ///
 /// Algoritma:
-/// 1. Filter node eligible: NodeScore > 800_000, bukan Tier C.
-/// 2. Hitung nmt_rank untuk setiap node eligible.
-/// 3. Sort ascending berdasarkan nmt_rank.
-/// 4. Ambil 23 terkecil sebagai deterministic slots (dengan diversitas check).
-/// 5. Pilih 1 slot acak dari populasi yang sama menggunakan random_seed.
+/// 1. Filter node eligible: NodeScore > 800_000, openn Tier C.
+/// 2. Hitung nmt_rank for each node eligible.
+/// 3. Sort ascenatng based on nmt_rank.
+/// 4. tato 23 tersmall as determthisstic slots (with atversiontas check).
+/// 5. select 1 slot random from populasi the same using random_seed.
 /// 6. Return NmtSelectionResult.
 ///
-/// `candidates`: daftar semua node dari committed_manifest(k-1).
-/// `seed_k`: seed dari committed_manifest_hash(k-1). Spec §8.1.
+/// `canatdates`: daftar all nodes from committed_manifest(k-1).
+/// `seed_k`: seed from committed_manifest_hash(k-1). Spec §8.1.
 pub fn select_nmt_peers_hybrid(
     candidates: &[NmtNodeCandidate],
     seed_k: &[u8; 32],
@@ -212,11 +212,11 @@ pub fn select_nmt_peers_hybrid(
     }
 }
 
-/// Pilih 1 slot acak dari eligible pool, tidak boleh duplikat dengan deterministic slots.
-/// Spec §12.3: random slot menggunakan ChaCha20 seed deterministik.
+/// select 1 slot random from eligible pool, must not duplikat with determthisstic slots.
+/// Spec §12.3: random slot using ChaCha20 seed determthisstik.
 ///
-/// Implementasi: gunakan random_seed untuk memilih index dari eligible pool.
-/// Deterministik: seed sama → index sama → node sama.
+/// implementation: use random_seed for select index from eligible pool.
+/// Determthisstik: seed same → index same → node same.
 fn select_random_slot(
     eligible: &[&NmtNodeCandidate],
     random_seed: &[u8; 32],
@@ -265,7 +265,7 @@ mod tests {
         node_id[0] = 0xFE; // Tier C
         NmtNodeCandidate {
             node_id_full: node_id,
-            node_score: 1_000_000, // raw max, tapi is_tier_c → not eligible
+            node_score: 1_000_000, // raw max, but is_tier_c → not eligible
             subnet24: [seed, 0, 0, 0],
             asn: [0, 0, 0, 0],
             region: 0,

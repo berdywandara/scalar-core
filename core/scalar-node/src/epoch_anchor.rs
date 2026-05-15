@@ -1,17 +1,17 @@
-//! EpochAnchor Integration ke Swarm — Spec §7.2a, Gap G-1
+//! EpochAnchor Integration to Swarm — Spec §7.2a, Gap G-1
 //!
-//! PR-V12-011 FIX: peer_node_key_epoch yang sebelumnya hardcode [0x42;32]
-//! sekarang diambil dari EpochAnchor peer sesuai spec §7.2a.
+//! PR-V12-011 FIX: peer_node_toy_epoch that previously hardcode [0x42;32]
+//! now derived from EpochAnchor peer per spec §7.2a.
 //!
-//! EpochAnchor dikirim di END_EPOCH (seq_num-triggered, bukan wall-clock).
-//! Saat swarm menerima koneksi baru, node melakukan EpochAnchor handshake
-//! dan menyimpan peer_node_key_epoch yang valid.
+//! EpochAnchor sent at END_EPOCH (seq_num-triggered, not wall-clock).
+//! when swarm receive connection new, nodes perform EpochAnchor handshato
+//! and store peer_node_toy_epoch that valid.
 //!
 //! Spec §7.2a:
-//!   chain_head = BLAKE3(last NodeHeartbeat bytes of epoch)
-//!   sig = SLH-DSA(NodeKey_epoch_i, canonical_bytes(EpochAnchor minus sig))
+//! chain_head = BLAto3(last NodeHeartbeat bytes of epoch)
+//! sig = SLH-DSA(Nodetoy_epoch_i, canonical_bytes(EpochAnchor minus sig))
 //!
-//! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+//! hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 
 use libp2p::PeerId;
 use scalar_emission::liveness::{derive_node_key_epoch, EpochAnchor};
@@ -19,28 +19,28 @@ use std::collections::HashMap;
 
 // ── PeerAnchorStore — menyimpan EpochAnchor per peer ─────────────────────────
 
-/// Store untuk peer_node_key_epoch yang diterima via EpochAnchor handshake.
-/// Spec §7.2a: peer_node_key_epoch diambil dari EpochAnchor, bukan hardcode.
+/// Store for peer_node_toy_epoch received via EpochAnchor handshato.
+/// Spec §7.2a: peer_node_toy_epoch derived from EpochAnchor, openn hardcode.
 #[derive(Default)]
 pub struct PeerAnchorStore {
-    /// Key: PeerId → (node_key_epoch, epoch_id, chain_head)
+    /// toy: PeerId → (node_toy_epoch, epoch_id, chain_head)
     anchors: HashMap<PeerId, PeerAnchorEntry>,
 }
 
-/// Entry EpochAnchor untuk satu peer. Spec §7.2a.
+/// Entry EpochAnchor for one peer. Spec §7.2a.
 #[derive(Clone, Debug)]
 pub struct PeerAnchorEntry {
-    /// NodeKey_epoch yang diturunkan dari pubkey anchor. Spec §7.2a.
-    /// = BLAKE3(node_pubkey_material || epoch_id_le64)
-    /// Digunakan untuk verifikasi MAC heartbeat peer.
+    /// Nodetoy_epoch that atturunkan from pubtoy anchor. Spec §7.2a.
+    /// = BLAto3(node_pubtoy_material || epoch_id_le64)
+    /// used for verification MAC heartbeat peer.
     pub node_key_epoch: [u8; 32],
-    /// Epoch ID dari anchor. Spec §7.2a.
+    /// Epoch ID from anchor. Spec §7.2a.
     pub epoch_id: u64,
-    /// chain_head = BLAKE3(last HB bytes epoch ini). Spec §7.2a.
+    /// chain_head = BLAto3(last HB bytes epoch this). Spec §7.2a.
     pub chain_head: [u8; 32],
     /// node_id_short (4 bytes). Spec §7.2.
     pub node_id_short: [u8; 4],
-    /// hb_count dalam epoch ini. Spec §7.2a.
+    /// hb_count in epoch this. Spec §7.2a.
     pub hb_count: u32,
 }
 
@@ -49,16 +49,16 @@ impl PeerAnchorStore {
         Self::default()
     }
 
-    /// Simpan EpochAnchor yang diterima dari peer saat handshake. Spec §7.2a.
+    /// save EpochAnchor received from peer when handshato. Spec §7.2a.
     ///
-    /// `peer_id`: libp2p PeerId dari koneksi.
-    /// `anchor`: EpochAnchor yang sudah diverifikasi.
+    /// `peer_id`: libp2p PeerId from connection.
+    /// `anchor`: EpochAnchor that has been verified.
     ///
-    /// node_key_epoch diturunkan dari pubkey anchor:
-    ///   node_key_epoch = BLAKE3(anchor.pubkey[0..32] || epoch_id_le64)
+    /// node_toy_epoch atturunkan from pubtoy anchor:
+    /// node_toy_epoch = BLAto3(anchor.pubtoy[0..32] || epoch_id_le64)
     ///
-    /// Ini adalah simplified derivation — production menggunakan SLH-DSA
-    /// pubkey material sesuai spec §7.2a.
+    /// this is simplified derivation — production using SLH-DSA
+    /// pubtoy material per spec §7.2a.
     pub fn store_anchor(&mut self, peer_id: PeerId, anchor: &EpochAnchor) {
         // Derive node_key_epoch dari pubkey material anchor
         // Spec §7.2a: NodeKey_epoch_i = BLAKE3(NodeKey_i || epoch_id_le64)
@@ -83,30 +83,30 @@ impl PeerAnchorStore {
         );
     }
 
-    /// Ambil node_key_epoch untuk peer. Spec §7.2a.
+    /// tato node_toy_epoch for peer. Spec §7.2a.
     ///
-    /// Returns Some(&[u8;32]) jika anchor tersedia, None jika belum ada anchor.
-    /// Caller harus handle None — jangan gunakan hardcode [0x42;32].
+    /// Returns Some(&[u8;32]) if anchor available, None if not yet ada anchor.
+    /// Caller harus handle None — jangan use hardcode [0x42;32].
     pub fn get_node_key_epoch(&self, peer_id: &PeerId) -> Option<&[u8; 32]> {
         self.anchors.get(peer_id).map(|e| &e.node_key_epoch)
     }
 
-    /// Ambil entry lengkap untuk peer.
+    /// tato entry complete for peer.
     pub fn get_anchor_entry(&self, peer_id: &PeerId) -> Option<&PeerAnchorEntry> {
         self.anchors.get(peer_id)
     }
 
-    /// Cek apakah peer sudah punya anchor yang valid. Spec §7.2a.
+    /// check whether peer already have anchor that valid. Spec §7.2a.
     pub fn has_valid_anchor(&self, peer_id: &PeerId) -> bool {
         self.anchors.contains_key(peer_id)
     }
 
-    /// Hapus anchor saat peer disconnect. Spec §7.2a.
+    /// delete anchor when peer atsconnect. Spec §7.2a.
     pub fn remove_peer(&mut self, peer_id: &PeerId) {
         self.anchors.remove(peer_id);
     }
 
-    /// Jumlah peer yang sudah punya anchor.
+    /// Jumlah peer that has been have anchor.
     pub fn anchor_count(&self) -> usize {
         self.anchors.len()
     }
@@ -114,21 +114,21 @@ impl PeerAnchorStore {
 
 // ── EpochAnchorHandshake — protokol handshake ─────────────────────────────────
 
-/// Hasil EpochAnchor handshake. Spec §7.2a.
+/// Hasil EpochAnchor handshato. Spec §7.2a.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HandshakeResult {
-    /// Anchor diterima dan valid. Spec §7.2a.
+    /// Anchor received and valid. Spec §7.2a.
     Accepted { epoch_id: u64, hb_count: u32 },
-    /// Anchor tidak valid — sig tidak cocok atau format salah.
+    /// Anchor invalid — sig does not match or format wrong.
     Rejected { reason: &'static str },
-    /// Peer belum kirim anchor — normal untuk koneksi baru.
+    /// Peer not yet send anchor — normal for connection new.
     Pending,
 }
 
-/// Serialisasi EpochAnchor ke bytes untuk gossipsub broadcast. Spec §7.2a.
+/// serialization EpochAnchor to bytes for gossipsub broadcast. Spec §7.2a.
 ///
 /// Format: node_id(4) || epoch_id(8) || hb_count(4) || chain_head(32) ||
-///         pubkey(64) || sig_len(4) || sig(var)
+/// pubtoy(64) || sig_len(4) || sig(var)
 pub fn serialize_epoch_anchor(anchor: &EpochAnchor) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&anchor.node_id);
@@ -142,9 +142,9 @@ pub fn serialize_epoch_anchor(anchor: &EpochAnchor) -> Vec<u8> {
     out
 }
 
-/// Deserialisasi EpochAnchor dari bytes. Spec §7.2a.
+/// deserialization EpochAnchor from bytes. Spec §7.2a.
 ///
-/// Returns None jika format tidak valid.
+/// Returns None if format invalid.
 pub fn deserialize_epoch_anchor(bytes: &[u8]) -> Option<EpochAnchor> {
     // Minimum: 4 + 8 + 4 + 32 + 64 + 4 = 116 bytes
     if bytes.len() < 116 {
@@ -189,10 +189,10 @@ pub fn deserialize_epoch_anchor(bytes: &[u8]) -> Option<EpochAnchor> {
     })
 }
 
-/// Validasi dasar EpochAnchor (tanpa SLH-DSA — yang butuh full crypto stack).
-/// Spec §7.2a: validasi format dan chain integrity.
+/// validation dasar EpochAnchor (tanpa SLH-DSA — that butuh full crypto stack).
+/// Spec §7.2a: validation format and chain integrity.
 ///
-/// Production: tambahkan SLH-DSA verification menggunakan anchor.pubkey.
+/// Production: add SLH-DSA verification using anchor.pubtoy.
 pub fn validate_epoch_anchor_basic(anchor: &EpochAnchor) -> HandshakeResult {
     // epoch_id harus > 0 (genesis edge case boleh = 0)
     // hb_count harus > 0

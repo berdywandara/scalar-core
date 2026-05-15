@@ -1,18 +1,18 @@
-//! Production NMT — dari Peer Timestamps, bukan wall-clock — Spec §12.3a, Gap G-3
+//! Production NMT — from peer Timestamps, not wall-clock — Spec §12.3a, Gap G-3
 //!
-//! PR-V12-013 FIX: NMT masih menggunakan local_nmt() wall-clock.
-//! Diganti dengan median dari peer timestamps sesuai spec §12.3a.
+//! PR-V12-013 FIX: NMT still using local_nmt() wall-clock.
+//! atganti with meatan from peer timestamps per spec §12.3a.
 //!
-//! Setelah NMT Hybrid 23+1 (PR-V12-007), production NMT mengambil timestamp
-//! dari up to 24 NMT peers (23 deterministik + 1 acak), menghitung median,
-//! dan menggunakannya sebagai Network Median Time.
+//! after NMT Hybrid 23+1 (PR-V12-007), production NMT tato timestamp
+//! from up to 24 NMT peers (23 determthisstik + 1 random), compute meatan,
+//! and usingnya as Network Meatan Time.
 //!
-//! Fallback: jika < 8 peer tersedia → gunakan wall-clock lokal dengan warning.
+//! Fallback: if < 8 peer available → use wall-clock lokal with warning.
 //!
 //! Spec §12.3a:
-//!   NMT = median(timestamps dari NMT peers)
-//!   BUKAN NTP, BUKAN average, BUKAN wall-clock lokal.
-//!   Local time TIDAK dimasukkan ke dalam kalkulasi.
+//! NMT = meatan(timestamps from NMT peers)
+//! openN NTP, openN average, not wall-clock lokal.
+//! Local time not included to in calculation.
 
 use scalar_network::nmt::{compute_nmt_with_eclipse_check, NmtStatus, T_NMT_MAX_DRIFT_S};
 use scalar_network::nmt_hybrid::NMT_PEER_COUNT_V12;
@@ -21,22 +21,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 // ── Constants — spec §12.3a ───────────────────────────────────────────────────
 
-/// Minimum peer untuk NMT yang reliable. Spec §12.3a.
-/// Kurang dari ini → fallback ke wall-clock dengan warning.
+/// Mthismum peer for NMT that reliable. Spec §12.3a.
+/// Kurang from this → fallback to wall-clock with warning.
 pub const NMT_MIN_PEERS_FOR_RELIABLE: usize = 8;
 
-/// Maximum peer timestamps yang disimpan. = NMT_PEER_COUNT_V12 = 24.
+/// Maximum peer timestamps that stored. = NMT_PEER_COUNT_V12 = 24.
 pub const NMT_MAX_STORED_TIMESTAMPS: usize = NMT_PEER_COUNT_V12;
 
 // ── PeerTimestampStore — menyimpan timestamp per peer ────────────────────────
 
-/// Store timestamp heartbeat terakhir dari setiap peer. Spec §12.3a.
+/// Store timestamp heartbeat last from each peer. Spec §12.3a.
 ///
-/// Digunakan untuk menghitung NMT = median(peer_timestamps).
-/// Local time TIDAK dimasukkan.
+/// used for compute NMT = meatan(peer_timestamps).
+/// Local time not included.
 #[derive(Default)]
 pub struct PeerTimestampStore {
-    /// Key: node_id_short [u8;4] → timestamp terakhir (detik).
+    /// toy: node_id_short [u8;4] → timestamp last (seconds).
     timestamps: HashMap<[u8; 4], u32>,
 }
 
@@ -45,7 +45,7 @@ impl PeerTimestampStore {
         Self::default()
     }
 
-    /// Update timestamp untuk peer. Spec §12.3a.
+    /// Update timestamp for peer. Spec §12.3a.
     pub fn update(&mut self, node_id_short: [u8; 4], timestamp: u32) {
         self.timestamps.insert(node_id_short, timestamp);
         // Limit: maksimum NMT_MAX_STORED_TIMESTAMPS entries
@@ -57,17 +57,17 @@ impl PeerTimestampStore {
         }
     }
 
-    /// Ambil semua timestamps sebagai Vec. Spec §12.3a.
+    /// tato all timestamps as Vec. Spec §12.3a.
     pub fn all_timestamps(&self) -> Vec<u32> {
         self.timestamps.values().copied().collect()
     }
 
-    /// Jumlah peer yang tersimpan.
+    /// Jumlah peer that tersave.
     pub fn peer_count(&self) -> usize {
         self.timestamps.len()
     }
 
-    /// Hapus peer saat disconnect.
+    /// delete peer when atsconnect.
     pub fn remove_peer(&mut self, node_id_short: &[u8; 4]) {
         self.timestamps.remove(node_id_short);
     }
@@ -75,19 +75,19 @@ impl PeerTimestampStore {
 
 // ── ProductionNmt — NMT dari peer timestamps ─────────────────────────────────
 
-/// Hasil komputasi NMT production. Spec §12.3a.
+/// Hasil kompthreaat NMT production. Spec §12.3a.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProductionNmtResult {
-    /// NMT valid dari peer timestamps. Spec §12.3a.
+    /// NMT valid from peer timestamps. Spec §12.3a.
     FromPeers { nmt: u32, peer_count: usize },
-    /// Tidak cukup peer — fallback ke wall-clock dengan warning. Spec §12.3a.
+    /// insufficient peer — fallback to wall-clock with warning. Spec §12.3a.
     FallbackWallClock { nmt: u32, peer_count: usize },
-    /// Eclipse alert terdeteksi. Spec §12.3a.
+    /// Eclipse alert detected. Spec §12.3a.
     EclipseAlert { nmt: u32, drift_s: u32 },
 }
 
 impl ProductionNmtResult {
-    /// Ambil nilai NMT regardless of source.
+    /// tato value NMT regardless of source.
     pub fn nmt_value(&self) -> u32 {
         match self {
             Self::FromPeers { nmt, .. } => *nmt,
@@ -96,19 +96,19 @@ impl ProductionNmtResult {
         }
     }
 
-    /// True jika NMT dari peer timestamps (bukan fallback). Spec §12.3a.
+    /// true if NMT from peer timestamps (openn fallback). Spec §12.3a.
     pub fn is_from_peers(&self) -> bool {
         matches!(self, Self::FromPeers { .. })
     }
 }
 
-/// Compute production NMT dari peer timestamps. Spec §12.3a.
+/// Compute production NMT from peer timestamps. Spec §12.3a.
 ///
-/// `peer_store`: store timestamps dari peers.
-/// `local_wall_clock`: wall-clock lokal — HANYA untuk eclipse detection,
-///                     TIDAK dimasukkan ke NMT computation.
+/// `peer_store`: store timestamps from peers.
+/// `local_wall_clock`: wall-clock lokal — only for eclipse detection,
+/// not included to NMT computation.
 ///
-/// Fallback: jika < NMT_MIN_PEERS_FOR_RELIABLE → wall-clock + warning.
+/// Fallback: if < NMT_MIN_PEERS_FOR_RELIABLE → wall-clock + warning.
 pub fn compute_production_nmt(
     peer_store: &PeerTimestampStore,
     local_wall_clock: u32,
@@ -151,7 +151,7 @@ pub fn compute_production_nmt(
     }
 }
 
-/// Ambil wall-clock lokal dalam detik. Hanya untuk fallback. Spec §12.3a.
+/// tato wall-clock lokal in seconds. only for fallback. Spec §12.3a.
 pub fn get_local_wall_clock() -> u32 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -181,7 +181,7 @@ mod tests {
         // NMT = median dari peer timestamps, BUKAN wall-clock. Spec §12.3a.
         let base_ts = 1_000_000u32;
         let store = make_store_with_peers(10, base_ts);
-        let local = base_ts + 500; // wall-clock sedikit berbeda
+        let local = base_ts + 500; // wall-clock seatkit atfferent
         let result = compute_production_nmt(&store, local);
 
         assert!(

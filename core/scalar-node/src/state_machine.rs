@@ -1,12 +1,12 @@
 //! GAP A-008: Node Lifecycle State Machine
-//! Transisi: BOOTSTRAPPING -> SYNCING -> ACTIVE -> PARTITIONED
+//! Transfill: BOOTSTRAPPING -> SYNCING -> ACTIVE -> PARTITIONED
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum NodeState {
-    Bootstrapping, // Verifikasi genesis SMT root
-    Syncing,       // Request delta SMT dan rekoniliasi
-    Active,        // Operasi penuh, verifikasi STARK proof dan gossip
-    Partitioned,   // Internet down, antre transaksi secara lokal
+    Bootstrapping, // verification genesis SMT root
+    Syncing,       // Request delta SMT and rekoniliasi
+    Active,        // operation full, verification STARK proof and gossip
+    Partitioned,   // Internet down, antre transaction secara lokal
 }
 
 pub struct NodeStateMachine {

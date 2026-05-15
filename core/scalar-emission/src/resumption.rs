@@ -1,43 +1,43 @@
 //! Node Resumption Protocol — Spec §10.5
 //!
-//! 5 fase resumption saat node kembali online setelah offline:
+//! 5 fase resumption when node tombali online after offline:
 //!
 //! Phase 1: DETECTION
-//!   Node mendeteksi dirinya offline (gap dalam seq_num chain).
+//! Node detect atrinya offline (gap in seq_num chain).
 //!   Gap = seq_num_current - seq_num_last_known > 0.
 //!
 //! Phase 2: SYNC
-//!   Node mendownload EpochAnchor dari peers untuk setiap epoch yang di-miss.
-//!   Verifikasi SPHINCS+ signature setiap EpochAnchor.
+//! Node mendownload EpochAnchor from peers for each epoch that at-miss.
+//! verification SPHINCS+ signregulatee each EpochAnchor.
 //!
 //! Phase 3: STATE_REBUILD
 //!   Node rebuild state lokal:
-//!   - Replay NullifierSet promotions yang di-miss
-//!   - Update MaturityStore dengan gap (epoch offline = w=0)
-//!   - Sinkronisasi SMT root
+//! - Replay NullifierSet promotions that at-miss
+//! - Update MregulateityStore with gap (epoch offline = w=0)
+//! - synchronization SMT root
 //!
-//! Phase 4: VALIDATION
-//!   Node meminta 3 peer independen untuk konfirmasi state hash.
-//!   Quorum: 2/3 peer harus setuju pada state hash.
+//! Phase 4: validATION
+//! Node meminta 3 peer independen for confirm state hash.
+//! Quorum: 2/3 peer must agree on state hash.
 //!
 //! Phase 5: RESUME
-//!   Node mulai kirim heartbeat kembali.
-//!   seq_num dilanjutkan dari seq_num terbaru (bukan dari 0).
-//!   Uptime credit dimulai dari epoch berikutnya (tidak retroaktif).
+//! Node start send heartbeat tombali.
+//! seq_num continued from seq_num latest (openn from 0).
+//! Uptime creatt started from epoch next (not retroaktif).
 //!
 //! No floating point. No wall-clock for epoch boundary (Rule T-1 §7.2c).
 
 // ── Constants — spec §10.5 ───────────────────────────────────────────────────
 
-/// Minimum peer untuk validasi state saat resumption. Spec §10.5 Phase 4.
+/// Mthismum peer for validation state when resumption. Spec §10.5 Phase 4.
 pub const RESUMPTION_VALIDATION_PEERS: u32 = 3;
 
-/// Quorum peer yang harus setuju pada state hash. Spec §10.5 Phase 4.
-/// 2/3 dari RESUMPTION_VALIDATION_PEERS.
+/// Quorum peer that must agree on state hash. Spec §10.5 Phase 4.
+/// 2/3 from RESUMPTION_validATION_PEERS.
 pub const RESUMPTION_VALIDATION_QUORUM: u32 = 2;
 
-/// Maximum epoch gap yang bisa di-sync otomatis. Spec §10.5 Phase 2.
-/// Jika gap > threshold → node harus full resync dari genesis.
+/// Maximum epoch gap that can at-sync otomatis. Spec §10.5 Phase 2.
+/// if gap > threshold → node harus full resync from genesis.
 pub const RESUMPTION_MAX_AUTO_SYNC_EPOCHS: u64 = 100;
 
 // ── ResumptionPhase — spec §10.5 ─────────────────────────────────────────────
@@ -45,13 +45,13 @@ pub const RESUMPTION_MAX_AUTO_SYNC_EPOCHS: u64 = 100;
 /// Fase resumption node. Spec §10.5.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResumptionPhase {
-    /// Phase 1: Node mendeteksi gap dalam seq_num chain. Spec §10.5.
+    /// Phase 1: Node detect gap in seq_num chain. Spec §10.5.
     Detection {
         last_known_seq_num: u32,
         current_seq_num: u32,
         gap_epochs: u64,
     },
-    /// Phase 2: Download EpochAnchor untuk epoch yang di-miss. Spec §10.5.
+    /// Phase 2: Download EpochAnchor for epoch that at-miss. Spec §10.5.
     Sync {
         epochs_to_sync: Vec<u64>,
         synced_count: u32,
@@ -61,7 +61,7 @@ pub enum ResumptionPhase {
         epochs_rebuilt: u32,
         smt_root: [u8; 32],
     },
-    /// Phase 4: Validasi state dengan peers. Spec §10.5.
+    /// Phase 4: validation state with peers. Spec §10.5.
     Validation {
         state_hash: [u8; 32],
         confirmations: u32,
@@ -72,20 +72,20 @@ pub enum ResumptionPhase {
         resume_seq_num: u32,
         resume_epoch: u64,
     },
-    /// Resumption gagal — node harus full resync. Spec §10.5.
+    /// Resumption failed — node harus full resync. Spec §10.5.
     Failed { reason: ResumptionFailReason },
 }
 
-/// Alasan kegagalan resumption. Spec §10.5.
+/// Alasan tofaileand resumption. Spec §10.5.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResumptionFailReason {
-    /// Gap terlalu besar untuk auto-sync. Spec §10.5 Phase 2.
+    /// Gap terthen large for auto-sync. Spec §10.5 Phase 2.
     GapTooLarge { gap_epochs: u64, max: u64 },
-    /// Tidak cukup peer untuk validasi. Spec §10.5 Phase 4.
+    /// insufficient peer for validation. Spec §10.5 Phase 4.
     InsufficientPeers { available: u32, required: u32 },
-    /// Quorum gagal — peer tidak setuju pada state hash. Spec §10.5 Phase 4.
+    /// Quorum failed — peer not agree on state hash. Spec §10.5 Phase 4.
     ValidationQuorumFailed { confirmations: u32, required: u32 },
-    /// EpochAnchor tidak valid (signature fail). Spec §10.5 Phase 2.
+    /// EpochAnchor invalid (signregulatee fail). Spec §10.5 Phase 2.
     InvalidEpochAnchor { epoch_id: u64 },
 }
 
@@ -98,7 +98,7 @@ pub struct ResumptionProtocol {
 }
 
 impl ResumptionProtocol {
-    /// Inisialisasi protokol saat node mendeteksi gap. Spec §10.5 Phase 1.
+    /// thistialize protokol when node detect gap. Spec §10.5 Phase 1.
     pub fn new(node_id: [u8; 4], last_known_seq_num: u32, current_seq_num: u32) -> Self {
         let gap_epochs = compute_gap_epochs(last_known_seq_num, current_seq_num);
         Self {
@@ -111,9 +111,9 @@ impl ResumptionProtocol {
         }
     }
 
-    /// Phase 1 → Phase 2: Mulai sync EpochAnchor. Spec §10.5.
+    /// Phase 1 → Phase 2: start sync EpochAnchor. Spec §10.5.
     ///
-    /// Returns Err jika gap terlalu besar untuk auto-sync.
+    /// Returns Err if gap terthen large for auto-sync.
     pub fn start_sync(&mut self, epochs_to_sync: Vec<u64>) -> Result<(), ResumptionFailReason> {
         let gap_epochs = epochs_to_sync.len() as u64;
         if gap_epochs > RESUMPTION_MAX_AUTO_SYNC_EPOCHS {
@@ -133,14 +133,14 @@ impl ResumptionProtocol {
         Ok(())
     }
 
-    /// Phase 2: Record satu epoch berhasil di-sync. Spec §10.5 Phase 2.
+    /// Phase 2: Record satu epoch successful at-sync. Spec §10.5 Phase 2.
     pub fn record_epoch_synced(&mut self) {
         if let ResumptionPhase::Sync { synced_count, .. } = &mut self.phase {
             *synced_count += 1;
         }
     }
 
-    /// Phase 2 → Phase 3: Mulai rebuild state. Spec §10.5 Phase 3.
+    /// Phase 2 → Phase 3: start rebuild state. Spec §10.5 Phase 3.
     pub fn start_state_rebuild(&mut self, smt_root: [u8; 32]) {
         self.phase = ResumptionPhase::StateRebuild {
             epochs_rebuilt: 0,
@@ -148,14 +148,14 @@ impl ResumptionProtocol {
         };
     }
 
-    /// Phase 3: Record satu epoch berhasil di-rebuild. Spec §10.5 Phase 3.
+    /// Phase 3: Record satu epoch successful at-rebuild. Spec §10.5 Phase 3.
     pub fn record_epoch_rebuilt(&mut self) {
         if let ResumptionPhase::StateRebuild { epochs_rebuilt, .. } = &mut self.phase {
             *epochs_rebuilt += 1;
         }
     }
 
-    /// Phase 3 → Phase 4: Mulai validasi dengan peers. Spec §10.5 Phase 4.
+    /// Phase 3 → Phase 4: start validation with peers. Spec §10.5 Phase 4.
     pub fn start_validation(&mut self, state_hash: [u8; 32]) {
         self.phase = ResumptionPhase::Validation {
             state_hash,
@@ -164,9 +164,9 @@ impl ResumptionProtocol {
         };
     }
 
-    /// Phase 4: Record konfirmasi dari satu peer. Spec §10.5 Phase 4.
+    /// Phase 4: Record confirm from satu peer. Spec §10.5 Phase 4.
     ///
-    /// Returns true jika quorum tercapai.
+    /// returns true if quorum terachieve.
     pub fn record_peer_confirmation(&mut self, peer_state_hash: &[u8; 32]) -> bool {
         if let ResumptionPhase::Validation {
             state_hash,
@@ -185,10 +185,10 @@ impl ResumptionProtocol {
 
     /// Phase 4 → Phase 5: Resume normal operation. Spec §10.5 Phase 5.
     ///
-    /// `resume_seq_num`: seq_num terakhir yang diketahui (dilanjutkan dari sini).
-    /// `resume_epoch`: epoch untuk mulai credit uptime (tidak retroaktif).
+    /// `resume_seq_num`: seq_num last that known (continued from sthis).
+    /// `resume_epoch`: epoch for start creatt uptime (not retroaktif).
     ///
-    /// RULE T-1: seq_num menentukan epoch boundary, BUKAN wall-clock. Spec §7.2c.
+    /// RULE T-1: seq_num determine epoch boundary, not wall-clock. Spec §7.2c.
     pub fn resume(
         &mut self,
         resume_seq_num: u32,
@@ -218,12 +218,12 @@ impl ResumptionProtocol {
         Ok(())
     }
 
-    /// Cek apakah node sudah resume. Spec §10.5 Phase 5.
+    /// check whether node already resume. Spec §10.5 Phase 5.
     pub fn is_resumed(&self) -> bool {
         matches!(self.phase, ResumptionPhase::Resumed { .. })
     }
 
-    /// Cek apakah resumption gagal. Spec §10.5.
+    /// check whether resumption failed. Spec §10.5.
     pub fn is_failed(&self) -> bool {
         matches!(self.phase, ResumptionPhase::Failed { .. })
     }
@@ -231,9 +231,9 @@ impl ResumptionProtocol {
 
 // ── Helper functions — spec §10.5 ────────────────────────────────────────────
 
-/// Compute gap dalam epochs dari dua seq_num. Spec §10.5 Phase 1.
+/// Compute gap in epochs from dua seq_num. Spec §10.5 Phase 1.
 ///
-/// RULE T-1: epoch boundary dari seq_num, BUKAN wall-clock. Spec §7.2c.
+/// RULE T-1: epoch boundary from seq_num, not wall-clock. Spec §7.2c.
 pub fn compute_gap_epochs(last_known_seq_num: u32, current_seq_num: u32) -> u64 {
     use crate::liveness::EPOCH_HB_COUNT;
     if current_seq_num <= last_known_seq_num {
@@ -244,10 +244,10 @@ pub fn compute_gap_epochs(last_known_seq_num: u32, current_seq_num: u32) -> u64 
     (gap_hb / EPOCH_HB_COUNT) as u64
 }
 
-/// Compute state hash untuk validasi peer. Spec §10.5 Phase 4.
+/// Compute state hash for validation peer. Spec §10.5 Phase 4.
 ///
-/// state_hash = BLAKE3(smt_root || epoch_id_le64 || node_id)
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// state_hash = BLAto3(smt_root || epoch_id_le64 || node_id)
+/// hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 pub fn compute_resumption_state_hash(
     smt_root: &[u8; 32],
     epoch_id: u64,
@@ -449,9 +449,9 @@ mod tests {
         protocol.start_validation(state_hash);
         protocol.record_peer_confirmation(&state_hash);
         protocol.record_peer_confirmation(&state_hash);
-        protocol.resume(4_320, 1).unwrap(); // epoch 1 = epoch berikutnya
+        protocol.resume(4_320, 1).unwrap(); // epoch 1 = epoch next
         if let ResumptionPhase::Resumed { resume_epoch, .. } = &protocol.phase {
-            assert_eq!(*resume_epoch, 1); // tidak retroaktif ke epoch 0
+            assert_eq!(*resume_epoch, 1); // not retroaktif to epoch 0
         }
     }
 

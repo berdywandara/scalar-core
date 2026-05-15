@@ -21,7 +21,7 @@ pub fn apply_longevity_bonus(base_reward: u64, fee_pool: u64, years: u64) -> Lon
     let bonus_ratio = multiplier.saturating_sub(FIXED_POINT_BASIS);
 
     let target_bonus = (base_reward * bonus_ratio) / FIXED_POINT_BASIS;
-    let actual_bonus = target_bonus.min(fee_pool); // Memastikan diambil dari fee pool
+    let actual_bonus = target_bonus.min(fee_pool); // ensure derived from fee pool
 
     let remaining_fee_pool = fee_pool.saturating_sub(actual_bonus);
 
@@ -48,13 +48,13 @@ mod tests {
         let multiplier_100 = compute_longevity_multiplier(100);
 
         assert_eq!(multiplier_50, 1_500_000); // 1.50x
-        assert_eq!(multiplier_100, 1_500_000); // Capped di 1.50x
+        assert_eq!(multiplier_100, 1_500_000); // Capped at 1.50x
     }
 
     #[test]
     fn test_longevity_from_fee_pool_not_new_supply() {
         let base_reward = 100_000;
-        let fee_pool = 2_000; // Fee pool tidak cukup untuk bayar seluruh bonus (target 5_000)
+        let fee_pool = 2_000; // Fee pool insufficient for bayar seluruh bonus (target 5_000)
         let years = 5; // 5% bonus target
 
         let result = apply_longevity_bonus(base_reward, fee_pool, years);

@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-/// NS_HOT: SMT Depth 32 (Mock menggunakan HashSet untuk testing out-circuit)
-/// Akan membuktikan C4 In-Circuit menggunakan Poseidon2
+/// NS_HOT: SMT Depth 32 (Mock using hashSet for testing out-circuit)
+/// will memproofkan C4 In-Circuit using Poseidon2
 pub struct SparseMerkleTree {
     pub root: [u8; 32],
     leaves: HashSet<[u8; 32]>,

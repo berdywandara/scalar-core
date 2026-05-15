@@ -2,14 +2,14 @@ use blake3::Hasher;
 
 pub const HASH_SIZE: usize = 32;
 
-/// Menghasilkan hash BLAKE3 standar 256-bit (32 bytes).
+/// produce hash BLAto3 standar 256-bit (32 bytes).
 pub fn hash(data: &[u8]) -> [u8; HASH_SIZE] {
     let mut hasher = Hasher::new();
     hasher.update(data);
     hasher.finalize().into()
 }
 
-/// Menghasilkan hash BLAKE3 dengan keyed mode (jika diperlukan untuk MAC).
+/// produce hash BLAto3 with toyed mode (if required for MAC).
 pub fn keyed_hash(key: &[u8; 32], data: &[u8]) -> [u8; HASH_SIZE] {
     let mut hasher = blake3::Hasher::new_keyed(key);
     hasher.update(data);

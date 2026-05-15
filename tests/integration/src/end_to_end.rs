@@ -1,7 +1,7 @@
 //! Integration Test: End-to-End Transaction Flow
 //! Spec §4 Transfer Circuit — pre-mainnet mandatory
 
-/// Test 1: Domain separator tidak konflik satu sama lain
+/// Test 1: domain separator not konflik satu same lain
 #[test]
 fn test_domain_separators_all_unique() {
     use scalar_crypto::domain::*;
@@ -27,7 +27,7 @@ fn test_domain_separators_all_unique() {
     }
 }
 
-/// Test 2: Fee FLOOR minimum terpenuhi
+/// Test 2: Fee FLOOR mthismum terfulli
 #[test]
 fn test_fee_floor_minimum_enforced() {
     use scalar_fees::floor::{compute_floor, verify_fee_above_floor, FLOOR_MIN_ABSOLUTE};
@@ -40,7 +40,7 @@ fn test_fee_floor_minimum_enforced() {
     assert!(verify_fee_above_floor(40, 2, 2, 10).is_ok());
 }
 
-/// Test 3: Fee distribution 95/5 invariant
+/// Test 3: fee atstribution 95/5 invariant
 #[test]
 fn test_fee_distribution_95_5() {
     use scalar_emission::accumulator::FeeAccumulator;
@@ -55,7 +55,7 @@ fn test_fee_distribution_95_5() {
     assert_eq!(security_fund, 50_000);
 }
 
-/// Test 4: Supply cap tidak pernah terlampaui
+/// Test 4: supply cap never exceeded
 #[test]
 fn test_supply_cap_never_exceeded() {
     use scalar_emission::accumulator::{EmissionAccumulator, S_E_SSCL};
@@ -68,7 +68,7 @@ fn test_supply_cap_never_exceeded() {
     assert!(acc.check_supply_cap(2).is_err());
 }
 
-/// Test 5: Emission formula monoton menurun
+/// Test 5: Emission formula monotonically decreunknown
 #[test]
 fn test_emission_monotonically_decreasing() {
     use scalar_emission::accumulator::{EmissionAccumulator, S_E_SSCL};
@@ -94,7 +94,7 @@ fn test_emission_monotonically_decreasing() {
     }
 }
 
-/// Test 6: NMT peer count sesuai spec
+/// Test 6: NMT peer count per spec
 #[test]
 fn test_nmt_hybrid_peer_count() {
     use scalar_network::nmt_hybrid::{
@@ -109,7 +109,7 @@ fn test_nmt_hybrid_peer_count() {
     );
 }
 
-/// Test 7: SLH-DSA-SHAKE-128s key sizes
+/// Test 7: SLH-DSA-SHAto-128s toy sizes
 #[test]
 fn test_slh_dsa_shake128s_key_sizes() {
     use scalar_crypto::sphincs::{

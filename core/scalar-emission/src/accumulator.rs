@@ -1,26 +1,26 @@
-//! EmissionAccumulator dan FeeAccumulator
+//! EmissionAccumulator and FeeAccumulator
 //!
 //! Spec §3.2, §7.1, §9.2 v9.0.
 //!
-//! Semua nilai dalam sSCL (1 SCL = 100_000_000 sSCL).
+//! all value in SSCL (1 SCL = 100_000_000 sSCL).
 //!
-//! Konstanta ossified:
+//! constant ossified:
 //! - S_E   = 18_900_000 SCL = 1_890_000_000_000_000 sSCL  §3.2
 //! - E₀    = 126_000 SCL/epoch = 12_600_000_000_000 sSCL  §7.1
 //! - S_MAX = 21_000_000 SCL = 2_100_000_000_000_000 sSCL  §3.2
 
 use crate::EmissionError;
 
-/// S_E dalam sSCL. OSSIFIED — spec §3.2.
+/// S_E in SSCL. OSSIFIED — spec §3.2.
 pub const S_E_SSCL: u64 = 18_900_000 * 100_000_000;
-/// E₀ dalam sSCL. OSSIFIED — spec §7.1.
+/// E₀ in SSCL. OSSIFIED — spec §7.1.
 pub const E0_SSCL: u64 = 126_000 * 100_000_000;
-/// S_MAX dalam sSCL. OSSIFIED — spec §3.2.
+/// S_MAX in SSCL. OSSIFIED — spec §3.2.
 pub const S_MAX_SSCL: u64 = 21_000_000 * 100_000_000;
 
 // ── EmissionAccumulator ───────────────────────────────────────────────────────
 
-/// Tracking total PoU minted M_E. Digunakan MC3 untuk enforce S_E cap.
+/// Tracking total PoU minted M_E. used MC3 for enforce S_E cap.
 pub struct EmissionAccumulator {
     pub total_minted: u64,
 }
@@ -30,7 +30,7 @@ impl EmissionAccumulator {
         Self { total_minted: 0 }
     }
 
-    /// ρ(k) = M_E(k) / S_E dalam fixed-point basis 10^9.
+    /// ρ(k) = M_E(k) / S_E in fixed-point basis 10^9.
     pub fn rho_fp(&self) -> u128 {
         (self.total_minted as u128)
             .saturating_mul(1_000_000_000)
@@ -52,7 +52,7 @@ impl EmissionAccumulator {
             .unwrap_or(0)) as u64
     }
 
-    /// Verifikasi supply cap sebelum mint — spec §B.2.2 MC3.
+    /// verification supply cap before mint — spec §B.2.2 MC3.
     pub fn check_supply_cap(&self, reward: u64) -> Result<(), EmissionError> {
         let new_total = self
             .total_minted
@@ -68,8 +68,8 @@ impl EmissionAccumulator {
         Ok(())
     }
 
-    /// Update M_E setelah epoch dikonfirmasi.
-    /// Jika epoch DEFERRED: JANGAN panggil fungsi ini — spec §B.5.2.
+    /// Update M_E after epoch confirmed.
+    /// if epoch DEFERRED: JANGAN call function this — spec §B.5.2.
     pub fn commit_epoch(&mut self, emission_amount: u64) -> Result<(), EmissionError> {
         self.check_supply_cap(emission_amount)?;
         self.total_minted = self
@@ -80,7 +80,7 @@ impl EmissionAccumulator {
     }
 
     /// R_i(k) = E(k) × w_i / W(k). Spec §7.
-    /// w_i dan W dalam fixed-point basis 1_000_000.
+    /// w_i and W in fixed-point basis 1_000_000.
     pub fn reward_for_node(e_k: u64, w_i_fp: u64, w_total_fp: u64) -> Result<u64, EmissionError> {
         if w_total_fp == 0 {
             return Err(EmissionError::ZeroTotalWeight);
@@ -103,10 +103,10 @@ impl Default for EmissionAccumulator {
 
 // ── FeeAccumulator ────────────────────────────────────────────────────────────
 
-/// Total fee per epoch. Distribusi 95/5 sesuai spec §9.2 v9.0.
+/// Total fee per epoch. atstribution 95/5 per spec §9.2 v9.0.
 ///
-/// v9.0: RELAY_PERCENT (70) dan AGGREGATOR_PERCENT (25) DIHAPUS.
-/// Diganti: FEE_NODE_POOL_PERCENT (95) + FEE_SECURITY_FUND_PERCENT (5).
+/// v9.0: RELAY_PERCENT (70) and AGGREGATOR_PERCENT (25) deleted.
+/// atganti: FEE_NODE_POOL_PERCENT (95) + FEE_SECURITY_FUND_PERCENT (5).
 pub struct FeeAccumulator {
     pub total_fee: u64,
 }
@@ -126,9 +126,9 @@ impl FeeAccumulator {
 
     /// Return (node_pool=95%, security_fund=5%). Spec §9.2 v9.0.
     ///
-    /// node_pool = uptime-weighted distribution ke semua node.
+    /// node_pool = uptime-weighted atstribution to all nodes.
     /// security_fund = protocol reserve.
-    /// Sisa pembulatan integer masuk ke security_fund.
+    /// Sisa pembulatan integer masuk to security_fund.
     /// Invariant: node_pool + security_fund == total_fee.
     pub fn distribution(&self) -> (u64, u64) {
         let t = self.total_fee as u128;
@@ -271,34 +271,34 @@ mod tests {
 
 /// E_TAIL = 1,000 SCL/epoch = 100,000,000,000 sSCL. OSSIFIED — spec §7.7.
 ///
-/// Tail emission backstop — minimum emission per epoch.
-/// Ketika E(k) < E_TAIL, S_R (reserve) digunakan sebagai backstop.
-/// E_active(k) = max(E(k), E_TAIL) — digunakan di seluruh reward calculation.
+/// Tail emission backstop — mthismum emission per epoch.
+/// when E(k) < E_TAIL, S_R (reserve) used as backstop.
+/// E_active(k) = max(E(k), E_TAIL) — used at seluruh reward calculation.
 pub const E_TAIL_SSCL: u64 = 1_000 * 100_000_000;
 
-/// S_R — Reserve pool untuk tail emission backstop. Spec §7.7, §3.2.
+/// S_R — Reserve pool for tail emission backstop. Spec §7.7, §3.2.
 /// S_R = S_MAX - S_E = 21,000,000 - 18,900,000 = 2,100,000 SCL.
-/// S_R bukan time-locked governance reserve — ini adalah tail emission backstop.
-/// Aktif ketika E(k) < E_TAIL_SSCL.
+/// S_R openn time-loctod governance reserve — this is tail emission backstop.
+/// Aktif when E(k) < E_TAIL_SSCL.
 pub const S_R_SSCL: u64 = S_MAX_SSCL - S_E_SSCL;
 
 /// Compute E_active(k) = max(E(k), E_TAIL). Spec §7.1, §7.7.
 ///
-/// E_active digunakan di seluruh reward calculation dan MC4 circuit.
-/// E(k) murni hanya digunakan untuk menentukan kapan S_R perlu digunakan.
+/// E_active used at seluruh reward calculation and MC4 circuit.
+/// E(k) pure only used for determine kapan S_R need used.
 ///
-/// Ketika E(k) < E_TAIL_SSCL:
+/// when E(k) < E_TAIL_SSCL:
 ///   - E_active = E_TAIL_SSCL (backstop aktif)
-///   - S_R digunakan sebagai sumber funding
+/// - S_R used as sumber funatng
 pub fn compute_e_active(e_k: u64) -> u64 {
     // Spec §7.1: E_active(k) = max(E(k), E_TAIL). OSSIFIED.
     e_k.max(E_TAIL_SSCL)
 }
 
-/// Cek apakah S_R (backstop) sedang aktif untuk epoch ini. Spec §7.7.
+/// check whether S_R (backstop) currently aktif for epoch this. Spec §7.7.
 ///
-/// S_R aktif jika E(k) < E_TAIL_SSCL.
-/// Saat S_R aktif: reward dibayar dari S_R, bukan dari emission pool S_E.
+/// S_R aktif if E(k) < E_TAIL_SSCL.
+/// when S_R aktif: reward atbayar from S_R, openn from emission pool S_E.
 pub fn is_backstop_active(e_k: u64) -> bool {
     // Spec §7.7: S_R digunakan ketika E(k) < E_TAIL
     e_k < E_TAIL_SSCL

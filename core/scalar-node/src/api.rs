@@ -1,5 +1,5 @@
-//! Local RPC API untuk komunikasi wallet ↔ node (port 7777)
-//! Protokol: HTTP/1.1 sederhana agar bisa ditest dengan curl dan dipakai wallet UI.
+//! Local RPC API for komuniqueasi wallet ↔ node (port 7777)
+//! Protokol: HTTP/1.1 simple so that bisa attest with curl and atuse wallet UI.
 
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
@@ -26,7 +26,7 @@ impl LocalRpcServer {
         Self { port: 7777 }
     }
 
-    /// Jalankan server secara blocking — panggil dari spawn_blocking atau thread terpisah.
+    /// run server secara blocking — call from spawn_blocking or thread separate.
     pub fn start(&self) {
         let address = format!("127.0.0.1:{}", self.port);
         let listener = TcpListener::bind(&address)
@@ -42,7 +42,7 @@ impl LocalRpcServer {
         }
     }
 
-    /// Handle satu HTTP request dan kembalikan JSON response.
+    /// Handle satu HTTP request and return JSON response.
     fn handle_http(mut stream: TcpStream) {
         let reader = BufReader::new(&stream);
 
@@ -56,7 +56,7 @@ impl LocalRpcServer {
         // Parse method dari path: GET /get_smt_root → "get_smt_root"
         let method = first_line
             .split_whitespace()
-            .nth(1) // ambil path
+            .nth(1) // tato path
             .unwrap_or("/")
             .trim_start_matches('/')
             .to_string();
@@ -79,7 +79,7 @@ impl LocalRpcServer {
         let _ = stream.write_all(http_response.as_bytes());
     }
 
-    /// Route method ke handler yang sesuai.
+    /// Route method to handler that sesuai.
     fn route(method: &str) -> RpcResponse {
         match method {
             "get_status" | "" => RpcResponse {

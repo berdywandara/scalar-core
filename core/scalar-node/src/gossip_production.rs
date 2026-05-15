@@ -1,14 +1,14 @@
 //! Gossip Production Layer — HeartbeatRateLimiter + StateBeacon Broadcast
 //!
-//! PR-V12-014 FIX: dua gap dari v11.0:
+//! PR-V12-014 FIX: dua gap from v11.0:
 //!
-//! G-4: HeartbeatRateLimiter (Rule T-4) sudah ada di time_security.rs
-//!      tetapi belum disambungkan ke gossip layer.
-//!      FIX: sambungkan via GossipLayer yang enforce rate limit sebelum forward.
+//! G-4: HeartbeatRateLimiter (Rule T-4) already exists at time_security.rs
+//! but not yet atsambungkan to gossip layer.
+//! FIX: sambungkan via GossipLayer that enforce rate limit before forward.
 //!
-//! G-5: StateBeacon struct sudah ada tetapi belum ada broadcast logic
-//!      ke topic scalar/beacon/1.
-//!      FIX: implementasi StateBeaconBroadcaster.
+//! G-5: StateBeacon struct already exists but not yet ada broadcast logic
+//! to topic scalar/beacon/1.
+//! FIX: implementation StateBeaconBroadcaster.
 //!
 //! Spec §12.2 (StateBeacon authenticated), §7.2c T-4 (rate limiter).
 
@@ -17,18 +17,18 @@ use scalar_network::time_security::HeartbeatRateLimiter;
 
 // ── GossipLayer — rate limiter disambungkan ke gossip ────────────────────────
 
-/// Gossip layer dengan HeartbeatRateLimiter terintegrasi. Spec §7.2c T-4, Gap G-4.
+/// Gossip layer with HeartbeatRateLimiter terintegrasi. Spec §7.2c T-4, Gap G-4.
 ///
-/// FIX: HeartbeatRateLimiter sekarang aktif di gossip layer.
-/// Setiap heartbeat yang masuk WAJIB melalui rate limiter sebelum di-forward.
+/// FIX: HeartbeatRateLimiter now aktif at gossip layer.
+/// each heartbeat that masuk WAJIB metheni rate limiter before at-forward.
 pub struct GossipLayer {
-    /// HeartbeatRateLimiter — spec §7.2c T-4. DISAMBUNGKAN ke gossip.
+    /// HeartbeatRateLimiter — spec §7.2c T-4. atSAMBUNGKAN to gossip.
     rate_limiter: HeartbeatRateLimiter,
-    /// Counter heartbeat yang diterima.
+    /// Counter heartbeat received.
     pub received_count: u64,
-    /// Counter heartbeat yang ditolak karena rate limit.
+    /// Counter heartbeat that rejected karena rate limit.
     pub rejected_count: u64,
-    /// Counter heartbeat yang di-forward.
+    /// Counter heartbeat that at-forward.
     pub forwarded_count: u64,
 }
 
@@ -42,12 +42,12 @@ impl GossipLayer {
         }
     }
 
-    /// Proses heartbeat yang masuk — enforce rate limit T-4. Spec §7.2c T-4.
+    /// process heartbeat that masuk — enforce rate limit T-4. Spec §7.2c T-4.
     ///
-    /// Returns true jika heartbeat lolos rate limit dan boleh di-forward.
-    /// Returns false jika ditolak (interval terlalu pendek).
+    /// returns true if heartbeat lolos rate limit and boleh at-forward.
+    /// Returns false if rejected (interval terthen pendek).
     ///
-    /// FIX Gap G-4: rate limiter sekarang aktif di gossip layer.
+    /// FIX Gap G-4: rate limiter now aktif at gossip layer.
     pub fn process_incoming_heartbeat(
         &mut self,
         node_id: [u8; 4],
@@ -84,12 +84,12 @@ impl Default for GossipLayer {
     }
 }
 
-/// Keputusan gossip layer untuk satu heartbeat. Spec §7.2c T-4.
+/// toputusan gossip layer for one heartbeat. Spec §7.2c T-4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GossipDecision {
-    /// Heartbeat lolos rate limit — boleh di-forward ke peers.
+    /// Heartbeat lolos rate limit — boleh at-forward to peers.
     Forward,
-    /// Heartbeat ditolak — interval terlalu pendek (T-4 violation).
+    /// Heartbeat rejected — interval terthen pendek (T-4 violation).
     RateLimited {
         node_id: [u8; 4],
         reason: &'static str,
@@ -114,17 +114,17 @@ pub struct GossipStats {
 
 /// Broadcaster StateBeacon via gossipsub topic "scalar/beacon/1". Spec §12.2, Gap G-5.
 ///
-/// FIX: StateBeacon sekarang di-broadcast setiap epoch boundary via topic pubsub.
-/// MAC StateBeacon diverifikasi sebelum di-forward.
+/// FIX: StateBeacon now at-broadcast each epoch boundary via topic pubsub.
+/// MAC StateBeacon verified before at-forward.
 pub struct StateBeaconBroadcaster {
-    /// NodeKey epoch untuk MAC computation. Spec §12.2.
+    /// Nodetoy epoch for MAC computation. Spec §12.2.
     #[allow(dead_code)]
     node_key_epoch: [u8; 32],
-    /// Counter beacon yang di-broadcast.
+    /// Counter beacon that at-broadcast.
     pub broadcast_count: u64,
-    /// Counter beacon yang diterima dan valid.
+    /// Counter beacon received and valid.
     pub received_valid_count: u64,
-    /// Counter beacon yang ditolak (MAC invalid).
+    /// Counter beacon that rejected (MAC invalid).
     pub received_invalid_count: u64,
 }
 
@@ -138,9 +138,9 @@ impl StateBeaconBroadcaster {
         }
     }
 
-    /// Buat dan serialize StateBeacon untuk broadcast. Spec §12.2, Gap G-5.
+    /// Buat and serialize StateBeacon for broadcast. Spec §12.2, Gap G-5.
     ///
-    /// StateBeacon di-broadcast setiap epoch boundary.
+    /// StateBeacon at-broadcast each epoch boundary.
     /// Format: epoch_id(8) || smt_root(32) || checksum(4) = 44 bytes.
     pub fn create_beacon(&mut self, epoch_id: u64, smt_root: [u8; 32]) -> Vec<u8> {
         let beacon = StateBeacon::new(epoch_id, smt_root);
@@ -153,10 +153,10 @@ impl StateBeaconBroadcaster {
         beacon.to_bytes().to_vec()
     }
 
-    /// Verifikasi dan proses StateBeacon yang diterima. Spec §12.2, Gap G-5.
+    /// verification and process StateBeacon received. Spec §12.2, Gap G-5.
     ///
-    /// MAC StateBeacon diverifikasi sebelum di-forward.
-    /// Returns Some(StateBeacon) jika valid, None jika MAC tidak cocok.
+    /// MAC StateBeacon verified before at-forward.
+    /// Returns Some(StateBeacon) if valid, None if MAC does not match.
     pub fn receive_and_verify_beacon(&mut self, beacon_bytes: &[u8]) -> Option<StateBeacon> {
         // Cek ukuran
         if beacon_bytes.len() != STATE_BEACON_WIRE_SIZE {

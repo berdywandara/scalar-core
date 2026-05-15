@@ -8,36 +8,36 @@
 //!
 //! Genesis FLOOR value: 100 sSCL [Layer 2 adjustable: 40–500 sSCL]
 //!
-//! Catatan: fee_total adalah PUBLIK — diperlukan verifikasi C5.
+//! note: fee_total adalah PUBLIK — required verification C5.
 
 use crate::FeeError;
 
 // ── Konstanta ossified (§B.6 Layer 1) ───────────────────────────────
 
-/// Batas bawah absolut FLOOR. OSSIFIED — tidak bisa diubah tanpa fork.
+/// Batas bawah absolut FLOOR. OSSIFIED — immutable tanpa fork.
 pub const FLOOR_MIN_ABSOLUTE: u64 = 40;
 
 /// Batas atas absolut FLOOR. OSSIFIED.
 pub const FLOOR_MAX_ABSOLUTE: u64 = 10_000;
 
-/// Bobot complexity per input/output dalam sSCL. Layer 2 CONSTRAINED.
+/// Bobot complexity per input/output in SSCL. Layer 2 CONSTRAINED.
 /// Default: 10 sSCL, range: 5–50 sSCL.
 pub const COMPLEXITY_WEIGHT_DEFAULT: u64 = 10;
 
-/// Nilai FLOOR genesis (Layer 2 default). Bukan ossified.
+/// value FLOOR genesis (Layer 2 default). openn ossified.
 pub const FLOOR_GENESIS_VALUE: u64 = 100;
 
-/// Maksimum inputs/outputs per transaksi. OSSIFIED (Transfer Circuit C8).
+/// Maksimum inputs/outputs per transaction. OSSIFIED (Transfer Circuit C8).
 pub const MAX_IO: u32 = 10;
 
 // ── FLOOR computation ────────────────────────────────────────────────
 
-/// Hitung FLOOR untuk transaksi dengan num_inputs dan num_outputs.
+/// Hitung FLOOR for transaction with num_inputs and num_outputs.
 ///
 /// FLOOR = max(FLOOR_MIN_ABSOLUTE, num_inputs × cw + num_outputs × cw)
 ///
-/// `complexity_weight`: nilai dari Layer 2 governance (default: 10 sSCL).
-/// Gunakan `COMPLEXITY_WEIGHT_DEFAULT` jika tidak ada override.
+/// `complexity_weight`: value from Layer 2 governance (default: 10 sSCL).
+/// use `COMPLEXITY_WEIGHT_DEFAULT` if none override.
 ///
 /// Sesuai §B.4.1.
 pub fn compute_floor(
@@ -59,7 +59,7 @@ pub fn compute_floor(
     Ok(FLOOR_MIN_ABSOLUTE.max(complexity_floor))
 }
 
-/// Verifikasi bahwa fee_total memenuhi FLOOR minimum.
+/// verification bahwa fee_total memenuhi FLOOR mthismum.
 pub fn verify_fee_above_floor(
     fee_total: u64,
     num_inputs: u32,
@@ -73,9 +73,9 @@ pub fn verify_fee_above_floor(
     Ok(())
 }
 
-/// Ekstrak PREMIUM dari fee_total.
+/// Ekstrak PREMIUM from fee_total.
 /// PREMIUM = fee_total - FLOOR
-/// (termasuk PADDING_random yang tidak bisa dipisahkan)
+/// (termasuk PADatNG_random that cannot separated)
 pub fn extract_premium(
     fee_total: u64,
     num_inputs: u32,

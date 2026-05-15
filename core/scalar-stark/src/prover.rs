@@ -17,7 +17,7 @@ pub struct StarkProof;
 #[derive(Debug)]
 pub struct ProverError;
 
-/// Simulasi internal prover (natural proving time)
+/// Simulasi internal prover (nregulateal proving time)
 pub fn prove_transfer_internal(
     _witness: &TransferCircuitWitness,
     _public_input: &TransferCircuitPublicInput,
@@ -27,8 +27,8 @@ pub fn prove_transfer_internal(
     Ok(StarkProof)
 }
 
-/// Normalized prover: selalu menghasilkan proof dalam 300ms ± 10ms
-/// Mencegah timing side-channel yang bisa bocorkan info tentang nilai transaksi atau private witness.
+/// Normalized prover: always produce proof in 300ms ± 10ms
+/// prevent timing side-channel that can bocorkan info tentang value transaction or private witness.
 pub fn prove_transfer_normalized(
     witness: &TransferCircuitWitness,
     public_input: &TransferCircuitPublicInput,

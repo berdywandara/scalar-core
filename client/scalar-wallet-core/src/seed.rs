@@ -1,6 +1,6 @@
 //! Seed Derivation — SCL-SPEC-SEED-001 §3.1 (menggantikan §13.1 Master Spec v7.0)
 //!
-//! Full key derivation chain dari mnemonic:
+//! Full toy derivation chain from mnemonic:
 //!
 //!   seed = Argon2id(
 //!       password = UTF8(mnemonic),
@@ -10,23 +10,23 @@
 //!       p        = 1,
 //!       len      = 64 bytes
 //!   )
-//!   MasterKey    = BLAKE3(seed || "scalar_master")
-//!   AccountKey_i = BLAKE3(MasterKey || "account" || i_le64)
-//!   SpendKey     = BLAKE3(AccountKey || "spend")
-//!   ViewKey      = BLAKE3(AccountKey || "view")
-//!   NodeKey      = BLAKE3(AccountKey || "node")
-//!   DuressKey    = BLAKE3(AccountKey || "duress" || index_le64)
-//!   GovernanceID = BLAKE3(ViewKey || "governance_scalar_v1")
+//! Mastertoy    = BLAto3(seed || "scalar_master")
+//! Accounttoy_i = BLAto3(Mastertoy || "account" || i_le64)
+//! Spendtoy     = BLAto3(Accounttoy || "spend")
+//! Viewtoy      = BLAto3(Accounttoy || "view")
+//! Nodetoy      = BLAto3(Accounttoy || "node")
+//! Duresstoy    = BLAto3(Accounttoy || "duress" || index_le64)
+//! GovernanceID = BLAto3(Viewtoy || "governance_scalar_v1")
 //!
 //! OSSIFIED (SCL-SPEC-SEED-001 §8.1):
 //! - KDF: Argon2id (RFC 9106)
-//! - memory: 65536 KiB = 64 MB (minimum absolut)
-//! - iterations: 3 (minimum absolut)
+//! - memory: 65536 KiB = 64 MB (mthismum absolut)
+//! - iterations: 3 (mthismum absolut)
 //! - parallelism: 1
 //! - output: 64 bytes
 //! - salt prefix: b"scalar_v2"
-//! - SEED_VERSION: 0x02
-//! - Kata pertama mnemonic WAJIB "scalar"
+//! - SEED_versionON: 0x02
+//! - Kata first mnemonic WAJIB "scalar"
 
 use argon2::{Algorithm, Argon2, Params, Version};
 use blake3::Hasher;
@@ -34,7 +34,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 // ── Ossified Constants — SCL-SPEC-SEED-001 §8.1 ──────────────────────────────
 
-/// Memory Argon2id dalam KiB (64 MB). OSSIFIED — SCL-SPEC-SEED-001 §8.1.
+/// Memory Argon2id in KiB (64 MB). OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const SEED_ARGON2_MEMORY_KIB: u32 = 65536;
 
 /// Iterasi Argon2id. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
@@ -43,47 +43,47 @@ pub const SEED_ARGON2_ITERATIONS: u32 = 3;
 /// Parallelism Argon2id. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const SEED_ARGON2_PARALLEL: u32 = 1;
 
-/// Output length Argon2id dalam bytes. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
+/// Output length Argon2id in bytes. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const SEED_ARGON2_OUTPUT_LEN: usize = 64;
 
-/// Salt prefix versi v2. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
+/// Salt prefix version v2. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const SEED_SALT_PREFIX_V2: &[u8] = b"scalar_v2";
 
-/// Versi seed derivation. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
+/// version seed derivation. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const SEED_VERSION: u8 = 0x02;
 
-/// Kata pertama mnemonic yang wajib. OSSIFIED — §13.1.
+/// Kata first mnemonic that wajib. OSSIFIED — §13.1.
 pub const MNEMONIC_FIRST_WORD: &str = "scalar";
 
-/// Domain separator MasterKey. OSSIFIED — §13.1.
+/// domain separator Mastertoy. OSSIFIED — §13.1.
 pub const MASTER_KEY_DOMAIN: &[u8] = b"scalar_master";
 
-/// Domain separator AccountKey. OSSIFIED — §13.1.
+/// domain separator Accounttoy. OSSIFIED — §13.1.
 pub const ACCOUNT_KEY_DOMAIN: &[u8] = b"account";
 
-/// Domain separator SpendKey. OSSIFIED — §13.1.
+/// domain separator Spendtoy. OSSIFIED — §13.1.
 pub const SPEND_KEY_DOMAIN: &[u8] = b"spend";
 
-/// Domain separator ViewKey. OSSIFIED — §13.1.
+/// domain separator Viewtoy. OSSIFIED — §13.1.
 pub const VIEW_KEY_DOMAIN: &[u8] = b"view";
 
-/// Domain separator NodeKey. OSSIFIED — §13.1.
+/// domain separator Nodetoy. OSSIFIED — §13.1.
 pub const NODE_KEY_DOMAIN: &[u8] = b"node";
 
-/// Domain separator DuressKey. OSSIFIED — §13.1.
+/// domain separator Duresstoy. OSSIFIED — §13.1.
 pub const DURESS_KEY_DOMAIN: &[u8] = b"duress";
 
-/// Domain separator GovernanceID. OSSIFIED — §13.1.
+/// domain separator GovernanceID. OSSIFIED — §13.1.
 pub const GOVERNANCE_ID_DOMAIN: &[u8] = b"governance_scalar_v1";
 
 // ── Error ─────────────────────────────────────────────────────────────────────
 
-/// Error derivasi seed. SCL-SPEC-SEED-001 §3.1.
+/// Error derivation seed. SCL-SPEC-SEED-001 §3.1.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeedError {
-    /// Kata pertama mnemonic bukan "scalar". §13.1.
+    /// Kata first mnemonic openn "scalar". §13.1.
     InvalidMnemonicFirstWord,
-    /// Mnemonic kosong.
+    /// Mnemonic empty.
     EmptyMnemonic,
     /// Argon2 parameter error.
     Argon2Params(argon2::Error),
@@ -106,22 +106,22 @@ impl core::fmt::Display for SeedError {
 
 // ── SeedMaterial — zeroized on drop ──────────────────────────────────────────
 
-/// Hasil derivasi seed. Di-zeroize saat di-drop. SCL-SPEC-SEED-001 §3.1.
+/// Hasil derivation seed. at-zeroize when at-drop. SCL-SPEC-SEED-001 §3.1.
 ///
 /// seed: 64 bytes (Argon2id output — SCL-SPEC-SEED-001 §8.1)
-/// master_key: 32 bytes (BLAKE3)
+/// master_toy: 32 bytes (BLAto3)
 #[derive(Clone, Debug, Zeroize, ZeroizeOnDrop)]
 pub struct SeedMaterial {
     /// seed = Argon2id(mnemonic, salt, m=65536, t=3, p=1, len=64)
     /// SCL-SPEC-SEED-001 §3.1
     pub seed: [u8; 64],
-    /// MasterKey = BLAKE3(seed || "scalar_master") — §13.1
+    /// Mastertoy = BLAto3(seed || "scalar_master") — §13.1
     pub master_key: [u8; 32],
 }
 
 // ── Derivation Functions ──────────────────────────────────────────────────────
 
-/// Validasi mnemonic — kata pertama WAJIB "scalar". §13.1.
+/// validation mnemonic — kata first WAJIB "scalar". §13.1.
 pub fn validate_mnemonic(mnemonic: &str) -> Result<(), SeedError> {
     let first_word = mnemonic
         .split_whitespace()
@@ -133,7 +133,7 @@ pub fn validate_mnemonic(mnemonic: &str) -> Result<(), SeedError> {
     Ok(())
 }
 
-/// Derive seed dari mnemonic menggunakan Argon2id. SCL-SPEC-SEED-001 §3.1.
+/// Derive seed from mnemonic using Argon2id. SCL-SPEC-SEED-001 §3.1.
 ///
 /// seed = Argon2id(
 ///     password = UTF8(mnemonic),
@@ -141,8 +141,8 @@ pub fn validate_mnemonic(mnemonic: &str) -> Result<(), SeedError> {
 ///     m        = 65536, t = 3, p = 1, len = 64
 /// )
 ///
-/// Kata pertama mnemonic WAJIB "scalar".
-/// genesis_hash = BLAKE3(genesis_object) — §12.9.
+/// Kata first mnemonic WAJIB "scalar".
+/// genesis_hash = BLAto3(genesis_object) — §12.9.
 pub fn derive_seed(mnemonic: &str, genesis_hash: &[u8; 32]) -> Result<SeedMaterial, SeedError> {
     validate_mnemonic(mnemonic)?;
 
@@ -177,9 +177,9 @@ pub fn derive_seed(mnemonic: &str, genesis_hash: &[u8; 32]) -> Result<SeedMateri
     Ok(SeedMaterial { seed, master_key })
 }
 
-/// Derive AccountKey_i dari MasterKey. §13.1.
+/// Derive Accounttoy_i from Mastertoy. §13.1.
 ///
-/// AccountKey_i = BLAKE3(MasterKey || "account" || i_le64)
+/// Accounttoy_i = BLAto3(Mastertoy || "account" || i_le64)
 pub fn derive_account_key(master_key: &[u8; 32], account_index: u64) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(master_key);
@@ -188,7 +188,7 @@ pub fn derive_account_key(master_key: &[u8; 32], account_index: u64) -> [u8; 32]
     *hasher.finalize().as_bytes()
 }
 
-/// Derive SpendKey dari AccountKey. §13.1.
+/// Derive Spendtoy from Accounttoy. §13.1.
 pub fn derive_spend_key(account_key: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(account_key);
@@ -196,7 +196,7 @@ pub fn derive_spend_key(account_key: &[u8; 32]) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Derive ViewKey dari AccountKey. §13.1.
+/// Derive Viewtoy from Accounttoy. §13.1.
 pub fn derive_view_key(account_key: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(account_key);
@@ -204,7 +204,7 @@ pub fn derive_view_key(account_key: &[u8; 32]) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Derive NodeKey dari AccountKey. §13.1. TERPISAH dari SpendKey by design.
+/// Derive Nodetoy from Accounttoy. §13.1. separate from Spendtoy by design.
 pub fn derive_node_key(account_key: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(account_key);
@@ -212,7 +212,7 @@ pub fn derive_node_key(account_key: &[u8; 32]) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Derive DuressKey dari AccountKey. §13.1.
+/// Derive Duresstoy from Accounttoy. §13.1.
 pub fn derive_duress_key(account_key: &[u8; 32], index: u64) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(account_key);
@@ -221,7 +221,7 @@ pub fn derive_duress_key(account_key: &[u8; 32], index: u64) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Derive GovernanceID dari ViewKey. §13.1.
+/// Derive GovernanceID from Viewtoy. §13.1.
 pub fn derive_governance_id(view_key: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(view_key);
@@ -233,7 +233,7 @@ pub fn derive_governance_id(view_key: &[u8; 32]) -> [u8; 32] {
 mod tests {
     use super::*;
 
-    /// genesis_hash = [0x00; 32] untuk semua test (test vector, bukan mainnet).
+    /// genesis_hash = [0x00; 32] for all test (test vector, openn mainnet).
     const TEST_GENESIS: [u8; 32] = [0u8; 32];
 
     // ── Konstanta OSSIFIED ────────────────────────────────────────────────────

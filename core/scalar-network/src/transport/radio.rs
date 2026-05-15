@@ -1,5 +1,5 @@
-//! Implementasi Komunikasi Radio (LoRa & HF)
-//! Dirancang untuk ketahanan infrastruktur di luar internet.
+//! implementation Komuniqueasi Raato (LoRa & HF)
+//! atrancang for totahanan infrastructure outside internet.
 
 // LoRa MTU (Maximum Transmission Unit) standar dibatasi agar tidak meluap
 pub const LORA_MTU: usize = 200;
@@ -12,7 +12,7 @@ pub struct RadioPacket {
 }
 
 impl RadioPacket {
-    /// Memecah Proof STARK raksasa (50-100KB) menjadi serpihan kecil untuk frekuensi radio
+    /// Memecah Proof STARK raksasa (50-100KB) menjaat serpihan small for frekuensi raato
     pub fn fragment_proof(proof_data: &[u8]) -> Vec<RadioPacket> {
         let chunks: Vec<&[u8]> = proof_data.chunks(LORA_MTU).collect();
         let total = chunks.len() as u32;

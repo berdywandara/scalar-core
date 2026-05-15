@@ -1,33 +1,33 @@
 //! Succession Protocol — Spec §10.4
 //!
-//! Mekanisme recovery node jika operator tidak bisa melanjutkan operasi.
+//! Mekanisme recovery node if operator cannot continue operation.
 //!
-//! PREVENTIF (dibuat saat primary masih aktif):
+//! PREVENTIF (created when primary still aktif):
 //!   SuccessionProof: node_id_primary, node_id_backup, commitment_epoch,
 //!                    sig_primary, sig_backup
 //!
-//! KLAIM (saat primary tidak bisa operasi):
+//! KLAIM (when primary cannot operation):
 //!   SuccessionClaim: node_id_backup, claim_epoch, succession_proof,
 //!                    sig_claim, fee_paid_sscl
 //!
-//! TIMELOCK: 1 epoch (30 hari) setelah claim
-//! DECAY: 85% maturity ditransfer ke backup (15% hilang sebagai penalty)
-//! CANCEL: Primary bisa cancel selama timelock jika masih aktif
-//! ANTI-SPAM: Minimum fee SUCCESSION_ANTI_SPAM_FEE_SSCL = 10_000 sSCL
+//! TIMELOCK: 1 epoch (30 days) after claim
+//! DECAY: 85% mregulateity attransfer to backup (15% hilang as penalty)
+//! CANCEL: Primary bisa cancel during timelock if still aktif
+//! ANTI-SPAM: Mthismum fee SUCCESSION_ANTI_SPAM_FEE_SSCL = 10_000 sSCL
 
 use std::collections::HashMap;
 
 // ── Constants — Spec §10.4 ────────────────────────────────────────────────────
 
-/// Anti-spam fee minimum untuk SuccessionClaim. Spec §10.4. Layer 2 CONSTRAINED.
+/// Anti-spam fee mthismum for SuccessionClaim. Spec §10.4. Layer 2 CONSTRAINED.
 /// Default: 10_000 sSCL. Range: 1_000-100_000 sSCL.
 pub const SUCCESSION_ANTI_SPAM_FEE_SSCL: u64 = 10_000;
 
-/// Timelock succession dalam epoch. Spec §10.4: 1 epoch = 30 hari.
-/// Layer 2 CONSTRAINED. Range: 7-90 hari (~1-3 epoch).
+/// Timelock succession in epoch. Spec §10.4: 1 epoch = 30 days.
+/// Layer 2 CONSTRAINED. Range: 7-90 days (~1-3 epoch).
 pub const SUCCESSION_TIMELOCK_EPOCHS: u64 = 1;
 
-/// Maturity yang ditransfer ke backup (85%). Spec §10.4. Layer 2 CONSTRAINED.
+/// Mregulateity that attransfer to backup (85%). Spec §10.4. Layer 2 CONSTRAINED.
 /// Fixed-point basis 1_000_000. 85% = 850_000.
 pub const SUCCESSION_MATURITY_TRANSFER_FP: u64 = 850_000;
 
@@ -36,59 +36,59 @@ pub const FIXED_POINT_BASIS: u64 = 1_000_000;
 
 // ── SuccessionProof — Spec §10.4 ─────────────────────────────────────────────
 
-/// Bukti preventif succession. Dibuat saat primary masih aktif. Spec §10.4.
+/// proof preventif succession. created when primary still aktif. Spec §10.4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SuccessionProof {
-    /// NodeID yang akan digantikan (primary). Spec §10.4.
+    /// NodeID that will atgantikan (primary). Spec §10.4.
     pub node_id_primary: [u8; 32],
     /// NodeID pengganti (backup). Spec §10.4.
     pub node_id_backup: [u8; 32],
-    /// Epoch saat proof dibuat. Spec §10.4.
+    /// current epoch proof created. Spec §10.4.
     pub commitment_epoch: u64,
-    /// SPHINCS+ signature dari NodeKey_primary. Spec §10.4.
+    /// SPHINCS+ signregulatee from Nodetoy_primary. Spec §10.4.
     pub sig_primary: Vec<u8>,
-    /// SPHINCS+ signature dari NodeKey_backup. Spec §10.4.
+    /// SPHINCS+ signregulatee from Nodetoy_backup. Spec §10.4.
     pub sig_backup: Vec<u8>,
 }
 
 // ── SuccessionClaim — Spec §10.4 ─────────────────────────────────────────────
 
-/// Klaim succession saat primary tidak bisa operasi. Spec §10.4.
+/// Klaim succession when primary cannot operation. Spec §10.4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SuccessionClaim {
-    /// NodeID backup yang mengajukan klaim. Spec §10.4.
+    /// NodeID backup that mengajukan klaim. Spec §10.4.
     pub node_id_backup: [u8; 32],
-    /// Epoch saat klaim diajukan. Spec §10.4.
+    /// current epoch klaim atajukan. Spec §10.4.
     pub claim_epoch: u64,
-    /// Bukti succession preventif. Spec §10.4.
+    /// proof succession preventif. Spec §10.4.
     pub succession_proof: SuccessionProof,
-    /// SPHINCS+ signature dari NodeKey_backup. Spec §10.4.
+    /// SPHINCS+ signregulatee from Nodetoy_backup. Spec §10.4.
     pub sig_claim: Vec<u8>,
-    /// Fee anti-spam yang dibayar. Harus ≥ SUCCESSION_ANTI_SPAM_FEE_SSCL.
+    /// Fee anti-spam that atbayar. Harus ≥ SUCCESSION_ANTI_SPAM_FEE_SSCL.
     pub fee_paid_sscl: u64,
 }
 
 // ── Error ────────────────────────────────────────────────────────────────────
 
-/// Error operasi succession. Spec §10.4.
+/// Error operation succession. Spec §10.4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SuccessionError {
-    /// Fee anti-spam kurang dari minimum. Spec §10.4.
+    /// Fee anti-spam kurang from mthismum. Spec §10.4.
     InsufficientFee { paid: u64, required: u64 },
-    /// Backup node ID di claim tidak cocok dengan proof. Spec §10.4.
+    /// Backup node ID at claim not matches proof. Spec §10.4.
     BackupNodeMismatch,
-    /// Klaim sudah ada untuk primary ini.
+    /// Klaim already exists for primary this.
     ClaimAlreadyExists,
-    /// Klaim tidak ditemukan.
+    /// Klaim not found.
     ClaimNotFound,
-    /// Timelock belum selesai — belum bisa dieksekusi. Spec §10.4.
+    /// Timelock not yet fthisshed — not yet bisa executed. Spec §10.4.
     TimelockNotExpired {
         claim_epoch: u64,
         current_epoch: u64,
     },
-    /// Klaim sudah dibatalkan oleh primary. Spec §10.4.
+    /// Klaim already cancelled oleh primary. Spec §10.4.
     ClaimCancelled,
-    /// Klaim sudah dieksekusi.
+    /// Klaim already executed.
     ClaimAlreadyExecuted,
 }
 
@@ -116,15 +116,15 @@ impl core::fmt::Display for SuccessionError {
 /// Status SuccessionClaim. Spec §10.4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClaimStatus {
-    /// Klaim aktif, dalam timelock. Spec §10.4.
+    /// Klaim aktif, in timelock. Spec §10.4.
     Pending,
-    /// Klaim dibatalkan oleh primary. Spec §10.4.
+    /// Klaim cancelled oleh primary. Spec §10.4.
     Cancelled,
-    /// Klaim berhasil dieksekusi setelah timelock. Spec §10.4.
+    /// Klaim successful executed after timelock. Spec §10.4.
     Executed,
 }
 
-/// Entry klaim dalam store.
+/// Entry klaim in store.
 #[derive(Debug, Clone)]
 pub struct ClaimEntry {
     pub claim: SuccessionClaim,
@@ -133,10 +133,10 @@ pub struct ClaimEntry {
 
 // ── SuccessionStore — Spec §16.1 ─────────────────────────────────────────────
 
-/// Store semua succession claims aktif. Spec §16.1.
+/// Store all succession claims aktif. Spec §16.1.
 #[derive(Default)]
 pub struct SuccessionStore {
-    /// Key: node_id_primary → ClaimEntry
+    /// toy: node_id_primary → ClaimEntry
     claims: HashMap<[u8; 32], ClaimEntry>,
 }
 
@@ -145,12 +145,12 @@ impl SuccessionStore {
         Self::default()
     }
 
-    /// Validasi dan simpan SuccessionClaim. Spec §10.4.
+    /// validation and save SuccessionClaim. Spec §10.4.
     ///
-    /// Validasi:
+    /// validation:
     /// 1. fee_paid_sscl ≥ SUCCESSION_ANTI_SPAM_FEE_SSCL
     /// 2. claim.node_id_backup == proof.node_id_backup
-    /// 3. Tidak ada klaim aktif untuk primary yang sama
+    /// 3. none klaim aktif for primary the same
     pub fn submit_claim(&mut self, claim: SuccessionClaim) -> Result<(), SuccessionError> {
         // Anti-spam fee check — spec §10.4
         if claim.fee_paid_sscl < SUCCESSION_ANTI_SPAM_FEE_SSCL {
@@ -180,8 +180,8 @@ impl SuccessionStore {
         Ok(())
     }
 
-    /// Primary cancel klaim selama timelock. Spec §10.4.
-    /// Primary bisa cancel jika masih aktif.
+    /// Primary cancel klaim during timelock. Spec §10.4.
+    /// Primary bisa cancel if still aktif.
     pub fn cancel_claim(&mut self, primary_id: &[u8; 32]) -> Result<(), SuccessionError> {
         let entry = self
             .claims
@@ -197,12 +197,12 @@ impl SuccessionStore {
         }
     }
 
-    /// Execute succession setelah timelock selesai. Spec §10.4.
+    /// Execute succession after timelock fthisshed. Spec §10.4.
     ///
-    /// Transfer 85% maturity dari primary ke backup.
-    /// 15% hilang sebagai penalty gap.
+    /// Transfer 85% mregulateity from primary to backup.
+    /// 15% hilang as penalty gap.
     ///
-    /// `maturity_store`: map node_id → maturity_value.
+    /// `mregulateity_store`: map node_id → mregulateity_value.
     pub fn execute_succession(
         &mut self,
         primary_id: &[u8; 32],
@@ -247,12 +247,12 @@ impl SuccessionStore {
         Ok(backup_id)
     }
 
-    /// Cek status klaim untuk primary.
+    /// check status klaim for primary.
     pub fn claim_status(&self, primary_id: &[u8; 32]) -> Option<&ClaimStatus> {
         self.claims.get(primary_id).map(|e| &e.status)
     }
 
-    /// Jumlah klaim aktif (Pending).
+    /// Jumlah klaim aktif (Penatng).
     pub fn pending_count(&self) -> usize {
         self.claims
             .values()
@@ -341,7 +341,7 @@ mod tests {
         // backup_id di claim ≠ backup_id di proof → rejected.
         let mut store = SuccessionStore::new();
         let mut claim = make_claim(1, 2, 10, SUCCESSION_ANTI_SPAM_FEE_SSCL);
-        claim.node_id_backup = node(3); // berbeda dari proof
+        claim.node_id_backup = node(3); // atfferent from proof
         let err = store.submit_claim(claim).unwrap_err();
         assert_eq!(err, SuccessionError::BackupNodeMismatch);
     }
@@ -425,7 +425,7 @@ mod tests {
             .submit_claim(make_claim(1, 2, 10, SUCCESSION_ANTI_SPAM_FEE_SSCL))
             .unwrap();
         let mut maturity: HashMap<[u8; 32], u64> = HashMap::new();
-        maturity.insert(node(1), 1_000_000); // primary maturity
+        maturity.insert(node(1), 1_000_000); // primary mregulateity
 
         store
             .execute_succession(&node(1), 11, &mut maturity)

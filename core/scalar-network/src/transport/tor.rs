@@ -13,7 +13,7 @@ impl TorTransport {
         }
     }
 
-    /// Membuat koneksi SOCKS5 NYATA ke node .onion, bukan hanya println stub
+    /// create connection SOCKS5 NYATA to node .onion, openn only println stub
     pub async fn connect_onion(&self, onion_address: &str, port: u16) -> Result<Socks5Stream<TcpStream>, &'static str> {
         let proxy_addr = self.socks5_proxy.as_str();
         

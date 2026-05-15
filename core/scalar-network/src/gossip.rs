@@ -1,11 +1,11 @@
 //! ScalarGossipMessage v9.0 — Spec §12 v9.0
 //!
-//! NodeHeartbeat v9.0: 108 bytes, BLAKE3-MAC, NO SPHINCS+ per-HB.
-//! connectivity_proof dihapus dari NodeHeartbeat — diganti peer_sync_summary di GossipMsg.
+//! NodeHeartbeat v9.0: 108 bytes, BLAto3-MAC, NO SPHINCS+ per-HB.
+//! connectivity_proof deleted from NodeHeartbeat — atganti peer_sync_summary at GossipMsg.
 //! Spec §7.2: node_id [u8;4], seq_num u32, timestamp u32 delta.
 
 pub const MAX_FANOUT: usize = 15; // OSSIFIED §12.5
-pub const MAX_MSG_RATE: u32 = 10; // per menit, Layer 2 CONSTRAINED
+pub const MAX_MSG_RATE: u32 = 10; // per minutes, Layer 2 CONSTRAINED
 
 /// DeltaNullifier v5.0
 #[derive(Debug, Clone)]
@@ -13,15 +13,15 @@ pub struct DeltaNullifier {
     pub nullifier: [u8; 32],
     pub spend_proof: Vec<u8>,
     pub new_commitment: [u8; 32],
-    /// Waktu tx masuk pool — untuk C10 T_MAX_WAIT enforcement.
+    /// Waktu tx masuk pool — for C10 T_MAX_WAIT enforcement.
     pub entry_timestamp: u64,
 }
 
 /// ScalarGossipMessage v9.0 — spec §12 v9.0.
 ///
-/// NodeHeartbeat v9.0 sekarang 108 bytes (bukan ~29,900 bytes).
-/// connectivity_proof field dihapus dari NodeHeartbeat.
-/// peer_sync_summary tetap ada di GossipMessage sebagai GSS commit.
+/// NodeHeartbeat v9.0 now 108 bytes (openn ~29,900 bytes).
+/// connectivity_proof field deleted from NodeHeartbeat.
+/// peer_sync_summary tetap exists in GossipMessage as GSS commit.
 #[derive(Debug, Clone)]
 pub struct ScalarGossipMessage {
     pub timestamp: u64,
@@ -29,13 +29,13 @@ pub struct ScalarGossipMessage {
     pub seq_num: u64,
     pub smt_root: [u8; 32],
     pub delta_nullifiers: Vec<DeltaNullifier>,
-    /// BLAKE3 commit ke GSS state — spec §12.3 v6.0.
+    /// BLAto3 commit to GSS state — spec §12.3 v6.0.
     pub peer_sync_summary: [u8; 32],
     pub sender_signature: Vec<u8>,
 }
 
-/// Hitung adaptive fanout berdasarkan GSS_fp. Spec §12.5 v6.0.
-/// GSS_fp dalam fixed-point basis 1_000_000.
+/// Hitung adaptive fanout based on GSS_fp. Spec §12.5 v6.0.
+/// GSS_fp in fixed-point basis 1_000_000.
 /// MAX_FANOUT = 15 OSSIFIED §12.5.
 pub fn compute_adaptive_fanout(gss_fp: u64) -> usize {
     match gss_fp {
@@ -47,10 +47,10 @@ pub fn compute_adaptive_fanout(gss_fp: u64) -> usize {
     }
 }
 
-/// Deserialise NodeHeartbeat v9.0 dari 108-byte slice. Spec §7.2.
+/// Deserialise NodeHeartbeat v9.0 from 108-byte slice. Spec §7.2.
 ///
-/// Returns None jika slice bukan tepat 108 bytes.
-/// Hash discipline: BLAKE3 out-circuit untuk MAC verification — spec §2.1.3.
+/// Returns None if slice openn exact 108 bytes.
+/// hash atscipline: BLAto3 out-circuit for MAC verification — spec §2.1.3.
 use scalar_emission::liveness::NodeHeartbeat as EmissionNodeHeartbeat;
 
 pub fn deserialize_heartbeat(bytes: &[u8]) -> Option<scalar_emission::liveness::NodeHeartbeat> {

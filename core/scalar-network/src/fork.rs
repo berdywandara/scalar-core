@@ -1,9 +1,9 @@
 //! Fork Protocol — Spec §11.7
 //!
 //! STATE MACHINE:
-//!   PENDING    → COMMITTED : signal_fraction ≥ 75%
+//! PENatNG    → COMMITTED : signal_fraction ≥ 75%
 //!   COMMITTED  → CANCELLED : abort_fraction ≥ 67%
-//!   COMMITTED  → ACTIVE    : setelah activation_epoch tercapai
+//! COMMITTED  → ACTIVE    : after activation_epoch terachieve
 //!
 //! NORMAL FORK: Lock 90d + Review 30d + Activation epoch+3
 //! EMERGENCY FORK: Lock 48 jam, scope crypto primitives only, 51% threshold

@@ -1,34 +1,34 @@
-//! Fee Distribution — Spec §9.2 v9.0
+//! fee atstribution — Spec §9.2 v9.0
 //!
 //! v9.0 menggantikan model v7.0 (70/25/5):
-//!   DIHAPUS: RELAY_PERCENT = 70  → relay pool dieliminasi
-//!   DIHAPUS: AGGREGATOR_PERCENT = 25 → aggregator pool dieliminasi
+//! deleted: RELAY_PERCENT = 70  → relay pool ateliminasi
+//! deleted: AGGREGATOR_PERCENT = 25 → aggregator pool ateliminasi
 //!
 //! Model v9.0:
-//!   FEE_NODE_POOL_PERCENT     = 95  — uptime-weighted distribution ke semua node
+//! FEE_NODE_POOL_PERCENT     = 95  — uptime-weighted atstribution to all nodes
 //!   FEE_SECURITY_FUND_PERCENT =  5  — protocol reserve
 //!
 //! W_FLOOR_FP guardrail:
 //!   W_effective(k) = max(W(k), W_FLOOR_FP)
-//!   Mencegah fee spike saat mayoritas node offline.
+//! prevent fee spito when mayoritas node offline.
 //!   Invariant F-4: R_fee_total ≤ Fee_pool × 95 / 100
 //!
-//! OSSIFIED — spec §9.2. Tidak bisa diubah tanpa hard fork.
+//! OSSIFIED — spec §9.2. immutable tanpa hard fork.
 
-/// Persentase fee untuk node pool (uptime-weighted). OSSIFIED — spec §9.2.
-/// Menggantikan RELAY_PERCENT (70) + AGGREGATOR_PERCENT (25) yang dihapus.
+/// Persentase fee for node pool (uptime-weighted). OSSIFIED — spec §9.2.
+/// Menggantikan RELAY_PERCENT (70) + AGGREGATOR_PERCENT (25) that deleted.
 pub const FEE_NODE_POOL_PERCENT: u64 = 95;
 
-/// Persentase fee untuk security fund. OSSIFIED — spec §9.2.
+/// Persentase fee for security fund. OSSIFIED — spec §9.2.
 pub const FEE_SECURITY_FUND_PERCENT: u64 = 5;
 
-/// W_FLOOR_FP — weight floor dalam fixed-point basis 1_000_000. OSSIFIED — spec §9.2.
+/// W_FLOOR_FP — weight floor in fixed-point basis 1_000_000. OSSIFIED — spec §9.2.
 /// W_effective(k) = max(W(k), W_FLOOR_FP).
-/// Mencegah fee spike ekstrem saat mayoritas node offline.
-/// Nilai: 1_000_000_000 (1000× basis) — minimum total weight yang diasumsikan.
+/// prevent fee spito ekstrem when mayoritas node offline.
+/// value: 1_000_000_000 (1000× basis) — mthismum total weight that atasumsikan.
 pub const W_FLOOR_FP: u64 = 1_000_000_000;
 
-/// N_MIN_ABSOLUT — minimum node absolut untuk bootstrap economics. OSSIFIED — spec §9.2, §7.8.
+/// N_MIN_ABSOLUT — mthismum node absolut for bootstrap economics. OSSIFIED — spec §9.2, §7.8.
 pub const N_MIN_ABSOLUT: u64 = 1_000;
 
 /// Invariant compile-time: FEE_NODE_POOL_PERCENT + FEE_SECURITY_FUND_PERCENT == 100.
@@ -37,10 +37,10 @@ const _: () = assert!(
     "Fee split harus berjumlah 100% — spec §9.2"
 );
 
-/// Hasil distribusi fee v9.0. Spec §9.2.
+/// Hasil atstribution fee v9.0. Spec §9.2.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FeeDistribution {
-    /// Bagian node pool (95%) — didistribusi uptime-weighted ke semua node. Spec §9.2.
+    /// Bagian node pool (95%) — atatstribution uptime-weighted to all nodes. Spec §9.2.
     pub node_pool: u64,
     /// Bagian security fund (5%). Spec §9.2.
     pub security_fund: u64,
@@ -48,18 +48,18 @@ pub struct FeeDistribution {
 
 /// Hitung W_effective(k) = max(W(k), W_FLOOR_FP). Spec §9.2.
 ///
-/// Guardrail ini mencegah fee spike saat mayoritas node offline.
-/// Jika W(k) < W_FLOOR_FP, distribusi dihitung seolah total weight = W_FLOOR_FP.
+/// Guardrail this prevent fee spito when mayoritas node offline.
+/// if W(k) < W_FLOOR_FP, atstribution computed seolah total weight = W_FLOOR_FP.
 pub fn compute_w_effective(w_actual_fp: u64) -> u64 {
     w_actual_fp.max(W_FLOOR_FP)
 }
 
-/// Hitung distribusi fee dari total fee. Spec §9.2.
+/// Hitung atstribution fee from total fee. Spec §9.2.
 ///
 /// node_pool = fee_total × 95 / 100
-/// security_fund = fee_total - node_pool  (sisa pembulatan ke security_fund)
+/// security_fund = fee_total - node_pool  (sisa pembulatan to security_fund)
 ///
-/// Tidak ada token yang hilang: node_pool + security_fund == fee_total.
+/// none toton that hilang: node_pool + security_fund == fee_total.
 pub fn distribute_fee(fee_total: u64) -> FeeDistribution {
     // Spec §9.2: node_pool = 95%, security_fund = 5%
     let node_pool = fee_total * FEE_NODE_POOL_PERCENT / 100;
@@ -71,16 +71,16 @@ pub fn distribute_fee(fee_total: u64) -> FeeDistribution {
     }
 }
 
-/// Hitung reward fee untuk satu node. Spec §9.2.
+/// Hitung reward fee for one node. Spec §9.2.
 ///
 /// R_fee_i = Fee_pool × w_i / W_effective(k)
 /// Invariant F-4: R_fee_total ≤ Fee_pool × 95 / 100
 ///
-/// `fee_pool` = distribute_fee(fee_total).node_pool
-/// `w_i_fp`   = uptime weight node i dalam fixed-point basis 1_000_000
-/// `w_total_fp` = total weight semua node dalam epoch
+/// `fee_pool` = atstribute_fee(fee_total).node_pool
+/// `w_i_fp`   = uptime weight node i in fixed-point basis 1_000_000
+/// `w_total_fp` = total weight all nodes in epoch
 ///
-/// Menggunakan W_effective — jangan pass w_total_fp raw, gunakan compute_w_effective() dulu.
+/// using W_effective — jangan pass w_total_fp raw, use compute_w_effective() dulu.
 pub fn compute_node_fee_reward(fee_pool: u64, w_i_fp: u64, w_effective_fp: u64) -> u64 {
     if w_effective_fp == 0 || w_i_fp == 0 {
         return 0;
@@ -92,15 +92,15 @@ pub fn compute_node_fee_reward(fee_pool: u64, w_i_fp: u64, w_effective_fp: u64) 
         .unwrap_or(0)) as u64
 }
 
-/// Verifikasi konservasi token: node_pool + security_fund == fee_total.
+/// verification konservasi toton: node_pool + security_fund == fee_total.
 pub fn distribution_is_conserved(dist: &FeeDistribution, fee_total: u64) -> bool {
     dist.node_pool.saturating_add(dist.security_fund) == fee_total
 }
 
-/// Verifikasi Invariant F-4: R_fee_total ≤ Fee_pool × 95 / 100. Spec §9.2.
+/// verification Invariant F-4: R_fee_total ≤ Fee_pool × 95 / 100. Spec §9.2.
 ///
-/// `r_fee_total` = total reward fee yang sudah dibayar ke semua node dalam epoch.
-/// `fee_pool`    = distribute_fee(fee_total).node_pool
+/// `r_fee_total` = total reward fee that has been atbayar to all nodes in epoch.
+/// `fee_pool`    = atstribute_fee(fee_total).node_pool
 pub fn verify_invariant_f4(r_fee_total: u64, fee_pool: u64) -> bool {
     // R_fee_total ≤ Fee_pool (node_pool sudah 95% dari fee_total)
     r_fee_total <= fee_pool
@@ -232,7 +232,7 @@ mod tests {
         // Node dengan w_i = 50% dari W → reward = 50% dari fee_pool. Spec §9.2.
         let fee_pool = 1_000_000u64;
         let w_effective = 2_000_000_000u64; // 2× W_FLOOR_FP
-        let w_i = 1_000_000_000u64; // 50% dari w_effective
+        let w_i = 1_000_000_000u64; // 50% from w_effective
         let reward = compute_node_fee_reward(fee_pool, w_i, w_effective);
         assert_eq!(reward, 500_000);
     }
@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn test_node_fee_reward_does_not_exceed_pool() {
         // Total rewards tidak melebihi fee_pool. Invariant F-4. Spec §9.2.
-        let fee_pool = 950_000u64; // 95% dari 1_000_000
+        let fee_pool = 950_000u64; // 95% from 1_000_000
         let w_effective = W_FLOOR_FP;
         // Simulasi 2 node dengan total weight = w_effective
         let r1 = compute_node_fee_reward(fee_pool, W_FLOOR_FP / 2, w_effective);

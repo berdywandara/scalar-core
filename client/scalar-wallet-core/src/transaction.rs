@@ -41,7 +41,7 @@ impl TransactionBuilder {
             genesis_smt_root: 0, 
             current_nullifier_smt_root: current_smt_root,
             fee_value: fee,
-            timestamp: 0, // TODO: Gunakan timestamp aktual
+            timestamp: 0, // TODO: use timestamp aktual
         };
 
         // 4. Hasilkan STARK Proof (Bukti bahwa C1-C6 valid tanpa membocorkan privasi)

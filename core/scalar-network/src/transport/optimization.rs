@@ -1,21 +1,21 @@
-//! Modul Optimasi Transmisi & Regulasi Spektrum Radio
+//! module optimization Transmfill & regulation Spektrum Raato
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy)]
 pub enum LoraRegion {
-    EU868, // Terkena regulasi Duty Cycle 1%
+    EU868, // Tertona regulation Duty Cycle 1%
     US915, // Tanpa batas Duty Cycle
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum OptimizedPayload {
-    FullCompressed(Vec<u8>), // Internet atau US915 LoRa
-    ReferenceOnly([u8; 32]), // EU868 LoRa (Hanya SMT Root / Nullifier)
+    FullCompressed(Vec<u8>), // Internet or US915 LoRa
+    ReferenceOnly([u8; 32]), // EU868 LoRa (only SMT root / Nullifier)
 }
 
 impl OptimizedPayload {
-    /// Mengatur pengiriman berdasarkan jenis radio dan regulasi regional
+    /// regulate pengiriman based on jenis raato and regulation regional
     pub fn prepare_lora_transmission(raw_proof: &[u8], region: LoraRegion) -> Self {
         match region {
             LoraRegion::EU868 => {

@@ -44,7 +44,7 @@ mod empirical_2_canonical_fuzz {
         }
     }
 
-    /// EMPIRICAL-2: 1_000_000 variasi input → manifest_hash deterministik untuk data sama.
+    /// EMPIRICAL-2: 1_000_000 variasi input → manifest_hash determthisstik for data same.
     #[test]
     fn empirical_2_canonical_serialization_1m_variations() {
         const N_ITERATIONS: u64 = 1_000_000;

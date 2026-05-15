@@ -1,12 +1,12 @@
 //! GAP C-002: Hardware Wallet Support (UR Animated QR)
-//! Standar Uniform Resources (UR) untuk PSBT-style flow.
+//! Standar Uniform Resources (UR) for PSBT-style flow.
 //! Max 200 bytes per frame, target 8 fps.
 
 pub struct UrEncoder;
 
 impl UrEncoder {
-    /// Memecah transaksi mentah menjadi array frame QR code.
-    /// Untuk proof 50KB, menghasilkan ~250-300 frame. Pada 8fps = ~35 detik scan.
+    /// Memecah transaction raw menjaat array frame QR code.
+    /// for proof 50KB, produce ~250-300 frame. on 8fps = ~35 seconds scan.
     pub fn encode_to_animated_qr(payload: &[u8]) -> Vec<String> {
         let max_fragment_size = 200; // Limit payload per QR frame
         let total_frames = payload.len().div_ceil(max_fragment_size);
@@ -29,13 +29,13 @@ impl UrEncoder {
 pub struct UrDecoder;
 
 impl UrDecoder {
-    /// Mengumpulkan scan QR dari hardware wallet untuk membentuk signed proof.
+    /// Mengumpulkan scan QR from hardware wallet for membentuk signed proof.
     pub fn decode_from_animated_qr(frames: &[String]) -> Result<Vec<u8>, &'static str> {
         // Di produksi, ini menggunakan library UR-Fountain code (Fountain decoder)
         // Placeholder untuk validasi arsitektur
         if frames.is_empty() {
             return Err("No frames provided");
         }
-        Ok(vec![0xAA; 50000]) // Mengembalikan reconstructed signature/proof
+        Ok(vec![0xAA; 50000]) // return reconstructed signregulatee/proof
     }
 }

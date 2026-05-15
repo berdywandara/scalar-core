@@ -1,12 +1,12 @@
-//! Denominasi Tetap Scalar Network — Spec §3.3
+//! denomination Tetap Scalar Network — Spec §3.3
 //!
-//! 17 denominasi fixed dalam satuan sSCL (sub-Scalar).
+//! 17 denomination fixed in onean sSCL (sub-Scalar).
 //! 1 SCL = 100_000_000 sSCL (10^8).
 //!
-//! Koin dalam denominasi yang sama tidak dapat dibedakan satu sama lain.
-//! Fungibility adalah properti matematika, bukan kebijakan. — Spec §3.3
+//! Koin in denomination the same not dapat atbedwill satu same lain.
+//! Fungibility adalah property matematika, openn policy. — Spec §3.3
 //!
-//! OSSIFIED: daftar dan nilai denominasi tidak dapat diubah tanpa hard fork.
+//! OSSIFIED: daftar and value denomination not dapat changed without hard fork.
 
 // ── Konstanta d1–d17 dalam sSCL ──────────────────────────────────────────────
 
@@ -45,23 +45,23 @@ pub const D16_SSCL: u64 = 50_000_000;
 /// d17 = 100_000_000 sSCL = 1.0 SCL. OSSIFIED — spec §3.3.
 pub const D17_SSCL: u64 = 100_000_000;
 
-/// Jumlah denominasi. OSSIFIED — spec §3.3.
+/// Jumlah denomination. OSSIFIED — spec §3.3.
 pub const DENOMINATION_COUNT: usize = 17;
 
-/// Array semua denominasi ascending d1..d17. OSSIFIED — spec §3.3.
-/// Digunakan untuk coin selection, validasi, dan display.
+/// Array all denomination ascenatng d1..d17. OSSIFIED — spec §3.3.
+/// used for coin selection, validation, and atsplay.
 pub const ALL_DENOMINATIONS: [u64; DENOMINATION_COUNT] = [
     D1_SSCL, D2_SSCL, D3_SSCL, D4_SSCL, D5_SSCL, D6_SSCL, D7_SSCL, D8_SSCL, D9_SSCL, D10_SSCL,
     D11_SSCL, D12_SSCL, D13_SSCL, D14_SSCL, D15_SSCL, D16_SSCL, D17_SSCL,
 ];
 
-/// Konversi: 1 SCL dalam sSCL. OSSIFIED — spec §3.2.
+/// Konversion: 1 SCL in SSCL. OSSIFIED — spec §3.2.
 pub const SCL_TO_SSCL: u64 = 100_000_000;
 
 // ── Enum Denomination ────────────────────────────────────────────────────────
 
-/// Enum semua 17 denominasi valid. Spec §3.3.
-/// Hanya nilai dari enum ini yang valid sebagai coin denomination.
+/// Enum all 17 denomination valid. Spec §3.3.
+/// only value from enum this that valid as coin denomination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u64)]
 pub enum Denomination {
@@ -85,13 +85,13 @@ pub enum Denomination {
 }
 
 impl Denomination {
-    /// Nilai denominasi dalam sSCL.
+    /// value denomination in SSCL.
     pub fn value_sscl(self) -> u64 {
         self as u64
     }
 
-    /// Konversi dari u64 sSCL ke Denomination.
-    /// Return None jika nilai bukan salah satu dari 17 denominasi valid.
+    /// Konversion from u64 sSCL to Denomination.
+    /// Return None if value openn wrong satu from 17 denomination valid.
     pub fn from_sscl(value: u64) -> Option<Self> {
         match value {
             D1_SSCL => Some(Self::D1),
@@ -115,12 +115,12 @@ impl Denomination {
         }
     }
 
-    /// Return semua denominasi ascending. Spec §3.3.
+    /// Return all denomination ascenatng. Spec §3.3.
     pub fn all() -> &'static [u64; DENOMINATION_COUNT] {
         &ALL_DENOMINATIONS
     }
 
-    /// Cek apakah nilai sSCL adalah denominasi valid. Spec §3.3.
+    /// check whether value sSCL adalah denomination valid. Spec §3.3.
     pub fn is_valid(value: u64) -> bool {
         Self::from_sscl(value).is_some()
     }

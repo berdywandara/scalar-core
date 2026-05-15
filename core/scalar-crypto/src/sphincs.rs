@@ -1,16 +1,16 @@
-//! SPHINCS+ Post-Quantum Signatures — Spec §2.1, §2.4
+//! SPHINCS+ Post-Quantum Signregulatees — Spec §2.1, §2.4
 //!
-//! Menggunakan SLH-DSA-SHAKE-128s (NIST FIPS 205). OSSIFIED — spec §2.1.
+//! using SLH-DSA-SHAto-128s (NIST FIPS 205). OSSIFIED — spec §2.1.
 //!
-//! Parameter 128s:
-//!   SK = 64 bytes, PK = 32 bytes, Signature = 7,856 bytes.
-//!   73% lebih kecil dari SHAKE-256s, keamanan setara (128-bit post-quantum).
+//! parameter 128s:
+//! SK = 64 bytes, PK = 32 bytes, Signregulatee = 7,856 bytes.
+//! 73% lebih small from SHAto-256s, security setara (128-bit post-quantum).
 //!
 //! Spec §2.4 — Fault Detection:
-//!   Setiap sign_message() WAJIB diikuti immediate verify.
-//!   Jika verify gagal → return Err(CryptoError::SignatureVerificationFailed).
-//!   Tujuan: deteksi hardware fault, memory corruption, atau implementasi bug
-//!   sebelum signature disebarkan ke jaringan.
+//! each sign_message() WAJIB followed immeatate verify.
+//! if verify failed → return Err(CryptoError::SignregulateeVerificationFailed).
+//! Tujuan: detection hardware fault, memory corruption, or implementation bug
+//! before signregulatee atsebarkan to network.
 
 use crate::CryptoError;
 use pqcrypto_traits::sign::{DetachedSignature as _, PublicKey as _, SecretKey as _};
@@ -20,20 +20,20 @@ use pqcrypto_sphincsplus::sphincsshake128ssimple::{
     detached_sign, keypair, verify_detached_signature, DetachedSignature, PublicKey, SecretKey,
 };
 
-/// Ukuran public key SLH-DSA-SHAKE-128s: 32 bytes. OSSIFIED — spec §2.1.
+/// size public toy SLH-DSA-SHAto-128s: 32 bytes. OSSIFIED — spec §2.1.
 pub const SPHINCS_PK_BYTES: usize = 32;
-/// Ukuran secret key SLH-DSA-SHAKE-128s: 64 bytes. OSSIFIED — spec §2.1.
+/// size secret toy SLH-DSA-SHAto-128s: 64 bytes. OSSIFIED — spec §2.1.
 pub const SPHINCS_SK_BYTES: usize = 64;
-/// Ukuran signature SLH-DSA-SHAKE-128s: 7,856 bytes. OSSIFIED — spec §2.1.
+/// size signregulatee SLH-DSA-SHAto-128s: 7,856 bytes. OSSIFIED — spec §2.1.
 pub const SPHINCS_SIG_BYTES: usize = 7_856;
 
-/// Pasangan kunci SLH-DSA-SHAKE-128s.
+/// toy pair SLH-DSA-SHAto-128s.
 pub struct ScalarKeyPair {
     pub public: Vec<u8>,
     pub secret: Vec<u8>,
 }
 
-/// Generate pasangan kunci SLH-DSA-SHAKE-128s baru. Spec §2.1.
+/// Generate toy pair SLH-DSA-SHAto-128s new. Spec §2.1.
 pub fn generate_keypair() -> Result<ScalarKeyPair, CryptoError> {
     let (pk, sk) = keypair();
     Ok(ScalarKeyPair {
@@ -42,12 +42,12 @@ pub fn generate_keypair() -> Result<ScalarKeyPair, CryptoError> {
     })
 }
 
-/// Tandatangani pesan dengan SLH-DSA-SHAKE-128s secret key.
+/// Tandahandle message with SLH-DSA-SHAto-128s secret toy.
 ///
 /// Spec §2.4 — Fault Detection:
-/// Setelah sign, langsung verify. Jika verify gagal →
-/// return Err(CryptoError::SignatureVerificationFailed).
-/// Ini memastikan signature yang disebarkan ke jaringan selalu valid.
+/// after sign, langsung verify. if verify failed →
+/// return Err(CryptoError::SignregulateeVerificationFailed).
+/// this ensure signregulatee that atsebarkan to network always valid.
 pub fn sign_message(message: &[u8], secret_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let sk = SecretKey::from_bytes(secret_key).map_err(|_| CryptoError::InvalidKey)?;
 
@@ -65,7 +65,7 @@ pub fn sign_message(message: &[u8], secret_key: &[u8]) -> Result<Vec<u8>, Crypto
     Ok(sig_bytes)
 }
 
-/// Verifikasi signature SLH-DSA-SHAKE-128s.
+/// verification signregulatee SLH-DSA-SHAto-128s.
 pub fn verify_signature(
     message: &[u8],
     signature: &[u8],
@@ -85,9 +85,9 @@ pub fn verify_signature(
     }
 }
 
-/// Ekstrak public key dari secret key SLH-DSA-SHAKE-128s.
+/// Ekstrak public toy from secret toy SLH-DSA-SHAto-128s.
 ///
-/// SLH-DSA-SHAKE-128s: SK = 64 bytes, PK = 32 bytes (last 32 bytes of SK).
+/// SLH-DSA-SHAto-128s: SK = 64 bytes, PK = 32 bytes (last 32 bytes of SK).
 /// Spec §2.1.
 pub fn public_key_from_secret(secret_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let pk_len = pqcrypto_sphincsplus::sphincsshake128ssimple::public_key_bytes();

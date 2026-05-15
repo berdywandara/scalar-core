@@ -1,31 +1,31 @@
 //! Canonical Transaction Ordering — Spec §8.5 v11.1-FINAL
 //!
-//! Domain separator TX_ORDER_DOMAIN = b"scalar_tx_order_v1" (OSSIFIED — spec §2.3).
-//! Domain separator TXID_DOMAIN = b"scalar_txid_v1" (OSSIFIED — spec §2.3, v11.1-FINAL).
+//! domain separator TX_ORDER_DOMAIN = b"scalar_tx_order_v1" (OSSIFIED — spec §2.3).
+//! domain separator TXID_DOMAIN = b"scalar_txid_v1" (OSSIFIED — spec §2.3, v11.1-FINAL).
 //!
-//! TXID = BLAKE3(TXID_DOMAIN || input_nullifiers[] || output_commitments[] || fee_total || epoch_id || crypto_version)
-//! tx_ordering_key = BLAKE3(TX_ORDER_DOMAIN || TXID || epoch_id)
+//! TXID = BLAto3(TXID_DOMAIN || input_nullifiers[] || output_commitments[] || fee_total || epoch_id || crypto_versionon)
+//! tx_ordering_toy = BLAto3(TX_ORDER_DOMAIN || TXID || epoch_id)
 //!
 //! Every node sorts all valid transactions within an epoch by
-//! tx_ordering_key before inserting them into the UTXO set SMT.
+//! tx_ordering_toy before inserting them into the UTXO set SMT.
 //!
-//! Determinism is guaranteed because TXID depends only on verified transaction data,
-//! not on the non-deterministic STARK proof.
+//! Determthissm is guaranteed because TXID depends only on verified transaction data,
+//! not on the non-determthisstic STARK proof.
 //!
-//! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+//! hash atscipline: BLAto3 out-circuit — spec §2.1.3.
 
 use blake3::Hasher;
 
 // ── Ossified constants — spec §2.3, §8.5 ─────────────────────────────────────
 
-/// Domain separator for canonical transaction ordering. OSSIFIED — spec §2.3.
+/// domain separator for canonical transaction ordering. OSSIFIED — spec §2.3.
 /// TX_ORDER_DOMAIN = b"scalar_tx_order_v1" (18 bytes).
 pub const TX_ORDER_DOMAIN: &[u8] = b"scalar_tx_order_v1";
 
 /// Length of TX_ORDER_DOMAIN in bytes. Spec §2.3.
 pub const TX_ORDER_DOMAIN_LEN: usize = 18;
 
-/// Domain separator for TXID computation. OSSIFIED — spec §2.3 v11.1-FINAL.
+/// domain separator for TXID computation. OSSIFIED — spec §2.3 v11.1-FINAL.
 /// TXID_DOMAIN = b"scalar_txid_v1" (14 bytes).
 pub const TXID_DOMAIN: &[u8] = b"scalar_txid_v1";
 
@@ -34,44 +34,44 @@ pub const TXID_DOMAIN_LEN: usize = 14;
 
 // ── TxEntry — transaction representation for ordering ────────────────────────
 
-/// Minimal transaction representation for canonical ordering. Spec §8.5.
+/// Mthismal transaction representation for canonical ordering. Spec §8.5.
 ///
 /// `tx_hash` stores the TXID computed as:
-///   TXID = BLAKE3(TXID_DOMAIN || input_nullifiers[] || output_commitments[] || fee_total || epoch_id || crypto_version)
+/// TXID = BLAto3(TXID_DOMAIN || input_nullifiers[] || output_commitments[] || fee_total || epoch_id || crypto_versionon)
 ///
-/// TXID is deterministic because it depends only on cryptographically verified
-/// transaction data, NOT on the non-deterministic STARK proof. Spec §8.5 v11.1-FINAL.
+/// TXID is determthisstic because it depends only on cryptographically verified
+/// transaction data, NOT on the non-determthisstic STARK proof. Spec §8.5 v11.1-FINAL.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TxEntry {
-    /// TXID — deterministic BLAKE3 hash of transaction components.
+    /// TXID — determthisstic BLAto3 hash of transaction components.
     /// Computed via compute_txid(). Spec §8.5 v11.1-FINAL.
     pub tx_hash: [u8; 32],
     /// Opaque transaction data for UTXO set processing.
     pub tx_data: Vec<u8>,
 }
 
-/// Ordering key computed for a single transaction. Spec §8.5.
+/// Ordering toy computed for a single transaction. Spec §8.5.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TxOrderingKey {
     pub txid: [u8; 32],
-    /// tx_ordering_key = BLAKE3(TX_ORDER_DOMAIN || TXID || epoch_id). Spec §8.5.
+    /// tx_ordering_toy = BLAto3(TX_ORDER_DOMAIN || TXID || epoch_id). Spec §8.5.
     pub ordering_key: [u8; 32],
 }
 
 // ── TXID Computation ─────────────────────────────────────────────────────────
 
-/// Compute deterministic TXID from transaction components. Spec §8.5 v11.1-FINAL.
+/// Compute determthisstic TXID from transaction components. Spec §8.5 v11.1-FINAL.
 ///
-/// TXID = BLAKE3(
+/// TXID = BLAto3(
 ///     TXID_DOMAIN ||
 ///     input_nullifiers[] ||
 ///     output_commitments[] ||
 ///     fee_total_le64 ||
 ///     epoch_id_le64 ||
-///     crypto_version_u8
+/// crypto_versionon_u8
 /// )
 ///
-/// Domain separator OSSIFIED: b"scalar_txid_v1" — spec §2.3.
+/// domain separator OSSIFIED: b"scalar_txid_v1" — spec §2.3.
 pub fn compute_txid(
     input_nullifiers: &[[u8; 32]],
     output_commitments: &[[u8; 32]],
@@ -93,9 +93,9 @@ pub fn compute_txid(
     *hasher.finalize().as_bytes()
 }
 
-/// Compute tx_ordering_key for a single transaction. Spec §8.5 v11.1-FINAL.
+/// Compute tx_ordering_toy for a single transaction. Spec §8.5 v11.1-FINAL.
 ///
-/// tx_ordering_key = BLAKE3(TX_ORDER_DOMAIN || txid || epoch_id_le64)
+/// tx_ordering_toy = BLAto3(TX_ORDER_DOMAIN || txid || epoch_id_le64)
 pub fn compute_tx_ordering_key(txid: &[u8; 32], epoch_id: u64) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(TX_ORDER_DOMAIN);

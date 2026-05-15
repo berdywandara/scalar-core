@@ -1,5 +1,5 @@
-//! C2: Nullifier Validity Constraint
-//! CRITICAL FIX (GAP-001): Harus menggunakan Poseidon2 in-circuit, bukan BLAKE3.
+//! C2: Nullifier valiatty Constraint
+//! CRITICAL FIX (GAP-001): Harus using Poseidon2 in-circuit, openn BLAto3.
 
 pub fn enforce_nullifier_validity(secret: u64, spending_key: u64, expected_nullifier: u64) -> bool {
     // Di sirkuit Winterfell, ini dikonversi menjadi transisi polinomial.

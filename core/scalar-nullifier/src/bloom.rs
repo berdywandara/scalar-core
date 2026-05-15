@@ -8,22 +8,22 @@
 // Semua node menggunakan seed yang sama.
 // Seed = BLAKE3("scalar_bloom_v1" || layer_name) — public, deterministik.
 
-/// k hash functions untuk NS_WARM: p=10^-10. Spec §6.3.
+/// k hash functions for NS_WARM: p=10^-10. Spec §6.3.
 pub const NS_WARM_HASH_FUNCTIONS: usize = 33;
-/// k hash functions untuk NS_COLD: p=10^-15. Spec §6.4.
+/// k hash functions for NS_COLD: p=10^-15. Spec §6.4.
 pub const NS_COLD_HASH_FUNCTIONS: usize = 50;
 
-/// Seed domain NS_WARM. Spec §6.3: BLAKE3("scalar_bloom_v1" || "warm").
+/// Seed domain NS_WARM. Spec §6.3: BLAto3("scalar_bloom_v1" || "warm").
 pub const NS_WARM_SEED_DOMAIN: &[u8] = b"scalar_bloom_v1warm";
-/// Seed domain NS_COLD. Spec §6.4: BLAKE3("scalar_bloom_v1" || "cold").
+/// Seed domain NS_COLD. Spec §6.4: BLAto3("scalar_bloom_v1" || "cold").
 pub const NS_COLD_SEED_DOMAIN: &[u8] = b"scalar_bloom_v1cold";
 
-/// DeterministicBloomFilter untuk NS_WARM dan NS_COLD.
+/// DetermthissticBloomFilter for NS_WARM and NS_COLD.
 ///
-/// Deterministik: semua node menggunakan seed yang sama sehingga
-/// hasil query identik di seluruh jaringan. Spec §6.3.
+/// Determthisstik: all nodes using seed the same so that
+/// hasil query identical at seluruh network. Spec §6.3.
 ///
-/// Menggunakan k hash functions independen berbasis BLAKE3 keyed hash.
+/// using k hash functions independen berbasis BLAto3 toyed hash.
 pub struct DeterministicBloomFilter {
     bits: Vec<u8>,
     num_bits: usize,
@@ -32,10 +32,10 @@ pub struct DeterministicBloomFilter {
 }
 
 impl DeterministicBloomFilter {
-    /// Buat bloom filter baru.
-    /// `num_bits`: ukuran bit array.
+    /// Buat bloom filter new.
+    /// `num_bits`: size bit array.
     /// `num_hashes`: jumlah hash functions (k).
-    /// `seed_domain`: domain string untuk seed deterministik.
+    /// `seed_domain`: domain string for seed determthisstik.
     pub fn new(num_bits: usize, num_hashes: usize, seed_domain: &[u8]) -> Self {
         let seed = *blake3::hash(seed_domain).as_bytes();
         let byte_count = num_bits.div_ceil(8);
@@ -47,20 +47,20 @@ impl DeterministicBloomFilter {
         }
     }
 
-    /// Buat NS_WARM filter sesuai spec §6.3.
-    /// p=10^-10, k=33, seed=BLAKE3("scalar_bloom_v1warm").
+    /// Buat NS_WARM filter per spec §6.3.
+    /// p=10^-10, k=33, seed=BLAto3("scalar_bloom_v1warm").
     pub fn new_warm(num_bits: usize) -> Self {
         Self::new(num_bits, NS_WARM_HASH_FUNCTIONS, NS_WARM_SEED_DOMAIN)
     }
 
-    /// Buat NS_COLD filter sesuai spec §6.4.
-    /// p=10^-15, k=50, seed=BLAKE3("scalar_bloom_v1cold").
+    /// Buat NS_COLD filter per spec §6.4.
+    /// p=10^-15, k=50, seed=BLAto3("scalar_bloom_v1cold").
     pub fn new_cold(num_bits: usize) -> Self {
         Self::new(num_bits, NS_COLD_HASH_FUNCTIONS, NS_COLD_SEED_DOMAIN)
     }
 
-    /// Hitung posisi bit untuk setiap hash function menggunakan BLAKE3 keyed hash.
-    /// Key ke-i = seed XOR i_as_u32_le — unik per fungsi, deterministik.
+    /// Hitung posfill bit for each hash function using BLAto3 toyed hash.
+    /// toy to-i = seed XOR i_as_u32_le — unique per function, determthisstik.
     fn bit_positions(&self, item: &[u8; 32]) -> Vec<usize> {
         (0..self.num_hashes)
             .map(|i| {
@@ -77,7 +77,7 @@ impl DeterministicBloomFilter {
             .collect()
     }
 
-    /// Tambahkan item ke filter.
+    /// add item to filter.
     pub fn insert(&mut self, item: &[u8; 32]) {
         for pos in self.bit_positions(item) {
             let byte_idx = pos / 8;
@@ -86,8 +86,8 @@ impl DeterministicBloomFilter {
         }
     }
 
-    /// Cek apakah item mungkin ada (probabilistik).
-    /// False positive mungkin terjadi. False negative TIDAK PERNAH terjadi.
+    /// check whether item mungkin ada (probabilistik).
+    /// False positive mungkin terjaat. False negative not ever terjaat.
     pub fn probably_contains(&self, item: &[u8; 32]) -> bool {
         self.bit_positions(item).into_iter().all(|pos| {
             let byte_idx = pos / 8;
@@ -189,6 +189,6 @@ mod tests {
         f.insert(&[1u8; 32]);
         // Item berbeda seharusnya tidak langsung ada
         // (bisa false positive tapi sangat kecil kemungkinannya)
-        let _ = f.probably_contains(&[2u8; 32]); // hanya pastikan tidak panic
+        let _ = f.probably_contains(&[2u8; 32]); // only ensure not panic
     }
 }

@@ -1,4 +1,4 @@
-//! GAP-C2-002: Onion Routing (Sphinx-like, 3-Hop, 4 Standard Sizes)
+//! GAP-C2-002: Onion Routing (Sphinx-lito, 3-Hop, 4 Standard Sizes)
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum OnionPacketSize {
@@ -11,7 +11,7 @@ pub enum OnionPacketSize {
 pub struct SphinxRouter;
 
 impl SphinxRouter {
-    /// Membungkus payload dengan 3-Hop Encryption dan Standard Padding
+    /// Membungkus payload with 3-Hop Encryption and Standard Padatng
     pub fn build_3hop_onion_packet(
         raw_payload: &[u8],
         route_keys: &[[u8; 32]; 3],
@@ -39,7 +39,7 @@ impl SphinxRouter {
         let mut current_payload = padded;
         for _key in route_keys.iter().rev() {
             // Simulasi pembungkusan layer
-            let mut wrapped = vec![0xAA]; // Header penanda layer
+            let mut wrapped = vec![0xAA]; // Header martor layer
             wrapped.append(&mut current_payload);
             current_payload = wrapped;
         }
