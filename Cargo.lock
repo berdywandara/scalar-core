@@ -2788,6 +2788,8 @@ version = "0.1.0"
 dependencies = [
  "argon2",
  "blake3",
+ "scalar-crypto",
+ "scalar-emission",
  "zeroize",
 ]
 
