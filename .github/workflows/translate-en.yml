@@ -1,0 +1,161 @@
+name: Apply English Translations
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_start:
+        description: 'Starting batch number (1-8)'
+        type: number
+        default: 1
+        required: true
+      batch_end:
+        description: 'Ending batch number (1-8)'
+        type: number
+        default: 1
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  apply-translations:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout english-docs branch
+        uses: actions/checkout@v4
+        with:
+          ref: english-docs
+      
+      - name: Write Python script
+        run: |
+          cat > apply.py << 'ENDOFSCRIPT'
+          import os
+
+          TRANSLATIONS = {}
+
+          # BATCH 1 - File 1
+          TRANSLATIONS["client/scalar-audit/src/lib.rs"] = [
+              ("//! - Crate terpisah untuk kebutuhan audit, verifikasi proof, dan inspeksi state.",
+               "//! - Separate crate for audit needs, proof verification, and state inspection."),
+              ("//! - Menggunakan API publik dari scalar-crypto dan scalar-stark SAJA.",
+               "//! - Using public APIs from scalar-crypto and scalar-stark ONLY."),
+              ("// Semua API publik tidak membutuhkan private key. Spec §16.4.",
+               "// All public APIs do not require a private key. Spec §16.4."),
+          ]
+
+          # BATCH 1 - File 2
+          TRANSLATIONS["client/scalar-audit/src/proof_verifier.rs"] = [
+              ("//! Hanya menggunakan API publik dari scalar-stark.",
+               "//! Only uses public APIs from scalar-stark."),
+              ("//! Spec §16.4: \"Crate terpisah untuk kebutuhan audit, verifikasi proof,",
+               "//! Spec §16.4: \"Separate crate for audit needs, proof verification,"),
+              ("//! dan inspeksi state. Tidak ada akses ke kunci privat.",
+               "//! and state inspection. No access to private keys."),
+              ("/// Proof kosong atau format tidak valid. Spec §16.4.",
+               "/// Proof is empty or format is invalid. Spec §16.4."),
+              ("// ── AuditPublicInputs — input publik untuk audit ──────────────────────────────",
+               "// ── AuditPublicInputs — public inputs for audit ──────────────────────────────"),
+              ("/// Hanya berisi data publik — tidak ada private witness.",
+               "/// Only contains public data — no private witness."),
+              ("/// Fee total dalam sSCL. Spec §9.1.",
+               "/// Total fee in sSCL. Spec §9.1."),
+              ("/// Timestamp saat proving. Spec §4.2.",
+               "/// Timestamp during proving. Spec §4.2."),
+              ("/// Tidak ada akses ke private witness atau kunci privat. Spec §16.4.",
+               "/// No access to private witness or private keys. Spec §16.4."),
+              ("// Verifikasi: fungsi ini tidak membutuhkan private key.",
+               "// Verification: this function does not require a private key."),
+              ("// Hanya proof bytes dan public inputs — tidak ada private key param",
+               "// Only proof bytes and public inputs — no private key param"),
+          ]
+
+          # BATCH 1 - File 3
+          TRANSLATIONS["client/scalar-audit/src/state_inspector.rs"] = [
+              ("/// Nullifier belum pernah digunakan — coin masih valid. Spec §16.4.",
+               "/// Nullifier has never been used — coin is still valid. Spec §16.4."),
+              ("/// Nullifier sudah digunakan — coin sudah dibelanjakan. Spec §16.4.",
+               "/// Nullifier has been used — coin has been spent. Spec §16.4."),
+              ("/// Status tidak diketahui — data tidak mencukupi. Spec §16.4.",
+               "/// Unknown status — insufficient data. Spec §16.4."),
+              ("/// Manifest hash tidak cocok — data corrupt atau dimanipulasi. Spec §16.4.",
+               "/// Manifest hash does not match — data is corrupt or manipulated. Spec §16.4."),
+              ("/// Manifest kosong (tidak ada node). Spec §16.4.",
+               "/// Manifest is empty (no nodes). Spec §16.4."),
+              ("/// `spent_nullifiers`: slice nullifier yang sudah digunakan (dari state snapshot).",
+               "/// `spent_nullifiers`: slice of used nullifiers (from state snapshot)."),
+              ("/// Tidak ada akses ke private key atau internal nullifier store. Spec §16.4.",
+               "/// No access to private key or internal nullifier store. Spec §16.4."),
+              ("/// Menghitung ulang hash dan membandingkan dengan manifest.manifest_hash.",
+               "/// Recalculate hash and compare with manifest.manifest_hash."),
+              ("// Hitung ulang hash dan bandingkan",
+               "// Recalculate hash and compare"),
+              ("/// Hitung BLAKE3 hash dari data untuk audit. Spec §16.4.",
+               "/// Calculate BLAKE3 hash from data for audit. Spec §16.4."),
+              ("// Compute dan set hash yang benar",
+               "// Compute and set the correct hash"),
+              ("// Nullifier tidak ada dalam set → Unspent. Spec §16.4.",
+               "// Nullifier is not in the set → Unspent. Spec §16.4."),
+              ("// Nullifier ada dalam set → Spent. Spec §16.4.",
+               "// Nullifier is in the set → Spent. Spec §16.4."),
+              ("// Set kosong → selalu Unspent. Spec §16.4.",
+               "// Empty set → always Unspent. Spec §16.4."),
+              ("// Manifest dengan hash salah → HashMismatch. Spec §16.4.",
+               "// Manifest with incorrect hash → HashMismatch. Spec §16.4."),
+              ("// tamper",
+               "// tamper"),
+              ("// Fungsi audit tidak membutuhkan private key. Spec §16.4.",
+               "// Audit function does not require a private key. Spec §16.4."),
+          ]
+
+          def apply_translations(filepath, replacements):
+              full_path = filepath if filepath.startswith('./') else './' + filepath
+              if not os.path.exists(full_path):
+                  print(f"  SKIP: {full_path} not found")
+                  return False
+              
+              with open(full_path, 'r', encoding='utf-8') as f:
+                  content = f.read()
+              
+              changed = False
+              for old, new in replacements:
+                  if old in content:
+                      content = content.replace(old, new)
+                      changed = True
+                  else:
+                      print(f"  WARN: text not found in {filepath}: {old[:60]}...")
+              
+              if changed:
+                  with open(full_path, 'w', encoding='utf-8') as f:
+                      f.write(content)
+                  print(f"  OK: {full_path}")
+                  return True
+              else:
+                  print(f"  FAIL: no changes in {full_path}")
+                  return False
+
+          print("Applying Batch 1 translations...")
+          print(f"Files: {len(TRANSLATIONS)}")
+          ok = 0
+          fail = 0
+          for fp, reps in TRANSLATIONS.items():
+              if apply_translations(fp, reps):
+                  ok += 1
+              else:
+                  fail += 1
+          print(f"Done. OK={ok} FAIL={fail}")
+          ENDOFSCRIPT
+          
+          python3 apply.py
+      
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add -A
+            git commit -m "docs: translate batch 1 (audit crate) to English"
+            git push origin english-docs
+          fi
