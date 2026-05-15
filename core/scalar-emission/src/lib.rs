@@ -11,6 +11,7 @@ pub mod institutional;
 pub mod liveness;
 pub mod longevity;
 pub mod manifest;
+pub mod mint_nullifier;
 pub mod ordering;
 pub mod pou;
 pub mod resumption;
@@ -25,14 +26,20 @@ pub mod utxo_set_smt;
 /// Error dari emission subsystem. Spec §B.2.2 MC3.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EmissionError {
-    /// Integer overflow dalam kalkulasi emission.
+    /// Integer overflow in emission calculation.
     Overflow,
-    /// Supply cap S_E terlampaui. Spec §B.2.2 MC3.
+    /// Supply cap S_E exceeded. Spec §B.2.2 MC3.
     SupplyCapExceeded { minted: u64, reward: u64, cap: u64 },
-    /// Total weight W(k) = 0 — tidak ada node aktif.
+    /// Total weight W(k) = 0 — no active nodes.
     ZeroTotalWeight,
-    /// Node di bawah uptime threshold minimum.
+    /// Node below minimum uptime threshold.
     BelowUptimeThreshold,
+    /// Node already claimed reward for this epoch. Spec §5.2 MC2.
+    AlreadyClaimed { epoch_id: u64 },
+    /// MC5 node authorization failed — invalid SLH-DSA signature. Spec §5.2 MC5.
+    NodeAuthorizationFailed,
+    /// Reward not found in manifest reward_root. Spec §5.2 MC1.
+    RewardNotInManifest,
 }
 
 impl core::fmt::Display for EmissionError {
@@ -49,6 +56,18 @@ impl core::fmt::Display for EmissionError {
             ),
             Self::ZeroTotalWeight => write!(f, "Total weight W(k) = 0"),
             Self::BelowUptimeThreshold => write!(f, "Node below uptime threshold"),
+            Self::AlreadyClaimed { epoch_id } => {
+                write!(f, "Reward already claimed for epoch {epoch_id}")
+            }
+            Self::NodeAuthorizationFailed => {
+                write!(
+                    f,
+                    "MC5 node authorization failed: invalid SLH-DSA signature"
+                )
+            }
+            Self::RewardNotInManifest => {
+                write!(f, "Reward not found in manifest reward_root")
+            }
         }
     }
 }

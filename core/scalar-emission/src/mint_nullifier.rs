@@ -1,18 +1,21 @@
-//! MintNullifierSet — Anti double-claim untuk PoU reward
-//!
-//! Spesifikasi: Scalar_Master_Technical_Spec.docx §B.3 + §B.2.2 MC2
+//! MintNullifierSet — Anti double-claim for PoU reward. Spec §5.2 MC2.
 //!
 //! mint_nullifier = Poseidon2(Poseidon2(node_id_lo, epoch_id), POU_MINT_DOMAIN)
-//! Identik dengan NullifierSet transfer — Poseidon2 hash (§B.3).
+//! Uses Poseidon2 hash (in-circuit) — spec §2.1.
 
 use crate::EmissionError;
 use scalar_crypto::poseidon2::hash_2_to_1;
 use std::collections::HashSet;
 
-/// Domain separator "pou_mint" sebagai little-endian u64.
-const POU_MINT_DOMAIN: u64 = 0x706f755f6d696e74;
+// ── Constants — spec §5.2 MC2, §2.3 ─────────────────────────────────────────
 
-/// MintNullifierSet — mencegah node klaim reward lebih dari sekali per epoch.
+/// Domain separator "pou_mint" as little-endian u64. OSSIFIED — spec §2.3.
+pub const POU_MINT_DOMAIN: u64 = 0x706f755f6d696e74;
+
+// ── MintNullifierSet ──────────────────────────────────────────────────────────
+
+/// Prevents a node from claiming PoU reward more than once per epoch.
+/// Spec §5.2 MC2: anti double-claim via mint_nullifier.
 pub struct MintNullifierSet {
     spent: HashSet<u64>,
 }
@@ -24,20 +27,21 @@ impl MintNullifierSet {
         }
     }
 
-    /// Hitung mint nullifier sesuai §B.2.2 MC2:
-    /// Poseidon2(Poseidon2(node_id_lo, epoch_id), POU_MINT_DOMAIN)
+    /// Compute mint nullifier per spec §5.2 MC2:
+    /// mint_nullifier = Poseidon2(Poseidon2(node_id_lo, epoch_id), POU_MINT_DOMAIN)
     pub fn compute_nullifier(node_id: &[u8; 32], epoch_id: u64) -> u64 {
         let node_id_lo = u64::from_le_bytes(node_id[0..8].try_into().unwrap());
         let intermediate = hash_2_to_1(node_id_lo, epoch_id);
         hash_2_to_1(intermediate, POU_MINT_DOMAIN)
     }
 
+    /// Check if node has already claimed for this epoch.
     pub fn is_claimed(&self, node_id: &[u8; 32], epoch_id: u64) -> bool {
         self.spent
             .contains(&Self::compute_nullifier(node_id, epoch_id))
     }
 
-    /// Rekam klaim. Panggil hanya setelah MINT_CLAIM_CIRCUIT terverifikasi.
+    /// Record a claim. Call only after full MC1–MC5 circuit verification.
     pub fn record_claim(
         &mut self,
         node_id: &[u8; 32],
@@ -54,6 +58,7 @@ impl MintNullifierSet {
     pub fn len(&self) -> usize {
         self.spent.len()
     }
+
     pub fn is_empty(&self) -> bool {
         self.spent.is_empty()
     }
@@ -91,14 +96,14 @@ mod tests {
     }
 
     #[test]
-    fn test_same_node_diff_epochs() {
+    fn test_same_node_different_epochs_allowed() {
         let mut mns = MintNullifierSet::new();
         assert!(mns.record_claim(&node(1), 0).is_ok());
         assert!(mns.record_claim(&node(1), 1).is_ok());
     }
 
     #[test]
-    fn test_diff_nodes_same_epoch() {
+    fn test_different_nodes_same_epoch_allowed() {
         let mut mns = MintNullifierSet::new();
         assert!(mns.record_claim(&node(1), 5).is_ok());
         assert!(mns.record_claim(&node(2), 5).is_ok());
@@ -121,11 +126,17 @@ mod tests {
     }
 
     #[test]
-    fn test_is_claimed_check() {
+    fn test_is_claimed_lifecycle() {
         let mut mns = MintNullifierSet::new();
         assert!(!mns.is_claimed(&node(3), 10));
         mns.record_claim(&node(3), 10).unwrap();
         assert!(mns.is_claimed(&node(3), 10));
         assert!(!mns.is_claimed(&node(3), 11));
+    }
+
+    #[test]
+    fn test_pou_mint_domain_ossified() {
+        // POU_MINT_DOMAIN = 0x706f755f6d696e74 ("pou_mint" LE). OSSIFIED — spec §2.3.
+        assert_eq!(POU_MINT_DOMAIN, 0x706f755f6d696e74u64);
     }
 }
