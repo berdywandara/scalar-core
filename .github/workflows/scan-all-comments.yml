@@ -1,0 +1,409 @@
+name: Scan All Comments (Sentence-Based)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: pip install langdetect --quiet
+      
+      - name: Extract and classify comments
+        run: |
+          cat > scan_comments.py << 'PYEOF'
+          import re
+          import os
+          import json
+          from collections import defaultdict
+          
+          # Try to import langdetect, fallback to heuristic
+          try:
+              from langdetect import detect, DetectorFactory
+              DetectorFactory.seed = 0
+              HAS_LANGDETECT = True
+          except ImportError:
+              HAS_LANGDETECT = False
+              print("⚠️  langdetect not available, using heuristic detection")
+          
+          # ── Indonesian-specific markers ──
+          INDONESIAN_WORDS = {
+              # High-confidence Indonesian words (not commonly found in English code)
+              "tidak", "adalah", "ini", "itu", "dengan", "pada", "dari",
+              "untuk", "yang", "ke", "di", "dan", "atau", "jika", "saat",
+              "sebagai", "sudah", "belum", "akan", "telah", "sedang",
+              "semua", "setiap", "hanya", "juga", "tapi", "karena",
+              "bisa", "harus", "boleh", "perlu", "dapat", "masih",
+              "selalu", "pernah", "sebelum", "setelah", "selama",
+              "dalam", "luar", "atas", "bawah", "antara",
+              "tersebut", "berikut", "sebelumnya", "berikutnya",
+              "pertama", "kedua", "terakhir", "berupa", "yakni",
+              "yaitu", "ialah", "merupakan", "memiliki", "menggunakan",
+              "digunakan", "melakukan", "dilakukan", "memberikan",
+              "menyimpan", "menghitung", "memastikan", "mengecek",
+              "memverifikasi", "memvalidasi", "menghasilkan",
+              "spesifikasi", "implementasi", "keamanan", "jaringan",
+              "transaksi", "verifikasi", "validasi", "penyimpanan",
+              "kunci", "pesan", "data", "nilai", "fungsi",
+              # Indonesian-only suffixes/prefixes
+              "nya", "kan", "lah", "kah", "pun",
+          }
+          
+          INDONESIAN_PREFIXES = (
+              'di', 'me', 'pe', 'ber', 'ter', 'se', 'ke', 'peng', 'per',
+              'meng', 'meny', 'mem', 'men', 'pen', 'pel',
+          )
+          
+          INDONESIAN_SUFFIXES = ('nya', 'kan', 'i', 'lah', 'kah', 'pun', 'an')
+          
+          def is_likely_indonesian(text):
+              """Heuristic: check if text is likely Indonesian."""
+              text_lower = text.lower()
+              words = re.findall(r'[a-z]+', text_lower)
+              
+              if not words:
+                  return False
+              
+              indo_count = 0
+              for word in words:
+                  if word in INDONESIAN_WORDS:
+                      indo_count += 1
+                  elif any(word.startswith(p) for p in INDONESIAN_PREFIXES if len(word) > len(p) + 1):
+                      indo_count += 1
+                  elif any(word.endswith(s) for s in INDONESIAN_SUFFIXES if len(word) > len(s) + 1):
+                      indo_count += 1
+              
+              # If >30% of words are Indonesian-marked, classify as Indonesian
+              ratio = indo_count / len(words)
+              return ratio > 0.25
+          
+          def detect_language(text):
+              """Detect language of a comment text."""
+              if not text.strip():
+                  return 'empty'
+              
+              # Clean text: remove code symbols, keep natural language
+              cleaned = re.sub(r'[{}[\]()*#+|`@$%^&=<>!~;:,.\-\\/"]+', ' ', text)
+              cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+              
+              if not cleaned:
+                  return 'code_only'
+              
+              if HAS_LANGDETECT:
+                  try:
+                      lang = detect(cleaned)
+                      if lang == 'id':
+                          return 'indonesian'
+                      elif lang == 'en':
+                          return 'english'
+                      else:
+                          return f'other_{lang}'
+                  except:
+                      pass
+              
+              # Fallback: heuristic
+              if is_likely_indonesian(cleaned):
+                  return 'indonesian'
+              else:
+                  return 'english'
+          
+          def extract_comments(filepath):
+              """Extract all comments from a Rust file, preserving original text."""
+              with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                  content = f.read()
+              
+              results = []
+              lines = content.split('\n')
+              
+              # Pattern 1: Documentation comments (/// or //!)
+              for i, line in enumerate(lines):
+                  stripped = line.strip()
+                  
+                  # Doc comment
+                  if stripped.startswith('///'):
+                      comment_text = stripped[3:].strip()
+                      if comment_text:
+                          results.append({
+                              'file': filepath,
+                              'line': i + 1,
+                              'type': 'doc',
+                              'text': comment_text,
+                              'original': line
+                          })
+                  
+                  # Module doc comment
+                  elif stripped.startswith('//!'):
+                      comment_text = stripped[3:].strip()
+                      if comment_text:
+                          results.append({
+                              'file': filepath,
+                              'line': i + 1,
+                              'type': 'module_doc',
+                              'text': comment_text,
+                              'original': line
+                          })
+                  
+                  # Inline comment (// after code, not at line start)
+                  elif '//' in line and not stripped.startswith('//'):
+                      parts = line.split('//', 1)
+                      code_part = parts[0].strip()
+                      comment_text = parts[1].strip() if len(parts) > 1 else ''
+                      if comment_text and code_part:  # Must have code before comment
+                          results.append({
+                              'file': filepath,
+                              'line': i + 1,
+                              'type': 'inline',
+                              'text': comment_text,
+                              'original': line
+                          })
+                  
+                  # Standalone // comment (not doc)
+                  elif stripped.startswith('//') and not stripped.startswith('///') and not stripped.startswith('//!'):
+                      comment_text = stripped[2:].strip()
+                      if comment_text:
+                          results.append({
+                              'file': filepath,
+                              'line': i + 1,
+                              'type': 'normal',
+                              'text': comment_text,
+                              'original': line
+                          })
+              
+              # Pattern 2: Block comments /* */
+              block_pattern = re.compile(r'/\*[^*]*\*+(?:[^/*][^*]*\*+)*/')
+              for match in block_pattern.finditer(content):
+                  comment_text = match.group(0)[2:-2].strip()
+                  if comment_text:
+                      # Find line number
+                      line_num = content[:match.start()].count('\n') + 1
+                      results.append({
+                          'file': filepath,
+                          'line': line_num,
+                          'type': 'block',
+                          'text': comment_text,
+                          'original': match.group(0)
+                      })
+              
+              return results
+          
+          # ── Main ──
+          print("=" * 60)
+          print("SCANNING ALL COMMENTS — SENTENCE-BASED EXTRACTION")
+          print("=" * 60)
+          print()
+          
+          all_comments = []
+          file_count = 0
+          
+          for root, dirs, files in os.walk('.'):
+              # Skip these directories
+              if 'target' in root or '.git' in root:
+                  continue
+              for file in files:
+                  if file.endswith('.rs'):
+                      file_count += 1
+                      filepath = os.path.join(root, file)
+                      try:
+                          comments = extract_comments(filepath)
+                          all_comments.extend(comments)
+                      except Exception as e:
+                          print(f"  ⚠️  Error: {filepath}: {e}")
+          
+          print(f"Files scanned:    {file_count}")
+          print(f"Comments found:   {len(all_comments)}")
+          print()
+          
+          # Classify by language
+          indonesian_comments = []
+          english_comments = []
+          other_comments = []
+          
+          for c in all_comments:
+              lang = detect_language(c['text'])
+              c['language'] = lang
+              
+              if lang == 'indonesian':
+                  indonesian_comments.append(c)
+              elif lang == 'english':
+                  english_comments.append(c)
+              else:
+                  other_comments.append(c)
+          
+          print(f"🇮🇩 Indonesian:    {len(indonesian_comments)} comments")
+          print(f"🇬🇧 English:       {len(english_comments)} comments")
+          print(f"❓ Other/Empty:   {len(other_comments)} comments")
+          print()
+          
+          # Group Indonesian comments by file
+          indo_by_file = defaultdict(list)
+          for c in indonesian_comments:
+              indo_by_file[c['file']].append(c)
+          
+          # Group English comments by file
+          eng_by_file = defaultdict(list)
+          for c in english_comments:
+              eng_by_file[c['file']].append(c)
+          
+          # ── OUTPUT 1: Indonesian comments grouped by file ──
+          output_indo = {
+              'summary': {
+                  'total_files': file_count,
+                  'total_comments': len(all_comments),
+                  'indonesian_comments': len(indonesian_comments),
+                  'english_comments': len(english_comments),
+                  'other_comments': len(other_comments),
+                  'files_with_indonesian': len(indo_by_file)
+              },
+              'by_file': {}
+          }
+          
+          for filepath, comments in sorted(indo_by_file.items()):
+              output_indo['by_file'][filepath] = []
+              for c in comments:
+                  output_indo['by_file'][filepath].append({
+                      'line': c['line'],
+                      'type': c['type'],
+                      'text': c['text']
+                  })
+          
+          with open('indonesian_comments.json', 'w', encoding='utf-8') as f:
+              json.dump(output_indo, f, indent=2, ensure_ascii=False)
+          
+          # ── OUTPUT 2: All comments (both languages) grouped by file ──
+          output_all = {
+              'summary': output_indo['summary'],
+              'by_file': {}
+          }
+          
+          all_by_file = defaultdict(list)
+          for c in all_comments:
+              all_by_file[c['file']].append(c)
+          
+          for filepath, comments in sorted(all_by_file.items()):
+              output_all['by_file'][filepath] = []
+              for c in comments:
+                  output_all['by_file'][filepath].append({
+                      'line': c['line'],
+                      'type': c['type'],
+                      'language': c['language'],
+                      'text': c['text']
+                  })
+          
+          with open('all_comments.json', 'w', encoding='utf-8') as f:
+              json.dump(output_all, f, indent=2, ensure_ascii=False)
+          
+          # ── OUTPUT 3: Human-readable list ──
+          with open('indonesian_comments.txt', 'w', encoding='utf-8') as f:
+              f.write("=" * 70 + "\n")
+              f.write("INDONESIAN COMMENTS — SENTENCE-BASED SCAN\n")
+              f.write("=" * 70 + "\n\n")
+              f.write(f"Total Indonesian comments: {len(indonesian_comments)}\n")
+              f.write(f"Files with Indonesian:     {len(indo_by_file)}\n\n")
+              f.write("-" * 70 + "\n\n")
+              
+              for filepath, comments in sorted(indo_by_file.items()):
+                  f.write(f"📄 {filepath}\n")
+                  f.write(f"   ({len(comments)} comments)\n\n")
+                  for c in comments:
+                      f.write(f"   [{c['type']}] L{c['line']}: {c['text']}\n")
+                  f.write("\n")
+          
+          with open('all_comments.txt', 'w', encoding='utf-8') as f:
+              f.write("=" * 70 + "\n")
+              f.write("ALL COMMENTS — SENTENCE-BASED SCAN\n")
+              f.write("=" * 70 + "\n\n")
+              f.write(f"Total comments:            {len(all_comments)}\n")
+              f.write(f"🇮🇩 Indonesian:              {len(indonesian_comments)}\n")
+              f.write(f"🇬🇧 English:                 {len(english_comments)}\n")
+              f.write(f"❓ Other:                    {len(other_comments)}\n\n")
+              f.write("-" * 70 + "\n\n")
+              
+              for filepath, comments in sorted(all_by_file.items()):
+                  f.write(f"📄 {filepath}\n")
+                  f.write(f"   ({len(comments)} comments)\n\n")
+                  for c in comments:
+                      flag = "🇮🇩" if c['language'] == 'indonesian' else ("🇬🇧" if c['language'] == 'english' else "❓")
+                      f.write(f"   {flag} [{c['type']}] L{c['line']}: {c['text']}\n")
+                  f.write("\n")
+          
+          # ── Print summary ──
+          print("=" * 60)
+          print("OUTPUT FILES:")
+          print(f"  📄 indonesian_comments.json  — JSON, Indonesian only")
+          print(f"  📄 indonesian_comments.txt   — Human-readable, Indonesian only")
+          print(f"  📄 all_comments.json         — JSON, all languages")
+          print(f"  📄 all_comments.txt          — Human-readable, all languages")
+          print("=" * 60)
+          PYEOF
+          
+          python3 scan_comments.py
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: comment-scan-results
+          path: |
+            indonesian_comments.json
+            indonesian_comments.txt
+            all_comments.json
+            all_comments.txt
+          retention-days: 30
+      
+      - name: Create summary issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let summary = '';
+            try {
+              const data = JSON.parse(fs.readFileSync('indonesian_comments.json', 'utf8'));
+              const s = data.summary;
+              summary = `## 📊 Comment Scan Results (Sentence-Based)
+              
+              ### Summary
+              | Metric | Count |
+              |--------|-------|
+              | Files scanned | ${s.total_files} |
+              | Total comments | ${s.total_comments} |
+              | 🇮🇩 Indonesian | ${s.indonesian_comments} |
+              | 🇬🇧 English | ${s.english_comments} |
+              | ❓ Other | ${s.other_comments} |
+              | Files with Indonesian | ${s.files_with_indonesian} |
+              
+              ### Files with Indonesian Comments
+              
+              | File | Comments |
+              |------|----------|
+              ${Object.entries(data.by_file).slice(0, 50).map(([file, comments]) => 
+                `| ${file.replace('./', '')} | ${comments.length} |`
+              ).join('\n')}
+              ${Object.keys(data.by_file).length > 50 ? `\n| ... | ... |\n| **${Object.keys(data.by_file).length} files total** | |` : ''}
+              
+              ---
+              ### 📥 Download full results
+              [comment-scan-results.zip](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})
+              `;
+            } catch (e) {
+              summary = `## 📊 Comment Scan Results\n\n⚠️ Error reading results: ${e.message}`;
+            }
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '📊 Comment Scan Results (Sentence-Based)',
+              body: summary,
+              labels: ['documentation', 'scan']
+            });
+        env:
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
