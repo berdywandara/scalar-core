@@ -25,7 +25,7 @@ jobs:
       - name: Checkout english-docs branch
         uses: actions/checkout@v4
         with:
-          ref: english-docs
+          ref: translate-english
       
       - name: Write Python script
         run: |
@@ -157,5 +157,5 @@ jobs:
           else
             git add -A
             git commit -m "docs: translate batch 1 (audit crate) to English"
-            git push origin english-docs
+            git push origin translate-english
           fi
