@@ -9,3 +9,5 @@ license.workspace = true
 blake3 = "1.8.4"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 argon2 = "0.5"
+scalar-emission = { path = "../../core/scalar-emission" }
+scalar-crypto    = { path = "../../core/scalar-crypto" }
