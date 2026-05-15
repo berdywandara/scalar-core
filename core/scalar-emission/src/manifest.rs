@@ -34,6 +34,11 @@ pub const AGGREGATOR_FALLBACK_MAX: u32 = 3;
 /// Minimum uptime_fp untuk eligible jadi aggregator. OSSIFIED — spec §8.1.
 pub const AGGREGATOR_MIN_UPTIME_FP: u64 = 700_000;
 
+/// Minimum NodeScore untuk eligible jadi aggregator. OSSIFIED — spec §8.2, §10.1, Temuan 3.
+/// Tier C (max NodeScore 600_000) tidak bisa melampaui threshold ini,
+/// sehingga otomatis tidak eligible sebagai aggregator.
+pub const AGGREGATOR_MIN_NODESCORE: u64 = 800_000;
+
 // ── seed_k computation — spec §8.1 ───────────────────────────────────────────
 
 /// Compute seed_k = BLAKE3(smt_root[0] || smt_root[1] || ...).
@@ -82,23 +87,29 @@ pub struct AggregatorSelection {
     pub seed_k: [u8; 32],
 }
 
-/// Pilih aggregator dan validator set dari daftar node eligible. Spec §8.1.
+/// Pilih aggregator dan validator set dari daftar node eligible. Spec §8.1, §8.2.
 ///
-/// `nodes`: slice of (node_id_4, uptime_fp).
-/// Node eligible: uptime_fp > AGGREGATOR_MIN_UPTIME_FP.
+/// `nodes`: slice of (node_id_4, uptime_fp, node_score).
+/// Node eligible: uptime_fp > AGGREGATOR_MIN_UPTIME_FP
+///             AND node_score >= AGGREGATOR_MIN_NODESCORE.
+/// Temuan 3: Tier C (max NodeScore 600_000) tidak bisa melampaui threshold 800_000,
+/// sehingga otomatis tidak eligible sebagai aggregator.
 /// Aggregator = argmin(score_i) — node dengan score BLAKE3 terkecil.
 /// Validator = rank_2..rank_11.
 ///
 /// Returns None jika tidak ada node eligible (epoch deferred).
 pub fn select_aggregator(
-    nodes: &[([u8; 4], u64)],
+    nodes: &[([u8; 4], u64, u64)],
     seed_k: [u8; 32],
 ) -> Option<AggregatorSelection> {
-    // Filter: hanya node dengan uptime_fp > AGGREGATOR_MIN_UPTIME_FP
+    // Filter: uptime_fp > AGGREGATOR_MIN_UPTIME_FP AND node_score >= AGGREGATOR_MIN_NODESCORE
+    // Temuan 3: NodeScore filter mencegah Tier C menjadi aggregator.
     let mut eligible: Vec<([u8; 4], [u8; 32])> = nodes
         .iter()
-        .filter(|(_, uptime_fp)| *uptime_fp > AGGREGATOR_MIN_UPTIME_FP)
-        .map(|(node_id, _)| (*node_id, compute_score(node_id, &seed_k)))
+        .filter(|(_, uptime_fp, node_score)| {
+            *uptime_fp > AGGREGATOR_MIN_UPTIME_FP && *node_score >= AGGREGATOR_MIN_NODESCORE
+        })
+        .map(|(node_id, _, _)| (*node_id, compute_score(node_id, &seed_k)))
         .collect();
 
     if eligible.is_empty() {
@@ -316,15 +327,15 @@ mod tests {
         // Aggregator = argmin(score_i). Spec §8.1.
         let seed_k = [0x42u8; 32];
         let nodes = vec![
-            ([0x01u8, 0x00, 0x00, 0x00], 800_000u64),
-            ([0x02u8, 0x00, 0x00, 0x00], 900_000u64),
-            ([0x03u8, 0x00, 0x00, 0x00], 750_000u64),
+            ([0x01u8, 0x00, 0x00, 0x00], 800_000u64, 900_000u64),
+            ([0x02u8, 0x00, 0x00, 0x00], 900_000u64, 950_000u64),
+            ([0x03u8, 0x00, 0x00, 0x00], 750_000u64, 850_000u64),
         ];
         let result = select_aggregator(&nodes, seed_k).unwrap();
         // Verifikasi aggregator adalah node dengan score terkecil
         let agg_score = compute_score(&result.aggregator, &seed_k);
-        for (node_id, uptime) in &nodes {
-            if *uptime > AGGREGATOR_MIN_UPTIME_FP {
+        for (node_id, uptime, node_score) in &nodes {
+            if *uptime > AGGREGATOR_MIN_UPTIME_FP && *node_score >= AGGREGATOR_MIN_NODESCORE {
                 let score = compute_score(node_id, &seed_k);
                 assert!(agg_score <= score, "aggregator harus argmin score");
             }
@@ -336,8 +347,10 @@ mod tests {
         // Node dengan uptime ≤ AGGREGATOR_MIN_UPTIME_FP tidak eligible. Spec §8.1.
         let seed_k = [0x42u8; 32];
         let nodes = vec![
-            ([0x01u8, 0x00, 0x00, 0x00], 700_000u64), // = threshold → NOT eligible (strictly >)
-            ([0x02u8, 0x00, 0x00, 0x00], 700_001u64), // > threshold → eligible
+            // uptime = threshold → NOT eligible (strictly >)
+            ([0x01u8, 0x00, 0x00, 0x00], 700_000u64, 900_000u64),
+            // uptime > threshold → eligible
+            ([0x02u8, 0x00, 0x00, 0x00], 700_001u64, 900_000u64),
         ];
         let result = select_aggregator(&nodes, seed_k).unwrap();
         assert_eq!(result.aggregator, [0x02u8, 0x00, 0x00, 0x00]);
@@ -347,7 +360,10 @@ mod tests {
     fn test_select_aggregator_no_eligible_returns_none() {
         // Semua node di bawah uptime threshold → None (epoch deferred). Spec §8.1.
         let seed_k = [0x42u8; 32];
-        let nodes = vec![([0x01u8; 4], 500_000u64), ([0x02u8; 4], 600_000u64)];
+        let nodes = vec![
+            ([0x01u8; 4], 500_000u64, 900_000u64),
+            ([0x02u8; 4], 600_000u64, 900_000u64),
+        ];
         assert!(select_aggregator(&nodes, seed_k).is_none());
     }
 
@@ -355,7 +371,9 @@ mod tests {
     fn test_select_aggregator_validators_max_10() {
         // Validator set maksimum 10 node. Spec §8.1.
         let seed_k = [0x42u8; 32];
-        let nodes: Vec<([u8; 4], u64)> = (1u8..=15).map(|i| ([i, 0, 0, 0], 800_000u64)).collect();
+        let nodes: Vec<([u8; 4], u64, u64)> = (1u8..=15)
+            .map(|i| ([i, 0, 0, 0], 800_000u64, 900_000u64))
+            .collect();
         let result = select_aggregator(&nodes, seed_k).unwrap();
         assert!(result.validators.len() <= AGGREGATOR_VALIDATOR_COUNT as usize);
     }
@@ -364,7 +382,9 @@ mod tests {
     fn test_select_aggregator_aggregator_not_in_validators() {
         // Aggregator tidak ada dalam validator set. Spec §8.1.
         let seed_k = [0x42u8; 32];
-        let nodes: Vec<([u8; 4], u64)> = (1u8..=12).map(|i| ([i, 0, 0, 0], 800_000u64)).collect();
+        let nodes: Vec<([u8; 4], u64, u64)> = (1u8..=12)
+            .map(|i| ([i, 0, 0, 0], 800_000u64, 900_000u64))
+            .collect();
         let result = select_aggregator(&nodes, seed_k).unwrap();
         assert!(!result.validators.contains(&result.aggregator));
     }
@@ -373,7 +393,7 @@ mod tests {
     fn test_select_aggregator_seed_k_stored() {
         // seed_k tersimpan dalam hasil seleksi. Spec §8.1.
         let seed_k = [0xDEu8; 32];
-        let nodes = vec![([0x01u8; 4], 800_000u64)];
+        let nodes = vec![([0x01u8; 4], 800_000u64, 900_000u64)];
         let result = select_aggregator(&nodes, seed_k).unwrap();
         assert_eq!(result.seed_k, seed_k);
     }
@@ -739,5 +759,95 @@ mod canonical_tests {
             compute_manifest_canonical_bytes(&m2)
         );
         assert_eq!(compute_manifest_hash(&m1), compute_manifest_hash(&m2));
+    }
+}
+
+#[cfg(test)]
+mod temuan_3_tests {
+    use super::*;
+
+    #[test]
+    fn test_aggregator_min_nodescore_constant() {
+        // AGGREGATOR_MIN_NODESCORE = 800_000. OSSIFIED — spec §8.2, Temuan 3.
+        assert_eq!(AGGREGATOR_MIN_NODESCORE, 800_000u64);
+    }
+
+    #[test]
+    fn test_tier_c_cannot_be_aggregator() {
+        // Tier C (NodeScore max 600_000) tidak bisa menjadi aggregator. Temuan 3.
+        let seed_k = [0x42u8; 32];
+        let nodes = vec![
+            // Tier C max NodeScore
+            ([0x01u8, 0x00, 0x00, 0x00], 900_000u64, 600_000u64),
+            // Tepat di bawah threshold
+            ([0x02u8, 0x00, 0x00, 0x00], 900_000u64, 799_999u64),
+        ];
+        assert!(
+            select_aggregator(&nodes, seed_k).is_none(),
+            "NodeScore < 800_000 tidak boleh eligible sebagai aggregator"
+        );
+    }
+
+    #[test]
+    fn test_nodescore_at_threshold_is_eligible() {
+        // NodeScore tepat 800_000 eligible (threshold adalah >=). Temuan 3.
+        let seed_k = [0x42u8; 32];
+        let nodes = vec![([0x01u8, 0x00, 0x00, 0x00], 900_000u64, 800_000u64)];
+        assert!(
+            select_aggregator(&nodes, seed_k).is_some(),
+            "NodeScore tepat 800_000 harus eligible"
+        );
+    }
+
+    #[test]
+    fn test_only_high_nodescore_node_selected() {
+        // Campuran Tier C (score 600k) dan Tier A (score > 800k).
+        // Hanya Tier A yang eligible sebagai aggregator. Temuan 3.
+        let seed_k = [0xABu8; 32];
+        let nodes = vec![
+            // Tier C — NodeScore capped 600_000
+            ([0xFEu8, 0x01, 0x00, 0x00], 950_000u64, 600_000u64),
+            ([0xFEu8, 0x02, 0x00, 0x00], 900_000u64, 500_000u64),
+            // Tier A — eligible
+            ([0x01u8, 0x00, 0x00, 0x00], 800_001u64, 850_000u64),
+            ([0x02u8, 0x00, 0x00, 0x00], 750_001u64, 900_000u64),
+        ];
+        let result = select_aggregator(&nodes, seed_k).unwrap();
+        let tier_a_ids = [[0x01u8, 0x00, 0x00, 0x00], [0x02u8, 0x00, 0x00, 0x00]];
+        assert!(
+            tier_a_ids.contains(&result.aggregator),
+            "Aggregator harus Tier A, bukan Tier C — Temuan 3"
+        );
+    }
+
+    #[test]
+    fn test_nodescore_boundary_below_ineligible() {
+        // 799_999 tidak eligible. Temuan 3 boundary.
+        let seed_k = [0x11u8; 32];
+        let nodes = vec![([0x01u8, 0x00, 0x00, 0x00], 900_000u64, 799_999u64)];
+        assert!(select_aggregator(&nodes, seed_k).is_none());
+    }
+
+    #[test]
+    fn test_uptime_and_nodescore_both_required() {
+        // Kedua kondisi wajib terpenuhi: uptime > 700_000 AND score >= 800_000.
+        let seed_k = [0x33u8; 32];
+        // Score OK tapi uptime kurang
+        let nodes_uptime_fail = vec![([0x01u8, 0x00, 0x00, 0x00], 700_000u64, 900_000u64)];
+        assert!(select_aggregator(&nodes_uptime_fail, seed_k).is_none());
+        // Uptime OK tapi score kurang
+        let nodes_score_fail = vec![([0x01u8, 0x00, 0x00, 0x00], 800_000u64, 700_000u64)];
+        assert!(select_aggregator(&nodes_score_fail, seed_k).is_none());
+        // Keduanya OK
+        let nodes_both_ok = vec![([0x01u8, 0x00, 0x00, 0x00], 700_001u64, 800_000u64)];
+        assert!(select_aggregator(&nodes_both_ok, seed_k).is_some());
+    }
+
+    #[test]
+    fn test_tier_c_invariant_mathematical() {
+        // Invariant: TIER_C_MAX (600_000) < AGGREGATOR_MIN_NODESCORE (800_000).
+        // Jaminan matematis bahwa Tier C tidak bisa menjadi aggregator.
+        const TIER_C_MAX: u64 = 600_000;
+        assert!(TIER_C_MAX < AGGREGATOR_MIN_NODESCORE);
     }
 }
