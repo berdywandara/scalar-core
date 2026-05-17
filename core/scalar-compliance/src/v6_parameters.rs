@@ -117,9 +117,9 @@ mod tests {
     #[test]
     fn test_v6_gss_fanout_thresholds_descending() {
         // Threshold harus descending untuk tabel fanout yang benar
-        assert!(V6_GSS_FANOUT_EXCELLENT > V6_GSS_FANOUT_GOOD);
-        assert!(V6_GSS_FANOUT_GOOD > V6_GSS_FANOUT_DEGRADED);
-        assert!(V6_GSS_FANOUT_DEGRADED > V6_GSS_FANOUT_POOR);
+        const { assert!(V6_GSS_FANOUT_EXCELLENT > V6_GSS_FANOUT_GOOD) };
+        const { assert!(V6_GSS_FANOUT_GOOD > V6_GSS_FANOUT_DEGRADED) };
+        const { assert!(V6_GSS_FANOUT_DEGRADED > V6_GSS_FANOUT_POOR) };
     }
 
     #[test]

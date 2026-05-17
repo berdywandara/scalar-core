@@ -83,13 +83,13 @@ mod tests {
     #[test]
     fn test_compliance_seed_memory_at_minimum() {
         // SCL-SPEC-SEED-001 §8.2: tidak boleh diturunkan.
-        assert!(ARGON2ID_SEED_MEMORY_KIB >= 65536u32);
+        const { assert!(ARGON2ID_SEED_MEMORY_KIB >= 65536u32) };
     }
 
     #[test]
     fn test_compliance_seed_iter_at_minimum() {
         // SCL-SPEC-SEED-001 §8.2: tidak boleh diturunkan.
-        assert!(ARGON2ID_SEED_ITER >= 3u32);
+        const { assert!(ARGON2ID_SEED_ITER >= 3u32) };
     }
 
     // ── §10.4 Succession Protocol ─────────────────────────────────────────────
@@ -188,10 +188,12 @@ mod tests {
     #[test]
     fn test_compliance_fork_commit_above_abort() {
         // Commit threshold harus lebih tinggi dari abort threshold.
-        assert!(
-            scalar_network::fork::FORK_COMMIT_THRESHOLD_FP
-                > scalar_network::fork::FORK_ABORT_THRESHOLD_FP
-        );
+        const {
+            assert!(
+                scalar_network::fork::FORK_COMMIT_THRESHOLD_FP
+                    > scalar_network::fork::FORK_ABORT_THRESHOLD_FP
+            )
+        };
     }
 
     #[test]
@@ -248,9 +250,11 @@ mod tests {
 
     #[test]
     fn test_compliance_conductivity_min_below_max() {
-        assert!(
-            scalar_network::adaptive_mux::CONDUCTIVITY_MIN
-                < scalar_network::adaptive_mux::CONDUCTIVITY_MAX
-        );
+        const {
+            assert!(
+                scalar_network::adaptive_mux::CONDUCTIVITY_MIN
+                    < scalar_network::adaptive_mux::CONDUCTIVITY_MAX
+            )
+        };
     }
 }
