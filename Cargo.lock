@@ -2619,6 +2619,7 @@ name = "scalar-compliance"
 version = "0.1.0"
 dependencies = [
  "libp2p",
+ "scalar-crypto",
  "scalar-emission",
  "scalar-fees",
  "scalar-governance",
