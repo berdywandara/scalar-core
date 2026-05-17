@@ -222,11 +222,10 @@ mod tests_v9_l1 {
 
     #[test]
     fn test_t_heartbeat_ttl_s() {
-        // Spec §18.2: T_HEARTBEAT_TTL_S default = 1_200. Layer 2 CONSTRAINED.
-        assert_eq!(
-            scalar_network::heartbeat_verifier::T_HEARTBEAT_TTL_S,
-            1_200u32
-        );
+        // Spec §7.6 T-2: asymmetric bounds menggantikan TTL simetris.
+        // T_FUTURE_TOLERANCE_S = 60s, T_PAST_S = 3600s.
+        assert_eq!(scalar_network::time_security::T_FUTURE_TOLERANCE_S, 60u32);
+        assert_eq!(scalar_network::time_security::T_PAST_S, 3_600u32);
     }
 
     #[test]

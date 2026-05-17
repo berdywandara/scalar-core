@@ -272,10 +272,12 @@ mod tests_v12_tier_c {
     #[test]
     fn compliance_test_tier_c_below_nmt_threshold() {
         // TIER_C_MAX_NODESCORE < NMT_SCORE_THRESHOLD — invariant. Spec §10.1.
-        assert!(
-            scalar_network::node_score::TIER_C_MAX_NODESCORE
-                < scalar_network::node_score::NMT_SCORE_THRESHOLD
-        );
+        const {
+            assert!(
+                scalar_network::node_score::TIER_C_MAX_NODESCORE
+                    < scalar_network::node_score::NMT_SCORE_THRESHOLD
+            )
+        };
     }
 
     #[test]
@@ -766,7 +768,7 @@ mod tests_v12_p2p_gaps {
             NMT_MAX_STORED_TIMESTAMPS, NMT_MIN_PEERS_FOR_RELIABLE,
         };
         // Constants
-        assert_eq!(NMT_MIN_PEERS_FOR_RELIABLE, 8usize);
+        assert_eq!(NMT_MIN_PEERS_FOR_RELIABLE, 9usize);
         assert_eq!(NMT_MAX_STORED_TIMESTAMPS, 24usize);
 
         // Dengan cukup peer → FromPeers

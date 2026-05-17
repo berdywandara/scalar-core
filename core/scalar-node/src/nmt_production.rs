@@ -23,7 +23,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Minimum peer untuk NMT yang reliable. Spec §12.3a.
 /// Kurang dari ini → fallback ke wall-clock dengan warning.
-pub const NMT_MIN_PEERS_FOR_RELIABLE: usize = 8;
+pub const NMT_MIN_PEERS_FOR_RELIABLE: usize = 9;
 
 /// Maximum peer timestamps yang disimpan. = NMT_PEER_COUNT_V12 = 24.
 pub const NMT_MAX_STORED_TIMESTAMPS: usize = NMT_PEER_COUNT_V12;
@@ -202,8 +202,8 @@ mod tests {
     fn test_nmt_median_calculation() {
         // NMT = median (bukan average). Spec §12.3a.
         let mut store = PeerTimestampStore::new();
-        // 8 timestamps: 100..800
-        for (i, ts) in [100u32, 200, 300, 400, 500, 600, 700, 800]
+        // 9 timestamps: 100..900 (≥ NMT_MIN_PEERS_FOR_RELIABLE)
+        for (i, ts) in [100u32, 200, 300, 400, 500, 600, 700, 800, 900]
             .iter()
             .enumerate()
         {
@@ -211,22 +211,21 @@ mod tests {
         }
         let result = compute_production_nmt(&store, 1000);
         assert!(result.is_from_peers());
-        // Lower median dari 8 nilai (index 3) = 400
-        // Average = 450 — berbeda dari median
-        assert_ne!(result.nmt_value(), 450, "NMT bukan average");
+        // Median dari 9 nilai (index 4) = 500
+        assert_eq!(result.nmt_value(), 500, "NMT harus median index ke-4");
     }
 
     // ── test_nmt_fallback_few_peers ───────────────────────────────────────────
 
     #[test]
     fn test_nmt_fallback_few_peers() {
-        // < 8 peer → fallback graceful. Spec §12.3a.
+        // < 9 peer → fallback graceful. Spec §7.6 T-3.
         let store = make_store_with_peers(5, 1_000_000);
         let local = 1_000_500u32;
         let result = compute_production_nmt(&store, local);
         assert!(
             matches!(result, ProductionNmtResult::FallbackWallClock { .. }),
-            "Kurang dari 8 peer harus fallback ke wall-clock"
+            "Kurang dari 9 peer harus fallback ke wall-clock"
         );
         assert_eq!(
             result.nmt_value(),
@@ -315,8 +314,8 @@ mod tests {
 
     #[test]
     fn test_nmt_min_peers_constant() {
-        // NMT_MIN_PEERS_FOR_RELIABLE = 8. Spec §12.3a.
-        assert_eq!(NMT_MIN_PEERS_FOR_RELIABLE, 8usize);
+        // NMT_MIN_PEERS_FOR_RELIABLE = 9. Spec §7.6 T-3: "Jika tersedia <9: Local Time Guard".
+        assert_eq!(NMT_MIN_PEERS_FOR_RELIABLE, 9usize);
     }
 
     #[test]
