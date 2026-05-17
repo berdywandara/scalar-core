@@ -14,7 +14,7 @@
 //!
 //! Epoch boundary: seq_num based — Rule T-1 §7.2c. BUKAN wall-clock.
 
-use crate::manifest::{
+use crate::dmm::{
     verify_manifest_hash, AggregatorSelection, EpochRewardManifest, EpochStatus,
     AGGREGATOR_FALLBACK_MAX, AGGREGATOR_VALIDATOR_QUORUM,
 };
@@ -197,23 +197,20 @@ impl Default for ConsensusEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::manifest::{compute_manifest_hash, SPEC_VERSION_MANIFEST};
+    use crate::dmm::{compute_manifest_hash, SPEC_VERSION_MANIFEST};
 
     fn make_finalized_manifest(epoch_id: u64) -> EpochRewardManifest {
         let mut m = EpochRewardManifest {
             epoch_id,
+            node_list: vec![],
             spec_version: SPEC_VERSION_MANIFEST,
-            accepted_liveness_root: [0xAAu8; 32],
-            sync_health_summary: [0xBBu8; 32],
+            total_emission_sscl: 12_600_000_000_000,
+            deferred: false,
             seed_k: [0xCCu8; 32],
             manifest_hash: [0u8; 32],
-            total_uptime_weight: 1_000_000,
-            emission_amount: 12_600_000_000_000,
-            equity_gini: 200_000,
-            fee_total: 40_000,
-            slashed_nodes: vec![],
             reward_root: [0xDDu8; 32],
-            previous_emission_total: 0,
+            network_health_digest: [0xBBu8; 32],
+            tx_set_root: [0u8; 32],
             status: EpochStatus::Finalized,
         };
         // Compute dan set manifest_hash yang benar

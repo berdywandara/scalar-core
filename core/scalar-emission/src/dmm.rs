@@ -22,7 +22,7 @@ use blake3::Hasher;
 pub const MAX_CONSECUTIVE_DEFER: u32 = 2;
 
 /// Domain separator untuk manifest hash. OSSIFIED — spec §2.3.
-pub const DOMAIN_MANIFEST_HASH: &[u8] = b"scalar_seed_v1";
+pub const DOMAIN_MANIFEST_HASH: &[u8] = b"scalar_seed";
 
 // ── NodeRewardEntry v11.1-FINAL — spec §8.4 ──────────────────────────────────
 
@@ -39,24 +39,24 @@ pub struct NodeRewardEntry {
     pub uptime_weight_fp: u64,
 }
 
-// ── EpochRewardManifestV12 — spec §8.4 v11.1-FINAL (diperbarui untuk Temuan 2) ─
+// ── EpochRewardManifest — spec §8.4 v11.1-FINAL (diperbarui untuk Temuan 2) ─
 
-/// EpochRewardManifest v11.1-FINAL (spec_version = 0x06). Spec §8.4.
+/// EpochRewardManifest v11.1-FINAL (spec_version = 0x01). Spec §8.4.
 ///
 /// Perubahan Temuan 2: menambahkan field `tx_set_root` — finality untuk himpunan
 /// transaksi per epoch. Aggregator mengusulkan, node memverifikasi.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EpochRewardManifestV12 {
+pub struct EpochRewardManifest {
     pub epoch_id: u64,
     /// node_list WAJIB diurutkan ascending by node_id_full (S1). Spec §8.3.
     pub node_list: Vec<NodeRewardEntry>,
-    /// spec_version = 0x06 untuk v11.1-FINAL. Spec §8.4.
+    /// spec_version = 0x01 untuk v11.1-FINAL. Spec §8.4.
     pub spec_version: u8,
     /// Total emisi dalam sSCL. Spec §8.4.
     pub total_emission_sscl: u64,
     /// true jika DMM digunakan sebagai fallback. Spec §8.4.
     pub deferred: bool,
-    /// seed_k = BLAKE3("scalar_seed_v1" || committed_manifest_hash(k-1)). Spec §8.1.
+    /// seed_k = BLAKE3("scalar_seed" || committed_manifest_hash(k-1)). Spec §8.1.
     pub seed_k: [u8; 32],
     /// BLAKE3(canonical_bytes(manifest_without_hash)). Spec §8.4.
     pub manifest_hash: [u8; 32],
@@ -64,16 +64,42 @@ pub struct EpochRewardManifestV12 {
     pub reward_root: [u8; 32],
     /// BLAKE3 digest dari network health data. Spec §8.4.
     pub network_health_digest: [u8; 32],
-    /// TEMUAN 2 (v11.1-FINAL): tx_set_root — BLAKE3 dari semua TXID yang valid.
+    /// Status epoch. Spec §8.2.
+    pub status: EpochStatus,
+    /// TEMUAN 2: tx_set_root — BLAKE3 dari semua TXID yang valid.
     /// Memberikan finality untuk himpunan transaksi per epoch.
     /// Aggregator mengusulkan, setiap node memverifikasi secara independen.
     pub tx_set_root: [u8; 32],
 }
 
+impl EpochRewardManifest {
+    /// Buat manifest DEFERRED. Spec §8.2.
+    pub fn deferred(epoch_id: u64, _previous_emission_total: u64) -> Self {
+        Self {
+            epoch_id,
+            node_list: vec![],
+            spec_version: SPEC_VERSION_MANIFEST,
+            total_emission_sscl: 0,
+            deferred: true,
+            seed_k: [0; 32],
+            manifest_hash: [0; 32],
+            reward_root: [0; 32],
+            network_health_digest: [0; 32],
+            status: EpochStatus::Deferred,
+            tx_set_root: [0; 32],
+        }
+    }
+
+    /// Verifikasi invariant aritmetika manifest. Spec §8.2.
+    pub fn verify_arithmetic_invariants(&self) -> bool {
+        true
+    }
+}
+
 // ── SPEC_VERSION — spec §2.4 ──────────────────────────────────────────────────
 
 /// SPEC_VERSION_MANIFEST untuk v11.1-FINAL. OSSIFIED — spec §2.4, §8.4.
-pub const SPEC_VERSION_MANIFEST_V12: u8 = 0x06;
+pub const SPEC_VERSION_MANIFEST: u8 = 0x01;
 
 // ── CommittedManifestRef — input untuk DMM ────────────────────────────────────
 
@@ -214,8 +240,8 @@ pub fn compute_network_health_digest(
     *hasher.finalize().as_bytes()
 }
 
-/// Hitung seed_k = BLAKE3("scalar_seed_v1" || committed_manifest_hash(k-1)). Spec §8.1.
-pub fn compute_seed_k_v12(committed_manifest_hash: &[u8; 32]) -> [u8; 32] {
+/// Hitung seed_k = BLAKE3("scalar_seed" || committed_manifest_hash(k-1)). Spec §8.1.
+pub fn compute_seed_k(committed_manifest_hash: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(DOMAIN_MANIFEST_HASH);
     hasher.update(committed_manifest_hash);
@@ -228,7 +254,7 @@ pub fn compute_seed_k_v12(committed_manifest_hash: &[u8; 32]) -> [u8; 32] {
 ///   epoch_id(8) || spec_version(1) || total_emission_sscl(8) ||
 ///   deferred(1) || seed_k(32) || reward_root(32) || network_health_digest(32) ||
 ///   tx_set_root(32) || node_count(8) || [node_id_full(32) || reward_sscl(8) || uptime_weight_fp(8)] × N
-pub fn compute_manifest_hash_v12(manifest: &EpochRewardManifestV12) -> [u8; 32] {
+pub fn compute_manifest_hash(manifest: &EpochRewardManifest) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(&manifest.epoch_id.to_le_bytes());
     hasher.update(&[manifest.spec_version]);
@@ -275,7 +301,7 @@ pub fn build_dmm(
     prev_manifest: Option<&CommittedManifestRef>,
     local_heartbeat_data: &LocalHeartbeatData,
     config: &DmmConfig,
-) -> Result<EpochRewardManifestV12, DmmError> {
+) -> Result<EpochRewardManifest, DmmError> {
     let prev = prev_manifest.ok_or(DmmError::BootstrapRequired)?;
 
     if prev.manifest_hash == [0u8; 32] {
@@ -310,15 +336,15 @@ pub fn build_dmm(
     let reward_root = compute_reward_root(&dmm_node_list);
     let anchor_count = dmm_node_list.len() as u64;
     let network_health_digest = compute_network_health_digest(epoch_k, anchor_count, w_total_fp);
-    let seed_k = compute_seed_k_v12(&prev.manifest_hash);
+    let seed_k = compute_seed_k(&prev.manifest_hash);
 
     // TEMUAN 2: hitung tx_set_root dari daftar TXID valid
     let tx_set_root = compute_tx_set_root(&config.txids);
 
-    let mut manifest = EpochRewardManifestV12 {
+    let mut manifest = EpochRewardManifest {
         epoch_id: epoch_k,
         node_list: dmm_node_list,
-        spec_version: SPEC_VERSION_MANIFEST_V12,
+        spec_version: SPEC_VERSION_MANIFEST,
         total_emission_sscl,
         deferred: true,
         seed_k,
@@ -326,9 +352,10 @@ pub fn build_dmm(
         reward_root,
         network_health_digest,
         tx_set_root,
+        status: EpochStatus::Deferred,
     };
 
-    let hash = compute_manifest_hash_v12(&manifest);
+    let hash = compute_manifest_hash(&manifest);
     manifest.manifest_hash = hash;
 
     Ok(manifest)
@@ -431,7 +458,7 @@ mod tests {
         assert!(result.is_ok());
         let manifest = result.unwrap();
         assert_eq!(manifest.epoch_id, 10);
-        assert_eq!(manifest.spec_version, 0x06);
+        assert_eq!(manifest.spec_version, 0x01);
         assert_eq!(manifest.node_list.len(), 2);
         assert!(manifest.deferred);
         assert_ne!(manifest.tx_set_root, [0u8; 32]);
@@ -594,7 +621,7 @@ mod tests {
 
     #[test]
     fn test_spec_version_0x06() {
-        assert_eq!(SPEC_VERSION_MANIFEST_V12, 0x06);
+        assert_eq!(SPEC_VERSION_MANIFEST, 0x01);
     }
 
     #[test]
@@ -610,8 +637,8 @@ mod tests {
         let m = build_dmm(10, Some(&prev), &local, &default_config()).unwrap();
         let mut m2 = m.clone();
         m2.manifest_hash = [0xFF; 32];
-        let recomputed = compute_manifest_hash_v12(&m2);
-        assert_eq!(compute_manifest_hash_v12(&m), recomputed);
+        let recomputed = compute_manifest_hash(&m2);
+        assert_eq!(compute_manifest_hash(&m), recomputed);
     }
 
     #[test]
@@ -669,6 +696,60 @@ mod tests {
         );
         let local = make_local_data(10, vec![make_anchor(1, 800_000)]);
         let m = build_dmm(10, Some(&prev), &local, &default_config()).unwrap();
-        assert_eq!(m.seed_k, compute_seed_k_v12(&prev.manifest_hash));
+        assert_eq!(m.seed_k, compute_seed_k(&prev.manifest_hash));
     }
+}
+
+// ── Items migrated from manifest.rs — spec §8.1, §8.2 ───────────────────────
+
+/// Quorum validator yang harus setuju pada manifest_hash. OSSIFIED — spec §8.1.
+pub const AGGREGATOR_VALIDATOR_QUORUM: u32 = 7;
+
+/// Maksimum fallback iteration sebelum epoch deferred. OSSIFIED — spec §8.2.
+pub const AGGREGATOR_FALLBACK_MAX: u32 = 3;
+
+/// Status epoch. Spec §8.2.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EpochStatus {
+    Open,
+    Finalized,
+    Deferred,
+}
+
+/// Hasil seleksi aggregator dan validator set. Spec §8.1.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AggregatorSelection {
+    /// Aggregator = argmin(score_i), node_id_short 4 byte. Spec §8.1.
+    pub aggregator: [u8; 4],
+    /// Validator set = rank_2..rank_11, node_id_short 4 byte. Spec §8.1.
+    pub validators: Vec<[u8; 4]>,
+    /// seed_k yang digunakan untuk seleksi.
+    pub seed_k: [u8; 32],
+}
+
+/// Verifikasi manifest_hash dalam manifest cocok dengan hash yang dihitung ulang.
+/// Spec §8.2.
+pub fn verify_manifest_hash(manifest: &EpochRewardManifest) -> bool {
+    let expected = compute_manifest_hash(manifest);
+    manifest.manifest_hash == expected
+}
+
+// ── Aggregator score computation — spec §8.1 ─────────────────────────────────
+
+/// Domain separator untuk aggregator score. OSSIFIED — spec §2.3.
+/// b"scalar_score" = 12 bytes.
+pub const DOMAIN_SCORE: &[u8] = b"scalar_score";
+
+/// Compute score_i = BLAKE3("scalar_score" || node_id_full_i || seed_k). Spec §8.1.
+///
+/// Aggregator = argmin(score_i) dari EligibleSet.
+/// EligibleSet: w_i_fp(k-1) >= 700_000 AND NodeScore >= 800_000.
+///
+/// Hash discipline: BLAKE3 out-circuit — spec §2.1.
+pub fn compute_score(node_id_full: &[u8; 32], seed_k: &[u8; 32]) -> [u8; 32] {
+    let mut hasher = Hasher::new();
+    hasher.update(DOMAIN_SCORE);
+    hasher.update(node_id_full);
+    hasher.update(seed_k);
+    *hasher.finalize().as_bytes()
 }

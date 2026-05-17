@@ -1,7 +1,7 @@
 //! Canonical Transaction Ordering — Spec §8.5 v11.1-FINAL
 //!
-//! Domain separator TX_ORDER_DOMAIN = b"scalar_tx_order_v1" (OSSIFIED — spec §2.3).
-//! Domain separator TXID_DOMAIN = b"scalar_txid_v1" (OSSIFIED — spec §2.3, v11.1-FINAL).
+//! Domain separator TX_ORDER_DOMAIN = b"scalar_tx_order" (OSSIFIED — spec §2.3).
+//! Domain separator TXID_DOMAIN = b"scalar_txid" (OSSIFIED — spec §2.3).
 //!
 //! TXID = BLAKE3(TXID_DOMAIN || input_nullifiers[] || output_commitments[] || fee_total || epoch_id || crypto_version)
 //! tx_ordering_key = BLAKE3(TX_ORDER_DOMAIN || TXID || epoch_id)
@@ -19,18 +19,18 @@ use blake3::Hasher;
 // ── Ossified constants — spec §2.3, §8.5 ─────────────────────────────────────
 
 /// Domain separator for canonical transaction ordering. OSSIFIED — spec §2.3.
-/// TX_ORDER_DOMAIN = b"scalar_tx_order_v1" (18 bytes).
-pub const TX_ORDER_DOMAIN: &[u8] = b"scalar_tx_order_v1";
+/// TX_ORDER_DOMAIN = b"scalar_tx_order" (15 bytes).
+pub const TX_ORDER_DOMAIN: &[u8] = b"scalar_tx_order";
 
 /// Length of TX_ORDER_DOMAIN in bytes. Spec §2.3.
-pub const TX_ORDER_DOMAIN_LEN: usize = 18;
+pub const TX_ORDER_DOMAIN_LEN: usize = 15;
 
 /// Domain separator for TXID computation. OSSIFIED — spec §2.3 v11.1-FINAL.
-/// TXID_DOMAIN = b"scalar_txid_v1" (14 bytes).
-pub const TXID_DOMAIN: &[u8] = b"scalar_txid_v1";
+/// TXID_DOMAIN = b"scalar_txid" (11 bytes).
+pub const TXID_DOMAIN: &[u8] = b"scalar_txid";
 
 /// Length of TXID_DOMAIN in bytes.
-pub const TXID_DOMAIN_LEN: usize = 14;
+pub const TXID_DOMAIN_LEN: usize = 11;
 
 // ── TxEntry — transaction representation for ordering ────────────────────────
 
@@ -71,7 +71,7 @@ pub struct TxOrderingKey {
 ///     crypto_version_u8
 /// )
 ///
-/// Domain separator OSSIFIED: b"scalar_txid_v1" — spec §2.3.
+/// Domain separator OSSIFIED: b"scalar_txid" — spec §2.3.
 pub fn compute_txid(
     input_nullifiers: &[[u8; 32]],
     output_commitments: &[[u8; 32]],
@@ -347,15 +347,15 @@ mod tests {
     // Domain Separator Tests
     #[test]
     fn test_domain_separator_tx_order_ossified() {
-        assert_eq!(TX_ORDER_DOMAIN, b"scalar_tx_order_v1");
-        assert_eq!(TX_ORDER_DOMAIN_LEN, 18);
+        assert_eq!(TX_ORDER_DOMAIN, b"scalar_tx_order");
+        assert_eq!(TX_ORDER_DOMAIN_LEN, 15);
         assert_eq!(TX_ORDER_DOMAIN.len(), TX_ORDER_DOMAIN_LEN);
     }
 
     #[test]
     fn test_domain_separator_txid_ossified() {
-        assert_eq!(TXID_DOMAIN, b"scalar_txid_v1");
-        assert_eq!(TXID_DOMAIN_LEN, 14);
+        assert_eq!(TXID_DOMAIN, b"scalar_txid");
+        assert_eq!(TXID_DOMAIN_LEN, 11);
         assert_eq!(TXID_DOMAIN.len(), TXID_DOMAIN_LEN);
     }
 

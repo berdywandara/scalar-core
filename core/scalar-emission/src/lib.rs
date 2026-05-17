@@ -10,7 +10,6 @@ pub mod genesis_ceremony;
 pub mod institutional;
 pub mod liveness;
 pub mod longevity;
-pub mod manifest;
 pub mod mint_nullifier;
 pub mod ordering;
 pub mod pou;
