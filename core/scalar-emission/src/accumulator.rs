@@ -351,7 +351,7 @@ mod e_tail_tests {
     fn test_compute_e_active_at_e0() {
         // E(k) = E0 (epoch 0) → E_active = E0 (jauh > E_TAIL). Spec §7.1.
         assert_eq!(compute_e_active(E0_SSCL), E0_SSCL);
-        assert!(E0_SSCL > E_TAIL_SSCL);
+        const { assert!(E0_SSCL > E_TAIL_SSCL) };
     }
 
     #[test]
@@ -377,16 +377,16 @@ mod e_tail_tests {
     #[test]
     fn test_e_tail_less_than_e0() {
         // E_TAIL << E0. Spec §7.7.
-        assert!(E_TAIL_SSCL < E0_SSCL);
+        const { assert!(E_TAIL_SSCL < E0_SSCL) };
         // E0/E_TAIL ≈ 126 — tail adalah 1/126 dari initial emission
-        assert!(E0_SSCL / E_TAIL_SSCL >= 100);
+        const { assert!(E0_SSCL / E_TAIL_SSCL >= 100) };
     }
 
     #[test]
     fn test_s_r_is_tail_backstop_not_governance() {
         // Spec §3.2, §7.7: S_R adalah tail backstop, BUKAN governance reserve.
         // S_R > 0 memastikan tail emission bisa dibayar.
-        assert!(S_R_SSCL > 0);
+        const { assert!(S_R_SSCL > 0) };
         // S_R = 2,100,000 SCL — cukup besar untuk backstop jangka panjang.
         assert_eq!(S_R_SSCL, 210_000_000_000_000u64);
     }

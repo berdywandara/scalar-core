@@ -574,7 +574,7 @@ mod tests {
         }
         store.prune(20);
         assert_eq!(store.summaries.get(&(node(7), 11)), None);
-        assert!(store.summaries.get(&(node(7), 12)).is_some());
+        assert!(store.summaries.contains_key(&(node(7), 12)));
     }
 
     // ── LivenessSMT delegation ────────────────────────────────────────────────
