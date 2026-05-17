@@ -219,7 +219,7 @@ mod tests {
         let nmt = compute_nmt(&ts).unwrap();
         // Average = ~125001, median (lower) = 1
         assert_eq!(nmt, 1);
-        assert_ne!(nmt, (1u64 * 7 + 1_000_000) as u32 / 8); // bukan average
+        assert_ne!(nmt, (7u64 + 1_000_000) as u32 / 8); // bukan average
     }
 
     #[test]

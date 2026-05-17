@@ -261,7 +261,7 @@ mod tests {
     #[test]
     fn test_beacon_wire_size_fits_in_max() {
         // Wire size (44) harus muat dalam MAX_BYTES (64). Spec §12.2.
-        assert!(STATE_BEACON_WIRE_SIZE <= STATE_BEACON_MAX_BYTES);
+        const { assert!(STATE_BEACON_WIRE_SIZE <= STATE_BEACON_MAX_BYTES) };
     }
 
     #[test]

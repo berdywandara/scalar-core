@@ -23,8 +23,14 @@ pub const STEM_TO_FLUFF_PROB_PERCENT: u64 = 10;
 /// Maximum hop STEM sebelum paksa masuk FLUFF. Anti-infinite-stem.
 pub const MAX_STEM_HOPS: u64 = 10;
 
-/// Random delay maksimum sebelum broadcast: 10 detik. Spec §12.7.
-pub const MAX_BROADCAST_DELAY_SECS: u64 = 10;
+/// Random delay minimum sebelum broadcast: 100 ms. Spec §12.7.
+pub const MIN_BROADCAST_DELAY_MS: u64 = 100;
+
+/// Random delay maksimum sebelum broadcast: 5000 ms (5 detik). Spec §12.7.
+pub const MAX_BROADCAST_DELAY_MS: u64 = 5_000;
+
+/// Random delay maksimum dalam detik — alias MAX_BROADCAST_DELAY_MS / 1000. Spec §12.7.
+pub const MAX_BROADCAST_DELAY_SECS: u64 = 5;
 
 /// Ukuran padding standar (bytes). Spec §12.7: 1KB/16KB/64KB/256KB.
 pub const PADDING_SIZES: [usize; 4] = [1_024, 16_384, 65_536, 262_144];
@@ -98,9 +104,10 @@ pub fn is_proving_time_valid(proving_time_ms: u64) -> bool {
     proving_time_ms >= min && proving_time_ms <= max
 }
 
-/// Validasi broadcast delay dalam range 0-10 detik. Spec §12.7.
-pub fn is_broadcast_delay_valid(delay_secs: u64) -> bool {
-    delay_secs <= MAX_BROADCAST_DELAY_SECS
+/// Validasi broadcast delay dalam range [MIN_BROADCAST_DELAY_MS, MAX_BROADCAST_DELAY_MS]. Spec §12.7.
+/// delay_ms: delay dalam milidetik (100–5000 ms).
+pub fn is_broadcast_delay_valid(delay_ms: u64) -> bool {
+    (MIN_BROADCAST_DELAY_MS..=MAX_BROADCAST_DELAY_MS).contains(&delay_ms)
 }
 
 // ── Stem Routing ──────────────────────────────────────────────────────
@@ -344,18 +351,25 @@ mod tests {
     }
 
     #[test]
-    fn test_broadcast_delay_valid_zero() {
-        assert!(is_broadcast_delay_valid(0));
+    fn test_broadcast_delay_min_boundary() {
+        // 100 ms = MIN_BROADCAST_DELAY_MS → valid. Spec §12.7.
+        assert!(is_broadcast_delay_valid(100));
+        // 99 ms < minimum → invalid.
+        assert!(!is_broadcast_delay_valid(99));
+        // 0 ms < minimum → invalid.
+        assert!(!is_broadcast_delay_valid(0));
     }
 
     #[test]
-    fn test_broadcast_delay_valid_10s() {
-        assert!(is_broadcast_delay_valid(10));
+    fn test_broadcast_delay_valid_5000ms() {
+        // 5000 ms = MAX_BROADCAST_DELAY_MS → valid. Spec §12.7.
+        assert!(is_broadcast_delay_valid(5_000));
     }
 
     #[test]
-    fn test_broadcast_delay_invalid_11s() {
-        assert!(!is_broadcast_delay_valid(11));
+    fn test_broadcast_delay_invalid_5001ms() {
+        // 5001 ms > MAX_BROADCAST_DELAY_MS → invalid. Spec §12.7.
+        assert!(!is_broadcast_delay_valid(5_001));
     }
 
     // ── Routing ───────────────────────────────────────────────────────
@@ -452,7 +466,9 @@ mod tests {
     #[test]
     fn test_constants_match_spec() {
         // Spec §12.7
-        assert_eq!(MAX_BROADCAST_DELAY_SECS, 10);
+        assert_eq!(MIN_BROADCAST_DELAY_MS, 100);
+        assert_eq!(MAX_BROADCAST_DELAY_MS, 5_000);
+        assert_eq!(MAX_BROADCAST_DELAY_SECS, 5);
         assert_eq!(PROVING_TIME_TARGET_MS, 300);
         assert_eq!(PROVING_TIME_TOLERANCE_MS, 10);
         assert_eq!(PADDING_SIZES, [1_024, 16_384, 65_536, 262_144]);

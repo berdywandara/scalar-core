@@ -340,10 +340,7 @@ mod tests {
     #[test]
     fn test_tier_c_always_below_nmt_threshold() {
         // TIER_C_MAX_NODESCORE < NMT_SCORE_THRESHOLD — invariant kritis. Spec §10.1.
-        assert!(
-            TIER_C_MAX_NODESCORE < NMT_SCORE_THRESHOLD,
-            "Tier C cap harus selalu di bawah NMT threshold — invariant spec §10.1"
-        );
+        const { assert!(TIER_C_MAX_NODESCORE < NMT_SCORE_THRESHOLD) };
     }
 
     #[test]
