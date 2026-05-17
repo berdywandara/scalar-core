@@ -48,8 +48,7 @@ fn compliance_crypto_version_current() {
 }
 
 #[test]
-fn compliance_t_transition_epochs() {
-}
+fn compliance_t_transition_epochs() {}
 
 // ── §2.1 Signature Sizes ──────────────────────────────────────────────────────
 
