@@ -4,7 +4,7 @@
 //!
 //!   seed = Argon2id(
 //!       password = UTF8(mnemonic),
-//!       salt     = b"scalar_v2" || genesis_hash,
+//!       salt     = b"scalar_wallet_kdf" || genesis_hash,
 //!       m        = 65536 KiB (64 MB),
 //!       t        = 3,
 //!       p        = 1,
@@ -24,7 +24,7 @@
 //! - iterations: 3 (minimum absolut)
 //! - parallelism: 1
 //! - output: 64 bytes
-//! - salt prefix: b"scalar_v2"
+//! - salt prefix: b"scalar_wallet_kdf"
 //! - SEED_VERSION: 0x02
 //! - Kata pertama mnemonic WAJIB "scalar"
 
@@ -47,7 +47,7 @@ pub const SEED_ARGON2_PARALLEL: u32 = 1;
 pub const SEED_ARGON2_OUTPUT_LEN: usize = 64;
 
 /// Salt prefix versi v2. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
-pub const SEED_SALT_PREFIX_V2: &[u8] = b"scalar_v2";
+pub const SEED_SALT_PREFIX: &[u8] = b"scalar_wallet_kdf";
 
 /// Versi seed derivation. OSSIFIED — SCL-SPEC-SEED-001 §8.1.
 pub const SEED_VERSION: u8 = 0x02;
@@ -137,7 +137,7 @@ pub fn validate_mnemonic(mnemonic: &str) -> Result<(), SeedError> {
 ///
 /// seed = Argon2id(
 ///     password = UTF8(mnemonic),
-///     salt     = b"scalar_v2" || genesis_hash,
+///     salt     = b"scalar_wallet_kdf" || genesis_hash,
 ///     m        = 65536, t = 3, p = 1, len = 64
 /// )
 ///
@@ -146,11 +146,11 @@ pub fn validate_mnemonic(mnemonic: &str) -> Result<(), SeedError> {
 pub fn derive_seed(mnemonic: &str, genesis_hash: &[u8; 32]) -> Result<SeedMaterial, SeedError> {
     validate_mnemonic(mnemonic)?;
 
-    // Konstruksi salt: b"scalar_v2" || genesis_hash = 41 bytes
+    // Konstruksi salt: b"scalar_wallet_kdf" || genesis_hash = 49 bytes
     // SCL-SPEC-SEED-001 §3.3
-    let mut salt = [0u8; 41];
-    salt[..9].copy_from_slice(SEED_SALT_PREFIX_V2);
-    salt[9..].copy_from_slice(genesis_hash);
+    let mut salt = [0u8; 49];
+    salt[..17].copy_from_slice(SEED_SALT_PREFIX);
+    salt[17..].copy_from_slice(genesis_hash);
 
     // Parameter Argon2id — OSSIFIED SCL-SPEC-SEED-001 §8.1
     let params = Params::new(
@@ -264,8 +264,8 @@ mod tests {
 
     #[test]
     fn test_seed_salt_prefix_ossified() {
-        // SCL-SPEC-SEED-001 §8.1: prefix = b"scalar_v2". OSSIFIED.
-        assert_eq!(SEED_SALT_PREFIX_V2, b"scalar_v2");
+        // SCL-SPEC-SEED-001 §8.1: prefix = b"scalar_wallet_kdf". OSSIFIED.
+        assert_eq!(SEED_SALT_PREFIX, b"scalar_wallet_kdf");
     }
 
     #[test]
@@ -276,8 +276,8 @@ mod tests {
 
     #[test]
     fn test_salt_total_length() {
-        // SCL-SPEC-SEED-001 §3.3: salt = 9 bytes prefix + 32 bytes genesis = 41 bytes.
-        assert_eq!(SEED_SALT_PREFIX_V2.len() + 32, 41);
+        // SCL-SPEC-SEED-001 §3.3: salt = 17 bytes prefix + 32 bytes genesis = 49 bytes.
+        assert_eq!(SEED_SALT_PREFIX.len() + 32, 49);
     }
 
     #[test]
