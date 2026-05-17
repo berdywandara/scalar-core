@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn test_utxo_ordering_attack_prevention() {
         // Ordering identik meski urutan penerimaan berbeda. Spec §14.3.
-        let tx_hashes = vec![[0x01u8; 32], [0x02u8; 32], [0x03u8; 32]];
+        let tx_hashes = [[0x01u8; 32], [0x02u8; 32], [0x03u8; 32]];
         let epoch = 5u64;
 
         // Node A: tx diterima dalam urutan 1,2,3
@@ -279,7 +279,7 @@ mod tests {
         keys_a.sort_unstable();
 
         // Node B: tx diterima dalam urutan 3,1,2
-        let reordered = vec![tx_hashes[2], tx_hashes[0], tx_hashes[1]];
+        let reordered = [tx_hashes[2], tx_hashes[0], tx_hashes[1]];
         let mut keys_b: Vec<[u8; 32]> = reordered
             .iter()
             .map(|h| compute_ordering_key(h, epoch))

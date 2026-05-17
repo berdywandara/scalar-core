@@ -1,25 +1,33 @@
 //! Heartbeat Verification Flow (5-step) — Spec §7.2b
 //!
-//! Step 1: TTL     — reject if abs(NMT - HB.timestamp) > T_HEARTBEAT_TTL_S
+//! Step 1: Timestamp — reject if HB.timestamp > NMT + T_FUTURE_S (future)
+//!                     drop if HB.timestamp < NMT - T_PAST_S (stale past)
 //! Step 2: seq_num — reject if seq_num ≤ last_seq[node_id] (strictly monotonic)
 //! Step 3: prev_hash — reject if prev_hash ≠ BLAKE3(stored last HB for node)
 //! Step 4: MAC     — recompute and compare BLAKE3(NodeKey_epoch||node_id||seq_num||
 //!                   timestamp||smt_root||prev_hash)
 //! Step 5: Accept  — update last_seq[node_id], store HB, credit uptime
 //!
-//! RULE T-2 (spec §7.2c): TTL check menggunakan NMT (Network Median Time),
-//! BUKAN wall-clock lokal node.
+//! RULE T-2 (spec §7.6 T-2): Asymmetric timestamp bounds via NMT:
+//!   T_FUTURE_S = 60s  — reject jika HB.timestamp > NMT + T_FUTURE_S
+//!   T_PAST_S   = 3600s — drop jika HB.timestamp < NMT - T_PAST_S
+//! NMT = Network Median Time — BUKAN wall-clock lokal node.
 //!
 //! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 
+use crate::time_security::{T_FUTURE_TOLERANCE_S, T_PAST_S};
 use scalar_emission::liveness::{compute_heartbeat_mac, NodeHeartbeat};
 use std::collections::HashMap;
 
-// ── TTL constant — spec §7.2c T-2 ────────────────────────────────────────────
-
-/// TTL heartbeat dalam detik. Spec §7.2c T-2.
-/// HB ditolak jika abs(NMT - HB.timestamp) > T_HEARTBEAT_TTL_S.
-/// Layer 2 CONSTRAINED — default 600 detik (10 menit × 1 window).
+// ── Timestamp bounds — spec §7.6 T-2 ────────────────────────────────────────
+// T_FUTURE_S dan T_PAST_S diimport dari time_security.
+// T_FUTURE_S = 60s (dari T_FUTURE_TOLERANCE_S)
+// T_PAST_S   = 3600s
+//
+// T_HEARTBEAT_TTL_S dipertahankan untuk backward compat empirical tests.
+/// Legacy symmetric TTL — diganti dengan T_FUTURE_S/T_PAST_S asimetris. Spec §7.6 T-2.
+/// Dipertahankan hanya untuk referensi empirical test suite.
+#[deprecated(note = "Gunakan T_FUTURE_TOLERANCE_S dan T_PAST_S dari time_security")]
 pub const T_HEARTBEAT_TTL_S: u32 = 1_200;
 
 // ── VerificationError — spec §7.2b ───────────────────────────────────────────
@@ -27,11 +35,17 @@ pub const T_HEARTBEAT_TTL_S: u32 = 1_200;
 /// Error dari 5-step heartbeat verification. Spec §7.2b.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VerificationError {
-    /// Step 1: TTL expired — abs(NMT - timestamp) > T_HEARTBEAT_TTL_S. Spec §7.2b.
-    TtlExpired {
+    /// Step 1a: Timestamp terlalu jauh ke depan — HB.timestamp > NMT + T_FUTURE_S. Spec §7.6 T-2.
+    TimestampTooFuture {
         nmt: u32,
         hb_timestamp: u32,
-        ttl: u32,
+        future_tolerance_s: u32,
+    },
+    /// Step 1b: Timestamp terlalu lama — HB.timestamp < NMT - T_PAST_S. Spec §7.6 T-2.
+    TimestampTooOld {
+        nmt: u32,
+        hb_timestamp: u32,
+        past_tolerance_s: u32,
     },
     /// Step 2: seq_num tidak monotonic — seq_num ≤ last_seq. Spec §7.2b.
     SeqNumNotMonotonic { received: u32, last: u32 },
@@ -89,15 +103,22 @@ impl HeartbeatVerifier {
         node_key_epoch: &[u8; 32],
         _epoch_id: u64,
     ) -> Result<(), VerificationError> {
-        // ── Step 1: TTL check — spec §7.2b, Rule T-2 ─────────────────────────
-        // abs(NMT - HB.timestamp) ≤ T_HEARTBEAT_TTL_S
+        // ── Step 1: Asymmetric timestamp check — spec §7.6 T-2 ───────────────
+        // T_FUTURE_S = 60s:  reject jika HB.timestamp > NMT + T_FUTURE_S
+        // T_PAST_S   = 3600s: drop jika HB.timestamp < NMT - T_PAST_S
         // NMT dari NetworkMedianTime — BUKAN wall-clock lokal.
-        let delta = nmt.abs_diff(hb.timestamp);
-        if delta > T_HEARTBEAT_TTL_S {
-            return Err(VerificationError::TtlExpired {
+        if hb.timestamp > nmt.saturating_add(T_FUTURE_TOLERANCE_S) {
+            return Err(VerificationError::TimestampTooFuture {
                 nmt,
                 hb_timestamp: hb.timestamp,
-                ttl: T_HEARTBEAT_TTL_S,
+                future_tolerance_s: T_FUTURE_TOLERANCE_S,
+            });
+        }
+        if hb.timestamp < nmt.saturating_sub(T_PAST_S) {
+            return Err(VerificationError::TimestampTooOld {
+                nmt,
+                hb_timestamp: hb.timestamp,
+                past_tolerance_s: T_PAST_S,
             });
         }
 
@@ -234,42 +255,86 @@ mod tests {
     // ── Step 1: TTL ───────────────────────────────────────────────────────────
 
     #[test]
-    fn test_step1_ttl_pass_exact() {
-        // abs(NMT - timestamp) = T_HEARTBEAT_TTL_S → PASS (boundary). Spec §7.2b.
+    fn test_step1_timestamp_exact_nmt_pass() {
+        // HB.timestamp == NMT → PASS (dalam kedua batas). Spec §7.6 T-2.
         let mut verifier = HeartbeatVerifier::new();
-        let nmt = 1_000u32;
+        let nmt = 10_000u32;
         let hb = make_valid_hb([0x01; 4], 1, nmt, [0u8; 32], [0u8; 32]);
-        // TTL exact = 0 → pass
         assert!(verifier
             .verify(&hb, nmt, &node_key_epoch(), TEST_EPOCH)
             .is_ok());
     }
 
     #[test]
-    fn test_step1_ttl_fail_exceeded() {
-        // abs(NMT - timestamp) > T_HEARTBEAT_TTL_S → FAIL. Spec §7.2b.
+    fn test_step1_future_boundary_pass() {
+        // HB.timestamp = NMT + T_FUTURE_TOLERANCE_S → PASS (batas tepat). Spec §7.6 T-2.
+        use crate::time_security::T_FUTURE_TOLERANCE_S;
         let mut verifier = HeartbeatVerifier::new();
-        let nmt = 2_400u32;
+        let nmt = 10_000u32;
         let hb = make_valid_hb(
             [0x01; 4],
             1,
-            nmt - T_HEARTBEAT_TTL_S - 1,
+            nmt + T_FUTURE_TOLERANCE_S,
+            [0u8; 32],
+            [0u8; 32],
+        );
+        assert!(verifier
+            .verify(&hb, nmt, &node_key_epoch(), TEST_EPOCH)
+            .is_ok());
+    }
+
+    #[test]
+    fn test_step1_future_exceeded_reject() {
+        // HB.timestamp > NMT + T_FUTURE_TOLERANCE_S → REJECT. Spec §7.6 T-2.
+        use crate::time_security::T_FUTURE_TOLERANCE_S;
+        let mut verifier = HeartbeatVerifier::new();
+        let nmt = 10_000u32;
+        let hb = make_valid_hb(
+            [0x01; 4],
+            1,
+            nmt + T_FUTURE_TOLERANCE_S + 1,
             [0u8; 32],
             [0u8; 32],
         );
         let err = verifier
             .verify(&hb, nmt, &node_key_epoch(), TEST_EPOCH)
             .unwrap_err();
-        assert!(matches!(err, VerificationError::TtlExpired { .. }));
+        assert!(matches!(err, VerificationError::TimestampTooFuture { .. }));
     }
 
     #[test]
-    fn test_step1_ttl_uses_nmt_not_wall_clock() {
-        // TTL menggunakan NMT — Rule T-2. Spec §7.2c.
-        // Test ini memverifikasi bahwa parameter nmt digunakan, bukan wall-clock.
+    fn test_step1_past_boundary_pass() {
+        // HB.timestamp = NMT - T_PAST_S → PASS (batas tepat). Spec §7.6 T-2.
+        use crate::time_security::T_PAST_S;
         let mut verifier = HeartbeatVerifier::new();
         let nmt = 10_000u32;
-        let hb_timestamp = 9_999u32; // delta = 1 → pass
+        let hb = make_valid_hb([0x01; 4], 1, nmt - T_PAST_S, [0u8; 32], [0u8; 32]);
+        assert!(verifier
+            .verify(&hb, nmt, &node_key_epoch(), TEST_EPOCH)
+            .is_ok());
+    }
+
+    #[test]
+    fn test_step1_past_exceeded_drop() {
+        // HB.timestamp < NMT - T_PAST_S → DROP. Spec §7.6 T-2.
+        use crate::time_security::T_PAST_S;
+        let mut verifier = HeartbeatVerifier::new();
+        let nmt = 10_000u32;
+        let hb = make_valid_hb([0x01; 4], 1, nmt - T_PAST_S - 1, [0u8; 32], [0u8; 32]);
+        let err = verifier
+            .verify(&hb, nmt, &node_key_epoch(), TEST_EPOCH)
+            .unwrap_err();
+        assert!(matches!(err, VerificationError::TimestampTooOld { .. }));
+    }
+
+    // test_step1_ttl_fail_exceeded digabung ke test_step1_past_exceeded_drop di atas.
+
+    #[test]
+    fn test_step1_uses_nmt_not_wall_clock() {
+        // Asymmetric check menggunakan NMT — Rule T-2. Spec §7.6 T-2.
+        let mut verifier = HeartbeatVerifier::new();
+        let nmt = 10_000u32;
+        let hb_timestamp = 9_999u32; // dalam batas T_PAST_S → pass
         let hb = make_valid_hb([0x01; 4], 1, hb_timestamp, [0u8; 32], [0u8; 32]);
         assert!(verifier
             .verify(&hb, nmt, &node_key_epoch(), TEST_EPOCH)
@@ -458,12 +523,20 @@ mod tests {
         assert_eq!(verifier.last_seq_num(&node_id), 0);
     }
 
-    // ── T_HEARTBEAT_TTL_S constant ────────────────────────────────────────────
+    // ── Asymmetric timestamp bounds — spec §7.6 T-2 ───────────────────────────
 
     #[test]
-    fn test_t_heartbeat_ttl_s_value() {
-        // T_HEARTBEAT_TTL_S = 1_200 detik. Spec §18.2 Layer 2 default.
-        assert_eq!(T_HEARTBEAT_TTL_S, 1_200u32);
+    fn test_t_future_tolerance_value() {
+        // T_FUTURE_TOLERANCE_S = 60s. Spec §7.6 T-2.
+        use crate::time_security::T_FUTURE_TOLERANCE_S;
+        assert_eq!(T_FUTURE_TOLERANCE_S, 60u32);
+    }
+
+    #[test]
+    fn test_t_past_s_value() {
+        // T_PAST_S = 3600s. Spec §7.6 T-2.
+        use crate::time_security::T_PAST_S;
+        assert_eq!(T_PAST_S, 3_600u32);
     }
 
     // ── compute_prev_hash ─────────────────────────────────────────────────────
@@ -495,14 +568,15 @@ mod tests {
         verifier
             .verify(&hb_init, nmt, &node_key_epoch(), TEST_EPOCH)
             .unwrap();
-        // HB dengan TTL expired DAN seq_num rendah → harus return TtlExpired (step 1 dulu)
-        let old_timestamp = nmt - T_HEARTBEAT_TTL_S - 100; // TTL expired
+        // HB dengan timestamp terlalu lama DAN seq_num rendah → harus return TimestampTooOld (step 1 dulu)
+        use crate::time_security::T_PAST_S;
+        let old_timestamp = nmt - T_PAST_S - 100; // melewati T_PAST_S
         let hb_bad = make_valid_hb(node_id, 3, old_timestamp, [0u8; 32], [0u8; 32]); // seq juga rendah
         let err = verifier
             .verify(&hb_bad, nmt, &node_key_epoch(), TEST_EPOCH)
             .unwrap_err();
         assert!(
-            matches!(err, VerificationError::TtlExpired { .. }),
+            matches!(err, VerificationError::TimestampTooOld { .. }),
             "Step 1 harus dicek pertama"
         );
     }

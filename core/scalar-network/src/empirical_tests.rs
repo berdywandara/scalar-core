@@ -6,11 +6,13 @@
 //! EMPIRICAL-7: NMT manipulation test (5/8 attacker → eclipse)  — Spec §12.3a
 
 #[cfg(test)]
-mod empirical_tests {
-    use crate::heartbeat_verifier::{HeartbeatVerifier, T_HEARTBEAT_TTL_S};
+mod empirical_tests_inner {
+    #[allow(deprecated)]
+    use crate::heartbeat_verifier::HeartbeatVerifier;
     use crate::nmt::{
         compute_nmt, compute_nmt_with_eclipse_check, NmtStatus, NMT_PEER_COUNT, T_NMT_MAX_DRIFT_S,
     };
+    use crate::time_security::T_PAST_S;
     use crate::time_security::{
         epoch_from_seq_num, HeartbeatRateLimiter, T_FUTURE_TOLERANCE_S, T_HB_MIN_INTERVAL_S,
     };
@@ -48,15 +50,17 @@ mod empirical_tests {
 
     #[test]
     fn empirical_4_all_precomputed_hb_rejected_by_ttl() {
-        assert_eq!(T_HEARTBEAT_TTL_S, 1_200u32);
+        // T_PAST_S = 3600s — batas past asimetris. Spec §7.6 T-2.
+        assert_eq!(T_PAST_S, 3_600u32);
         assert_eq!(EPOCH_HB_COUNT, 4_320u32);
         let timestamp_precompute: u32 = 1_000_000;
-        let nmt_broadcast: u32 = timestamp_precompute + T_HEARTBEAT_TTL_S + 1;
+        // HB precomputed: NMT di-set lebih dari T_PAST_S setelah timestamp
+        let nmt_broadcast: u32 = timestamp_precompute + T_PAST_S + 1;
         let mut accepted: u32 = 0;
         let mut rejected: u32 = 0;
         for _ in 1..=EPOCH_HB_COUNT {
-            let delta = nmt_broadcast.abs_diff(timestamp_precompute);
-            if delta > T_HEARTBEAT_TTL_S {
+            // Cek asimetris: timestamp < nmt - T_PAST_S → rejected
+            if timestamp_precompute < nmt_broadcast.saturating_sub(T_PAST_S) {
                 rejected += 1;
             } else {
                 accepted += 1;
@@ -76,14 +80,14 @@ mod empirical_tests {
             "EMPIRICAL-4 PASSED: Semua {} HB precomputed ditolak TTL (gap={}s > TTL={}s)",
             rejected,
             nmt_broadcast.abs_diff(timestamp_precompute),
-            T_HEARTBEAT_TTL_S
+            T_PAST_S
         );
     }
 
     #[test]
     fn empirical_4_replay_only_1_accepted() {
         let nmt: u32 = 1_000_000;
-        let ts = nmt - T_HEARTBEAT_TTL_S + 100;
+        let ts = nmt - T_PAST_S + 100; // dalam batas T_PAST_S → valid
         let mut verifier = HeartbeatVerifier::new();
         let node_id = [0xA2u8; 4];
         let nke = nke();
@@ -358,10 +362,7 @@ mod empirical_tests {
 
     #[test]
     fn empirical_all_constants_match_spec() {
-        assert_eq!(
-            T_HEARTBEAT_TTL_S, 1_200u32,
-            "T_HEARTBEAT_TTL_S §18.2 default"
-        );
+        assert_eq!(T_PAST_S, 3_600u32, "T_PAST_S §7.6 T-2");
         assert_eq!(
             T_HB_MIN_INTERVAL_S, 300u32,
             "T_HB_MIN_INTERVAL_S §18.2 default"
