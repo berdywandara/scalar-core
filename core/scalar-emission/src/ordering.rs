@@ -15,22 +15,17 @@
 //! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 
 use blake3::Hasher;
+use scalar_crypto::domain::{DOMAIN_TXID, DOMAIN_TX_ORDER};
 
 // ── Ossified constants — spec §2.3, §8.5 ─────────────────────────────────────
 
 /// Domain separator for canonical transaction ordering. OSSIFIED — spec §2.3.
-/// TX_ORDER_DOMAIN = b"scalar_tx_order" (15 bytes).
-pub const TX_ORDER_DOMAIN: &[u8] = b"scalar_tx_order";
-
-/// Length of TX_ORDER_DOMAIN in bytes. Spec §2.3.
-pub const TX_ORDER_DOMAIN_LEN: usize = 15;
+/// Length of TX_ORDER_DOMAIN dalam bytes. Spec §2.3.
+pub const TX_ORDER_DOMAIN_LEN: usize = DOMAIN_TX_ORDER.len();
 
 /// Domain separator for TXID computation. OSSIFIED — spec §2.3 v11.1-FINAL.
-/// TXID_DOMAIN = b"scalar_txid" (11 bytes).
-pub const TXID_DOMAIN: &[u8] = b"scalar_txid";
-
-/// Length of TXID_DOMAIN in bytes.
-pub const TXID_DOMAIN_LEN: usize = 11;
+/// Length of TXID_DOMAIN dalam bytes. Spec §2.3.
+pub const TXID_DOMAIN_LEN: usize = DOMAIN_TXID.len();
 
 // ── TxEntry — transaction representation for ordering ────────────────────────
 
@@ -80,7 +75,7 @@ pub fn compute_txid(
     crypto_version: u8,
 ) -> [u8; 32] {
     let mut hasher = Hasher::new();
-    hasher.update(TXID_DOMAIN);
+    hasher.update(DOMAIN_TXID);
     for nullifier in input_nullifiers {
         hasher.update(nullifier);
     }
@@ -98,7 +93,7 @@ pub fn compute_txid(
 /// tx_ordering_key = BLAKE3(TX_ORDER_DOMAIN || txid || epoch_id_le64)
 pub fn compute_tx_ordering_key(txid: &[u8; 32], epoch_id: u64) -> [u8; 32] {
     let mut hasher = Hasher::new();
-    hasher.update(TX_ORDER_DOMAIN);
+    hasher.update(DOMAIN_TX_ORDER);
     hasher.update(txid);
     hasher.update(&epoch_id.to_le_bytes());
     *hasher.finalize().as_bytes()
@@ -121,14 +116,14 @@ pub fn sort_transactions_canonical(txs: &[TxEntry], epoch_id: u64) -> Vec<TxEntr
     keyed.into_iter().map(|(_, tx)| tx.clone()).collect()
 }
 
-/// Verify that TX_ORDER_DOMAIN is unchanged (compile-time check). Spec §2.3.
+/// Verify that DOMAIN_TX_ORDER is unchanged (compile-time check). Spec §2.3.
 pub const fn tx_order_domain_ossified() -> &'static [u8] {
-    TX_ORDER_DOMAIN
+    DOMAIN_TX_ORDER
 }
 
-/// Verify that TXID_DOMAIN is unchanged (compile-time check). Spec §2.3.
+/// Verify that DOMAIN_TXID is unchanged (compile-time check). Spec §2.3.
 pub const fn txid_domain_ossified() -> &'static [u8] {
-    TXID_DOMAIN
+    DOMAIN_TXID
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -347,27 +342,27 @@ mod tests {
     // Domain Separator Tests
     #[test]
     fn test_domain_separator_tx_order_ossified() {
-        assert_eq!(TX_ORDER_DOMAIN, b"scalar_tx_order");
+        assert_eq!(DOMAIN_TX_ORDER, b"scalar_tx_order");
         assert_eq!(TX_ORDER_DOMAIN_LEN, 15);
-        assert_eq!(TX_ORDER_DOMAIN.len(), TX_ORDER_DOMAIN_LEN);
+        assert_eq!(DOMAIN_TX_ORDER.len(), TX_ORDER_DOMAIN_LEN);
     }
 
     #[test]
     fn test_domain_separator_txid_ossified() {
-        assert_eq!(TXID_DOMAIN, b"scalar_txid");
+        assert_eq!(DOMAIN_TXID, b"scalar_txid");
         assert_eq!(TXID_DOMAIN_LEN, 11);
-        assert_eq!(TXID_DOMAIN.len(), TXID_DOMAIN_LEN);
+        assert_eq!(DOMAIN_TXID.len(), TXID_DOMAIN_LEN);
     }
 
     #[test]
     fn test_domain_separator_via_const_fn() {
-        assert_eq!(tx_order_domain_ossified(), TX_ORDER_DOMAIN);
-        assert_eq!(txid_domain_ossified(), TXID_DOMAIN);
+        assert_eq!(tx_order_domain_ossified(), DOMAIN_TX_ORDER);
+        assert_eq!(txid_domain_ossified(), DOMAIN_TXID);
     }
 
     #[test]
     fn test_domains_are_distinct() {
-        assert_ne!(TX_ORDER_DOMAIN, TXID_DOMAIN);
+        assert_ne!(DOMAIN_TX_ORDER, DOMAIN_TXID);
     }
 
     // Collision Tests
@@ -437,12 +432,12 @@ mod tests {
     fn test_little_endian_epoch_id() {
         let txid = make_txid(0x42, 10);
         let mut hasher_le = Hasher::new();
-        hasher_le.update(TX_ORDER_DOMAIN);
+        hasher_le.update(DOMAIN_TX_ORDER);
         hasher_le.update(&txid);
         hasher_le.update(&10u64.to_le_bytes());
         let expected_le = *hasher_le.finalize().as_bytes();
         let mut hasher_be = Hasher::new();
-        hasher_be.update(TX_ORDER_DOMAIN);
+        hasher_be.update(DOMAIN_TX_ORDER);
         hasher_be.update(&txid);
         hasher_be.update(&10u64.to_be_bytes());
         let expected_be = *hasher_be.finalize().as_bytes();
@@ -457,7 +452,7 @@ mod tests {
         let commitments = &[[0x02; 32]];
         let txid_le = compute_txid(nullifiers, commitments, 256, 1, 0x03);
         let mut hasher_le = Hasher::new();
-        hasher_le.update(TXID_DOMAIN);
+        hasher_le.update(DOMAIN_TXID);
         // FIX: for loop satu baris → dipecah (konsisten dengan loop lain di file ini)
         for n in nullifiers {
             hasher_le.update(n);
