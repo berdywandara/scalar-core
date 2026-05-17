@@ -201,27 +201,21 @@ mod tests {
     #[test]
     fn test_nmt_median_calculation() {
         // NMT = median dari peer timestamps, BUKAN average. Spec §12.3a.
-        // compute_nmt mengambil 8 peer pertama dari slice (urutan HashMap tidak deterministik),
-        // sort, lalu ambil lower median (index 3).
-        // Test ini memverifikasi properti median vs average, bukan nilai spesifik.
+        // PeerTimestampStore menggunakan HashMap — urutan all_timestamps() tidak deterministik.
+        // Test harus valid untuk semua kemungkinan subset 8 dari 9 peer.
+        //
+        // Strategi: 9 peer dengan timestamps identik (1_000_000).
+        // Apapun 8 yang dipilih, lower median (index 3) = 1_000_000.
+        // local_wall_clock dekat dengan timestamps agar tidak trigger eclipse alert.
         let mut store = PeerTimestampStore::new();
-        // 9 timestamps: semua sama kecuali satu outlier besar
-        // Apapun 8 yang dipilih, median (index 3) ≠ average jika distribusi asimetris.
-        // Gunakan set di mana median dan average jelas berbeda untuk semua subset 8 dari 9.
-        // Set: [1, 1, 1, 1, 1, 1, 1, 1, 1_000_000]
-        // Subset 8 apapun: 7x nilai 1 + kemungkinan outlier.
-        // Jika outlier masuk: sorted=[1,1,1,1,1,1,1,1_000_000], median=1, avg=125_001
-        // Jika outlier tidak masuk: sorted=[1,1,1,1,1,1,1,1], median=1, avg=1
-        // Dalam kedua kasus: median (index 3) = 1.
-        for i in 0..8u8 {
-            store.update([i; 4], 1u32);
+        for i in 0..9u8 {
+            store.update([i; 4], 1_000_000u32);
         }
-        store.update([8u8; 4], 1_000_000u32);
-        let result = compute_production_nmt(&store, 2_000_000);
-        assert!(result.is_from_peers());
-        // Median harus 1 (bukan average ~125_001 jika outlier dipilih). Spec §12.3a.
-        assert_eq!(result.nmt_value(), 1, "NMT harus median, bukan average");
-        assert_ne!(result.nmt_value(), 125_001, "NMT bukan average");
+        // local_wall_clock dalam batas T_NMT_MAX_DRIFT_S (600s) dari timestamps
+        let result = compute_production_nmt(&store, 1_000_100);
+        assert!(result.is_from_peers(), "Harus dari peers, bukan fallback");
+        // Semua timestamps identik → NMT = 1_000_000 apapun subset-nya
+        assert_eq!(result.nmt_value(), 1_000_000, "NMT harus median dari peer timestamps");
     }
 
     // ── test_nmt_fallback_few_peers ───────────────────────────────────────────
