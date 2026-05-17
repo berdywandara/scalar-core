@@ -744,7 +744,8 @@ mod tests_v12_p2p_gaps {
             ARGON2_NODE_TIME_TIER_C, NODE_ID_SALT_PREFIX,
         };
         // Salt prefix ossified
-        assert_eq!(NODE_ID_SALT_PREFIX, b"scalar_nodeid_v1");
+        // Spec §2.3, §10.2: NODE_ID_SALT_PREFIX = b"scalar_nodeid" (13 byte). OSSIFIED.
+        assert_eq!(NODE_ID_SALT_PREFIX, b"scalar_nodeid");
         // Tier C params
         assert_eq!(ARGON2_NODE_MEMORY_TIER_C_KIB, 16 * 1024);
         assert_eq!(ARGON2_NODE_TIME_TIER_C, 100);
