@@ -41,8 +41,6 @@ pub const NMT_MAX_PER_ASN: usize = 5;
 /// Diversitas: maksimum node per region. OSSIFIED — spec §12.3.
 pub const NMT_MAX_PER_REGION: usize = 4;
 
-/// Domain untuk random slot seed. Spec §12.3.
-
 // ── NmtNodeCandidate — node yang eligible untuk NMT ──────────────────────────
 
 /// Kandidat node untuk NMT peer selection. Spec §12.3.
