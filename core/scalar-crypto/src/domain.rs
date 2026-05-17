@@ -43,8 +43,17 @@ pub const DOMAIN_BEACON: &[u8] = b"scalar_beacon";
 /// Seed KDF wallet. Spec §2.3. 9 bytes.
 pub const DOMAIN_SEED_KDF: &[u8] = b"scalar_wallet_kdf";
 
-/// TX ordering. Spec §2.3. 18 bytes.
+/// TX ordering. Spec §2.3. 15 bytes.
 pub const DOMAIN_TX_ORDER: &[u8] = b"scalar_tx_order";
+
+/// TXID domain. Spec §2.3. 11 bytes.
+pub const DOMAIN_TXID: &[u8] = b"scalar_txid";
+
+/// Score_i (DMM aggregator selection). Spec §2.3. 12 bytes.
+pub const DOMAIN_SCORE: &[u8] = b"scalar_score";
+
+/// NMT random slot seed. Spec §2.3. 10 bytes.
+pub const DOMAIN_NMT_RANDOM: &[u8] = b"nmt_random";
 
 /// PoU mint domain (field element). Spec §2.3. 8 bytes.
 pub const DOMAIN_POU_MINT: u64 = 0x706f755f6d696e74;
@@ -175,6 +184,9 @@ mod tests {
             DOMAIN_BEACON,
             DOMAIN_SEED_KDF,
             DOMAIN_TX_ORDER,
+            DOMAIN_TXID,
+            DOMAIN_SCORE,
+            DOMAIN_NMT_RANDOM,
         ];
         let mut seen = std::collections::HashSet::new();
         for d in &domains {

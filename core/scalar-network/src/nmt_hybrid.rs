@@ -18,6 +18,7 @@
 
 use crate::node_score::{is_tier_c, NMT_SCORE_THRESHOLD};
 use blake3::Hasher;
+use scalar_crypto::domain::DOMAIN_NMT_RANDOM;
 
 // ── Ossified constants — spec §12.3, §17 ─────────────────────────────────────
 
@@ -41,7 +42,6 @@ pub const NMT_MAX_PER_ASN: usize = 5;
 pub const NMT_MAX_PER_REGION: usize = 4;
 
 /// Domain untuk random slot seed. Spec §12.3.
-pub const NMT_RANDOM_DOMAIN: &[u8] = b"nmt_random";
 
 // ── NmtNodeCandidate — node yang eligible untuk NMT ──────────────────────────
 
@@ -93,7 +93,7 @@ pub fn compute_nmt_rank(node_id_full: &[u8; 32], seed_k: &[u8; 32]) -> [u8; 32] 
 pub fn compute_nmt_random_seed(seed_k: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(seed_k);
-    hasher.update(NMT_RANDOM_DOMAIN); // b"nmt_random"
+    hasher.update(DOMAIN_NMT_RANDOM); // b"nmt_random"
     *hasher.finalize().as_bytes()
 }
 
@@ -451,8 +451,8 @@ mod tests {
 
     #[test]
     fn test_nmt_random_domain() {
-        // NMT_RANDOM_DOMAIN = b"nmt_random". Spec §12.3.
-        assert_eq!(NMT_RANDOM_DOMAIN, b"nmt_random");
+        // DOMAIN_NMT_RANDOM = b"nmt_random". Spec §12.3.
+        assert_eq!(DOMAIN_NMT_RANDOM, b"nmt_random");
     }
 
     // ── test_nmt_random_seed_computation ─────────────────────────────────────

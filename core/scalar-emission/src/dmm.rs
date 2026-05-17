@@ -15,6 +15,7 @@
 //!   wajib pakai DMM tanpa fallback lain.
 
 use blake3::Hasher;
+use scalar_crypto::domain::DOMAIN_SCORE;
 
 // ── Ossified constants — spec §8.2, §17 ──────────────────────────────────────
 
@@ -735,10 +736,6 @@ pub fn verify_manifest_hash(manifest: &EpochRewardManifest) -> bool {
 }
 
 // ── Aggregator score computation — spec §8.1 ─────────────────────────────────
-
-/// Domain separator untuk aggregator score. OSSIFIED — spec §2.3.
-/// b"scalar_score" = 12 bytes.
-pub const DOMAIN_SCORE: &[u8] = b"scalar_score";
 
 /// Compute score_i = BLAKE3("scalar_score" || node_id_full_i || seed_k). Spec §8.1.
 ///

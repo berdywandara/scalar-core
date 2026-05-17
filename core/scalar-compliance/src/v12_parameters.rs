@@ -119,16 +119,13 @@ mod tests_v12_ordering {
     #[test]
     fn compliance_test_tx_order_domain() {
         // TX_ORDER_DOMAIN = b"scalar_tx_order_v1". OSSIFIED — spec §2.3.
-        assert_eq!(
-            scalar_emission::ordering::TX_ORDER_DOMAIN,
-            b"scalar_tx_order"
-        );
+        assert_eq!(scalar_crypto::domain::DOMAIN_TX_ORDER, b"scalar_tx_order");
     }
 
     #[test]
     fn compliance_test_tx_order_domain_len() {
         // TX_ORDER_DOMAIN_LEN = 18. Spec §2.3.
-        assert_eq!(scalar_emission::ordering::TX_ORDER_DOMAIN_LEN, 15usize);
+        assert_eq!(scalar_crypto::domain::DOMAIN_TX_ORDER_LEN, 15usize);
     }
 
     #[test]
@@ -671,10 +668,7 @@ mod tests_v12_suite_v4 {
         // SPEC_VERSION_MANIFEST
         assert_eq!(scalar_emission::dmm::SPEC_VERSION_MANIFEST, 0x01u8);
         // TX_ORDER_DOMAIN
-        assert_eq!(
-            scalar_emission::ordering::TX_ORDER_DOMAIN,
-            b"scalar_tx_order"
-        );
+        assert_eq!(scalar_crypto::domain::DOMAIN_TX_ORDER, b"scalar_tx_order");
         // MAX_CONSECUTIVE_DEFER
         assert_eq!(scalar_emission::dmm::MAX_CONSECUTIVE_DEFER, 2u32);
         // T_TRANSITION_EPOCHS
