@@ -215,7 +215,11 @@ mod tests {
         let result = compute_production_nmt(&store, 1_000_100);
         assert!(result.is_from_peers(), "Harus dari peers, bukan fallback");
         // Semua timestamps identik → NMT = 1_000_000 apapun subset-nya
-        assert_eq!(result.nmt_value(), 1_000_000, "NMT harus median dari peer timestamps");
+        assert_eq!(
+            result.nmt_value(),
+            1_000_000,
+            "NMT harus median dari peer timestamps"
+        );
     }
 
     // ── test_nmt_fallback_few_peers ───────────────────────────────────────────
