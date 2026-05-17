@@ -6,7 +6,7 @@
 //! Spec §10.2:
 //!   node_id_full = Argon2id(
 //!     input  = mnemonic,
-//!     salt   = b"scalar_nodeid_v1" || genesis_hash,
+//!     salt   = b"scalar_nodeid" || genesis_hash,
 //!     memory = 4 GB (production) / 16 MB (dev),
 //!     time   = 3_600 iter (production) / 100 iter (dev),
 //!     output = 32 bytes
@@ -23,10 +23,10 @@ use argon2::{Algorithm, Argon2, Params, Version};
 // ── Constants — spec §10.2 ────────────────────────────────────────────────────
 
 /// Salt prefix untuk NodeID derivation. OSSIFIED — spec §10.2.
-pub const NODE_ID_SALT_PREFIX: &[u8] = b"scalar_nodeid_v1";
+pub const NODE_ID_SALT_PREFIX: &[u8] = b"scalar_nodeid";
 
 /// Salt prefix length. Spec §10.2.
-pub const NODE_ID_SALT_PREFIX_LEN: usize = 16;
+pub const NODE_ID_SALT_PREFIX_LEN: usize = 13;
 
 /// Argon2id memory cost production (Tier A/B): 4 GB dalam KiB. OSSIFIED — spec §10.2.
 pub const ARGON2_NODE_MEMORY_PRODUCTION_KIB: u32 = 4 * 1024 * 1024;
@@ -96,13 +96,13 @@ impl ProductionNodeId {
     /// `genesis_hash`: 32-byte genesis hash.
     /// `mode`: Production (4GB) atau TierCOrDev (16MB).
     ///
-    /// salt = b"scalar_nodeid_v1" || genesis_hash
+    /// salt = b"scalar_nodeid" || genesis_hash
     pub fn derive(
         mnemonic: &[u8],
         genesis_hash: &[u8; 32],
         mode: NodeIdDerivationMode,
     ) -> Result<Self, NodeIdError> {
-        // Buat salt: b"scalar_nodeid_v1" || genesis_hash
+        // Buat salt: b"scalar_nodeid" || genesis_hash
         let mut salt = Vec::with_capacity(NODE_ID_SALT_PREFIX_LEN + 32);
         salt.extend_from_slice(NODE_ID_SALT_PREFIX);
         salt.extend_from_slice(genesis_hash);
@@ -255,9 +255,9 @@ mod tests {
 
     #[test]
     fn test_salt_format_prefix() {
-        // salt = b"scalar_nodeid_v1" || genesis_hash. Spec §10.2.
-        assert_eq!(NODE_ID_SALT_PREFIX, b"scalar_nodeid_v1");
-        assert_eq!(NODE_ID_SALT_PREFIX_LEN, 16usize);
+        // salt = b"scalar_nodeid" || genesis_hash. Spec §10.2.
+        assert_eq!(NODE_ID_SALT_PREFIX, b"scalar_nodeid");
+        assert_eq!(NODE_ID_SALT_PREFIX_LEN, 13usize);
         assert_eq!(NODE_ID_SALT_PREFIX.len(), NODE_ID_SALT_PREFIX_LEN);
     }
 

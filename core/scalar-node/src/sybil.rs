@@ -83,6 +83,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "slow: Argon2id 16MB, requires sufficient memory — run manually with -- --ignored"]
     fn test_node_identity_generated_non_zero() {
         let fingerprint = b"test_hardware_fingerprint_scalar";
         let identity = NodeIdentity::generate(fingerprint);
@@ -90,6 +91,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: Argon2id 16MB, requires sufficient memory — run manually with -- --ignored"]
     fn test_node_identity_output_length_32_bytes() {
         let fingerprint = b"scalar_node_fingerprint";
         let identity = NodeIdentity::generate(fingerprint);
@@ -97,6 +99,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: Argon2id 16MB x2, requires sufficient memory — run manually with -- --ignored"]
     fn test_different_fingerprints_different_ids() {
         // Salt acak memastikan output selalu berbeda bahkan untuk input sama,
         // tapi dua fingerprint berbeda PASTI berbeda.
@@ -140,6 +143,7 @@ mod tests {
 
     #[cfg(feature = "production")]
     #[test]
+    #[ignore = "slow: Argon2id 4GB, requires production hardware — run manually with -- --ignored"]
     fn test_production_mode_uses_4gb() {
         // Konfirmasi production mode aktif — m_cost harus 4 GB
         assert_eq!(
