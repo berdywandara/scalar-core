@@ -6,7 +6,7 @@
 
 use blake3::Hasher;
 use scalar_emission::dmm::{
-    compute_manifest_hash_v12, EpochRewardManifestV12, SPEC_VERSION_MANIFEST_V12,
+    compute_manifest_hash, EpochRewardManifest, SPEC_VERSION_MANIFEST,
 };
 
 // ── NullifierStatus — spec §16.4 ─────────────────────────────────────────────
@@ -75,16 +75,16 @@ pub fn inspect_nullifier_state(
 
 // ── verify_manifest_hash — spec §16.4 ────────────────────────────────────────
 
-/// Verifikasi manifest_hash dari EpochRewardManifestV12. Spec §16.4.
+/// Verifikasi manifest_hash dari EpochRewardManifest. Spec §16.4.
 ///
 /// Menghitung ulang hash dan membandingkan dengan manifest.manifest_hash.
 /// Returns ManifestAuditResult — read-only. Spec §16.4.
-pub fn verify_manifest_hash(manifest: &EpochRewardManifestV12) -> ManifestAuditResult {
+pub fn verify_manifest_hash(manifest: &EpochRewardManifest) -> ManifestAuditResult {
     // Cek spec_version
-    if manifest.spec_version != SPEC_VERSION_MANIFEST_V12 {
+    if manifest.spec_version != SPEC_VERSION_MANIFEST {
         return ManifestAuditResult::InvalidSpecVersion {
             version: manifest.spec_version,
-            expected: SPEC_VERSION_MANIFEST_V12,
+            expected: SPEC_VERSION_MANIFEST,
         };
     }
 
@@ -94,7 +94,7 @@ pub fn verify_manifest_hash(manifest: &EpochRewardManifestV12) -> ManifestAuditR
     }
 
     // Hitung ulang hash dan bandingkan
-    let computed_hash = compute_manifest_hash_v12(manifest);
+    let computed_hash = compute_manifest_hash(manifest);
     if computed_hash != manifest.manifest_hash {
         return ManifestAuditResult::HashMismatch {
             expected: manifest.manifest_hash,
@@ -123,11 +123,11 @@ pub fn audit_blake3_hash(data: &[u8]) -> [u8; 32] {
 mod tests {
     use super::*;
     use scalar_emission::dmm::{
-        compute_network_health_digest, compute_reward_root, compute_seed_k_v12,
-        EpochRewardManifestV12, NodeRewardEntry,
+        compute_network_health_digest, compute_reward_root, compute_seed_k,
+        EpochRewardManifest, NodeRewardEntry,
     };
 
-    fn make_valid_manifest() -> EpochRewardManifestV12 {
+    fn make_valid_manifest() -> EpochRewardManifest {
         let node_list = vec![NodeRewardEntry {
             node_id_full: [0x01u8; 32],
             reward_sscl: 1_000_000,
@@ -135,12 +135,12 @@ mod tests {
         }];
         let reward_root = compute_reward_root(&node_list);
         let network_health_digest = compute_network_health_digest(1, 1, 800_000);
-        let seed_k = compute_seed_k_v12(&[0x42u8; 32]);
+        let seed_k = compute_seed_k(&[0x42u8; 32]);
 
-        let mut manifest = EpochRewardManifestV12 {
+        let mut manifest = EpochRewardManifest {
             epoch_id: 1,
             node_list,
-            spec_version: SPEC_VERSION_MANIFEST_V12,
+            spec_version: SPEC_VERSION_MANIFEST,
             total_emission_sscl: 1_000_000,
             deferred: false,
             seed_k,
@@ -150,7 +150,7 @@ mod tests {
             tx_set_root: [0u8; 32],
         };
         // Compute dan set hash yang benar
-        let hash = compute_manifest_hash_v12(&manifest);
+        let hash = compute_manifest_hash(&manifest);
         manifest.manifest_hash = hash;
         manifest
     }
