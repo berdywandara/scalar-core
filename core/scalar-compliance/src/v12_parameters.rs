@@ -125,7 +125,7 @@ mod tests_v12_ordering {
     #[test]
     fn compliance_test_tx_order_domain_len() {
         // TX_ORDER_DOMAIN_LEN = 18. Spec §2.3.
-        assert_eq!(scalar_crypto::domain::DOMAIN_TX_ORDER_LEN, 15usize);
+        assert_eq!(scalar_emission::ordering::TX_ORDER_DOMAIN_LEN, 15usize);
     }
 
     #[test]

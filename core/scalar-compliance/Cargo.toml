@@ -6,6 +6,7 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+scalar-crypto   = { path = "../scalar-crypto" }
 scalar-emission  = { path = "../scalar-emission" }
 scalar-fees      = { path = "../scalar-fees" }
 scalar-network   = { path = "../scalar-network" }
