@@ -1,10 +1,8 @@
 #[cfg(test)]
 mod empirical_2_canonical_fuzz {
-    use crate::dmm::{
-        compute_manifest_hash_v12, EpochRewardManifestV12, SPEC_VERSION_MANIFEST_V12,
-    };
+    use crate::dmm::{compute_manifest_hash, EpochRewardManifest, SPEC_VERSION_MANIFEST};
 
-    fn build_manifest(seed: u64) -> EpochRewardManifestV12 {
+    fn build_manifest(seed: u64) -> EpochRewardManifest {
         let epoch_id = seed ^ 0xDEADBEEF_CAFEBABE;
         let mut seed_k = [0u8; 32];
         let mut reward_root = [0u8; 32];
@@ -30,9 +28,9 @@ mod empirical_2_canonical_fuzz {
             tx_set_root[i + 24] = b.wrapping_add(0x44);
         }
         let total_emission = (seed % 12_600_000_000_000).min(12_600_000_000_000);
-        EpochRewardManifestV12 {
+        EpochRewardManifest {
             epoch_id,
-            spec_version: SPEC_VERSION_MANIFEST_V12,
+            spec_version: SPEC_VERSION_MANIFEST,
             total_emission_sscl: total_emission,
             deferred: seed % 2 == 0,
             seed_k,
@@ -41,6 +39,11 @@ mod empirical_2_canonical_fuzz {
             network_health_digest,
             tx_set_root,
             node_list: vec![],
+            status: if seed % 2 == 0 {
+                crate::dmm::EpochStatus::Deferred
+            } else {
+                crate::dmm::EpochStatus::Open
+            },
         }
     }
 
@@ -53,20 +56,20 @@ mod empirical_2_canonical_fuzz {
             let manifest = build_manifest(seed);
 
             // P1: Deterministik
-            let h1 = compute_manifest_hash_v12(&manifest);
-            let h2 = compute_manifest_hash_v12(&manifest);
+            let h1 = compute_manifest_hash(&manifest);
+            let h2 = compute_manifest_hash(&manifest);
             assert_eq!(h1, h2, "P1 FAILED seed={}: tidak deterministik", seed);
 
             // P2: manifest_hash field tidak mempengaruhi hash (non-circular)
             let mut m2 = manifest.clone();
             m2.manifest_hash = [0xFFu8; 32];
-            let h3 = compute_manifest_hash_v12(&m2);
+            let h3 = compute_manifest_hash(&m2);
             assert_eq!(h1, h3, "P2 FAILED seed={}: manifest_hash circular", seed);
 
             // P3: tx_set_root mempengaruhi hash (Temuan 2)
             let mut m4 = manifest.clone();
             m4.tx_set_root = [0xBBu8; 32];
-            let h4 = compute_manifest_hash_v12(&m4);
+            let h4 = compute_manifest_hash(&m4);
             if manifest.tx_set_root != [0xBBu8; 32] {
                 assert_ne!(
                     h1, h4,
