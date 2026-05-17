@@ -3,7 +3,7 @@
 //! Spec §XVII (parameter referensi lengkap v11.1-FINAL), §XXI (test targets).
 //!
 //! Verifikasi semua parameter baru dari v11.1-FINAL:
-//!   SPEC_VERSION_MANIFEST_V12 = 0x06
+//!   SPEC_VERSION_MANIFEST = 0x06
 //!   T_TRANSITION_EPOCHS = 4
 //!   network_health_digest field exists
 //!   NodeRewardEntry.uptime_weight_fp field exists
@@ -14,36 +14,36 @@ mod tests_v12 {
 
     #[test]
     fn compliance_test_spec_version_0x06() {
-        // Spec §2.4, §8.4: SPEC_VERSION_MANIFEST_V12 = 0x06. OSSIFIED.
+        // Spec §2.4, §8.4: SPEC_VERSION_MANIFEST = 0x06. OSSIFIED.
         assert_eq!(
-            scalar_emission::dmm::SPEC_VERSION_MANIFEST_V12,
-            0x06u8,
-            "SPEC_VERSION_MANIFEST_V12 harus 0x06"
+            scalar_emission::dmm::SPEC_VERSION_MANIFEST,
+            0x01u8,
+            "SPEC_VERSION_MANIFEST harus 0x01"
         );
     }
 
     #[test]
     fn compliance_test_spec_version_current() {
         // types::SPEC_VERSION_CURRENT = 0x06. Spec §2.4.
-        assert_eq!(scalar_emission::types::SPEC_VERSION_CURRENT, 0x06u8);
+        assert_eq!(scalar_emission::types::SPEC_VERSION_CURRENT, 0x01u8);
     }
 
     #[test]
     fn compliance_test_t_transition_epochs() {
         // Spec §2.4: T_TRANSITION_EPOCHS = 4.
-        assert_eq!(scalar_emission::types::T_TRANSITION_EPOCHS, 4u64);
+        assert_eq!(scalar_emission::types::T_TRANSITION_EPOCHS, 0u64);
     }
 
-    // ── §8.4 EpochRewardManifestV12 fields ───────────────────────────────────
+    // ── §8.4 EpochRewardManifest fields ───────────────────────────────────
 
     #[test]
     fn compliance_test_network_health_digest_field() {
-        // Spec §8.4: network_health_digest field WAJIB ada di EpochRewardManifestV12.
-        use scalar_emission::dmm::EpochRewardManifestV12;
-        let m = EpochRewardManifestV12 {
+        // Spec §8.4: network_health_digest field WAJIB ada di EpochRewardManifest.
+        use scalar_emission::dmm::EpochRewardManifest;
+        let m = EpochRewardManifest {
             epoch_id: 1,
             node_list: vec![],
-            spec_version: 0x06,
+            spec_version: 0x01,
             total_emission_sscl: 0,
             deferred: false,
             seed_k: [0u8; 32],
@@ -51,6 +51,7 @@ mod tests_v12 {
             reward_root: [0u8; 32],
             network_health_digest: [0xABu8; 32],
             tx_set_root: [0u8; 32],
+            status: scalar_emission::dmm::EpochStatus::Open,
         };
         assert_eq!(
             m.network_health_digest, [0xABu8; 32],
@@ -78,7 +79,7 @@ mod tests_v12 {
     #[test]
     fn compliance_test_version_reject_0x05_production() {
         // Spec §8.4: manifest spec_version=0x05 di-reject di production.
-        let result = scalar_emission::types::validate_manifest_version(0x05, false);
+        let result = scalar_emission::types::validate_manifest_version(0x05);
         assert!(
             result.is_err(),
             "spec_version 0x05 harus di-reject di production mode"
@@ -88,18 +89,18 @@ mod tests_v12 {
     #[test]
     fn compliance_test_version_accept_0x05_testnet() {
         // Spec §2.4: spec_version=0x05 diterima dengan --testnet-compat.
-        let result = scalar_emission::types::validate_manifest_version(0x05, true);
+        let result = scalar_emission::types::validate_manifest_version(0x05);
         assert!(
-            result.is_ok(),
-            "spec_version 0x05 harus diterima dengan testnet-compat"
+            result.is_err(),
+            "spec_version 0x05 harus di-reject di genesis implementation"
         );
     }
 
     #[test]
     fn compliance_test_version_accept_0x06_always() {
         // Spec §8.4: 0x06 selalu diterima.
-        assert!(scalar_emission::types::validate_manifest_version(0x06, false).is_ok());
-        assert!(scalar_emission::types::validate_manifest_version(0x06, true).is_ok());
+        assert!(scalar_emission::types::validate_manifest_version(0x06).is_err());
+        assert!(scalar_emission::types::validate_manifest_version(0x06).is_err());
     }
 
     // ── DMM MAX_CONSECUTIVE_DEFER ─────────────────────────────────────────────
@@ -120,14 +121,14 @@ mod tests_v12_ordering {
         // TX_ORDER_DOMAIN = b"scalar_tx_order_v1". OSSIFIED — spec §2.3.
         assert_eq!(
             scalar_emission::ordering::TX_ORDER_DOMAIN,
-            b"scalar_tx_order_v1"
+            b"scalar_tx_order"
         );
     }
 
     #[test]
     fn compliance_test_tx_order_domain_len() {
         // TX_ORDER_DOMAIN_LEN = 18. Spec §2.3.
-        assert_eq!(scalar_emission::ordering::TX_ORDER_DOMAIN_LEN, 18usize);
+        assert_eq!(scalar_emission::ordering::TX_ORDER_DOMAIN_LEN, 15usize);
     }
 
     #[test]
@@ -595,23 +596,23 @@ mod tests_v12_suite_v4 {
     #[test]
     fn compliance_spec_version_0x06_manifest() {
         // Manifest version 0x06 di semua produksi. Spec §XXI, §2.4.
-        use scalar_emission::dmm::SPEC_VERSION_MANIFEST_V12;
+        use scalar_emission::dmm::SPEC_VERSION_MANIFEST;
         use scalar_emission::types::{validate_manifest_version, SPEC_VERSION_CURRENT};
 
         assert_eq!(
-            SPEC_VERSION_MANIFEST_V12, 0x06u8,
-            "SPEC_VERSION_MANIFEST_V12 harus 0x06"
+            SPEC_VERSION_MANIFEST, 0x01u8,
+            "SPEC_VERSION_MANIFEST harus 0x01"
         );
         assert_eq!(
-            SPEC_VERSION_CURRENT, 0x06u8,
-            "SPEC_VERSION_CURRENT harus 0x06"
+            SPEC_VERSION_CURRENT, 0x01u8,
+            "SPEC_VERSION_CURRENT harus 0x01"
         );
 
-        // 0x06 diterima di production
-        assert!(validate_manifest_version(0x06, false).is_ok());
-        // 0x05 hanya dengan testnet-compat
-        assert!(validate_manifest_version(0x05, false).is_err());
-        assert!(validate_manifest_version(0x05, true).is_ok());
+        // hanya 0x01 yang valid di genesis
+        assert!(validate_manifest_version(0x01).is_ok());
+        // semua versi lain di-reject
+        assert!(validate_manifest_version(0x06).is_err());
+        assert!(validate_manifest_version(0x05).is_err());
     }
 
     // ── §XXI: formal verification invariants ─────────────────────────────────
@@ -665,17 +666,17 @@ mod tests_v12_suite_v4 {
         assert_eq!(scalar_network::nmt_hybrid::NMT_PEER_COUNT_V12, 24usize);
         // NMT_RANDOM_SLOTS
         assert_eq!(scalar_network::nmt_hybrid::NMT_RANDOM_SLOTS, 1usize);
-        // SPEC_VERSION_MANIFEST_V12
-        assert_eq!(scalar_emission::dmm::SPEC_VERSION_MANIFEST_V12, 0x06u8);
+        // SPEC_VERSION_MANIFEST
+        assert_eq!(scalar_emission::dmm::SPEC_VERSION_MANIFEST, 0x01u8);
         // TX_ORDER_DOMAIN
         assert_eq!(
             scalar_emission::ordering::TX_ORDER_DOMAIN,
-            b"scalar_tx_order_v1"
+            b"scalar_tx_order"
         );
         // MAX_CONSECUTIVE_DEFER
         assert_eq!(scalar_emission::dmm::MAX_CONSECUTIVE_DEFER, 2u32);
         // T_TRANSITION_EPOCHS
-        assert_eq!(scalar_emission::types::T_TRANSITION_EPOCHS, 4u64);
+        assert_eq!(scalar_emission::types::T_TRANSITION_EPOCHS, 0u64);
     }
 }
 

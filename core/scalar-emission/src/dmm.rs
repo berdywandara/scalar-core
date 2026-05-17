@@ -753,3 +753,11 @@ pub fn compute_score(node_id_full: &[u8; 32], seed_k: &[u8; 32]) -> [u8; 32] {
     hasher.update(seed_k);
     *hasher.finalize().as_bytes()
 }
+
+// ── Aggregator selection constants — spec §8.1 ───────────────────────────────
+
+/// Jumlah validator paralel. OSSIFIED — spec §8.1.
+pub const AGGREGATOR_VALIDATOR_COUNT: u32 = 10;
+
+/// Minimum uptime_fp untuk eligible jadi aggregator. OSSIFIED — spec §8.1.
+pub const AGGREGATOR_MIN_UPTIME_FP: u64 = 700_000;

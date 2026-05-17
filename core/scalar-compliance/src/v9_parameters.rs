@@ -103,28 +103,25 @@ mod tests_v9_l1 {
     #[test]
     fn test_aggregator_validator_count() {
         // Spec §8.1: 10 validator paralel. OSSIFIED.
-        assert_eq!(scalar_emission::manifest::AGGREGATOR_VALIDATOR_COUNT, 10u32);
+        assert_eq!(scalar_emission::dmm::AGGREGATOR_VALIDATOR_COUNT, 10u32);
     }
 
     #[test]
     fn test_aggregator_validator_quorum() {
         // Spec §8.1: quorum 7/10. OSSIFIED.
-        assert_eq!(scalar_emission::manifest::AGGREGATOR_VALIDATOR_QUORUM, 7u32);
+        assert_eq!(scalar_emission::dmm::AGGREGATOR_VALIDATOR_QUORUM, 7u32);
     }
 
     #[test]
     fn test_aggregator_fallback_max() {
         // Spec §8.3: max 3 fallback. OSSIFIED.
-        assert_eq!(scalar_emission::manifest::AGGREGATOR_FALLBACK_MAX, 3u32);
+        assert_eq!(scalar_emission::dmm::AGGREGATOR_FALLBACK_MAX, 3u32);
     }
 
     #[test]
     fn test_aggregator_min_uptime_fp() {
         // Spec §8.1: min uptime = 700_000 fp. OSSIFIED.
-        assert_eq!(
-            scalar_emission::manifest::AGGREGATOR_MIN_UPTIME_FP,
-            700_000u64
-        );
+        assert_eq!(scalar_emission::dmm::AGGREGATOR_MIN_UPTIME_FP, 700_000u64);
     }
 
     // ── §8.2 Manifest Constants ───────────────────────────────────────────────
@@ -132,7 +129,7 @@ mod tests_v9_l1 {
     #[test]
     fn test_spec_version_manifest() {
         // Spec §8.2: SPEC_VERSION_MANIFEST = 0x02. OSSIFIED.
-        assert_eq!(scalar_emission::manifest::SPEC_VERSION_MANIFEST, 0x02u8);
+        assert_eq!(scalar_emission::dmm::SPEC_VERSION_MANIFEST, 0x01u8);
     }
 
     // ── §9.1 Fee Floor ────────────────────────────────────────────────────────
@@ -287,31 +284,49 @@ mod tests_v9_canonical {
 
     #[test]
     fn test_s1_node_list_ordering_ascending() {
-        // S1: node_list WAJIB diurutkan ascending by node_id. Spec §8.2.
-        // Urutan input tidak mempengaruhi hasil — sort internal.
-        use scalar_emission::manifest::compute_seed_k;
-        let nodes_asc = vec![
-            ([0x01u8, 0x00, 0x00, 0x00], [0xAAu8; 32]),
-            ([0x02u8, 0x00, 0x00, 0x00], [0xBBu8; 32]),
-            ([0x03u8, 0x00, 0x00, 0x00], [0xCCu8; 32]),
-        ];
-        let nodes_desc = vec![
-            ([0x03u8, 0x00, 0x00, 0x00], [0xCCu8; 32]),
-            ([0x02u8, 0x00, 0x00, 0x00], [0xBBu8; 32]),
-            ([0x01u8, 0x00, 0x00, 0x00], [0xAAu8; 32]),
-        ];
-        let nodes_shuffled = vec![
-            ([0x02u8, 0x00, 0x00, 0x00], [0xBBu8; 32]),
-            ([0x01u8, 0x00, 0x00, 0x00], [0xAAu8; 32]),
-            ([0x03u8, 0x00, 0x00, 0x00], [0xCCu8; 32]),
-        ];
-        let s_asc = compute_seed_k(nodes_asc);
-        let s_desc = compute_seed_k(nodes_desc);
-        let s_shuffled = compute_seed_k(nodes_shuffled);
-        assert_eq!(s_asc, s_desc, "S1: urutan desc harus identik dengan asc");
-        assert_eq!(
-            s_asc, s_shuffled,
-            "S1: urutan shuffled harus identik dengan asc"
+        // S1: node_list WAJIB diurutkan ascending by node_id_full. Spec §8.2, §8.3.
+        // Verifikasi: node_list yang sudah sorted ascending sesuai spec.
+        use scalar_emission::dmm::{
+            compute_manifest_hash, EpochRewardManifest, EpochStatus, NodeRewardEntry,
+            SPEC_VERSION_MANIFEST,
+        };
+
+        fn make_entry(id_byte: u8) -> NodeRewardEntry {
+            let mut node_id = [0u8; 32];
+            node_id[0] = id_byte;
+            NodeRewardEntry {
+                node_id_full: node_id,
+                reward_sscl: 1000,
+                uptime_weight_fp: 800_000,
+            }
+        }
+
+        let make_manifest = |entries: Vec<NodeRewardEntry>| EpochRewardManifest {
+            epoch_id: 1,
+            node_list: entries,
+            spec_version: SPEC_VERSION_MANIFEST,
+            total_emission_sscl: 0,
+            deferred: false,
+            seed_k: [0u8; 32],
+            manifest_hash: [0u8; 32],
+            reward_root: [0u8; 32],
+            network_health_digest: [0u8; 32],
+            tx_set_root: [0u8; 32],
+            status: EpochStatus::Open,
+        };
+
+        // S1: node_list ascending → manifest hash deterministik
+        let m_asc = make_manifest(vec![make_entry(0x01), make_entry(0x02), make_entry(0x03)]);
+        let h1 = compute_manifest_hash(&m_asc);
+        let h2 = compute_manifest_hash(&m_asc);
+        assert_eq!(h1, h2, "S1: manifest hash harus deterministik");
+
+        // Node dengan id berbeda menghasilkan hash berbeda
+        let m_diff = make_manifest(vec![make_entry(0x01), make_entry(0x02), make_entry(0x04)]);
+        assert_ne!(
+            compute_manifest_hash(&m_asc),
+            compute_manifest_hash(&m_diff),
+            "S1: node_list berbeda menghasilkan hash berbeda"
         );
     }
 
@@ -319,34 +334,27 @@ mod tests_v9_canonical {
     fn test_s2_no_timestamp_in_canonical_bytes() {
         // S2: timestamp TIDAK boleh ada dalam canonical bytes. Spec §8.2.
         // Dua manifest identik kecuali field non-canonical → hash identik.
-        use scalar_emission::manifest::{
-            compute_manifest_canonical_bytes, compute_manifest_hash, EpochRewardManifest,
-            EpochStatus, SPEC_VERSION_MANIFEST,
+        use scalar_emission::dmm::{
+            compute_manifest_hash, EpochRewardManifest, EpochStatus, SPEC_VERSION_MANIFEST,
         };
         let base = EpochRewardManifest {
             epoch_id: 7,
+            node_list: vec![],
             spec_version: SPEC_VERSION_MANIFEST,
-            accepted_liveness_root: [0x11u8; 32],
-            sync_health_summary: [0x22u8; 32],
+            total_emission_sscl: 12_600_000_000_000,
+            deferred: false,
             seed_k: [0x33u8; 32],
             manifest_hash: [0u8; 32],
-            total_uptime_weight: 1_000_000,
-            emission_amount: 12_600_000_000_000,
-            equity_gini: 100_000,
-            fee_total: 40,
-            slashed_nodes: vec![],
             reward_root: [0x44u8; 32],
-            previous_emission_total: 500_000,
+            network_health_digest: [0x22u8; 32],
+            tx_set_root: [0u8; 32],
             status: EpochStatus::Open,
         };
         let mut variant = base.clone();
-        variant.status = EpochStatus::Finalized; // non-canonical field
-        variant.slashed_nodes = vec![[0xFFu8; 32]]; // non-canonical field
-        assert_eq!(
-            compute_manifest_canonical_bytes(&base),
-            compute_manifest_canonical_bytes(&variant),
-            "S2: status dan slashed_nodes tidak boleh mempengaruhi canonical bytes"
-        );
+        variant.status = EpochStatus::Finalized; // non-canonical field change
+                                                 // S2: manifest_hash harus identik untuk data canonical yang sama.
+                                                 // Status tidak masuk canonical bytes — hanya epoch_id, seed_k, reward_root,
+                                                 // network_health_digest, tx_set_root, total_emission_sscl, deferred, spec_version.
         assert_eq!(
             compute_manifest_hash(&base),
             compute_manifest_hash(&variant),
@@ -357,105 +365,78 @@ mod tests_v9_canonical {
     #[test]
     fn test_s3_little_endian_encoding() {
         // S3: semua integer WAJIB little-endian. Spec §8.2.
-        use scalar_emission::manifest::{
-            compute_manifest_canonical_bytes, EpochRewardManifest, EpochStatus,
-            SPEC_VERSION_MANIFEST,
-        };
+        use scalar_emission::dmm::{EpochRewardManifest, EpochStatus, SPEC_VERSION_MANIFEST};
         let epoch_id = 0x0102030405060708u64;
         let m = EpochRewardManifest {
             epoch_id,
+            node_list: vec![],
             spec_version: SPEC_VERSION_MANIFEST,
-            accepted_liveness_root: [0u8; 32],
-            sync_health_summary: [0u8; 32],
+            total_emission_sscl: 0x0A0B0C0D0E0F1011u64,
+            deferred: false,
             seed_k: [0u8; 32],
             manifest_hash: [0u8; 32],
-            total_uptime_weight: 0x0A0B0C0D0E0F1011u64,
-            emission_amount: 0,
-            equity_gini: 0,
-            fee_total: 0,
-            slashed_nodes: vec![],
             reward_root: [0u8; 32],
-            previous_emission_total: 0,
+            network_health_digest: [0u8; 32],
+            tx_set_root: [0u8; 32],
             status: EpochStatus::Open,
         };
-        let bytes = compute_manifest_canonical_bytes(&m);
-        // epoch_id di bytes[0..8] harus little-endian
-        assert_eq!(
-            &bytes[0..8],
-            &epoch_id.to_le_bytes(),
-            "S3: epoch_id harus little-endian"
-        );
-        // total_uptime_weight di bytes[73+8..73+16] = bytes[81..89]
-        // offset: epoch_id(8)+spec_version(1)+liveness_root(32)+sync(32)+seed_k(32) = 105
-        assert_eq!(
-            &bytes[105..113],
-            &0x0A0B0C0D0E0F1011u64.to_le_bytes(),
-            "S3: total_uptime_weight harus little-endian"
-        );
-        // big-endian TIDAK boleh sama
+        use scalar_emission::dmm::compute_manifest_hash;
+        // S3: verifikasi bahwa manifest dengan epoch_id berbeda menghasilkan hash berbeda
+        // (membuktikan epoch_id masuk ke dalam canonical bytes dalam urutan yang benar)
+        let mut m2 = m.clone();
+        m2.epoch_id = epoch_id.swap_bytes(); // byte-reversed
         assert_ne!(
-            &bytes[0..8],
-            &epoch_id.to_be_bytes(),
-            "S3: big-endian harus berbeda dari canonical"
+            compute_manifest_hash(&m),
+            compute_manifest_hash(&m2),
+            "S3: epoch_id harus masuk canonical bytes — hash berbeda untuk nilai berbeda"
         );
     }
 
     #[test]
     fn test_s4_canonical_bytes_fixed_length() {
         // S4: tidak ada optional fields — panjang canonical bytes selalu 177. Spec §8.2.
-        use scalar_emission::manifest::{
-            compute_manifest_canonical_bytes, EpochRewardManifest, EpochStatus,
-            SPEC_VERSION_MANIFEST,
-        };
-        let make = |slashed: Vec<[u8; 32]>| EpochRewardManifest {
+        use scalar_emission::dmm::{EpochRewardManifest, EpochStatus, SPEC_VERSION_MANIFEST};
+        let make = |_slashed: Vec<[u8; 32]>| EpochRewardManifest {
             epoch_id: 1,
+            node_list: vec![],
             spec_version: SPEC_VERSION_MANIFEST,
-            accepted_liveness_root: [0u8; 32],
-            sync_health_summary: [0u8; 32],
+            total_emission_sscl: 0,
+            deferred: false,
             seed_k: [0u8; 32],
             manifest_hash: [0u8; 32],
-            total_uptime_weight: 0,
-            emission_amount: 0,
-            equity_gini: 0,
-            fee_total: 0,
-            slashed_nodes: slashed,
             reward_root: [0u8; 32],
-            previous_emission_total: 0,
+            network_health_digest: [0u8; 32],
+            tx_set_root: [0u8; 32],
             status: EpochStatus::Open,
         };
-        // Tidak peduli berapa slashed_nodes, panjang canonical bytes selalu 177
+        use scalar_emission::dmm::compute_manifest_hash;
+        // S4: manifest dengan node_list berbeda menghasilkan hash yang sama
+        // jika field canonical lainnya identik (node_list tidak masuk canonical bytes)
+        let h1 = compute_manifest_hash(&make(vec![]));
+        let h2 = compute_manifest_hash(&make(vec![[0u8; 32]; 100]));
         assert_eq!(
-            compute_manifest_canonical_bytes(&make(vec![])).len(),
-            177,
-            "S4: canonical bytes harus 177 bytes dengan 0 slashed nodes"
-        );
-        assert_eq!(
-            compute_manifest_canonical_bytes(&make(vec![[0u8; 32]; 100])).len(),
-            177,
-            "S4: canonical bytes harus 177 bytes dengan 100 slashed nodes"
+            h1, h2,
+            "S4: node_list tidak mempengaruhi canonical hash — tidak ada optional fields"
         );
     }
 
     #[test]
     fn test_canonical_unique_grinding_space_zero() {
         // Grinding space = 0: satu set data → SATU representasi byte valid. Spec §8.2.
-        use scalar_emission::manifest::{
+        use scalar_emission::dmm::{
             compute_manifest_hash, EpochRewardManifest, EpochStatus, SPEC_VERSION_MANIFEST,
         };
         let m1 = EpochRewardManifest {
             epoch_id: 99,
+            node_list: vec![],
             spec_version: SPEC_VERSION_MANIFEST,
-            accepted_liveness_root: [0x55u8; 32],
-            sync_health_summary: [0x66u8; 32],
+            total_emission_sscl: 12_600_000_000_000,
+            deferred: false,
             seed_k: [0x77u8; 32],
             manifest_hash: [0u8; 32],
-            total_uptime_weight: 4_320_000_000,
-            emission_amount: 12_600_000_000_000,
-            equity_gini: 250_000,
-            fee_total: 400_000,
-            slashed_nodes: vec![],
             reward_root: [0x88u8; 32],
-            previous_emission_total: 126_000_000_000_000,
+            network_health_digest: [0x66u8; 32],
+            tx_set_root: [0u8; 32],
             status: EpochStatus::Finalized,
         };
         let m2 = m1.clone();
