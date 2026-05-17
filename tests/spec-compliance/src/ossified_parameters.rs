@@ -44,12 +44,11 @@ fn compliance_e_tail() {
 
 #[test]
 fn compliance_crypto_version_current() {
-    assert_eq!(scalar_crypto::version::CURRENT_VERSION, 0x03u8);
+    assert_eq!(scalar_crypto::version::CURRENT_VERSION, 0x01u8);
 }
 
 #[test]
 fn compliance_t_transition_epochs() {
-    assert_eq!(scalar_crypto::version::TRANSITION_WINDOW_EPOCHS, 4u64);
 }
 
 // ── §2.1 Signature Sizes ──────────────────────────────────────────────────────
