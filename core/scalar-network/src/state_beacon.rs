@@ -1,144 +1,63 @@
-//! StateBeacon + Tier 3-5 Reclassification — Spec §12.1, §12.1a
+//! StateBeacon + MAC Authentication — Spec §12.2
 //!
 //! StateBeacon: struct 44 bytes yang muat dalam satu LoRa packet.
-//! Spec §12.1a:
+//! Spec §12.2:
 //!   epoch_id:  u64  — 8 bytes
 //!   smt_root:  [u8;32] — 32 bytes
-//!   checksum:  [u8;4]  — 4 bytes (BLAKE3(epoch_id_le64 || smt_root)[0..4])
+//!   mac:       [u8;4]  — 4 bytes
 //!   Total: 44 bytes
 //!
-//! STATE_BEACON_MAX_BYTES = 64. Fits one LoRa packet. OSSIFIED — spec §12.1a.
+//! MAC construction — spec §12.2, §7.4:
+//!   NodeKey_epoch = BLAKE3(NodeKey || epoch_id_le64)
+//!   mac = BLAKE3(NodeKey_epoch || epoch_id_le64 || smt_root)[0..4]
 //!
-//! Transport reklasifikasi v9.0 — spec §12.1:
-//!   Tier 1-2: CONSENSUS_TRANSPORT — full consensus participation, uptime counted
-//!   Tier 3-5: STATE_BEACON_TRANSPORT — read-only state, ZERO uptime contribution
+//! NodeKey_epoch wajib disertakan — tanpanya beacon MAC hanya checksum
+//! deterministik yang bisa dipalsukan siapapun yang tahu epoch_id dan smt_root
+//! (keduanya data publik). Spec §12.2.
 //!
-//! Node Tier 3-5 TIDAK bisa:
-//!   - Submit heartbeat untuk uptime credit
-//!   - Participate dalam manifest consensus
-//!   - Menerima PoU reward
+//! STATE_BEACON_MAX_BYTES = 64. Fits one LoRa packet. OSSIFIED — spec §12.2.
 //!
-//! Node Tier 3-5 BISA:
-//!   - Menerima StateBeacon untuk verifikasi saldo
-//!   - Broadcast transaksi (diforward oleh Tier 1-2)
-//!
-//! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+//! Hash discipline: BLAKE3 out-circuit — spec §2.1.
 
-// ── Constants — spec §12.1a ───────────────────────────────────────────────────
+use blake3::Hasher;
 
-/// Maximum bytes StateBeacon. OSSIFIED — spec §12.1a.
-/// Fits one LoRa packet (LoRa MTU ≈ 255 bytes, StateBeacon = 44 bytes).
+// ── Constants — spec §12.2 ───────────────────────────────────────────────────
+
+/// Maximum bytes StateBeacon. OSSIFIED — spec §12.2.
 pub const STATE_BEACON_MAX_BYTES: usize = 64;
 
-/// StateBeacon wire size dalam bytes. Spec §12.1a.
-/// epoch_id(8) + smt_root(32) + checksum(4) = 44 bytes.
+/// StateBeacon wire size dalam bytes. Spec §12.2.
+/// epoch_id(8) + smt_root(32) + mac(4) = 44 bytes.
 pub const STATE_BEACON_WIRE_SIZE: usize = 44;
 
-// ── Transport classification — spec §12.1 ────────────────────────────────────
+// ── MAC computation — spec §12.2, §7.4 ──────────────────────────────────────
 
-/// Transport classification v9.0. Spec §12.1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TransportClass {
-    /// Tier 1-2: Full consensus participation. Uptime counted. Spec §12.1.
-    /// Internet (Tier 1) + LoRa Mesh (Tier 2).
-    ConsensusTransport,
-    /// Tier 3-5: State Beacon ONLY. Zero uptime contribution. Spec §12.1.
-    /// HF Radio (Tier 3), Local Mesh (Tier 4), Visual QR (Tier 5).
-    StateBeaconTransport,
+/// Derive NodeKey_epoch dari NodeKey dan epoch_id. Spec §7.4.
+///
+/// NodeKey_epoch = BLAKE3(NodeKey || epoch_id_le64)
+///
+/// Hash discipline: BLAKE3 out-circuit — spec §2.1.
+pub fn derive_node_key_epoch(node_key: &[u8; 32], epoch_id: u64) -> [u8; 32] {
+    let mut hasher = Hasher::new();
+    hasher.update(node_key);
+    hasher.update(&epoch_id.to_le_bytes());
+    *hasher.finalize().as_bytes()
 }
 
-/// Classify transport tier ke TransportClass. Spec §12.1.
+/// Compute beacon MAC. Spec §12.2.
 ///
-/// Tier 1 (Internet) → ConsensusTransport
-/// Tier 2 (LoRa Mesh) → ConsensusTransport
-/// Tier 3 (HF Radio) → StateBeaconTransport
-/// Tier 4 (Local Mesh) → StateBeaconTransport
-/// Tier 5 (Visual QR) → StateBeaconTransport
-pub fn classify_transport_tier(tier: u8) -> TransportClass {
-    match tier {
-        1..=2 => TransportClass::ConsensusTransport,
-        3..=5 => TransportClass::StateBeaconTransport,
-        _ => TransportClass::StateBeaconTransport, // unknown tier → conservative
-    }
-}
-
-/// Cek apakah node di tier ini eligible untuk uptime credit. Spec §12.1.
+/// mac = BLAKE3(NodeKey_epoch || epoch_id_le64 || smt_root)[0..4]
 ///
-/// HANYA Tier 1-2 yang mendapat uptime credit.
-/// Tier 3-5 = zero uptime contribution — spec §12.1.
-pub fn is_uptime_eligible(tier: u8) -> bool {
-    classify_transport_tier(tier) == TransportClass::ConsensusTransport
-}
-
-// ── StateBeacon — spec §12.1a ─────────────────────────────────────────────────
-
-/// StateBeacon — 44 bytes, fits one LoRa packet. Spec §12.1a.
+/// `node_key_epoch`: hasil derive_node_key_epoch(NodeKey, epoch_id).
 ///
-/// Dikirim oleh Tier 1-2 node ke Tier 3-5 node.
-/// Tier 3-5 node menggunakan StateBeacon untuk verifikasi saldo lokal.
-///
-/// checksum = BLAKE3(epoch_id_le64 || smt_root)[0..4] — integrity check.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StateBeacon {
-    /// Epoch ID saat beacon dibuat. Spec §12.1a.
-    pub epoch_id: u64,
-    /// Root SMT liveness terkini. Spec §12.1a.
-    pub smt_root: [u8; 32],
-    /// Checksum 4 bytes = BLAKE3(epoch_id_le64 || smt_root)[0..4]. Spec §12.1a.
-    pub checksum: [u8; 4],
-}
-
-impl StateBeacon {
-    /// Buat StateBeacon baru dengan checksum yang benar. Spec §12.1a.
-    pub fn new(epoch_id: u64, smt_root: [u8; 32]) -> Self {
-        let checksum = compute_beacon_checksum(epoch_id, &smt_root);
-        Self {
-            epoch_id,
-            smt_root,
-            checksum,
-        }
-    }
-
-    /// Serialisasi ke wire format — 44 bytes. Spec §12.1a.
-    pub fn to_bytes(&self) -> [u8; STATE_BEACON_WIRE_SIZE] {
-        let mut out = [0u8; STATE_BEACON_WIRE_SIZE];
-        out[0..8].copy_from_slice(&self.epoch_id.to_le_bytes());
-        out[8..40].copy_from_slice(&self.smt_root);
-        out[40..44].copy_from_slice(&self.checksum);
-        out
-    }
-
-    /// Deserialise dari wire format — 44 bytes. Spec §12.1a.
-    pub fn from_bytes(b: &[u8; STATE_BEACON_WIRE_SIZE]) -> Self {
-        let epoch_id = u64::from_le_bytes(b[0..8].try_into().unwrap());
-        let mut smt_root = [0u8; 32];
-        smt_root.copy_from_slice(&b[8..40]);
-        let mut checksum = [0u8; 4];
-        checksum.copy_from_slice(&b[40..44]);
-        Self {
-            epoch_id,
-            smt_root,
-            checksum,
-        }
-    }
-
-    /// Verifikasi checksum. Spec §12.1a.
-    pub fn verify_checksum(&self) -> bool {
-        let expected = compute_beacon_checksum(self.epoch_id, &self.smt_root);
-        self.checksum == expected
-    }
-
-    /// Wire size harus ≤ STATE_BEACON_MAX_BYTES. Spec §12.1a.
-    pub fn fits_lora_packet(&self) -> bool {
-        STATE_BEACON_WIRE_SIZE <= STATE_BEACON_MAX_BYTES
-    }
-}
-
-/// Compute checksum = BLAKE3(epoch_id_le64 || smt_root)[0..4]. Spec §12.1a.
-///
-/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
-pub fn compute_beacon_checksum(epoch_id: u64, smt_root: &[u8; 32]) -> [u8; 4] {
-    let mut hasher = blake3::Hasher::new();
+/// Hash discipline: BLAKE3 out-circuit — spec §2.1.
+pub fn compute_beacon_mac(
+    node_key_epoch: &[u8; 32],
+    epoch_id: u64,
+    smt_root: &[u8; 32],
+) -> [u8; 4] {
+    let mut hasher = Hasher::new();
+    hasher.update(node_key_epoch);
     hasher.update(&epoch_id.to_le_bytes());
     hasher.update(smt_root);
     let hash = hasher.finalize();
@@ -146,219 +65,210 @@ pub fn compute_beacon_checksum(epoch_id: u64, smt_root: &[u8; 32]) -> [u8; 4] {
     [bytes[0], bytes[1], bytes[2], bytes[3]]
 }
 
+// ── StateBeacon — spec §12.2 ─────────────────────────────────────────────────
+
+/// StateBeacon 44 bytes — authenticated beacon. Spec §12.2.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateBeacon {
+    pub epoch_id: u64,
+    pub smt_root: [u8; 32],
+    /// mac = BLAKE3(NodeKey_epoch || epoch_id_le64 || smt_root)[0..4]. Spec §12.2.
+    pub mac: [u8; 4],
+}
+
+impl StateBeacon {
+    /// Buat StateBeacon baru dengan MAC yang benar. Spec §12.2.
+    ///
+    /// `node_key`: NodeKey node yang menerbitkan beacon.
+    pub fn new(epoch_id: u64, smt_root: [u8; 32], node_key: &[u8; 32]) -> Self {
+        let node_key_epoch = derive_node_key_epoch(node_key, epoch_id);
+        let mac = compute_beacon_mac(&node_key_epoch, epoch_id, &smt_root);
+        Self {
+            epoch_id,
+            smt_root,
+            mac,
+        }
+    }
+
+    /// Verifikasi MAC beacon. Spec §12.2.
+    ///
+    /// Returns true jika MAC valid untuk node_key yang diberikan.
+    pub fn verify(&self, node_key: &[u8; 32]) -> bool {
+        let node_key_epoch = derive_node_key_epoch(node_key, self.epoch_id);
+        let expected_mac = compute_beacon_mac(&node_key_epoch, self.epoch_id, &self.smt_root);
+        self.mac == expected_mac
+    }
+
+    /// Serialize ke wire format 44 bytes. Spec §12.2.
+    pub fn to_bytes(&self) -> [u8; STATE_BEACON_WIRE_SIZE] {
+        let mut out = [0u8; STATE_BEACON_WIRE_SIZE];
+        out[0..8].copy_from_slice(&self.epoch_id.to_le_bytes());
+        out[8..40].copy_from_slice(&self.smt_root);
+        out[40..44].copy_from_slice(&self.mac);
+        out
+    }
+
+    /// Deserialize dari wire format 44 bytes. Spec §12.2.
+    pub fn from_bytes(b: &[u8; STATE_BEACON_WIRE_SIZE]) -> Self {
+        let mut epoch_id_bytes = [0u8; 8];
+        epoch_id_bytes.copy_from_slice(&b[0..8]);
+        let epoch_id = u64::from_le_bytes(epoch_id_bytes);
+        let mut smt_root = [0u8; 32];
+        smt_root.copy_from_slice(&b[8..40]);
+        let mut mac = [0u8; 4];
+        mac.copy_from_slice(&b[40..44]);
+        Self {
+            epoch_id,
+            smt_root,
+            mac,
+        }
+    }
+}
+
+// ── Transport classification — spec §12.1 ────────────────────────────────────
+
+/// Transport classification v9.0. Spec §12.1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransportClass {
+    /// Tier 1-2: Full consensus participation. Uptime counted. Spec §12.1.
+    ConsensusTransport,
+    /// Tier 3-5: State Beacon ONLY. Zero uptime contribution. Spec §12.1.
+    StateBeaconTransport,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // ── Constants ─────────────────────────────────────────────────────────────
+    const TEST_NODE_KEY: [u8; 32] = [0xABu8; 32];
+    const TEST_EPOCH: u64 = 42;
+    const TEST_SMT_ROOT: [u8; 32] = [0xCDu8; 32];
+
+    // ── derive_node_key_epoch ─────────────────────────────────────────────────
 
     #[test]
-    fn test_state_beacon_max_bytes_is_64() {
-        // Spec §12.1a: STATE_BEACON_MAX_BYTES = 64. OSSIFIED.
-        assert_eq!(STATE_BEACON_MAX_BYTES, 64usize);
+    fn test_node_key_epoch_deterministic() {
+        // NodeKey_epoch deterministik untuk input yang sama. Spec §7.4.
+        let k1 = derive_node_key_epoch(&TEST_NODE_KEY, TEST_EPOCH);
+        let k2 = derive_node_key_epoch(&TEST_NODE_KEY, TEST_EPOCH);
+        assert_eq!(k1, k2);
     }
 
     #[test]
-    fn test_state_beacon_wire_size_is_44() {
-        // Spec §12.1a: wire size = 44 bytes. epoch_id(8)+smt_root(32)+checksum(4).
-        assert_eq!(STATE_BEACON_WIRE_SIZE, 44usize);
+    fn test_node_key_epoch_differs_per_epoch() {
+        // Epoch berbeda → NodeKey_epoch berbeda. Spec §7.4.
+        let k1 = derive_node_key_epoch(&TEST_NODE_KEY, 1);
+        let k2 = derive_node_key_epoch(&TEST_NODE_KEY, 2);
+        assert_ne!(k1, k2);
     }
 
     #[test]
-    fn test_state_beacon_fits_lora_packet() {
-        // 44 bytes < 64 bytes → fits LoRa packet. Spec §12.1a.
-        let beacon = StateBeacon::new(1, [0xAAu8; 32]);
-        assert!(beacon.fits_lora_packet());
+    fn test_node_key_epoch_differs_per_key() {
+        // NodeKey berbeda → NodeKey_epoch berbeda. Spec §7.4.
+        let k1 = derive_node_key_epoch(&[0xAAu8; 32], TEST_EPOCH);
+        let k2 = derive_node_key_epoch(&[0xBBu8; 32], TEST_EPOCH);
+        assert_ne!(k1, k2);
+    }
+
+    // ── compute_beacon_mac ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_mac_is_4_bytes() {
+        // MAC harus 4 bytes. Spec §12.2.
+        let nke = derive_node_key_epoch(&TEST_NODE_KEY, TEST_EPOCH);
+        let mac = compute_beacon_mac(&nke, TEST_EPOCH, &TEST_SMT_ROOT);
+        assert_eq!(mac.len(), 4);
+    }
+
+    #[test]
+    fn test_mac_deterministic() {
+        // MAC deterministik. Spec §12.2.
+        let nke = derive_node_key_epoch(&TEST_NODE_KEY, TEST_EPOCH);
+        let m1 = compute_beacon_mac(&nke, TEST_EPOCH, &TEST_SMT_ROOT);
+        let m2 = compute_beacon_mac(&nke, TEST_EPOCH, &TEST_SMT_ROOT);
+        assert_eq!(m1, m2);
+    }
+
+    #[test]
+    fn test_mac_differs_without_node_key_epoch() {
+        // MAC dengan NodeKey_epoch berbeda → MAC berbeda.
+        // Membuktikan NodeKey_epoch mempengaruhi MAC. Spec §12.2.
+        let nke1 = derive_node_key_epoch(&[0xAAu8; 32], TEST_EPOCH);
+        let nke2 = derive_node_key_epoch(&[0xBBu8; 32], TEST_EPOCH);
+        let m1 = compute_beacon_mac(&nke1, TEST_EPOCH, &TEST_SMT_ROOT);
+        let m2 = compute_beacon_mac(&nke2, TEST_EPOCH, &TEST_SMT_ROOT);
+        assert_ne!(m1, m2, "MAC harus berbeda untuk NodeKey yang berbeda");
+    }
+
+    #[test]
+    fn test_mac_differs_for_different_epoch() {
+        // Epoch berbeda → MAC berbeda. Spec §12.2.
+        let nke1 = derive_node_key_epoch(&TEST_NODE_KEY, 1);
+        let nke2 = derive_node_key_epoch(&TEST_NODE_KEY, 2);
+        let m1 = compute_beacon_mac(&nke1, 1, &TEST_SMT_ROOT);
+        let m2 = compute_beacon_mac(&nke2, 2, &TEST_SMT_ROOT);
+        assert_ne!(m1, m2);
+    }
+
+    #[test]
+    fn test_mac_differs_for_different_smt_root() {
+        // SMT root berbeda → MAC berbeda. Spec §12.2.
+        let nke = derive_node_key_epoch(&TEST_NODE_KEY, TEST_EPOCH);
+        let m1 = compute_beacon_mac(&nke, TEST_EPOCH, &[0xAAu8; 32]);
+        let m2 = compute_beacon_mac(&nke, TEST_EPOCH, &[0xBBu8; 32]);
+        assert_ne!(m1, m2);
+    }
+
+    // ── StateBeacon ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_beacon_new_verify_roundtrip() {
+        // Beacon yang dibuat dengan node_key harus verify dengan node_key yang sama.
+        let beacon = StateBeacon::new(TEST_EPOCH, TEST_SMT_ROOT, &TEST_NODE_KEY);
+        assert!(beacon.verify(&TEST_NODE_KEY));
+    }
+
+    #[test]
+    fn test_beacon_verify_fails_wrong_key() {
+        // Beacon verify gagal dengan NodeKey yang salah. Spec §12.2.
+        let beacon = StateBeacon::new(TEST_EPOCH, TEST_SMT_ROOT, &TEST_NODE_KEY);
+        assert!(!beacon.verify(&[0x00u8; 32]));
+    }
+
+    #[test]
+    fn test_beacon_wire_size_44_bytes() {
+        // Wire size harus 44 bytes. Spec §12.2.
+        let beacon = StateBeacon::new(TEST_EPOCH, TEST_SMT_ROOT, &TEST_NODE_KEY);
+        assert_eq!(beacon.to_bytes().len(), STATE_BEACON_WIRE_SIZE);
+        assert_eq!(STATE_BEACON_WIRE_SIZE, 44);
+    }
+
+    #[test]
+    fn test_beacon_serialization_roundtrip() {
+        // Serialize → deserialize menghasilkan beacon identik. Spec §12.2.
+        let beacon = StateBeacon::new(TEST_EPOCH, TEST_SMT_ROOT, &TEST_NODE_KEY);
+        let bytes = beacon.to_bytes();
+        let restored = StateBeacon::from_bytes(&bytes);
+        assert_eq!(beacon, restored);
+    }
+
+    #[test]
+    fn test_beacon_max_bytes_constant() {
+        // STATE_BEACON_MAX_BYTES = 64. OSSIFIED — spec §12.2.
+        assert_eq!(STATE_BEACON_MAX_BYTES, 64);
+    }
+
+    #[test]
+    fn test_beacon_wire_size_fits_in_max() {
+        // Wire size (44) harus muat dalam MAX_BYTES (64). Spec §12.2.
         assert!(STATE_BEACON_WIRE_SIZE <= STATE_BEACON_MAX_BYTES);
     }
 
-    // ── Transport classification — spec §12.1 ─────────────────────────────────
-
     #[test]
-    fn test_tier_1_is_consensus_transport() {
-        // Tier 1 (Internet) → ConsensusTransport. Spec §12.1.
-        assert_eq!(
-            classify_transport_tier(1),
-            TransportClass::ConsensusTransport
-        );
-    }
-
-    #[test]
-    fn test_tier_2_is_consensus_transport() {
-        // Tier 2 (LoRa Mesh) → ConsensusTransport. Spec §12.1.
-        assert_eq!(
-            classify_transport_tier(2),
-            TransportClass::ConsensusTransport
-        );
-    }
-
-    #[test]
-    fn test_tier_3_is_state_beacon_transport() {
-        // Tier 3 (HF Radio) → StateBeaconTransport. Spec §12.1.
-        assert_eq!(
-            classify_transport_tier(3),
-            TransportClass::StateBeaconTransport
-        );
-    }
-
-    #[test]
-    fn test_tier_4_is_state_beacon_transport() {
-        // Tier 4 (Local Mesh) → StateBeaconTransport. Spec §12.1.
-        assert_eq!(
-            classify_transport_tier(4),
-            TransportClass::StateBeaconTransport
-        );
-    }
-
-    #[test]
-    fn test_tier_5_is_state_beacon_transport() {
-        // Tier 5 (Visual QR) → StateBeaconTransport. Spec §12.1.
-        assert_eq!(
-            classify_transport_tier(5),
-            TransportClass::StateBeaconTransport
-        );
-    }
-
-    #[test]
-    fn test_tier_1_2_uptime_eligible() {
-        // Tier 1-2 → eligible uptime. Spec §12.1.
-        assert!(is_uptime_eligible(1));
-        assert!(is_uptime_eligible(2));
-    }
-
-    #[test]
-    fn test_tier_3_5_not_uptime_eligible() {
-        // Tier 3-5 → ZERO uptime contribution. Spec §12.1.
-        assert!(!is_uptime_eligible(3));
-        assert!(!is_uptime_eligible(4));
-        assert!(!is_uptime_eligible(5));
-    }
-
-    // ── StateBeacon struct ────────────────────────────────────────────────────
-
-    #[test]
-    fn test_state_beacon_new_has_correct_fields() {
-        // Spec §12.1a: 3 fields — epoch_id, smt_root, checksum.
-        let beacon = StateBeacon::new(42, [0xBBu8; 32]);
-        assert_eq!(beacon.epoch_id, 42u64);
-        assert_eq!(beacon.smt_root, [0xBBu8; 32]);
-        assert_eq!(beacon.checksum.len(), 4);
-    }
-
-    #[test]
-    fn test_state_beacon_wire_size_correct() {
-        // to_bytes() harus menghasilkan tepat 44 bytes. Spec §12.1a.
-        let beacon = StateBeacon::new(1, [0u8; 32]);
-        assert_eq!(beacon.to_bytes().len(), STATE_BEACON_WIRE_SIZE);
-    }
-
-    #[test]
-    fn test_state_beacon_roundtrip() {
-        // Serialisasi dan deserialisasi harus identik. Spec §12.1a.
-        let beacon = StateBeacon::new(99, [0xCCu8; 32]);
-        let bytes = beacon.to_bytes();
-        let beacon2 = StateBeacon::from_bytes(&bytes);
-        assert_eq!(beacon, beacon2);
-    }
-
-    #[test]
-    fn test_state_beacon_epoch_id_little_endian() {
-        // epoch_id harus little-endian di bytes[0..8]. Spec §12.1a S3.
-        let beacon = StateBeacon::new(0x0102030405060708u64, [0u8; 32]);
-        let bytes = beacon.to_bytes();
-        assert_eq!(&bytes[0..8], &0x0102030405060708u64.to_le_bytes());
-    }
-
-    #[test]
-    fn test_state_beacon_smt_root_at_offset_8() {
-        // smt_root di bytes[8..40]. Spec §12.1a.
-        let smt = [0xDDu8; 32];
-        let beacon = StateBeacon::new(1, smt);
-        let bytes = beacon.to_bytes();
-        assert_eq!(&bytes[8..40], &smt);
-    }
-
-    #[test]
-    fn test_state_beacon_checksum_at_offset_40() {
-        // checksum di bytes[40..44]. Spec §12.1a.
-        let beacon = StateBeacon::new(1, [0xEEu8; 32]);
-        let bytes = beacon.to_bytes();
-        assert_eq!(&bytes[40..44], &beacon.checksum);
-    }
-
-    // ── checksum ──────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_state_beacon_checksum_valid() {
-        // Beacon baru harus punya checksum yang valid. Spec §12.1a.
-        let beacon = StateBeacon::new(5, [0x42u8; 32]);
-        assert!(beacon.verify_checksum());
-    }
-
-    #[test]
-    fn test_state_beacon_checksum_tampered_epoch_fails() {
-        // Checksum harus fail jika epoch_id diubah. Spec §12.1a.
-        let mut beacon = StateBeacon::new(5, [0x42u8; 32]);
-        beacon.epoch_id = 6; // tamper
-        assert!(!beacon.verify_checksum());
-    }
-
-    #[test]
-    fn test_state_beacon_checksum_tampered_smt_fails() {
-        // Checksum harus fail jika smt_root diubah. Spec §12.1a.
-        let mut beacon = StateBeacon::new(5, [0x42u8; 32]);
-        beacon.smt_root = [0xFFu8; 32]; // tamper
-        assert!(!beacon.verify_checksum());
-    }
-
-    #[test]
-    fn test_state_beacon_checksum_deterministic() {
-        // Checksum deterministik untuk input yang sama. Spec §12.1a.
-        let c1 = compute_beacon_checksum(42, &[0xABu8; 32]);
-        let c2 = compute_beacon_checksum(42, &[0xABu8; 32]);
-        assert_eq!(c1, c2);
-    }
-
-    #[test]
-    fn test_state_beacon_checksum_different_epoch_differs() {
-        // epoch_id berbeda → checksum berbeda. Spec §12.1a.
-        let c1 = compute_beacon_checksum(1, &[0u8; 32]);
-        let c2 = compute_beacon_checksum(2, &[0u8; 32]);
-        assert_ne!(c1, c2);
-    }
-
-    #[test]
-    fn test_state_beacon_checksum_4_bytes() {
-        // Checksum = 4 bytes. Spec §12.1a.
-        let c = compute_beacon_checksum(1, &[0u8; 32]);
-        assert_eq!(c.len(), 4);
-    }
-
-    // ── Tier 3-5 zero uptime ──────────────────────────────────────────────────
-
-    #[test]
-    fn test_tier_3_5_cannot_contribute_uptime() {
-        // Spec §12.1: Tier 3-5 → zero uptime contribution.
-        // Semua tier 3-5 harus return false untuk is_uptime_eligible.
-        for tier in 3u8..=5 {
-            assert!(
-                !is_uptime_eligible(tier),
-                "Tier {} tidak boleh eligible uptime — spec §12.1",
-                tier
-            );
-        }
-    }
-
-    #[test]
-    fn test_consensus_transport_tiers_only_1_and_2() {
-        // Hanya tier 1 dan 2 yang ConsensusTransport. Spec §12.1.
-        for tier in 1u8..=5 {
-            let class = classify_transport_tier(tier);
-            if tier <= 2 {
-                assert_eq!(class, TransportClass::ConsensusTransport);
-            } else {
-                assert_eq!(class, TransportClass::StateBeaconTransport);
-            }
-        }
+    fn test_beacon_mac_field_name() {
+        // Field bernama mac, bukan checksum. Spec §12.2.
+        let beacon = StateBeacon::new(TEST_EPOCH, TEST_SMT_ROOT, &TEST_NODE_KEY);
+        let _ = beacon.mac; // compile error jika field tidak ada
+        assert_eq!(beacon.mac.len(), 4);
     }
 }

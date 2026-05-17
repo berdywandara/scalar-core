@@ -72,13 +72,13 @@ impl NmtNodeCandidate {
 
 /// Hitung nmt_rank untuk satu node. Spec §12.3, T-3.
 ///
-/// nmt_rank(id) = BLAKE3("scalar_nmt_v1" || id || seed_k)
+/// nmt_rank(id) = BLAKE3("scalar_nmt" || id || seed_k)
 /// Node dengan nmt_rank terkecil dipilih sebagai NMT peer deterministik.
 ///
 /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 pub fn compute_nmt_rank(node_id_full: &[u8; 32], seed_k: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
-    hasher.update(b"scalar_nmt_v1"); // domain separator — spec §2.3
+    hasher.update(b"scalar_nmt"); // domain separator — spec §2.3
     hasher.update(node_id_full);
     hasher.update(seed_k);
     *hasher.finalize().as_bytes()

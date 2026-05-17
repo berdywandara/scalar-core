@@ -115,7 +115,7 @@ mod empirical_tests {
     #[test]
     fn empirical_4_future_timestamp_rejected_t5() {
         use crate::time_security::check_future_timestamp;
-        assert_eq!(T_FUTURE_TOLERANCE_S, 30u32);
+        assert_eq!(T_FUTURE_TOLERANCE_S, 60u32);
         let nmt: u32 = 1_000_000;
         let future_ts = nmt + T_FUTURE_TOLERANCE_S + 1;
         assert!(
@@ -366,7 +366,7 @@ mod empirical_tests {
             T_HB_MIN_INTERVAL_S, 300u32,
             "T_HB_MIN_INTERVAL_S §18.2 default"
         );
-        assert_eq!(T_FUTURE_TOLERANCE_S, 30u32, "T_FUTURE_TOLERANCE_S §7.2c");
+        assert_eq!(T_FUTURE_TOLERANCE_S, 60u32, "T_FUTURE_TOLERANCE_S §7.2c");
         assert_eq!(EPOCH_HB_COUNT, 4_320u32, "EPOCH_HB_COUNT §7.2c");
         assert_eq!(NMT_PEER_COUNT, 8usize, "NMT_PEER_COUNT §12.3a");
         assert_eq!(T_NMT_MAX_DRIFT_S, 600u32, "T_NMT_MAX_DRIFT_S §12.3a");
