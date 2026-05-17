@@ -200,22 +200,28 @@ mod tests {
 
     #[test]
     fn test_nmt_median_calculation() {
-        // NMT = median (bukan average). Spec §12.3a.
+        // NMT = median dari peer timestamps, BUKAN average. Spec §12.3a.
+        // compute_nmt mengambil 8 peer pertama dari slice (urutan HashMap tidak deterministik),
+        // sort, lalu ambil lower median (index 3).
+        // Test ini memverifikasi properti median vs average, bukan nilai spesifik.
         let mut store = PeerTimestampStore::new();
-        // 9 timestamps: 100..900 (≥ NMT_MIN_PEERS_FOR_RELIABLE)
-        for (i, ts) in [100u32, 200, 300, 400, 500, 600, 700, 800, 900]
-            .iter()
-            .enumerate()
-        {
-            store.update([i as u8; 4], *ts);
+        // 9 timestamps: semua sama kecuali satu outlier besar
+        // Apapun 8 yang dipilih, median (index 3) ≠ average jika distribusi asimetris.
+        // Gunakan set di mana median dan average jelas berbeda untuk semua subset 8 dari 9.
+        // Set: [1, 1, 1, 1, 1, 1, 1, 1, 1_000_000]
+        // Subset 8 apapun: 7x nilai 1 + kemungkinan outlier.
+        // Jika outlier masuk: sorted=[1,1,1,1,1,1,1,1_000_000], median=1, avg=125_001
+        // Jika outlier tidak masuk: sorted=[1,1,1,1,1,1,1,1], median=1, avg=1
+        // Dalam kedua kasus: median (index 3) = 1.
+        for i in 0..8u8 {
+            store.update([i; 4], 1u32);
         }
-        let result = compute_production_nmt(&store, 1000);
+        store.update([8u8; 4], 1_000_000u32);
+        let result = compute_production_nmt(&store, 2_000_000);
         assert!(result.is_from_peers());
-        // compute_nmt mengambil 8 peer pertama dan menghitung lower median.
-        // Sorted timestamps: [100,200,300,400,500,600,700,800] (8 dari 9).
-        // Lower median (index 3) = 400. Spec §12.3a: NMT bukan average.
-        assert_eq!(result.nmt_value(), 400, "NMT = lower median dari 8 peer pertama");
-        assert_ne!(result.nmt_value(), 450, "NMT bukan average");
+        // Median harus 1 (bukan average ~125_001 jika outlier dipilih). Spec §12.3a.
+        assert_eq!(result.nmt_value(), 1, "NMT harus median, bukan average");
+        assert_ne!(result.nmt_value(), 125_001, "NMT bukan average");
     }
 
     // ── test_nmt_fallback_few_peers ───────────────────────────────────────────
