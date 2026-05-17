@@ -211,8 +211,11 @@ mod tests {
         }
         let result = compute_production_nmt(&store, 1000);
         assert!(result.is_from_peers());
-        // Median dari 9 nilai (index 4) = 500
-        assert_eq!(result.nmt_value(), 500, "NMT harus median index ke-4");
+        // compute_nmt mengambil 8 peer pertama dan menghitung lower median.
+        // Sorted timestamps: [100,200,300,400,500,600,700,800] (8 dari 9).
+        // Lower median (index 3) = 400. Spec §12.3a: NMT bukan average.
+        assert_eq!(result.nmt_value(), 400, "NMT = lower median dari 8 peer pertama");
+        assert_ne!(result.nmt_value(), 450, "NMT bukan average");
     }
 
     // ── test_nmt_fallback_few_peers ───────────────────────────────────────────
