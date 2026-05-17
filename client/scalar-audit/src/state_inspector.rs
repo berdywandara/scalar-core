@@ -5,9 +5,7 @@
 //! Spec §16.4: "Hanya operasi read-only dan ZK verification."
 
 use blake3::Hasher;
-use scalar_emission::dmm::{
-    compute_manifest_hash, EpochRewardManifest, SPEC_VERSION_MANIFEST,
-};
+use scalar_emission::dmm::{compute_manifest_hash, EpochRewardManifest, SPEC_VERSION_MANIFEST};
 
 // ── NullifierStatus — spec §16.4 ─────────────────────────────────────────────
 
@@ -123,8 +121,8 @@ pub fn audit_blake3_hash(data: &[u8]) -> [u8; 32] {
 mod tests {
     use super::*;
     use scalar_emission::dmm::{
-        compute_network_health_digest, compute_reward_root, compute_seed_k,
-        EpochRewardManifest, NodeRewardEntry,
+        compute_network_health_digest, compute_reward_root, compute_seed_k, EpochRewardManifest,
+        NodeRewardEntry,
     };
 
     fn make_valid_manifest() -> EpochRewardManifest {
