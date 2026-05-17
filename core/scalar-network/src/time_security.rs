@@ -29,7 +29,11 @@ pub const T_NMT_STALE_S: u32 = 120; // 2× T_NMT_UPDATE_S
 
 /// T-5: Maximum future timestamp yang ditoleransi dalam detik. Spec §7.2c T-5.
 /// HB.timestamp > NMT + T_FUTURE_TOLERANCE_S → pre-computation attack → reject.
-pub const T_FUTURE_TOLERANCE_S: u32 = 30;
+pub const T_FUTURE_TOLERANCE_S: u32 = 60;
+
+/// T-2: Maximum past timestamp yang ditoleransi dalam detik. Spec §7.6 T-2.
+/// HB.timestamp < NMT - T_PAST_S → stale heartbeat → DROP.
+pub const T_PAST_S: u32 = 3600;
 
 // ── T-1: Epoch boundary via seq_num — spec §7.2c ─────────────────────────────
 
@@ -117,6 +121,19 @@ impl HeartbeatRateLimiter {
 // ── T-5: Pre-computation attack prevention — spec §7.2c ──────────────────────
 
 /// T-5: Cek future timestamp — pre-computation attack prevention. Spec §7.2c T-5.
+///
+/// T-2: Cek apakah timestamp heartbeat tidak terlalu lama di masa lalu. Spec §7.6 T-2.
+///
+/// HB.timestamp < NMT - T_PAST_S → DROP (stale heartbeat).
+/// Berbeda dari future check (REJECT) — past check menghasilkan DROP.
+///
+/// Returns true jika timestamp masih dalam batas (tidak di-drop).
+pub fn check_past_timestamp(hb_timestamp: u32, nmt: u32) -> bool {
+    // Gunakan saturating_sub untuk mencegah underflow
+    hb_timestamp >= nmt.saturating_sub(T_PAST_S)
+}
+
+/// T-2: Cek apakah timestamp heartbeat tidak terlalu jauh di masa depan. Spec §7.6 T-2.
 ///
 /// HB.timestamp > NMT + T_FUTURE_TOLERANCE_S → reject.
 /// Mencegah attacker pre-compute HB dengan timestamp jauh di masa depan.
@@ -417,7 +434,37 @@ mod tests {
     #[test]
     fn test_t5_future_tolerance_value() {
         // T_FUTURE_TOLERANCE_S = 30 detik. Spec §7.2c T-5.
-        assert_eq!(T_FUTURE_TOLERANCE_S, 30u32);
+        assert_eq!(T_FUTURE_TOLERANCE_S, 60u32);
+    }
+
+    #[test]
+    fn test_past_tolerance_constant() {
+        // T_PAST_S = 3600 detik. Spec §7.6 T-2.
+        assert_eq!(T_PAST_S, 3600u32);
+    }
+
+    #[test]
+    fn test_past_timestamp_within_bounds() {
+        // HB.timestamp >= NMT - T_PAST_S → diterima (tidak di-drop). Spec §7.6 T-2.
+        let nmt = 10_000u32;
+        assert!(check_past_timestamp(nmt - T_PAST_S, nmt)); // tepat di batas → ok
+        assert!(check_past_timestamp(nmt - T_PAST_S + 1, nmt)); // dalam batas → ok
+        assert!(check_past_timestamp(nmt, nmt)); // sama dengan NMT → ok
+    }
+
+    #[test]
+    fn test_past_timestamp_too_old_dropped() {
+        // HB.timestamp < NMT - T_PAST_S → DROP. Spec §7.6 T-2.
+        let nmt = 10_000u32;
+        assert!(!check_past_timestamp(nmt - T_PAST_S - 1, nmt));
+        assert!(!check_past_timestamp(0, nmt));
+    }
+
+    #[test]
+    fn test_past_timestamp_no_underflow() {
+        // NMT kecil → saturating_sub mencegah underflow. Spec §7.6 T-2.
+        assert!(check_past_timestamp(0, 0));
+        assert!(check_past_timestamp(0, 100)); // 0 >= 100.saturating_sub(3600) = 0
     }
 
     // ── T-6: Wall-clock prohibition ───────────────────────────────────────────
