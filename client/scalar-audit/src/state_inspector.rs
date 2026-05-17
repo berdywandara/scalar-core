@@ -122,7 +122,7 @@ mod tests {
     use super::*;
     use scalar_emission::dmm::{
         compute_network_health_digest, compute_reward_root, compute_seed_k, EpochRewardManifest,
-        NodeRewardEntry,
+        EpochStatus, NodeRewardEntry,
     };
 
     fn make_valid_manifest() -> EpochRewardManifest {
@@ -146,6 +146,7 @@ mod tests {
             reward_root,
             network_health_digest,
             tx_set_root: [0u8; 32],
+            status: EpochStatus::Open,
         };
         // Compute dan set hash yang benar
         let hash = compute_manifest_hash(&manifest);
