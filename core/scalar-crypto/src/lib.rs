@@ -11,7 +11,7 @@
 //! - encryption   — ChaCha20-Poly1305 encryption (spec §2.1)
 //! - channel      — Encrypted channel over ML-KEM (spec §2.1)
 //! - hybrid_hash  — Hybrid hash utilities
-//! - version      — CryptoVersion registry (spec §2.6)
+//! - version      — crypto version constant (spec §2.4)
 
 pub mod blake3;
 pub mod channel;
