@@ -12,7 +12,7 @@
 //!
 //! Spec §12.2 (StateBeacon authenticated), §7.2c T-4 (rate limiter).
 
-use scalar_network::state_beacon::{compute_beacon_checksum, StateBeacon, STATE_BEACON_WIRE_SIZE};
+use scalar_network::state_beacon::{StateBeacon, STATE_BEACON_WIRE_SIZE};
 use scalar_network::time_security::HeartbeatRateLimiter;
 
 // ── GossipLayer — rate limiter disambungkan ke gossip ────────────────────────
@@ -143,7 +143,10 @@ impl StateBeaconBroadcaster {
     /// StateBeacon di-broadcast setiap epoch boundary.
     /// Format: epoch_id(8) || smt_root(32) || checksum(4) = 44 bytes.
     pub fn create_beacon(&mut self, epoch_id: u64, smt_root: [u8; 32]) -> Vec<u8> {
-        let beacon = StateBeacon::new(epoch_id, smt_root);
+        // node_key harus disuplai dari NodeKey node saat ini — spec §12.2
+        // Placeholder: zero key digunakan sampai integrasi NodeKey ke GossipLayer
+        let node_key = [0u8; 32];
+        let beacon = StateBeacon::new(epoch_id, smt_root, &node_key);
         self.broadcast_count += 1;
         println!(
             "[BEACON] Broadcasting StateBeacon epoch={} smt_root={} to scalar/beacon/1",
@@ -173,7 +176,10 @@ impl StateBeaconBroadcaster {
         let beacon = StateBeacon::from_bytes(arr);
 
         // Verifikasi MAC (checksum) — spec §12.2
-        if !beacon.verify_checksum() {
+        // node_key diperlukan untuk verifikasi MAC — spec §12.2
+        // Placeholder: zero key digunakan sampai integrasi NodeKey ke GossipLayer
+        let node_key = [0u8; 32];
+        if !beacon.verify(&node_key) {
             self.received_invalid_count += 1;
             println!("[BEACON] REJECT: MAC invalid epoch={}", beacon.epoch_id);
             return None;
@@ -188,9 +194,11 @@ impl StateBeaconBroadcaster {
         Some(beacon)
     }
 
-    /// Compute beacon checksum (MAC). Spec §12.2.
-    pub fn compute_beacon_mac(epoch_id: u64, smt_root: &[u8; 32]) -> [u8; 4] {
-        compute_beacon_checksum(epoch_id, smt_root)
+    /// Compute beacon MAC. Spec §12.2.
+    pub fn compute_beacon_mac(epoch_id: u64, smt_root: &[u8; 32], node_key: &[u8; 32]) -> [u8; 4] {
+        use scalar_network::state_beacon::{compute_beacon_mac, derive_node_key_epoch};
+        let nke = derive_node_key_epoch(node_key, epoch_id);
+        compute_beacon_mac(&nke, epoch_id, smt_root)
     }
 }
 
