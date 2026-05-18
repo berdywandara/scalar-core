@@ -1,9 +1,25 @@
 // File: crates/scalar-stark/src/prover.rs
+//
+// Normalized Prover — Spec §4.4, §15.6
+//
+// PROVING_TIME_TARGET_MS = 500 ms ± 10 ms (range 490–510 ms). OSSIFIED — spec §4.4.
+// Spec §15.6: hardware spesifikasi minimum (8 GB RAM, CPU standar server)
+// harus mencapai proving time <= 500 ms untuk 10-in/10-out.
+//
+// Normalisasi waktu mencegah timing side-channel yang bisa bocorkan
+// informasi tentang nilai transaksi atau private witness.
 
-pub const PROVING_TIME_TARGET_MS: u64 = 300;
+/// Target proving time dalam ms. OSSIFIED — spec §4.4.
+pub const PROVING_TIME_TARGET_MS: u64 = 500;
+
+/// Toleransi ±10 ms dari target. OSSIFIED — spec §4.4.
 pub const PROVING_TIME_TOLERANCE_MS: u64 = 10;
-pub const PROVING_TIME_MIN_MS: u64 = PROVING_TIME_TARGET_MS - PROVING_TIME_TOLERANCE_MS; // 290ms
-pub const PROVING_TIME_MAX_MS: u64 = PROVING_TIME_TARGET_MS + PROVING_TIME_TOLERANCE_MS; // 310ms
+
+/// Batas bawah proving time: 490 ms. Spec §4.4.
+pub const PROVING_TIME_MIN_MS: u64 = PROVING_TIME_TARGET_MS - PROVING_TIME_TOLERANCE_MS; // 490ms
+
+/// Batas atas proving time: 510 ms. Spec §4.4.
+pub const PROVING_TIME_MAX_MS: u64 = PROVING_TIME_TARGET_MS + PROVING_TIME_TOLERANCE_MS; // 510ms
 
 // --- MOCK STRUCTS UNTUK PROVER ---
 #[derive(Clone)]
@@ -17,18 +33,24 @@ pub struct StarkProof;
 #[derive(Debug)]
 pub struct ProverError;
 
-/// Simulasi internal prover (natural proving time)
+/// Simulasi internal prover (natural proving time).
+/// Placeholder sampai Winterfell diintegrasikan — spec §4.1, §15.3.
 pub fn prove_transfer_internal(
     _witness: &TransferCircuitWitness,
     _public_input: &TransferCircuitPublicInput,
 ) -> Result<StarkProof, ProverError> {
-    // Simulasi proof yang selesai sangat cepat (contoh: 50ms)
+    // Simulasi: proof selesai cepat (sebelum Winterfell diintegrasikan)
     std::thread::sleep(std::time::Duration::from_millis(50));
     Ok(StarkProof)
 }
 
-/// Normalized prover: selalu menghasilkan proof dalam 300ms ± 10ms
-/// Mencegah timing side-channel yang bisa bocorkan info tentang nilai transaksi atau private witness.
+/// Normalized prover: selalu menghasilkan proof dalam 500 ms ± 10 ms.
+///
+/// Spec §4.4: proving time target 500 ms ± 10 ms (range 490–510 ms). OSSIFIED.
+/// Spec §15.6: benchmark wajib <= 500 ms untuk 10-in/10-out pada hardware minimum.
+///
+/// Normalisasi mencegah timing side-channel — semua proof memiliki
+/// waktu yang seragam terlepas dari kompleksitas witness.
 pub fn prove_transfer_normalized(
     witness: &TransferCircuitWitness,
     public_input: &TransferCircuitPublicInput,
@@ -40,20 +62,20 @@ pub fn prove_transfer_normalized(
 
     let elapsed_ms = start.elapsed().as_millis() as u64;
 
-    // Normalisasi waktu:
+    // Normalisasi: pad ke minimum 490 ms jika proving selesai lebih cepat
     if elapsed_ms < PROVING_TIME_MIN_MS {
-        // Kurang dari 290ms: tambahkan dummy computation via sleep
         let padding_ms = PROVING_TIME_MIN_MS - elapsed_ms;
         std::thread::sleep(std::time::Duration::from_millis(padding_ms));
     }
 
-    // Evaluasi ulang waktu setelah padding
+    // Evaluasi waktu final setelah padding
     let final_elapsed = start.elapsed().as_millis() as u64;
 
-    // Lebih dari 310ms: ini performance issue, bukan security issue. Log warning.
+    // Melebihi 510 ms: performance issue, log warning. Spec §15.6.
     if final_elapsed > PROVING_TIME_MAX_MS {
         println!(
-            "WARNING: Proving time {} ms melebihi target {} ms ± {} ms. Periksa hardware.",
+            "WARNING: Proving time {} ms melebihi target {} ms ± {} ms. \
+             Periksa hardware — spec §15.6.",
             final_elapsed, PROVING_TIME_TARGET_MS, PROVING_TIME_TOLERANCE_MS
         );
     }
@@ -65,62 +87,59 @@ pub fn prove_transfer_normalized(
 mod tests_proving_time_normalization {
     use super::*;
 
-    fn build_valid_witness_2_2() -> TransferCircuitWitness {
+    fn make_witness() -> TransferCircuitWitness {
         TransferCircuitWitness
     }
-    fn build_test_public_input_2_2() -> TransferCircuitPublicInput {
-        TransferCircuitPublicInput
-    }
-    fn build_trivial_witness() -> TransferCircuitWitness {
-        TransferCircuitWitness
-    }
-    fn build_trivial_public_input() -> TransferCircuitPublicInput {
+    fn make_public_input() -> TransferCircuitPublicInput {
         TransferCircuitPublicInput
     }
 
-    #[test]
-    fn test_proving_time_within_target_range() {
-        let witness = build_valid_witness_2_2();
-        let public_input = build_test_public_input_2_2();
-
-        let start = std::time::Instant::now();
-        let _proof = prove_transfer_normalized(&witness, &public_input).unwrap();
-        let elapsed = start.elapsed().as_millis();
-
-        // Target: 300ms ± 10ms = 290ms-310ms
-        // Dalam test environment: batas lebih longgar karena clock resolution OS
-        assert!(
-            elapsed >= 280,
-            "Proving terlalu cepat: {}ms (min 290ms)",
-            elapsed
-        );
-        assert!(
-            elapsed <= 500,
-            "Proving terlalu lambat: {}ms (max 310ms target)",
-            elapsed
-        );
-    }
-
-    #[test]
-    fn test_fast_proof_gets_padded() {
-        // Simulasi: proving selesai sangat cepat, harus di-pad ke setidaknya 290ms
-        let start = std::time::Instant::now();
-
-        let _ = prove_transfer_normalized(&build_trivial_witness(), &build_trivial_public_input());
-
-        let elapsed = start.elapsed().as_millis();
-        assert!(
-            elapsed >= 280,
-            "Proof cepat harus di-pad: {}ms (min 290ms)",
-            elapsed
-        );
-    }
-
+    /// Spec §4.4: PROVING_TIME_TARGET_MS = 500, toleransi ±10. OSSIFIED.
     #[test]
     fn test_proving_time_constants_match_spec() {
-        assert_eq!(PROVING_TIME_TARGET_MS, 300);
-        assert_eq!(PROVING_TIME_TOLERANCE_MS, 10);
-        assert_eq!(PROVING_TIME_MIN_MS, 290);
-        assert_eq!(PROVING_TIME_MAX_MS, 310);
+        assert_eq!(
+            PROVING_TIME_TARGET_MS, 500,
+            "Target harus 500 ms — spec §4.4"
+        );
+        assert_eq!(
+            PROVING_TIME_TOLERANCE_MS, 10,
+            "Toleransi harus ±10 ms — spec §4.4"
+        );
+        assert_eq!(PROVING_TIME_MIN_MS, 490, "Min harus 490 ms");
+        assert_eq!(PROVING_TIME_MAX_MS, 510, "Max harus 510 ms");
+    }
+
+    /// Proof harus selesai minimal dalam PROVING_TIME_MIN_MS (490 ms).
+    /// Upper bound longgar untuk CI environment. Spec §4.4.
+    #[test]
+    fn test_proving_time_within_target_range() {
+        let start = std::time::Instant::now();
+        let _proof = prove_transfer_normalized(&make_witness(), &make_public_input()).unwrap();
+        let elapsed = start.elapsed().as_millis();
+
+        assert!(
+            elapsed >= 480,
+            "Proving terlalu cepat: {} ms (min ~490 ms) — spec §4.4",
+            elapsed
+        );
+        // Upper bound longgar untuk CI (scheduler jitter)
+        assert!(
+            elapsed <= 700,
+            "Proving terlalu lambat: {} ms — periksa hardware spec §15.6",
+            elapsed
+        );
+    }
+
+    /// Proof cepat harus di-pad ke minimal PROVING_TIME_MIN_MS. Spec §4.4.
+    #[test]
+    fn test_fast_proof_gets_padded_to_490ms() {
+        let start = std::time::Instant::now();
+        let _ = prove_transfer_normalized(&make_witness(), &make_public_input());
+        let elapsed = start.elapsed().as_millis();
+        assert!(
+            elapsed >= 480,
+            "Proof cepat harus di-pad ke ~490 ms, dapat {} ms — spec §4.4",
+            elapsed
+        );
     }
 }
