@@ -161,6 +161,27 @@ mod tests {
     }
 
     #[test]
+    fn test_domain_txid_len() {
+        // Spec §2.3: b"scalar_txid" (11 byte). OSSIFIED.
+        assert_eq!(DOMAIN_TXID, b"scalar_txid");
+        assert_eq!(DOMAIN_TXID.len(), 11);
+    }
+
+    #[test]
+    fn test_domain_score_len() {
+        // Spec §2.3: b"scalar_score" (12 byte). OSSIFIED.
+        assert_eq!(DOMAIN_SCORE, b"scalar_score");
+        assert_eq!(DOMAIN_SCORE.len(), 12);
+    }
+
+    #[test]
+    fn test_domain_nmt_random_len() {
+        // Spec §2.3: b"nmt_random" (10 byte). OSSIFIED.
+        assert_eq!(DOMAIN_NMT_RANDOM, b"nmt_random");
+        assert_eq!(DOMAIN_NMT_RANDOM.len(), 10);
+    }
+
+    #[test]
     fn test_domain_pou_mint_value() {
         // Spec §2.3: 0x706f755f6d696e74. OSSIFIED.
         assert_eq!(DOMAIN_POU_MINT, 0x706f755f6d696e74u64);
