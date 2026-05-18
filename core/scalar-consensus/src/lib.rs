@@ -1,13 +1,16 @@
 // File: crates/scalar-consensus/src/lib.rs
 //
 // Consensus Engine — Spec §10
-// Single Source of Truth: SparseMerkleTree sebagai NullifierSet.
+// Single Source of Truth: NullifierSet 2-layer (NS_ACTIVE + NS_CHECKPOINT).
+// Spec §6.1: NullifierSet adalah abstraksi resmi untuk double-spend prevention.
 
-use scalar_nullifier::smt::SparseMerkleTree;
+use scalar_nullifier::NullifierSet;
 
 pub struct ConsensusEngine {
-    /// Single Source of Truth untuk state transaksi
-    pub nullifier_set: SparseMerkleTree,
+    /// Single Source of Truth untuk state transaksi — spec §6.1.
+    pub nullifier_set: NullifierSet,
+    /// Epoch saat ini — digunakan untuk insert ke NS_ACTIVE.
+    pub current_epoch: u64,
 }
 
 impl Default for ConsensusEngine {
@@ -19,20 +22,23 @@ impl Default for ConsensusEngine {
 impl ConsensusEngine {
     pub fn new() -> Self {
         Self {
-            nullifier_set: SparseMerkleTree::new(),
+            nullifier_set: NullifierSet::new(),
+            current_epoch: 0,
         }
     }
 
     /// Verifikasi kebenaran matematis (Truth by Mathematics, not Majority).
+    ///
     /// nullifier: N_network = BLAKE3(N_circuit) dalam format [u8; 32].
+    /// Spec §6.3: is_spent() + insert() atomik.
     pub fn verify_mathematical_truth(&mut self, nullifier: &[u8; 32]) -> Result<(), &'static str> {
-        // 1. Cek double spend — nullifier sudah ada?
-        if self.nullifier_set.contains(nullifier) {
-            return Err("REJECTED: Double Spend — nullifier sudah ada di SMT");
+        // 1. Cek double spend via NullifierSet 2-layer — spec §6.3 is_spent()
+        if self.nullifier_set.is_spent(nullifier) {
+            return Err("REJECTED: Double Spend — nullifier sudah ada di NullifierSet");
         }
 
-        // 2. Valid secara matematis — insert ke SMT
-        self.nullifier_set.insert(nullifier);
+        // 2. Valid secara matematis — insert ke NS_ACTIVE — spec §6.3 insert()
+        self.nullifier_set.insert(nullifier, self.current_epoch);
 
         Ok(())
     }
