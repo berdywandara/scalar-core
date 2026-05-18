@@ -112,20 +112,20 @@ fn compliance_fee_split_sums_100() {
 
 #[test]
 fn compliance_ns_warm_k() {
-    assert_eq!(scalar_nullifier::bloom::NS_WARM_HASH_FUNCTIONS, 33usize);
+    assert_eq!(
+        scalar_nullifier::smt::MAX_NULLIFIERS_PER_CHECKPOINT,
+        200_000usize
+    );
 }
 
 #[test]
 fn compliance_ns_cold_k() {
-    assert_eq!(scalar_nullifier::bloom::NS_COLD_HASH_FUNCTIONS, 50usize);
+    assert_eq!(scalar_nullifier::SMT_DEPTH, 32usize);
 }
 
 #[test]
 fn compliance_cold_promotion_threshold() {
-    assert_eq!(
-        scalar_nullifier::hierarchical::COLD_PROMOTION_EPOCH_THRESHOLD,
-        12u64
-    );
+    assert_eq!(scalar_nullifier::CHECKPOINT_INTERVAL_EPOCHS, 3u64);
 }
 
 // ── §12.3 NMT ────────────────────────────────────────────────────────────────
