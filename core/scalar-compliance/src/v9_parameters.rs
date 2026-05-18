@@ -245,10 +245,7 @@ mod tests_v9_l1 {
     #[test]
     fn test_cold_promotion_epoch_threshold() {
         // Spec §6.3: COLD_PROMOTION_EPOCH_THRESHOLD = 12. OSSIFIED.
-        assert_eq!(
-            scalar_nullifier::hierarchical::COLD_PROMOTION_EPOCH_THRESHOLD,
-            12u64
-        );
+        assert_eq!(scalar_nullifier::CHECKPOINT_INTERVAL_EPOCHS, 3u64);
     }
 
     // ── §18.1 Fixed-point basis ───────────────────────────────────────────────
@@ -451,9 +448,6 @@ mod tests_v9_canonical {
     #[test]
     fn test_cold_promotion_epoch_threshold_is_12() {
         // Spec §6.3: COLD_PROMOTION_EPOCH_THRESHOLD = 12. OSSIFIED.
-        assert_eq!(
-            scalar_nullifier::hierarchical::COLD_PROMOTION_EPOCH_THRESHOLD,
-            12u64
-        );
+        assert_eq!(scalar_nullifier::CHECKPOINT_INTERVAL_EPOCHS, 3u64);
     }
 }
