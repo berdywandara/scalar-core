@@ -20,6 +20,8 @@ pub const PROVING_TIME_MIN_MS: u64 = PROVING_TIME_TARGET_MS - PROVING_TIME_TOLER
 
 /// Batas atas proving time: 510 ms. Spec §4.4.
 pub const PROVING_TIME_MAX_MS: u64 = PROVING_TIME_TARGET_MS + PROVING_TIME_TOLERANCE_MS; // 510ms
+/// Hardware variance limit: 700 ms. Beyond this → hard error. Spec §4.4, §15.6.
+pub const PROVING_TIME_HARDWARE_MAX_MS: u64 = 700;
 
 // --- MOCK STRUCTS UNTUK PROVER ---
 #[derive(Clone)]
@@ -30,8 +32,29 @@ pub struct TransferCircuitPublicInput;
 
 pub struct StarkProof;
 
-#[derive(Debug)]
-pub struct ProverError;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProverError {
+    /// Internal proving error.
+    InternalError,
+    /// Proving time exceeded hardware variance limit. Spec §15.6, Finding #12.
+    ProvingTimeTooSlow { elapsed_ms: u64, limit_ms: u64 },
+}
+
+impl core::fmt::Display for ProverError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::InternalError => write!(f, "Internal prover error"),
+            Self::ProvingTimeTooSlow {
+                elapsed_ms,
+                limit_ms,
+            } => write!(
+                f,
+                "Proving time {} ms exceeds hardware limit {} ms — spec §15.6",
+                elapsed_ms, limit_ms
+            ),
+        }
+    }
+}
 
 /// Simulasi internal prover (natural proving time).
 /// Placeholder sampai Winterfell diintegrasikan — spec §4.1, §15.3.
@@ -71,15 +94,16 @@ pub fn prove_transfer_normalized(
     // Evaluasi waktu final setelah padding
     let final_elapsed = start.elapsed().as_millis() as u64;
 
-    // Melebihi 510 ms: performance issue, log warning. Spec §15.6.
-    if final_elapsed > PROVING_TIME_MAX_MS {
-        println!(
-            "WARNING: Proving time {} ms melebihi target {} ms ± {} ms. \
-             Periksa hardware — spec §15.6.",
-            final_elapsed, PROVING_TIME_TARGET_MS, PROVING_TIME_TOLERANCE_MS
-        );
+    // Proving time enforcement — spec §15.6, Finding #12.
+    // 490-510 ms: target normalization (OSSIFIED — spec §4.4).
+    // 400-700 ms: hardware variance limit.
+    // >700 ms: hard error — hardware does not meet spec §15.6 requirement.
+    if final_elapsed > PROVING_TIME_HARDWARE_MAX_MS {
+        return Err(ProverError::ProvingTimeTooSlow {
+            elapsed_ms: final_elapsed,
+            limit_ms: PROVING_TIME_HARDWARE_MAX_MS,
+        });
     }
-
     Ok(proof)
 }
 
