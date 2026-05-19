@@ -202,6 +202,11 @@ impl TimeSecurityChecker {
             });
         }
 
+        // T-2: Past timestamp check — spec §7.6 T-2
+        // HB.timestamp < NMT - T_PAST_S → DROP (stale heartbeat). Finding #10.
+        if !check_past_timestamp(hb_timestamp, nmt) {
+            return Err(TimeSecurityViolation::T2PastTimestamp { hb_timestamp, nmt });
+        }
         // T-3: NMT freshness — spec §7.2c T-3
         if !is_nmt_fresh(self.nmt_last_update_wall_s, current_wall_clock_s) {
             return Err(TimeSecurityViolation::T3NmtStale {
@@ -237,6 +242,8 @@ pub enum TimeSecurityViolation {
         expected_epoch: u64,
         actual_epoch: u64,
     },
+    /// T-2: Past timestamp — stale heartbeat dropped. Spec §7.6 T-2. Finding #10.
+    T2PastTimestamp { hb_timestamp: u32, nmt: u32 },
     /// T-3: NMT stale — tidak di-update > T_NMT_STALE_S. Spec §7.2c T-3.
     T3NmtStale { last_update_s: u64, current_s: u64 },
     /// T-4: Rate limit exceeded — bunching attack. Spec §7.2c T-4.
@@ -516,6 +523,22 @@ mod tests {
             result,
             Err(TimeSecurityViolation::T1EpochBoundaryViolation { .. })
         ));
+    }
+
+    #[test]
+    fn test_combined_t2_violation() {
+        // T-2: HB timestamp too old → dropped. Spec §7.6 T-2. Finding #10.
+        let mut checker = TimeSecurityChecker::new();
+        checker.update_nmt_timestamp(1_000);
+        let nmt = 5_000u32;
+        // hb_timestamp = nmt - T_PAST_S - 1 → stale → T2PastTimestamp
+        let stale_ts = nmt.saturating_sub(T_PAST_S).saturating_sub(1);
+        let result = checker.check_all([0x01; 4], stale_ts, 1, 0, nmt, 1_060);
+        assert!(
+            matches!(result, Err(TimeSecurityViolation::T2PastTimestamp { .. })),
+            "Expected T2PastTimestamp, got {:?}",
+            result
+        );
     }
 
     #[test]

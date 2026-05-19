@@ -18,6 +18,9 @@
 
 use crate::node_score::{is_tier_c, NMT_SCORE_THRESHOLD};
 use blake3::Hasher;
+use rand::RngCore;
+use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::ChaCha20Rng;
 use scalar_crypto::domain::DOMAIN_NMT_RANDOM;
 
 // ── Ossified constants — spec §12.3, §17 ─────────────────────────────────────
@@ -210,17 +213,17 @@ pub fn select_nmt_peers_hybrid(
     }
 }
 
-/// Pilih 1 slot acak dari eligible pool, tidak boleh duplikat dengan deterministic slots.
-/// Spec §12.3: random slot menggunakan ChaCha20 seed deterministik.
+/// Select 1 random slot from eligible pool, no duplicates with deterministic slots.
+/// Spec §12.3: random slot uses ChaCha20 seeded with BLAKE3(seed_k || "nmt_random").
 ///
-/// Implementasi: gunakan random_seed untuk memilih index dari eligible pool.
-/// Deterministik: seed sama → index sama → node sama.
+/// ChaCha20 provides uniform selection without modulo bias.
+/// Deterministic: same seed → same selection → same node.
 fn select_random_slot(
     eligible: &[&NmtNodeCandidate],
     random_seed: &[u8; 32],
     already_selected: &[[u8; 32]],
 ) -> Option<[u8; 32]> {
-    // Filter: tidak boleh duplikat dengan deterministic slots
+    // Filter: no duplicates with deterministic slots
     let remaining: Vec<&NmtNodeCandidate> = eligible
         .iter()
         .filter(|c| !already_selected.contains(&c.node_id_full))
@@ -231,11 +234,22 @@ fn select_random_slot(
         return None;
     }
 
-    // Pilih index menggunakan 8 byte pertama dari random_seed (simulasi ChaCha20)
-    // Production: gunakan ChaCha20 RNG yang di-seed dengan random_seed
-    let index_bytes = &random_seed[0..8];
-    let index_u64 = u64::from_le_bytes(index_bytes.try_into().unwrap());
-    let index = (index_u64 % remaining.len() as u64) as usize;
+    // ChaCha20 seeded with random_seed — spec §12.3
+    // Uses rejection sampling to eliminate modulo bias.
+    let mut rng = ChaCha20Rng::from_seed(*random_seed);
+    let n = remaining.len();
+
+    // Rejection sampling: find largest multiple of n that fits in u64
+    // to avoid modulo bias.
+    let threshold = u64::MAX - (u64::MAX % n as u64);
+    let index = loop {
+        let mut buf = [0u8; 8];
+        rng.fill_bytes(&mut buf);
+        let val = u64::from_le_bytes(buf);
+        if val < threshold {
+            break (val % n as u64) as usize;
+        }
+    };
 
     Some(remaining[index].node_id_full)
 }

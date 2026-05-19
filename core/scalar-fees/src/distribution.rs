@@ -106,6 +106,38 @@ pub fn verify_invariant_f4(r_fee_total: u64, fee_pool: u64) -> bool {
     r_fee_total <= fee_pool
 }
 
+/// Hitung fee residual dari epoch. Spec §9.2 — Finding #6.
+///
+/// fee_residual = floor(fee_pool × 0.95) - Sum R_fee_floor(i,k)
+/// Residual terjadi karena pembagian integer (floor) per node.
+///
+/// `fee_pool`       = distribute_fee(fee_total).node_pool  (95% dari total)
+/// `sum_node_rewards` = total R_fee_floor yang sudah dibayar ke semua node
+pub fn compute_fee_residual(fee_pool: u64, sum_node_rewards: u64) -> u64 {
+    fee_pool.saturating_sub(sum_node_rewards)
+}
+
+/// Hitung R_sec(k) — total ke Security Fund. Spec §9.2 — Finding #6.
+///
+/// R_sec(k) = floor(Fee_pool × 0.05) + fee_residual
+/// Memastikan seluruh token terkonservasi: tidak ada yang hilang ke rounding.
+///
+/// `fee_total`        = total fee dari epoch
+/// `sum_node_rewards` = total R_fee_floor yang sudah dibayar ke semua node
+pub fn compute_r_sec(fee_total: u64, sum_node_rewards: u64) -> u64 {
+    let dist = distribute_fee(fee_total);
+    let fee_residual = compute_fee_residual(dist.node_pool, sum_node_rewards);
+    // R_sec = security_fund_base (5%) + residual dari node pool
+    dist.security_fund.saturating_add(fee_residual)
+}
+
+/// Verifikasi konservasi token lengkap untuk epoch. Spec §9.2.
+///
+/// Invariant: sum_node_rewards + r_sec == fee_total
+pub fn verify_full_conservation(fee_total: u64, sum_node_rewards: u64, r_sec: u64) -> bool {
+    sum_node_rewards.saturating_add(r_sec) == fee_total
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,5 +316,56 @@ mod tests {
         assert_eq!(d.node_pool, 950_000);
         assert_eq!(d.security_fund, 50_000);
         assert!(distribution_is_conserved(&d, 1_000_000));
+    }
+
+    // ── Fee residual routing — Finding #6 ────────────────────────────────────
+
+    #[test]
+    fn test_fee_residual_zero_when_fully_distributed() {
+        // Jika sum_node_rewards == node_pool, residual = 0. Spec §9.2.
+        let fee_total = 1_000_000u64;
+        let dist = distribute_fee(fee_total);
+        let residual = compute_fee_residual(dist.node_pool, dist.node_pool);
+        assert_eq!(residual, 0);
+    }
+
+    #[test]
+    fn test_fee_residual_from_rounding() {
+        // Rounding menyebabkan residual. Spec §9.2.
+        let fee_total = 1_000u64;
+        let node_pool = distribute_fee(fee_total).node_pool; // 950
+                                                             // Simulasi 3 node masing-masing dapat 316 (total 948, bukan 950)
+        let sum_rewards = 948u64;
+        let residual = compute_fee_residual(node_pool, sum_rewards);
+        assert_eq!(residual, 2); // 950 - 948 = 2
+    }
+
+    #[test]
+    fn test_r_sec_includes_residual() {
+        // R_sec = 5% base + fee_residual. Spec §9.2.
+        let fee_total = 1_000u64;
+        let sum_rewards = 948u64; // node_pool=950, residual=2
+        let r_sec = compute_r_sec(fee_total, sum_rewards);
+        // security_fund_base = 50, fee_residual = 2 → r_sec = 52
+        assert_eq!(r_sec, 52);
+    }
+
+    #[test]
+    fn test_full_conservation_with_residual() {
+        // sum_node_rewards + r_sec == fee_total. Spec §9.2.
+        let fee_total = 1_000u64;
+        let sum_rewards = 948u64;
+        let r_sec = compute_r_sec(fee_total, sum_rewards);
+        assert!(verify_full_conservation(fee_total, sum_rewards, r_sec));
+        assert_eq!(sum_rewards + r_sec, fee_total);
+    }
+
+    #[test]
+    fn test_full_conservation_no_residual() {
+        // Konservasi juga berlaku saat tidak ada residual. Spec §9.2.
+        let fee_total = 1_000_000u64;
+        let dist = distribute_fee(fee_total);
+        let r_sec = compute_r_sec(fee_total, dist.node_pool);
+        assert!(verify_full_conservation(fee_total, dist.node_pool, r_sec));
     }
 }

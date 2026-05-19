@@ -9,9 +9,7 @@
 //! - nullifier_set  — NullifierSet, CheckpointProof, WalEntry (§6.1–6.3)
 //! - smt            — SparseMerkleTree depth-32 (§6.1)
 //! - formal         — Runtime assertions invariant CC (§15.4)
-//! - delta_sync     — Delta sync message untuk efisiensi bandwidth
 
-pub mod delta_sync;
 pub mod formal;
 pub mod nullifier_set;
 pub mod smt;

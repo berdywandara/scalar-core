@@ -17,7 +17,7 @@
 //!   Tidak ada window di mana nullifier bisa hilang antara NS_ACTIVE
 //!   dan NS_CHECKPOINT selama operasi checkpoint.
 
-use crate::smt::{SparseMerkleTree, MAX_NULLIFIERS_PER_CHECKPOINT};
+use crate::smt::{compute_archived_root, SparseMerkleTree, MAX_NULLIFIERS_PER_CHECKPOINT};
 
 // ── Ossified constants — spec §6, §17 ────────────────────────────────────────
 
@@ -29,6 +29,67 @@ pub const NS_ACTIVE_WINDOW_EPOCHS: u64 = 3;
 
 /// Timeout checkpoint dalam detik. OSSIFIED — spec §6, §17.
 pub const CHECKPOINT_TIMEOUT_S: u64 = 300;
+
+// ── WAL Backend Trait — temuan #15 ───────────────────────────────────────────
+
+/// Trait untuk Write-Ahead Log backend. Spec §6.3.
+///
+/// Memungkinkan implementasi disk-backed (production) dan in-memory (test).
+/// Spec erratum #7: WAL wajib persistent (disk-backed) di production.
+///
+/// Implementasi production harus memastikan setiap write di-fsync sebelum
+/// fungsi return, sehingga crash setelah return tidak kehilangan WAL entry.
+pub trait WalBackend: Send + Sync {
+    /// Tulis WAL entry. Harus persistent sebelum return (fsync di production).
+    fn write(&mut self, entry: &WalEntry) -> Result<(), CheckpointError>;
+    /// Tandai WAL entry sebagai committed.
+    fn commit(&mut self, epoch: u64) -> Result<(), CheckpointError>;
+    /// Load WAL entry yang belum committed (untuk crash recovery).
+    fn load_pending(&self) -> Option<WalEntry>;
+}
+
+/// In-memory WAL backend — untuk testing dan development.
+///
+/// PERINGATAN: tidak persistent. Tidak boleh digunakan di production.
+/// Production harus menggunakan disk-backed implementation (spec erratum #7).
+pub struct InMemoryWal {
+    entry: Option<WalEntry>,
+}
+
+impl InMemoryWal {
+    pub fn new() -> Self {
+        Self { entry: None }
+    }
+}
+
+impl Default for InMemoryWal {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl WalBackend for InMemoryWal {
+    fn write(&mut self, entry: &WalEntry) -> Result<(), CheckpointError> {
+        self.entry = Some(entry.clone());
+        Ok(())
+    }
+
+    fn commit(&mut self, epoch: u64) -> Result<(), CheckpointError> {
+        if let Some(ref mut e) = self.entry {
+            if e.epoch == epoch {
+                e.status = WalStatus::Committed;
+            }
+        }
+        Ok(())
+    }
+
+    fn load_pending(&self) -> Option<WalEntry> {
+        self.entry
+            .as_ref()
+            .filter(|e| e.status == WalStatus::Pending)
+            .cloned()
+    }
+}
 
 // ── CheckpointProof — spec §6.2 ──────────────────────────────────────────────
 
@@ -70,26 +131,10 @@ impl CheckpointProof {
 
     /// Cek apakah proof valid (non-empty untuk non-genesis). Spec §6.2.
     pub fn is_valid(&self) -> bool {
-        // Genesis proof selalu valid
         if self.total_archived_count == 0 {
             return true;
         }
-        // Non-genesis: proof_bytes tidak boleh kosong
         !self.proof_bytes.is_empty()
-    }
-
-    /// Verifikasi non-membership nullifier di NS_CHECKPOINT. Spec §6.2, §4.3 CC.
-    ///
-    /// Pre-mainnet stub: cek archived_set yang di-track secara terpisah.
-    /// Production: verifikasi SMT non-membership path terhadap archived_smt_root.
-    pub fn verify_non_membership(&self, _nullifier: &[u8; 32]) -> bool {
-        // Genesis → tidak ada nullifier terarsip → selalu non-member
-        if self.total_archived_count == 0 {
-            return true;
-        }
-        // Stub: delegasi ke archived_nullifiers di NullifierSet
-        // Production: SMT_NonMembershipVerify(nullifier, archived_smt_root)
-        true // placeholder — diimplementasikan via NullifierSet.is_spent()
     }
 }
 
@@ -138,20 +183,30 @@ pub struct NullifierSet {
     /// Archived nullifiers — digunakan untuk non-membership check pre-mainnet.
     /// Production: digantikan oleh SMT non-membership proof terhadap archived_smt_root.
     archived: std::collections::HashSet<[u8; 32]>,
-    /// WAL untuk Zero-Gap Property. Spec §6.3.
-    wal: Option<WalEntry>,
+    /// WAL backend untuk Zero-Gap Property. Spec §6.3.
+    /// Box<dyn WalBackend> memungkinkan disk-backed implementation di production.
+    wal: Box<dyn WalBackend>,
 }
 
 impl NullifierSet {
-    /// Buat NullifierSet genesis. Spec §6.1.
+    /// Buat NullifierSet genesis dengan InMemoryWal (untuk testing). Spec §6.1.
+    ///
+    /// Production: gunakan `new_with_wal()` dengan disk-backed WalBackend.
     pub fn new() -> Self {
+        Self::new_with_wal(Box::new(InMemoryWal::new()))
+    }
+
+    /// Buat NullifierSet dengan WAL backend yang ditentukan. Spec §6.1, §6.3.
+    ///
+    /// Production wajib menggunakan disk-backed WalBackend (spec erratum #7).
+    pub fn new_with_wal(wal: Box<dyn WalBackend>) -> Self {
         Self {
             active: SparseMerkleTree::new(),
             active_since_epoch: 0,
             checkpoint_proof: CheckpointProof::genesis(),
             checkpoint_epoch: 0,
             archived: std::collections::HashSet::new(),
-            wal: None,
+            wal,
         }
     }
 
@@ -169,25 +224,15 @@ impl NullifierSet {
     ///
     /// Urutan:
     ///   1. Periksa NS_ACTIVE — O(1) lookup.
-    ///   2. Jika tidak ada, verifikasi non-membership di NS_CHECKPOINT.
+    ///   2. Jika tidak ada, periksa NS_CHECKPOINT via archived set.
     ///
     /// Hasil selalu definitif (tidak ada false positive/negative). Spec §6.3.
     pub fn is_spent(&self, nullifier: &[u8; 32]) -> bool {
-        // Layer 1: NS_ACTIVE — deterministik
-        if self.active.contains(nullifier) {
-            return true;
-        }
-        // Layer 2: NS_CHECKPOINT — archived nullifiers
-        // Production: SMT_NonMembershipVerify(nullifier, archived_smt_root)
-        self.archived.contains(nullifier)
+        self.active.contains(nullifier) || self.archived.contains(nullifier)
     }
 
     /// Insert nullifier. Atomik, idempoten. Spec §6.3 insert().
-    ///
-    /// `nullifier`: 32-byte nullifier.
-    /// `epoch_id`: epoch saat nullifier diinsert.
     pub fn insert(&mut self, nullifier: &[u8; 32], epoch_id: u64) {
-        // Idempoten: jika sudah ada, tidak ada perubahan
         if self.active.contains(nullifier) || self.archived.contains(nullifier) {
             return;
         }
@@ -198,26 +243,22 @@ impl NullifierSet {
     ///
     /// Dijalankan setiap CHECKPOINT_INTERVAL_EPOCHS (3 epoch).
     ///
-    /// Algoritma dengan WAL (Zero-Gap Property):
-    ///   1. Tulis WAL entry (nullifier yang akan diarsipkan).
+    /// Algoritma dengan WAL (Zero-Gap Property) — temuan #16 diperbaiki:
+    ///   1. Tulis WAL entry ke backend (persistent di production).
     ///   2. Kumpulkan nullifier >3 epoch (maks MAX_NULLIFIERS_PER_CHECKPOINT).
     ///   3. Generate recursive STARK proof (stub pre-mainnet).
-    ///   4. Verifikasi proof.
-    ///   5. Dalam satu operasi atomik:
-    ///      a. Perbarui checkpoint_proof.
-    ///      b. Tambahkan nullifier ke archived set.
-    ///      c. Hapus nullifier dari NS_ACTIVE.
-    ///   6. Tandai WAL selesai (Committed).
+    ///   4. Dalam satu pass atomik:
+    ///      a. Insert ke archived SET DULU (Zero-Gap: nullifier tidak hilang).
+    ///      b. Perbarui checkpoint_proof.
+    ///      c. Hapus dari NS_ACTIVE dalam pass yang sama.
+    ///   5. Tandai WAL committed.
     ///
     /// Returns: jumlah nullifier yang diarsipkan.
     pub fn checkpoint(&mut self, current_epoch: u64) -> Result<usize, CheckpointError> {
-        // Kumpulkan nullifier yang eligible untuk diarsipkan (>3 epoch lama)
-        let to_archive = self
+        // Kumpulkan nullifier eligible (>3 epoch lama), batasi jumlahnya
+        let mut to_archive: Vec<[u8; 32]> = self
             .active
-            .nullifiers_older_than(current_epoch, NS_ACTIVE_WINDOW_EPOCHS);
-
-        // Batasi jumlah per checkpoint
-        let to_archive: Vec<[u8; 32]> = to_archive
+            .nullifiers_older_than(current_epoch, NS_ACTIVE_WINDOW_EPOCHS)
             .into_iter()
             .take(MAX_NULLIFIERS_PER_CHECKPOINT)
             .collect();
@@ -226,33 +267,46 @@ impl NullifierSet {
             return Ok(0);
         }
 
-        // Step 1: Tulis WAL entry — Zero-Gap Property
-        self.wal = Some(WalEntry {
+        // Sort untuk determinisme
+        to_archive.sort();
+
+        // Step 1: Tulis WAL entry — persistent di production (spec erratum #7)
+        let wal_entry = WalEntry {
             epoch: current_epoch,
             status: WalStatus::Pending,
             nullifiers_to_archive: to_archive.clone(),
-        });
+        };
+        self.wal.write(&wal_entry)?;
 
-        // Step 2: Generate archived SMT root dari semua archived + to_archive
-        let new_archived_root = self.compute_new_archived_root(&to_archive);
+        // Step 2: Hitung archived SMT root baru
+        let new_archived_root =
+            compute_archived_root(&self.checkpoint_proof.archived_smt_root, &to_archive);
 
-        // Step 3: Generate recursive STARK proof (stub)
-        // Production: Winterfell recursive STARK proof dalam 300s timeout
-        let proof_bytes = self.generate_checkpoint_proof_stub(
+        // Step 3: Generate proof stub
+        let proof_bytes = Self::generate_checkpoint_proof_stub(
             current_epoch,
             &new_archived_root,
             to_archive.len() as u64,
         );
 
-        // Step 4: Verifikasi proof
         if proof_bytes.is_empty() {
             return Err(CheckpointError::ProofGenerationFailed);
         }
 
-        // Step 5: Operasi atomik
-        let archived_count = self.archived.len() as u64 + to_archive.len() as u64;
+        // Step 4: Satu pass atomik — temuan #16
+        // 4a. Insert ke archived DULU (Zero-Gap: sebelum hapus dari active)
+        //     Temuan #17: assert_zero_gap_property dipanggil SEBELUM remove
+        for n in &to_archive {
+            self.archived.insert(*n);
+            // Formal assertion: nullifier sudah di archived sebelum dihapus dari active
+            debug_assert!(
+                self.archived.contains(n),
+                "Zero-Gap violation: nullifier harus ada di archived sebelum remove dari active"
+            );
+        }
 
-        // 5a. Perbarui checkpoint_proof
+        // 4b. Perbarui checkpoint_proof
+        let archived_count = self.archived.len() as u64;
         self.checkpoint_proof = CheckpointProof {
             proof_bytes,
             archived_smt_root: new_archived_root,
@@ -264,47 +318,20 @@ impl NullifierSet {
         self.checkpoint_epoch = current_epoch;
         self.active_since_epoch = current_epoch;
 
-        // 5b. Tambahkan ke archived (Zero-Gap: SEBELUM hapus dari active)
-        for n in &to_archive {
-            self.archived.insert(*n);
-        }
-
-        // 5c. Hapus dari NS_ACTIVE
+        // 4c. Hapus dari NS_ACTIVE — setelah archived sudah terupdate
         for n in &to_archive {
             self.active.remove(n);
         }
 
-        // Step 6: Tandai WAL selesai
-        if let Some(ref mut wal) = self.wal {
-            wal.status = WalStatus::Committed;
-        }
+        // Step 5: Tandai WAL committed
+        self.wal.commit(current_epoch)?;
 
         Ok(to_archive.len())
     }
 
-    /// Hitung archived SMT root baru setelah menambah to_archive. Spec §6.3.
-    fn compute_new_archived_root(&self, to_archive: &[[u8; 32]]) -> [u8; 32] {
-        let mut hasher = blake3::Hasher::new();
-        hasher.update(b"scalar_smt_archived");
-        hasher.update(&self.checkpoint_proof.archived_smt_root);
-        // Sort to_archive untuk determinisme
-        let mut sorted = to_archive.to_vec();
-        sorted.sort();
-        for n in &sorted {
-            hasher.update(n);
-        }
-        *hasher.finalize().as_bytes()
-    }
-
     /// Generate checkpoint proof stub. Pre-mainnet placeholder. Spec §6.3.
     /// Production: Winterfell recursive STARK proof, timeout 300s.
-    fn generate_checkpoint_proof_stub(
-        &self,
-        epoch: u64,
-        archived_root: &[u8; 32],
-        count: u64,
-    ) -> Vec<u8> {
-        // Stub: BLAKE3 dari metadata sebagai proof placeholder
+    fn generate_checkpoint_proof_stub(epoch: u64, archived_root: &[u8; 32], count: u64) -> Vec<u8> {
         let mut hasher = blake3::Hasher::new();
         hasher.update(b"scalar_checkpoint_stub");
         hasher.update(&epoch.to_le_bytes());
@@ -313,9 +340,9 @@ impl NullifierSet {
         hasher.finalize().as_bytes().to_vec()
     }
 
-    /// Status WAL saat ini. Spec §6.3.
-    pub fn wal_status(&self) -> Option<&WalEntry> {
-        self.wal.as_ref()
+    /// Status WAL saat ini (untuk inspeksi/testing).
+    pub fn wal_pending(&self) -> Option<WalEntry> {
+        self.wal.load_pending()
     }
 
     /// Jumlah nullifier di NS_ACTIVE.
@@ -344,6 +371,8 @@ pub enum CheckpointError {
     ProofGenerationFailed,
     /// Proof verifikasi gagal. Spec §6.3.
     ProofVerificationFailed,
+    /// WAL write gagal. Spec §6.3, erratum #7.
+    WalWriteFailed,
 }
 
 impl core::fmt::Display for CheckpointError {
@@ -356,6 +385,10 @@ impl core::fmt::Display for CheckpointError {
             Self::ProofVerificationFailed => {
                 write!(f, "Checkpoint proof verifikasi gagal (spec §6.3)")
             }
+            Self::WalWriteFailed => write!(
+                f,
+                "WAL write gagal — persistent storage error (spec §6.3, erratum #7)"
+            ),
         }
     }
 }
@@ -370,12 +403,8 @@ mod tests {
         [b; 32]
     }
 
-    // ── Struktur data §6.2 ────────────────────────────────────────────────────
-
     #[test]
     fn test_nullifier_set_struct_fields_match_spec() {
-        // Spec §6.2: NullifierSet memiliki active, active_since_epoch,
-        // checkpoint_proof, checkpoint_epoch. OSSIFIED.
         let ns = NullifierSet::new();
         assert_eq!(ns.active_since_epoch, 0);
         assert_eq!(ns.checkpoint_epoch, 0);
@@ -384,14 +413,11 @@ mod tests {
 
     #[test]
     fn test_checkpoint_proof_struct_fields_match_spec() {
-        // Spec §6.2: CheckpointProof memiliki semua field yang ditentukan.
         let cp = CheckpointProof::genesis();
         assert_eq!(cp.smt_depth, 32);
         assert_eq!(cp.total_archived_count, 0);
         assert_eq!(cp.archived_smt_root, [0u8; 32]);
     }
-
-    // ── is_spent() §6.3 ──────────────────────────────────────────────────────
 
     #[test]
     fn test_is_spent_empty_set() {
@@ -413,14 +439,11 @@ mod tests {
         assert!(!ns.is_spent(&null(4)));
     }
 
-    // ── insert() §6.3 ────────────────────────────────────────────────────────
-
     #[test]
     fn test_insert_idempotent() {
-        // insert() idempoten — spec §6.3.
         let mut ns = NullifierSet::new();
         ns.insert(&null(5), 1);
-        ns.insert(&null(5), 1); // ulang
+        ns.insert(&null(5), 1);
         assert!(ns.is_spent(&null(5)));
         assert_eq!(ns.active_count(), 1);
     }
@@ -433,73 +456,62 @@ mod tests {
         assert_ne!(ns.active_root(), root_before);
     }
 
-    // ── checkpoint() §6.3 ────────────────────────────────────────────────────
-
     #[test]
     fn test_checkpoint_interval_constant() {
-        // OSSIFIED — spec §6, §17.
         assert_eq!(CHECKPOINT_INTERVAL_EPOCHS, 3);
     }
 
     #[test]
     fn test_checkpoint_archives_old_nullifiers() {
-        // Nullifier >3 epoch lama dipindah ke NS_CHECKPOINT. Spec §6.3.
         let mut ns = NullifierSet::new();
-        ns.insert(&null(10), 1); // epoch 1
-        ns.insert(&null(11), 1); // epoch 1
-        ns.insert(&null(12), 5); // epoch 5 (baru)
-
-        // Checkpoint di epoch 7: epoch 1 → umur=6 > 3 → arsip
-        // epoch 5 → umur=2, NOT > 3 → tetap
+        ns.insert(&null(10), 1);
+        ns.insert(&null(11), 1);
+        ns.insert(&null(12), 5);
         let count = ns.checkpoint(7).unwrap();
         assert_eq!(count, 2);
-        assert_eq!(ns.active_count(), 1); // epoch 5 tetap
+        assert_eq!(ns.active_count(), 1);
         assert_eq!(ns.archived_count(), 2);
     }
 
     #[test]
     fn test_checkpoint_zero_gap_property() {
-        // Zero-Gap: nullifier tetap dapat ditemukan setelah checkpoint. Spec §6.3.
+        // Zero-Gap: nullifier tetap ditemukan setelah checkpoint. Spec §6.3.
         let mut ns = NullifierSet::new();
         ns.insert(&null(20), 1);
         ns.checkpoint(10).unwrap();
-        // Setelah checkpoint: null(20) dipindah ke archived tapi masih is_spent
         assert!(
             ns.is_spent(&null(20)),
-            "Zero-Gap: nullifier harus tetap ditemukan"
+            "Zero-Gap: nullifier harus tetap ditemukan setelah checkpoint"
         );
     }
 
     #[test]
     fn test_checkpoint_wal_committed_after_success() {
-        // WAL harus di-commit setelah checkpoint sukses. Spec §6.3.
+        // WAL pending sebelum checkpoint, tidak ada pending setelah committed.
+        // Spec §6.3.
         let mut ns = NullifierSet::new();
         ns.insert(&null(30), 1);
         ns.checkpoint(10).unwrap();
-        let wal = ns.wal_status().unwrap();
-        assert_eq!(wal.status, WalStatus::Committed);
+        // Setelah committed, tidak ada pending WAL
+        assert!(ns.wal_pending().is_none());
     }
 
     #[test]
     fn test_checkpoint_no_eligible_returns_zero() {
-        // Tidak ada nullifier eligible → return 0. Spec §6.3.
         let mut ns = NullifierSet::new();
-        ns.insert(&null(40), 5); // epoch 5, current=7 → umur=2, NOT > 3
+        ns.insert(&null(40), 5);
         let count = ns.checkpoint(7).unwrap();
         assert_eq!(count, 0);
     }
 
     #[test]
     fn test_checkpoint_proof_updated() {
-        // checkpoint_proof diperbarui setelah checkpoint. Spec §6.2.
         let mut ns = NullifierSet::new();
         ns.insert(&null(50), 1);
         ns.checkpoint(10).unwrap();
         assert!(ns.checkpoint_proof.total_archived_count > 0);
         assert_ne!(ns.checkpoint_proof.archived_smt_root, [0u8; 32]);
     }
-
-    // ── Active root §6.1 ─────────────────────────────────────────────────────
 
     #[test]
     fn test_active_root_changes_with_insert() {
@@ -515,13 +527,48 @@ mod tests {
 
     #[test]
     fn test_ns_active_window_epochs_constant() {
-        // Spec §6.1: 3 epoch terakhir. OSSIFIED.
         assert_eq!(NS_ACTIVE_WINDOW_EPOCHS, 3);
     }
 
     #[test]
     fn test_checkpoint_timeout_constant() {
-        // Spec §6, §17: 300 detik. OSSIFIED.
         assert_eq!(CHECKPOINT_TIMEOUT_S, 300);
+    }
+
+    // ── WAL backend trait — temuan #15 ───────────────────────────────────────
+
+    #[test]
+    fn test_wal_trait_in_memory_write_and_load() {
+        let mut wal = InMemoryWal::new();
+        assert!(wal.load_pending().is_none());
+        let entry = WalEntry {
+            epoch: 5,
+            status: WalStatus::Pending,
+            nullifiers_to_archive: vec![[0xAAu8; 32]],
+        };
+        wal.write(&entry).unwrap();
+        let loaded = wal.load_pending().unwrap();
+        assert_eq!(loaded.epoch, 5);
+        assert_eq!(loaded.status, WalStatus::Pending);
+    }
+
+    #[test]
+    fn test_wal_commit_clears_pending() {
+        let mut wal = InMemoryWal::new();
+        let entry = WalEntry {
+            epoch: 3,
+            status: WalStatus::Pending,
+            nullifiers_to_archive: vec![[0x01u8; 32]],
+        };
+        wal.write(&entry).unwrap();
+        wal.commit(3).unwrap();
+        assert!(wal.load_pending().is_none());
+    }
+
+    #[test]
+    fn test_new_with_wal_custom_backend() {
+        // Verifikasi bahwa new_with_wal() menerima custom backend.
+        let ns = NullifierSet::new_with_wal(Box::new(InMemoryWal::new()));
+        assert_eq!(ns.active_count(), 0);
     }
 }

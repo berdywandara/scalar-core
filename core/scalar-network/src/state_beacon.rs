@@ -57,6 +57,7 @@ pub fn compute_beacon_mac(
     smt_root: &[u8; 32],
 ) -> [u8; 4] {
     let mut hasher = Hasher::new();
+    hasher.update(b"scalar_beacon"); // DOMAIN_BEACON — spec §2.3, Finding #13
     hasher.update(node_key_epoch);
     hasher.update(&epoch_id.to_le_bytes());
     hasher.update(smt_root);
