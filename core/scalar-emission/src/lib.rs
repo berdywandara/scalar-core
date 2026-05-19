@@ -1,5 +1,6 @@
 // File: crates/scalar-emission/src/lib.rs
 
+pub mod accounting;
 pub mod accumulator;
 pub mod consensus;
 pub mod dmm;
