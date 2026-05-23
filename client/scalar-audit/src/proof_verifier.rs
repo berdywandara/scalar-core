@@ -57,6 +57,9 @@ impl AuditPublicInputs {
         ScalarPublicInputs {
             genesis_smt_root: 0, // Legacy field
             utxo_set_root: self.utxo_set_root,
+            imt_frontier_root: [0u8; 32], // EpochSMT default
+            imt_commitment_count: 0,      // EpochSMT default
+            committed_subepoch_id: 0,     // EpochSMT default
             current_nullifier_smt_root: self.nullifier_smt_root,
             fee_value: self.fee_value,
             timestamp: self.timestamp,
