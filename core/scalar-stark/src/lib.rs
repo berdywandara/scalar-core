@@ -5,3 +5,5 @@ pub mod independent_verifier;
 pub mod mint;
 pub mod prover;
 pub mod verifier;
+
+pub mod starkpack;
