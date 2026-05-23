@@ -86,7 +86,8 @@ impl HeartbeatService {
             .unwrap_or_default()
             .as_secs() as u32;
 
-        // prev_hash: BLAKE3(last_hb_bytes) atau genesis hash untuk HB pertama
+        // prev_hash per Research Package §3.1.4: BLAKE3(b"scalar_beacon" || fields || mac)
+        // INV-4.4: chain integrity — mac(n-1) included in prev_hash(n)
         let prev_hash = match &self.last_hb_bytes {
             Some(bytes) => *blake3::hash(bytes).as_bytes(),
             None => {

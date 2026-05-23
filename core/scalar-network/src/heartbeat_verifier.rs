@@ -141,8 +141,10 @@ impl HeartbeatVerifier {
         // Untuk HB pertama (seq_num == 1): prev_hash = EpochAnchor.chain_head.
         // Caller bertanggung jawab menginisialisasi state dengan chain_head yang benar.
         if let Some(state) = self.node_states.get(&hb.node_id) {
-            // BLAKE3(last_hb_bytes) — hash discipline: out-circuit §2.1.3
-            let expected_prev = *blake3::hash(&state.last_hb_bytes).as_bytes();
+            // Reconstruct prev_hash from stored HB bytes using spec construction.
+            // Research Package §3.1.4: prev_hash = BLAKE3(b"scalar_beacon" || fields || mac)
+            let last_hb = NodeHeartbeat::from_bytes(&state.last_hb_bytes);
+            let expected_prev = scalar_emission::liveness::compute_prev_hash(&last_hb);
             if hb.prev_hash != expected_prev {
                 return Err(VerificationError::PrevHashMismatch {
                     expected: expected_prev,
@@ -217,10 +219,16 @@ impl HeartbeatVerifier {
 
 // ── Helper: compute expected_prev_hash ───────────────────────────────────────
 
-/// Compute prev_hash = BLAKE3(hb_bytes). Spec §7.2b Step 3.
+/// Compute prev_hash per Research Package §3.1.4. INV-4.4.
+///
+/// Delegates to scalar_emission::liveness::compute_prev_hash which
+/// implements the OSSIFIED construction:
+///   BLAKE3(b"scalar_beacon" || node_id || seq_num || timestamp ||
+///          smt_root || imt_frontier || imt_count || mac)
+///
 /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 pub fn compute_prev_hash(hb: &NodeHeartbeat) -> [u8; 32] {
-    *blake3::hash(&hb.to_bytes()).as_bytes()
+    scalar_emission::liveness::compute_prev_hash(hb)
 }
 
 #[cfg(test)]

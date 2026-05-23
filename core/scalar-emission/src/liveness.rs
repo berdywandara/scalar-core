@@ -158,6 +158,38 @@ pub fn compute_heartbeat_mac(
     *hasher.finalize().as_bytes()
 }
 
+/// Compute prev_hash untuk HeartbeatUnit berikutnya. Research Package §3.1.4. OSSIFIED.
+///
+/// prev_hash(n) = BLAKE3(
+///     b"scalar_beacon"  ||  // DOMAIN_BEACON — spec §2.3
+///     node_id_short       ||
+///     seq_num(n-1) LE     ||
+///     timestamp(n-1) LE   ||
+///     smt_root(n-1)       ||
+///     imt_frontier(n-1)   ||  // BARU v9.1
+///     imt_count(n-1) LE   ||  // BARU v9.1
+///     mac(n-1)               // MAC disertakan — INV-4.4 chain integrity
+/// )
+///
+/// NOTE: prev_hash field dari HB sebelumnya TIDAK disertakan —
+/// hanya mac(n-1) yang menjadi chain anchor.
+///
+/// Genesis: prev_hash(0) = BLAKE3(genesis_object_bytes) — spec §7.2a.
+///
+/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+pub fn compute_prev_hash(hb: &NodeHeartbeat) -> [u8; 32] {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"scalar_beacon"); // DOMAIN_BEACON — spec §2.3
+    hasher.update(&hb.node_id);
+    hasher.update(&hb.seq_num.to_le_bytes());
+    hasher.update(&hb.timestamp.to_le_bytes());
+    hasher.update(&hb.smt_root);
+    hasher.update(&hb.imt_frontier); // BARU v9.1 — Research Package §3.1.4
+    hasher.update(&hb.imt_count.to_le_bytes()); // BARU v9.1
+    hasher.update(&hb.mac); // mac(n-1) — chain integrity INV-4.4
+    *hasher.finalize().as_bytes()
+}
+
 /// Compress full node_id ke 4 bytes — 4 bytes pertama BLAKE3(full_node_id). Spec §7.2.
 ///
 /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
