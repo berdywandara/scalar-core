@@ -6,6 +6,10 @@ authors.workspace = true
 license.workspace = true
 
 [[test]]
+name = "l2_integration"
+path = "src/l2_integration.rs"
+
+[[test]]
 name = "end_to_end"
 path = "src/end_to_end.rs"
 
@@ -23,3 +27,4 @@ scalar-emission = { path = "../../core/scalar-emission" }
 scalar-nullifier = { path = "../../core/scalar-nullifier" }
 scalar-fees = { path = "../../core/scalar-fees" }
 scalar-network = { path = "../../core/scalar-network" }
+scalar-stark = { path = "../../core/scalar-stark" }
