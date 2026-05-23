@@ -7,12 +7,15 @@ pub mod fork;
 pub mod gossip;
 pub mod gss;
 pub mod heartbeat_verifier;
+pub mod hybrid_peer;
 pub mod nmt;
 pub mod nmt_hybrid;
 pub mod node_score;
 pub mod reconciliation;
 pub mod relay;
+pub mod skademlia;
 pub mod state_beacon;
+pub mod subepoch;
 pub mod sync;
 pub mod time_security;
 

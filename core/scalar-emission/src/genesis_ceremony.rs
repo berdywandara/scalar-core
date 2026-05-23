@@ -248,13 +248,17 @@ mod tests {
         let node_id = [0x01u8; 4];
         let prev_hash = compute_genesis_prev_hash(TEST_GENESIS);
         let nke = compute_node_key_epoch_0(&TEST_NODE_KEY);
-        let mac = compute_heartbeat_mac(&nke, &node_id, 1, 0, &[0u8; 32], &prev_hash);
+        let mac = compute_heartbeat_mac(
+            &nke, &node_id, 1, 0, &[0u8; 32], &[0u8; 32], 0u64, &prev_hash,
+        );
         // HB valid dengan prev_hash dari genesis
         let hb = NodeHeartbeat {
             node_id,
             seq_num: 1,
             timestamp: 0,
             smt_root: [0u8; 32],
+            imt_frontier: [0u8; 32],
+            imt_count: 0u64,
             prev_hash,
             mac,
         };
@@ -265,6 +269,8 @@ mod tests {
             hb.seq_num,
             hb.timestamp,
             &hb.smt_root,
+            &hb.imt_frontier,
+            hb.imt_count,
             &hb.prev_hash,
         );
         assert_eq!(hb.mac, expected_mac);

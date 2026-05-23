@@ -1,6 +1,6 @@
 //! ScalarGossipMessage v9.0 — Spec §12 v9.0
 //!
-//! NodeHeartbeat v9.0: 108 bytes, BLAKE3-MAC, NO SPHINCS+ per-HB.
+//! NodeHeartbeat v9.1: 148 bytes, BLAKE3-MAC, NO SPHINCS+ per-HB.
 //! connectivity_proof dihapus dari NodeHeartbeat — diganti peer_sync_summary di GossipMsg.
 //! Spec §7.2: node_id [u8;4], seq_num u32, timestamp u32 delta.
 
@@ -19,7 +19,7 @@ pub struct DeltaNullifier {
 
 /// ScalarGossipMessage v9.0 — spec §12 v9.0.
 ///
-/// NodeHeartbeat v9.0 sekarang 108 bytes (bukan ~29,900 bytes).
+/// NodeHeartbeat v9.1 sekarang 148 bytes (bukan ~29,900 bytes).
 /// connectivity_proof field dihapus dari NodeHeartbeat.
 /// peer_sync_summary tetap ada di GossipMessage sebagai GSS commit.
 #[derive(Debug, Clone)]
@@ -47,17 +47,17 @@ pub fn compute_adaptive_fanout(gss_fp: u64) -> usize {
     }
 }
 
-/// Deserialise NodeHeartbeat v9.0 dari 108-byte slice. Spec §7.2.
+/// Deserialise NodeHeartbeat v9.1 dari 148-byte slice. Research Package §3.1.4.
 ///
-/// Returns None jika slice bukan tepat 108 bytes.
+/// Returns None jika slice bukan tepat 148 bytes.
 /// Hash discipline: BLAKE3 out-circuit untuk MAC verification — spec §2.1.3.
 use scalar_emission::liveness::NodeHeartbeat as EmissionNodeHeartbeat;
 
 pub fn deserialize_heartbeat(bytes: &[u8]) -> Option<scalar_emission::liveness::NodeHeartbeat> {
-    if bytes.len() != 108 {
+    if bytes.len() != 148 {
         return None;
     }
-    let arr: &[u8; 108] = bytes.try_into().ok()?;
+    let arr: &[u8; 148] = bytes.try_into().ok()?;
     Some(EmissionNodeHeartbeat::from_bytes(arr))
 }
 
@@ -123,13 +123,15 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_heartbeat_valid_108_bytes() {
-        // Spec §7.2: deserialize dari tepat 108 bytes.
+    fn test_deserialize_heartbeat_valid_148_bytes() {
+        // Research Package §3.1.4: deserialize dari tepat 148 bytes.
         let hb = NodeHeartbeat {
             node_id: [0x01, 0x02, 0x03, 0x04],
             seq_num: 7u32,
             timestamp: 300u32,
             smt_root: [0xAAu8; 32],
+            imt_frontier: [0u8; 32],
+            imt_count: 0u64,
             prev_hash: [0xBBu8; 32],
             mac: [0xCCu8; 32],
         };
@@ -142,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_heartbeat_wrong_size_returns_none() {
-        // Hanya tepat 108 bytes yang valid — spec §7.2.
+        // Hanya tepat 148 bytes yang valid — Research Package §3.1.4.
         assert!(deserialize_heartbeat(&[0u8; 107]).is_none());
         assert!(deserialize_heartbeat(&[0u8; 109]).is_none());
         assert!(deserialize_heartbeat(&[]).is_none());

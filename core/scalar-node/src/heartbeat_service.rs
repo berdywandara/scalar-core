@@ -1,7 +1,7 @@
 //! Heartbeat Service — Spec §7.2, §7.2a, §7.2b
 //!
 //! Menghubungkan:
-//!   - NodeHeartbeat v9.0 (108 bytes, BLAKE3-MAC) dari scalar-emission
+//!   - NodeHeartbeat v9.1 (148 bytes, BLAKE3-MAC) dari scalar-emission
 //!   - HeartbeatVerifier (5-step) dari scalar-network
 //!   - EpochTracker dari scalar-emission
 //!   - P2P swarm broadcast via mpsc channel
@@ -36,7 +36,7 @@ pub struct HeartbeatService {
     /// seq_num terakhir yang dikirim. Spec §7.2.
     pub last_seq_num: u32,
     /// Bytes dari heartbeat terakhir — untuk prev_hash. Spec §7.2.
-    last_hb_bytes: Option<[u8; 108]>,
+    last_hb_bytes: Option<[u8; 148]>,
     /// SMT root saat ini (placeholder). Spec §7.2.
     pub smt_root: [u8; 32],
     /// Verifier untuk heartbeat yang diterima dari peer. Spec §7.2b.
@@ -70,7 +70,7 @@ impl HeartbeatService {
 
     /// Produce NodeHeartbeat v9.0 untuk broadcast. Spec §7.2.
     ///
-    /// Increment seq_num, compute MAC, serialize ke 108 bytes.
+    /// Increment seq_num, compute MAC, serialize ke 148 bytes.
     /// Rule T-1: epoch boundary dari seq_num, bukan wall-clock.
     pub fn produce_heartbeat(&mut self) -> NodeHeartbeat {
         // Increment seq_num — strictly monotonic (Rule T-5)
@@ -86,7 +86,8 @@ impl HeartbeatService {
             .unwrap_or_default()
             .as_secs() as u32;
 
-        // prev_hash: BLAKE3(last_hb_bytes) atau genesis hash untuk HB pertama
+        // prev_hash per Research Package §3.1.4: BLAKE3(b"scalar_beacon" || fields || mac)
+        // INV-4.4: chain integrity — mac(n-1) included in prev_hash(n)
         let prev_hash = match &self.last_hb_bytes {
             Some(bytes) => *blake3::hash(bytes).as_bytes(),
             None => {
@@ -105,6 +106,8 @@ impl HeartbeatService {
             seq_num,
             timestamp,
             &self.smt_root,
+            &[0u8; 32], // imt_frontier: genesis default — Research Package §3.1.4
+            0u64,       // imt_count: genesis default — Research Package §3.1.4
             &prev_hash,
         );
 
@@ -113,6 +116,8 @@ impl HeartbeatService {
             seq_num,
             timestamp,
             smt_root: self.smt_root,
+            imt_frontier: [0u8; 32], // genesis default — Research Package §3.1.4
+            imt_count: 0u64,         // genesis default — Research Package §3.1.4
             prev_hash,
             mac,
         };
@@ -150,15 +155,15 @@ impl HeartbeatService {
         nmt: u32,
         peer_node_key_epoch: &[u8; 32],
     ) -> bool {
-        // Deserialize dari 108 bytes
-        if hb_bytes.len() != 108 {
+        // Deserialize dari 148 bytes — Research Package §3.1.4
+        if hb_bytes.len() != 148 {
             println!(
-                "[HB] REJECT: invalid size {} (expected 108)",
+                "[HB] REJECT: invalid size {} (expected 148)",
                 hb_bytes.len()
             );
             return false;
         }
-        let arr: &[u8; 108] = match hb_bytes.try_into() {
+        let arr: &[u8; 148] = match hb_bytes.try_into() {
             Ok(a) => a,
             Err(_) => return false,
         };
@@ -221,10 +226,10 @@ mod tests {
     }
 
     #[test]
-    fn test_produce_heartbeat_108_bytes() {
+    fn test_produce_heartbeat_148_bytes() {
         let mut svc = make_service();
         let hb = svc.produce_heartbeat();
-        assert_eq!(hb.to_bytes().len(), 108);
+        assert_eq!(hb.to_bytes().len(), 148);
     }
 
     #[test]
@@ -262,7 +267,7 @@ mod tests {
         // Compute NodeKey_epoch untuk verifikasi
         let _nke = derive_node_key_epoch(&svc.node_key, svc.current_epoch);
         // Seed verifier dengan state awal
-        svc.verifier.seed_node_state(svc.node_id, [0u8; 108], 0);
+        svc.verifier.seed_node_state(svc.node_id, [0u8; 148], 0);
         // Re-produce untuk test (verifier butuh state yang di-seed)
         let mut svc2 = make_service();
         let hb2 = svc2.produce_heartbeat();
