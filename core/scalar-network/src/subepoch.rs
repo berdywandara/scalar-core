@@ -255,20 +255,29 @@ impl SubEpochChain {
             return Err(SubEpochError::InvalidHash);
         }
 
-        // Verify prev_subepoch_hash chain
-        let expected_prev = if c.subepoch_id == 0 {
-            [0u8; 32] // Genesis sub-epoch
+        // Verify prev_subepoch_hash chain — F-002, F-005 fixes.
+        // F-005: subepoch_id=0 must have prev_subepoch_hash = [0u8;32]. Research Package §3.2.2.
+        // F-002: missing predecessor is a hard rejection, not a default to zero.
+        if c.subepoch_id == 0 {
+            if c.prev_subepoch_hash != [0u8; 32] {
+                return Err(SubEpochError::ChainBroken { subepoch_id: 0 });
+            }
         } else {
-            self.commitments
-                .get(&(c.subepoch_id - 1))
-                .map(|prev| prev.subepoch_hash)
-                .unwrap_or([0u8; 32])
-        };
-
-        if c.prev_subepoch_hash != expected_prev && c.subepoch_id > 0 {
-            return Err(SubEpochError::ChainBroken {
-                subepoch_id: c.subepoch_id,
-            });
+            let expected_prev = match self.commitments.get(&(c.subepoch_id - 1)) {
+                Some(prev) => prev.subepoch_hash,
+                None => {
+                    // F-002: predecessor missing — reject, do not default to zero.
+                    // Prevents out-of-order insertion with arbitrary prev_hash.
+                    return Err(SubEpochError::ChainBroken {
+                        subepoch_id: c.subepoch_id,
+                    });
+                }
+            };
+            if c.prev_subepoch_hash != expected_prev {
+                return Err(SubEpochError::ChainBroken {
+                    subepoch_id: c.subepoch_id,
+                });
+            }
         }
 
         let id = c.subepoch_id;
@@ -790,5 +799,67 @@ mod tests {
         assert_eq!(min_overlap, 3);
         // Honest validators can't sign two conflicting commitments → safety guaranteed
         let _ = all_validators;
+    }
+    // ── F-002: Out-of-order insertion rejected ────────────────────────────────
+
+    #[test]
+    fn f002_out_of_order_insertion_rejected() {
+        // F-002 fix: missing predecessor must be rejected, not defaulted to zero.
+        // Research Package §3.2.2, INV-4.3.
+        let mut chain = SubEpochChain::new(1);
+        // Insert subepoch 2 without subepoch 1 — must be rejected
+        let c2 = make_commitment(1, 2, [0u8; 32]); // wrong prev (should be subepoch1.hash)
+        let err = chain.add_commitment(c2);
+        assert_eq!(
+            err,
+            Err(SubEpochError::ChainBroken { subepoch_id: 2 }),
+            "F-002: out-of-order insertion must be rejected"
+        );
+    }
+
+    #[test]
+    fn f002_zero_prev_hash_rejected_for_non_genesis() {
+        // F-002: subepoch N with prev_hash=[0;32] rejected when predecessor exists.
+        let mut chain = SubEpochChain::new(1);
+        let c0 = make_commitment(1, 0, [0u8; 32]);
+        chain.add_commitment(c0).unwrap();
+
+        // subepoch 1 with wrong prev_hash (zero instead of c0.subepoch_hash)
+        let c1_wrong = make_commitment(1, 1, [0u8; 32]); // wrong prev
+        let err = chain.add_commitment(c1_wrong);
+        assert_eq!(
+            err,
+            Err(SubEpochError::ChainBroken { subepoch_id: 1 }),
+            "F-002: wrong prev_hash must be rejected"
+        );
+    }
+
+    // ── F-005: subepoch_id=0 must have prev_subepoch_hash=[0;32] ─────────────
+
+    #[test]
+    fn f005_genesis_subepoch_wrong_prev_rejected() {
+        // F-005 fix: subepoch_id=0 with non-zero prev_subepoch_hash must be rejected.
+        // Research Package §3.2.2.
+        let mut chain = SubEpochChain::new(1);
+        let mut c = make_commitment(1, 0, [0xFFu8; 32]); // wrong prev for genesis
+                                                         // Recompute hash with the wrong prev to make subepoch_hash valid
+        c.subepoch_hash = compute_subepoch_hash(&c);
+        let err = chain.add_commitment(c);
+        assert_eq!(
+            err,
+            Err(SubEpochError::ChainBroken { subepoch_id: 0 }),
+            "F-005: genesis subepoch with non-zero prev must be rejected"
+        );
+    }
+
+    #[test]
+    fn f005_genesis_subepoch_zero_prev_accepted() {
+        // F-005: subepoch_id=0 with prev=[0;32] must be accepted (genesis).
+        let mut chain = SubEpochChain::new(1);
+        let c = make_commitment(1, 0, [0u8; 32]); // correct genesis prev
+        assert!(
+            chain.add_commitment(c).is_ok(),
+            "F-005: genesis subepoch must be accepted"
+        );
     }
 }
