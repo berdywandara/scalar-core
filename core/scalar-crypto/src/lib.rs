@@ -21,6 +21,7 @@ pub mod hybrid_hash;
 pub mod imt;
 pub mod ml_kem;
 pub mod poseidon2;
+pub mod poseidon2_t8;
 pub mod sphincs;
 pub mod version;
 
