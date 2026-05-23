@@ -35,12 +35,16 @@ mod empirical_tests_inner {
         smt_root: [u8; 32],
     ) -> NodeHeartbeat {
         let nke = nke();
-        let mac = compute_heartbeat_mac(&nke, &node_id, seq_num, timestamp, &smt_root, &prev_hash);
+        let mac = compute_heartbeat_mac(
+            &nke, &node_id, seq_num, timestamp, &smt_root, &[0u8; 32], 0u64, &prev_hash,
+        );
         NodeHeartbeat {
             node_id,
             seq_num,
             timestamp,
             smt_root,
+            imt_frontier: [0u8; 32],
+            imt_count: 0u64,
             prev_hash,
             mac,
         }

@@ -28,17 +28,20 @@ pub const W_MATURE: u64 =
 
 // ── NodeHeartbeat v9.0 — spec §7.2 ───────────────────────────────────────────
 
-/// NodeHeartbeat v9.0 — 108 bytes wire size. Spec §7.2.
+/// NodeHeartbeat v9.1 — 148 bytes wire size. Spec §7.2, Research Package §3.1.4.
 ///
-/// Perubahan dari v7.0:
-///   - node_id: [u8;32] → [u8;4]  (compressed: 4 bytes pertama BLAKE3(full_id))
-///   - timestamp: u64 abs → u32 delta dari epoch_start_wall_clock
-///   - seq_num: u64 → u32 monotonic global per node per epoch
-///   - HAPUS: epoch_id, connectivity_proof, signature
-///   - TAMBAH: prev_hash [u8;32] = BLAKE3(heartbeat sebelumnya)
-///   - TAMBAH: mac [u8;32] = BLAKE3(NodeKey_epoch||node_id||seq_num||timestamp||smt_root||prev_hash)
+/// v9.1 additions (Research Package §3.1.4):
+///   - TAMBAH: imt_frontier [u8;32] — IMT frontier root saat heartbeat dikirim
+///   - TAMBAH: imt_count u64 — jumlah daun dalam IMT saat heartbeat dikirim
 ///
-/// Wire layout: node_id(4) + seq_num(4) + timestamp(4) + smt_root(32) + prev_hash(32) + mac(32) = 108 bytes
+/// Wire layout: node_id(4) + seq_num(4) + timestamp(4) + smt_root(32) +
+///              imt_frontier(32) + imt_count(8) + prev_hash(32) + mac(32) = 148 bytes
+///
+/// MAC construction updated (Research Package §3.1.4):
+///   mac = BLAKE3(b"scalar_beacon" || NodeKey_epoch || node_id || seq_num_le32 ||
+///               timestamp_le32 || smt_root || imt_frontier || imt_count_le64 || prev_hash)
+///
+/// INV-4.4: prev_hash includes mac of previous heartbeat (chain integrity).
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeHeartbeat {
     /// Compressed node ID — 4 bytes pertama dari BLAKE3(full_node_id). Spec §7.2.
@@ -46,50 +49,61 @@ pub struct NodeHeartbeat {
     /// Monotonic global sequence number, dimulai dari 1 setiap epoch. Spec §7.2.
     pub seq_num: u32,
     /// Delta seconds dari epoch_start_wall_clock. Spec §7.2.
-    /// BUKAN epoch boundary marker — wall-clock TIDAK menentukan epoch (Rule T-1 §7.2c).
     pub timestamp: u32,
     /// Root SMT saat heartbeat dikirim. Spec §7.2.
     pub smt_root: [u8; 32],
-    /// BLAKE3(heartbeat sebelumnya). Spec §7.2.
-    /// Untuk seq_num==1 (HB pertama epoch): prev_hash = EpochAnchor.chain_head epoch sebelumnya.
-    /// Untuk HB pertama epoch 0: prev_hash = BLAKE3(genesis_object_bytes) — spec §7.2a, §12.9.
+    /// IMT frontier root saat heartbeat dikirim. Research Package §3.1.4.
+    /// Genesis state: [0u8;32]. Updated per append().
+    pub imt_frontier: [u8; 32],
+    /// Jumlah daun dalam IMT saat heartbeat dikirim. Research Package §3.1.4.
+    /// Genesis state: 0.
+    pub imt_count: u64,
+    /// BLAKE3(heartbeat sebelumnya). Spec §7.2, Research Package §3.1.4.
+    /// prev_hash menyertakan mac dari HB sebelumnya — INV-4.4 chain integrity.
     pub prev_hash: [u8; 32],
-    /// BLAKE3-MAC. Spec §7.2.
-    /// = BLAKE3(NodeKey_epoch_i || node_id || seq_num_le32 || timestamp_le32 || smt_root || prev_hash)
-    /// NodeKey_epoch_i = BLAKE3(NodeKey_i || epoch_id_le64)
+    /// BLAKE3-MAC. Research Package §3.1.4.
+    /// = BLAKE3(b"scalar_beacon" || NodeKey_epoch || node_id || seq_num_le32 ||
+    ///          timestamp_le32 || smt_root || imt_frontier || imt_count_le64 || prev_hash)
     pub mac: [u8; 32],
 }
 
 impl NodeHeartbeat {
-    /// Serialisasi ke wire format — 108 bytes. Spec §7.2.
-    pub fn to_bytes(&self) -> [u8; 108] {
-        let mut out = [0u8; 108];
+    /// Serialisasi ke wire format — 148 bytes. Research Package §3.1.4.
+    pub fn to_bytes(&self) -> [u8; 148] {
+        let mut out = [0u8; 148];
         out[0..4].copy_from_slice(&self.node_id);
         out[4..8].copy_from_slice(&self.seq_num.to_le_bytes());
         out[8..12].copy_from_slice(&self.timestamp.to_le_bytes());
         out[12..44].copy_from_slice(&self.smt_root);
-        out[44..76].copy_from_slice(&self.prev_hash);
-        out[76..108].copy_from_slice(&self.mac);
+        out[44..76].copy_from_slice(&self.imt_frontier);
+        out[76..84].copy_from_slice(&self.imt_count.to_le_bytes());
+        out[84..116].copy_from_slice(&self.prev_hash);
+        out[116..148].copy_from_slice(&self.mac);
         out
     }
 
-    /// Deserialise dari wire format — 108 bytes. Spec §7.2.
-    pub fn from_bytes(b: &[u8; 108]) -> Self {
+    /// Deserialise dari wire format — 148 bytes. Research Package §3.1.4.
+    pub fn from_bytes(b: &[u8; 148]) -> Self {
         let mut node_id = [0u8; 4];
         node_id.copy_from_slice(&b[0..4]);
         let seq_num = u32::from_le_bytes(b[4..8].try_into().unwrap());
         let timestamp = u32::from_le_bytes(b[8..12].try_into().unwrap());
         let mut smt_root = [0u8; 32];
         smt_root.copy_from_slice(&b[12..44]);
+        let mut imt_frontier = [0u8; 32];
+        imt_frontier.copy_from_slice(&b[44..76]);
+        let imt_count = u64::from_le_bytes(b[76..84].try_into().unwrap());
         let mut prev_hash = [0u8; 32];
-        prev_hash.copy_from_slice(&b[44..76]);
+        prev_hash.copy_from_slice(&b[84..116]);
         let mut mac = [0u8; 32];
-        mac.copy_from_slice(&b[76..108]);
+        mac.copy_from_slice(&b[116..148]);
         Self {
             node_id,
             seq_num,
             timestamp,
             smt_root,
+            imt_frontier,
+            imt_count,
             prev_hash,
             mac,
         }
@@ -112,27 +126,34 @@ pub fn derive_node_key_epoch(node_key: &[u8; 32], epoch_id: u64) -> [u8; 32] {
 
 // ── MAC construction — spec §7.2 ─────────────────────────────────────────────
 
-/// Compute MAC untuk NodeHeartbeat. Spec §7.2.
+/// Compute MAC untuk NodeHeartbeat. Research Package §3.1.4.
 ///
-/// mac = BLAKE3(NodeKey_epoch_i || node_id_4 || seq_num_le32 ||
-///              timestamp_le32 || smt_root_32 || prev_hash_32)
+/// mac = BLAKE3(b"scalar_beacon" || NodeKey_epoch || node_id_4 || seq_num_le32 ||
+///              timestamp_le32 || smt_root || imt_frontier || imt_count_le64 || prev_hash)
 ///
-/// Semua integer little-endian. Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+/// Field order OSSIFIED — Research Package §3.1.4.
+/// imt_frontier after smt_root, imt_count after imt_frontier, prev_hash last.
+/// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+#[allow(clippy::too_many_arguments)]
 pub fn compute_heartbeat_mac(
     node_key_epoch: &[u8; 32],
     node_id: &[u8; 4],
     seq_num: u32,
     timestamp: u32,
     smt_root: &[u8; 32],
+    imt_frontier: &[u8; 32],
+    imt_count: u64,
     prev_hash: &[u8; 32],
 ) -> [u8; 32] {
-    // BLAKE3 out-circuit — spec §7.2, §2.1.3
     let mut hasher = blake3::Hasher::new();
+    hasher.update(b"scalar_beacon"); // DOMAIN_BEACON — spec §2.3
     hasher.update(node_key_epoch);
     hasher.update(node_id);
     hasher.update(&seq_num.to_le_bytes());
     hasher.update(&timestamp.to_le_bytes());
     hasher.update(smt_root);
+    hasher.update(imt_frontier); // BARU — Research Package §3.1.4
+    hasher.update(&imt_count.to_le_bytes()); // BARU — Research Package §3.1.4
     hasher.update(prev_hash);
     *hasher.finalize().as_bytes()
 }
@@ -276,6 +297,8 @@ mod tests {
             seq_num: 1u32,
             timestamp: 600u32,
             smt_root: [0xAAu8; 32],
+            imt_frontier: [0u8; 32],
+            imt_count: 0u64,
             prev_hash: [0xBBu8; 32],
             mac: [0xCCu8; 32],
         };
@@ -285,18 +308,20 @@ mod tests {
     }
 
     #[test]
-    fn test_node_heartbeat_wire_size_108() {
-        // Spec §7.2: wire size = 108 bytes.
-        // 4 + 4 + 4 + 32 + 32 + 32 = 108
+    fn test_node_heartbeat_wire_size_148() {
+        // Research Package §3.1.4: wire size = 148 bytes.
+        // 4 + 4 + 4 + 32 + 32 + 8 + 32 + 32 = 148
         let hb = NodeHeartbeat {
             node_id: [0x01, 0x00, 0x00, 0x00],
             seq_num: 1u32,
             timestamp: 0u32,
             smt_root: [0u8; 32],
+            imt_frontier: [0u8; 32],
+            imt_count: 0u64,
             prev_hash: [0u8; 32],
             mac: [0u8; 32],
         };
-        assert_eq!(hb.to_bytes().len(), 108);
+        assert_eq!(hb.to_bytes().len(), 148);
     }
 
     #[test]
@@ -307,6 +332,8 @@ mod tests {
             seq_num: 42u32,
             timestamp: 1234u32,
             smt_root: [0x11u8; 32],
+            imt_frontier: [0u8; 32],
+            imt_count: 0u64,
             prev_hash: [0x22u8; 32],
             mac: [0x33u8; 32],
         };
@@ -325,6 +352,8 @@ mod tests {
             seq_num: 0u32,
             timestamp: 0u32,
             smt_root: [0u8; 32],
+            imt_frontier: [0u8; 32],
+            imt_count: 0u64,
             prev_hash: [0u8; 32],
             mac: [0u8; 32],
         };
@@ -379,8 +408,26 @@ mod tests {
         // Spec §7.2: MAC deterministik untuk input yang sama.
         let nke = [0x01u8; 32];
         let nid = [0x02u8; 4];
-        let mac1 = compute_heartbeat_mac(&nke, &nid, 1, 600, &[0xAAu8; 32], &[0xBBu8; 32]);
-        let mac2 = compute_heartbeat_mac(&nke, &nid, 1, 600, &[0xAAu8; 32], &[0xBBu8; 32]);
+        let mac1 = compute_heartbeat_mac(
+            &nke,
+            &nid,
+            1,
+            600,
+            &[0xAAu8; 32],
+            &[0u8; 32],
+            0u64,
+            &[0xBBu8; 32],
+        );
+        let mac2 = compute_heartbeat_mac(
+            &nke,
+            &nid,
+            1,
+            600,
+            &[0xAAu8; 32],
+            &[0u8; 32],
+            0u64,
+            &[0xBBu8; 32],
+        );
         assert_eq!(mac1, mac2);
     }
 
@@ -389,8 +436,10 @@ mod tests {
         // seq_num berbeda → MAC berbeda. Spec §7.2.
         let nke = [0x01u8; 32];
         let nid = [0x02u8; 4];
-        let mac1 = compute_heartbeat_mac(&nke, &nid, 1, 600, &[0u8; 32], &[0u8; 32]);
-        let mac2 = compute_heartbeat_mac(&nke, &nid, 2, 600, &[0u8; 32], &[0u8; 32]);
+        let mac1 =
+            compute_heartbeat_mac(&nke, &nid, 1, 600, &[0u8; 32], &[0u8; 32], 0u64, &[0u8; 32]);
+        let mac2 =
+            compute_heartbeat_mac(&nke, &nid, 2, 600, &[0u8; 32], &[0u8; 32], 0u64, &[0u8; 32]);
         assert_ne!(mac1, mac2);
     }
 
@@ -398,8 +447,26 @@ mod tests {
     fn test_compute_heartbeat_mac_different_key_differs() {
         // NodeKey_epoch berbeda → MAC berbeda. Spec §7.2.
         let nid = [0x02u8; 4];
-        let mac1 = compute_heartbeat_mac(&[0x01u8; 32], &nid, 1, 0, &[0u8; 32], &[0u8; 32]);
-        let mac2 = compute_heartbeat_mac(&[0xFFu8; 32], &nid, 1, 0, &[0u8; 32], &[0u8; 32]);
+        let mac1 = compute_heartbeat_mac(
+            &[0x01u8; 32],
+            &nid,
+            1,
+            0,
+            &[0u8; 32],
+            &[0u8; 32],
+            0u64,
+            &[0u8; 32],
+        );
+        let mac2 = compute_heartbeat_mac(
+            &[0xFFu8; 32],
+            &nid,
+            1,
+            0,
+            &[0u8; 32],
+            &[0u8; 32],
+            0u64,
+            &[0u8; 32],
+        );
         assert_ne!(mac1, mac2);
     }
 
@@ -713,6 +780,8 @@ mod epoch_anchor_tests {
             seq_num: seq,
             timestamp: seq * 600,
             smt_root: [seq as u8; 32],
+            imt_frontier: [0u8; 32],
+            imt_count: 0u64,
             prev_hash: [0u8; 32],
             mac: [0u8; 32],
         }
@@ -872,6 +941,8 @@ mod epoch_anchor_tests {
                     seq_num: i,
                     timestamp: 0,
                     smt_root: [0u8; 32],
+                    imt_frontier: [0u8; 32],
+                    imt_count: 0u64,
                     prev_hash: [0u8; 32],
                     mac: [0u8; 32],
                 },
@@ -893,6 +964,8 @@ mod epoch_anchor_tests {
                     seq_num: i,
                     timestamp: 0,
                     smt_root: [0u8; 32],
+                    imt_frontier: [0u8; 32],
+                    imt_count: 0u64,
                     prev_hash: [0u8; 32],
                     mac: [0u8; 32],
                 },
@@ -925,6 +998,8 @@ mod epoch_anchor_tests {
                 seq_num: 1,
                 timestamp: 0,
                 smt_root: [0u8; 32],
+                imt_frontier: [0u8; 32],
+                imt_count: 0u64,
                 prev_hash: [0u8; 32],
                 mac: [0u8; 32],
             },
@@ -936,6 +1011,8 @@ mod epoch_anchor_tests {
                 seq_num: 1,
                 timestamp: 0,
                 smt_root: [0u8; 32],
+                imt_frontier: [0u8; 32],
+                imt_count: 0u64,
                 prev_hash: [0u8; 32],
                 mac: [0u8; 32],
             },

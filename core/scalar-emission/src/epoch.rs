@@ -113,6 +113,8 @@ mod tests {
             seq_num: 42u32,
             timestamp: 600u32,
             smt_root: [0u8; 32],
+            imt_frontier: [0u8; 32],
+            imt_count: 0u64,
             prev_hash: [0u8; 32],
             mac: [0u8; 32],
         };
