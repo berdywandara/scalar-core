@@ -8,9 +8,10 @@
 //!
 //! Flow produksi heartbeat (setiap 10 menit, spec §7.2):
 //!   1. Increment seq_num
-//!   2. Compute prev_hash = BLAKE3(last_hb_bytes)
-//!   3. Compute MAC = BLAKE3(NodeKey_epoch || node_id || seq_num || timestamp || smt_root || prev_hash)
-//!   4. Serialize ke 108 bytes
+//!   2. Compute prev_hash per Research Package §3.1.4 (spec-compliant, domain-separated)
+//!   3. Compute MAC = BLAKE3(b"scalar_beacon" || NodeKey_epoch || node_id || seq_num ||
+//!                           timestamp || smt_root || imt_frontier || imt_count || prev_hash)
+//!   4. Serialize ke 148 bytes
 //!   5. Broadcast via gossipsub topic scalar/heartbeat/1
 //!
 //! Flow verifikasi heartbeat (saat terima dari peer):
@@ -89,10 +90,16 @@ impl HeartbeatService {
         // prev_hash per Research Package §3.1.4: BLAKE3(b"scalar_beacon" || fields || mac)
         // INV-4.4: chain integrity — mac(n-1) included in prev_hash(n)
         let prev_hash = match &self.last_hb_bytes {
-            Some(bytes) => *blake3::hash(bytes).as_bytes(),
+            Some(bytes) => {
+                // Use spec-compliant construction: Research Package §3.1.4, INV-4.4
+                // prev_hash = BLAKE3(b"scalar_beacon" || node_id || seq_num || timestamp ||
+                //             smt_root || imt_frontier || imt_count || mac)
+                let last_hb = NodeHeartbeat::from_bytes(bytes);
+                scalar_emission::liveness::compute_prev_hash(&last_hb)
+            }
             None => {
-                // HB pertama epoch 0: prev_hash = BLAKE3(genesis_placeholder)
-                *blake3::hash(b"scalar_genesis_epoch0_placeholder").as_bytes()
+                // F-009: HB pertama — prev_hash = [0u8;32] per spec §7.2, RP §3.1.4
+                [0u8; 32]
             }
         };
 
@@ -242,11 +249,23 @@ mod tests {
 
     #[test]
     fn test_produce_heartbeat_prev_hash_chained() {
+        // F-001 fix: prev_hash uses spec-compliant construction, not BLAKE3(to_bytes()).
+        // Research Package §3.1.4, INV-4.4.
         let mut svc = make_service();
         let hb1 = svc.produce_heartbeat();
         let hb2 = svc.produce_heartbeat();
-        let expected_prev = *blake3::hash(&hb1.to_bytes()).as_bytes();
-        assert_eq!(hb2.prev_hash, expected_prev);
+        // Expected: compute_prev_hash(hb1) — domain-separated construction
+        let expected_prev = scalar_emission::liveness::compute_prev_hash(&hb1);
+        assert_eq!(
+            hb2.prev_hash, expected_prev,
+            "prev_hash must use spec-compliant construction per Research Package §3.1.4"
+        );
+        // Verify it differs from the old BLAKE3(to_bytes()) construction
+        let old_construction = *blake3::hash(&hb1.to_bytes()).as_bytes();
+        assert_ne!(
+            hb2.prev_hash, old_construction,
+            "prev_hash must NOT be bare BLAKE3(to_bytes()) — F-001 regression check"
+        );
     }
 
     #[test]

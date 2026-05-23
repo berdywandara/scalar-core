@@ -8,6 +8,15 @@
 //! - Genesis spec §2.3 (original 21 separators)
 //! - Genesis spec §2.3 / §10.2 (NodeID, SMT active, SMT archived)
 //! - Research Package Bagian 8 (IMT, Sub-Epoch, STARKPack)
+//!
+//! Errata (F-004, Audit 23 May 2026):
+//! The following spec/RP documents have byte count typos (off by 1).
+//! The code values are correct — the documents miscounted:
+//!   DOMAIN_SMT_ACTIVE     : doc says 18, actual 17
+//!   DOMAIN_SMT_ARCHIVED   : doc says 20, actual 19
+//!   DOMAIN_IMT_FRONTIER   : doc says 20, actual 19
+//!   DOMAIN_SUBEPOCH_SEED  : doc says 21, actual 20
+//!   DOMAIN_SUBEPOCH_SCORE : doc says 22, actual 21
 
 // ── Genesis Spec §2.3 — Original Separators ─────────────────────────────────
 
@@ -73,11 +82,11 @@ pub const DOMAIN_POU_MINT: u64 = 0x706f755f6d696e74;
 /// Used in: Argon2id salt for node_id_full derivation.
 pub const DOMAIN_NODEID: &[u8] = b"scalar_nodeid";
 
-/// SMT active layer domain. Spec §2.3. 17 bytes.
+/// SMT active layer domain. Spec §2.3. 17 bytes. (Spec doc erroneously states 18 — code is correct.)
 /// Used in: NullifierSet active layer hashing (NS_ACTIVE).
 pub const DOMAIN_SMT_ACTIVE: &[u8] = b"scalar_smt_active";
 
-/// SMT archived layer domain. Spec §2.3. 19 bytes.
+/// SMT archived layer domain. Spec §2.3. 19 bytes. (Spec doc erroneously states 20 — code is correct.)
 /// Used in: NullifierSet checkpoint layer hashing (NS_CHECKPOINT),
 /// and SubEpochCommitment hash construction for cumulative_utxo_root.
 pub const DOMAIN_SMT_ARCHIVED: &[u8] = b"scalar_smt_archived";
@@ -97,7 +106,7 @@ pub const DOMAIN_IMT_LEAF: &[u8] = b"scalar_imt_leaf";
 /// Formula: Poseidon2(DOMAIN_IMT_NODE || left_child || right_child)
 pub const DOMAIN_IMT_NODE: &[u8] = b"scalar_imt_node";
 
-/// IMT frontier wrapper. Research Package Bagian 8. 19 bytes.
+/// IMT frontier wrapper. Research Package Bagian 8. 19 bytes. (RP doc erroneously states 20 — code is correct.)
 /// Used EXCLUSIVELY in: SubEpochCommitment hash construction to
 /// distinguish imt_frontier_root from cumulative_utxo_root.
 /// NOT used in: IMT_MembershipVerify (use imt_leaf/imt_node).
@@ -112,12 +121,12 @@ pub const DOMAIN_IMT_FRONTIER: &[u8] = b"scalar_imt_frontier";
 /// Used in: SubEpochCommitment hash construction (outer wrapper).
 pub const DOMAIN_SUBEPOCH: &[u8] = b"scalar_subepoch";
 
-/// Sub-epoch aggregator seed. Research Package Bagian 8. 20 bytes.
+/// Sub-epoch aggregator seed. Research Package Bagian 8. 20 bytes. (RP doc erroneously states 21 — code is correct.)
 /// Used in: Deterministic aggregator selection per sub-epoch.
 /// Formula: BLAKE3(DOMAIN_SUBEPOCH_SEED || committed_manifest_hash(k-1) || subepoch_id)
 pub const DOMAIN_SUBEPOCH_SEED: &[u8] = b"scalar_subepoch_seed";
 
-/// Sub-epoch validator scoring. Research Package Bagian 8. 21 bytes.
+/// Sub-epoch validator scoring. Research Package Bagian 8. 21 bytes. (RP doc erroneously states 22 — code is correct.)
 /// Used in: Deterministic validator ranking per sub-epoch.
 /// Formula: BLAKE3(DOMAIN_SUBEPOCH_SCORE || node_id_full || subepoch_seed)
 pub const DOMAIN_SUBEPOCH_SCORE: &[u8] = b"scalar_subepoch_score";

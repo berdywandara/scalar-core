@@ -152,7 +152,7 @@ impl IncrementalMerkleTree {
     }
 
     pub fn append(&mut self, commitment: &[u8; 32]) -> Result<u64, IMTError> {
-        if self.count >= (1u64 << (IMT_DEPTH as u64 - 1)) {
+        if self.count >= (1u64 << IMT_DEPTH as u64) {
             return Err(IMTError::TreeFull);
         }
         let leaf_index = self.count;
@@ -497,6 +497,94 @@ mod tests {
             assert!(
                 imt_membership_verify(&[i as u8; 32], &path, &root, count),
                 "verify must pass for leaf {i}"
+            );
+        }
+    }
+    // ── F-003: Property test — IMT proof consistency at scale ────────────────
+    // Audit finding F-003: verify proof correctness for N insertions (N up to 100).
+    // This catches any frontier/reconstruction divergence at various tree sizes.
+
+    #[test]
+    fn f003_property_imt_proof_consistency_small_scale() {
+        // Insert N commitments, prove every leaf, verify every proof.
+        // Covers odd/even tree sizes, power-of-two boundaries.
+        // Research Package §3.1.8 (Soundness), INV-4.1.
+        for n in 1usize..=64 {
+            let mut imt = IncrementalMerkleTree::new();
+            for i in 0..n {
+                let mut commitment = [0u8; 32];
+                commitment[0] = (i % 256) as u8;
+                commitment[1] = (i / 256) as u8;
+                imt.append(&commitment).unwrap();
+            }
+            let root = imt.root();
+            let count = imt.count;
+            for i in 0..n as u64 {
+                let mut commitment = [0u8; 32];
+                commitment[0] = (i % 256) as u8;
+                commitment[1] = (i / 256) as u8;
+                let path = imt
+                    .prove_membership(i)
+                    .unwrap_or_else(|e| panic!("prove_membership failed n={n} i={i}: {e}"));
+                assert!(
+                    imt_membership_verify(&commitment, &path, &root, count),
+                    "F-003: verify failed for n={n} leaf={i}"
+                );
+                // Verify wrong commitment fails
+                let mut bad = commitment;
+                bad[31] ^= 0xFF;
+                assert!(
+                    !imt_membership_verify(&bad, &path, &root, count),
+                    "F-003: wrong commitment must fail for n={n} leaf={i}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn f003_property_imt_proof_power_of_two_boundaries() {
+        // Test at exact power-of-two boundaries: 1,2,4,8,16,32,64,128
+        // These are the critical sizes where carry-up logic differs.
+        for n in [1usize, 2, 4, 8, 16, 32, 64, 128] {
+            let mut imt = IncrementalMerkleTree::new();
+            for i in 0..n {
+                let mut c = [0u8; 32];
+                c[0] = (i % 256) as u8;
+                c[1] = (i / 256) as u8;
+                imt.append(&c).unwrap();
+            }
+            let root = imt.root();
+            let count = imt.count;
+            // Verify all leaves
+            for i in 0..n as u64 {
+                let mut commitment = [0u8; 32];
+                commitment[0] = (i % 256) as u8;
+                commitment[1] = (i / 256) as u8;
+                let path = imt.prove_membership(i).unwrap();
+                assert!(
+                    imt_membership_verify(&commitment, &path, &root, count),
+                    "F-003: power-of-two boundary failed n={n} leaf={i}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn f003_property_imt_root_consistent_with_proof() {
+        // After each append, root() must be consistent with prove+verify
+        // for the most recently inserted leaf.
+        let mut imt = IncrementalMerkleTree::new();
+        for i in 0..20u64 {
+            let mut commitment = [0u8; 32];
+            commitment[0] = i as u8;
+            imt.append(&commitment).unwrap();
+            let root = imt.root();
+            let count = imt.count;
+            // Verify the leaf just inserted
+            let path = imt.prove_membership(i).unwrap();
+            assert!(
+                imt_membership_verify(&commitment, &path, &root, count),
+                "F-003: root inconsistent after append {i}"
             );
         }
     }
