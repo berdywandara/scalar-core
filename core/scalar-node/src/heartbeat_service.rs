@@ -9,8 +9,8 @@
 //! Flow produksi heartbeat (setiap 10 menit, spec §7.2):
 //!   1. Increment seq_num
 //!   2. Compute prev_hash per Research Package §3.1.4 (spec-compliant, domain-separated)
-//!   3. Compute MAC = BLAKE3(b"scalar_beacon" || NodeKey_epoch || node_id || seq_num ||
-//!                           timestamp || smt_root || imt_frontier || imt_count || prev_hash)
+//!   3. Compute MAC = BLAKE3(b"scalar_beacon" || NodeKey_epoch || node_id ||
+//!      seq_num || timestamp || smt_root || imt_frontier || imt_count || prev_hash)
 //!   4. Serialize ke 148 bytes
 //!   5. Broadcast via gossipsub topic scalar/heartbeat/1
 //!
