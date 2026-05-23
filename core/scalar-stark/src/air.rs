@@ -4,6 +4,11 @@
 //
 // Delta dari v5.0 (PR-V12-005 FIX):
 //   + utxo_set_root : [u8;32] — CB constraint (UTXO Set Membership)
+//
+// Delta Research Package §3.1 (Fase 4):
+//   + imt_frontier_root    : [u8;32] — CB IMT constraint (SubEpochIMT source)
+//   + imt_commitment_count : u64     — CB IMT leaf count
+//   + committed_subepoch_id: u32     — CB IMT sub-epoch reference
 //     Root ini adalah snapshot deterministik dari epoch k-1 yang dihasilkan
 //     via canonical transaction ordering (PR-V12-003 + PR-V12-004).
 //     ANTI-DOUBLE-SPEND: root TIDAK boleh berasal dari epoch yang sama.
@@ -60,6 +65,17 @@ pub struct TransferCircuitPublicInput {
     /// Dihasilkan via sort_transactions_canonical() — PR-V12-003.
     /// Disimpan via UtxoSetSMT::take_snapshot() — PR-V12-004.
     pub utxo_set_root: [u8; 32],
+    /// CB IMT: IMT frontier root dari SubEpochCommitment quorum 5/7. Research Package §3.1.
+    /// Decision D-003: HARUS dari SubEpochCommitment dengan quorum 5/7.
+    /// Digunakan untuk UTXOSource::SubEpochIMT path.
+    /// [0u8;32] jika transaksi menggunakan UTXOSource::EpochSMT.
+    pub imt_frontier_root: [u8; 32],
+    /// CB IMT: jumlah komitmen dalam IMT pada sub-epoch. Research Package §3.1.
+    /// 0 jika transaksi menggunakan UTXOSource::EpochSMT.
+    pub imt_commitment_count: u64,
+    /// CB IMT: sub-epoch ID yang direferensikan. Research Package §3.1.
+    /// 0 jika transaksi menggunakan UTXOSource::EpochSMT.
+    pub committed_subepoch_id: u32,
     /// CG: versi kriptografi aktif. Harus ∈ valid_versions(current_epoch).
     pub crypto_version: u8,
     /// CG: waktu tx masuk pool (unix ms). Enforce T_MAX_WAIT.
@@ -90,6 +106,22 @@ impl TransferCircuitPublicInput {
     pub fn validate_cb_root_non_zero(&self) -> bool {
         self.utxo_set_root != [0u8; 32]
     }
+
+    /// Cek apakah transaksi menggunakan UTXOSource::SubEpochIMT.
+    /// Research Package §3.1 — Decision D-003.
+    pub fn uses_imt_source(&self) -> bool {
+        self.imt_frontier_root != [0u8; 32] || self.imt_commitment_count > 0
+    }
+
+    /// Validasi IMT public inputs jika menggunakan SubEpochIMT source.
+    /// Research Package §3.1, Decision D-003.
+    pub fn validate_imt_inputs(&self) -> bool {
+        if !self.uses_imt_source() {
+            return true; // EpochSMT — IMT fields not used
+        }
+        // SubEpochIMT: imt_frontier_root must be non-zero and count > 0
+        self.imt_frontier_root != [0u8; 32] && self.imt_commitment_count > 0
+    }
 }
 
 /// Public Input lengkap untuk verifier node — digunakan oleh scalar-node.
@@ -103,6 +135,13 @@ pub struct ScalarPublicInputs {
     /// CB: UTXO Set Root dari epoch k-1 (canonical ordering). Spec §4.2 v11.1-FINAL.
     /// Menggantikan genesis_smt_root sebagai primary UTXO membership root.
     pub utxo_set_root: [u8; 32],
+    /// CB IMT: IMT frontier root dari quorum SubEpochCommitment. Research Package §3.1.
+    /// [0u8;32] jika menggunakan UTXOSource::EpochSMT.
+    pub imt_frontier_root: [u8; 32],
+    /// CB IMT: jumlah komitmen IMT. 0 jika EpochSMT. Research Package §3.1.
+    pub imt_commitment_count: u64,
+    /// CB IMT: sub-epoch ID. 0 jika EpochSMT. Research Package §3.1.
+    pub committed_subepoch_id: u32,
     pub current_nullifier_smt_root: u64,
     pub fee_value: u64,
     pub timestamp: u64,
@@ -399,6 +438,9 @@ mod tests {
         // Proof valid dengan utxo_set_root dari canonical ordering. Spec §4.3 CB.
         let pi = TransferCircuitPublicInput {
             utxo_set_root: valid_utxo_root(),
+            imt_frontier_root: [0u8; 32],
+            imt_commitment_count: 0,
+            committed_subepoch_id: 0,
             crypto_version: 0x01,
             entry_timestamp: 1_000_000_000,
             current_timestamp: 1_000_001_000,
@@ -412,6 +454,9 @@ mod tests {
         // Regression: spending dari epoch sama → proof invalid. Spec §4.3 CB.
         let pi = TransferCircuitPublicInput {
             utxo_set_root: valid_utxo_root(),
+            imt_frontier_root: [0u8; 32],
+            imt_commitment_count: 0,
+            committed_subepoch_id: 0,
             crypto_version: 0x01,
             entry_timestamp: 1_000_000_000,
             current_timestamp: 1_000_001_000,
@@ -429,6 +474,9 @@ mod tests {
         let pi = ScalarPublicInputs {
             genesis_smt_root: 0,
             utxo_set_root: valid_utxo_root(),
+            imt_frontier_root: [0u8; 32],
+            imt_commitment_count: 0,
+            committed_subepoch_id: 0,
             current_nullifier_smt_root: 1,
             fee_value: 40,
             timestamp: 1_000_060_000,
@@ -474,6 +522,9 @@ mod tests {
         // v11.1-FINAL: TransferCircuitPublicInput harus punya utxo_set_root.
         let pi = TransferCircuitPublicInput {
             utxo_set_root: [0xABu8; 32],
+            imt_frontier_root: [0u8; 32],
+            imt_commitment_count: 0,
+            committed_subepoch_id: 0,
             crypto_version: 0x01,
             entry_timestamp: 1_680_000_000_000,
             current_timestamp: 1_680_000_100_000,
