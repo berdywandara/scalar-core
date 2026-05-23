@@ -2696,6 +2696,7 @@ dependencies = [
  "scalar-fees",
  "scalar-network",
  "scalar-nullifier",
+ "scalar-stark",
 ]
 
 [[package]]
