@@ -413,8 +413,12 @@ mod tests {
     #[test]
     fn test_soundness_above_industry_minimum() {
         // Both N=256 and N=1024 exceed industry minimum 2^-100.
-        assert!(STARK_BATCH_SOUNDNESS_N256 > STARK_SOUNDNESS_INDUSTRY_MIN);
-        assert!(STARK_BATCH_SOUNDNESS_N1024 > STARK_SOUNDNESS_INDUSTRY_MIN);
+        const {
+            assert!(STARK_BATCH_SOUNDNESS_N256 > STARK_SOUNDNESS_INDUSTRY_MIN);
+        }
+        const {
+            assert!(STARK_BATCH_SOUNDNESS_N1024 > STARK_SOUNDNESS_INDUSTRY_MIN);
+        }
     }
 
     #[test]
