@@ -12,6 +12,7 @@ pub mod nmt_hybrid;
 pub mod node_score;
 pub mod reconciliation;
 pub mod relay;
+pub mod skademlia;
 pub mod state_beacon;
 pub mod sync;
 pub mod time_security;
