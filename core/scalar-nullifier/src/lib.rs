@@ -13,6 +13,7 @@
 pub mod formal;
 pub mod nullifier_set;
 pub mod smt;
+pub mod smt_quaternary;
 
 // Re-export tipe utama untuk kemudahan akses
 pub use nullifier_set::{
