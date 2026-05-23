@@ -15,6 +15,7 @@ pub mod reconciliation;
 pub mod relay;
 pub mod skademlia;
 pub mod state_beacon;
+pub mod subepoch;
 pub mod sync;
 pub mod time_security;
 
