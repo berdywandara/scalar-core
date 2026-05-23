@@ -84,7 +84,7 @@ pub struct STARKPackTranscript {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TranscriptPhase {
+pub enum TranscriptPhase {
     Phase1Commitment,
     Phase2Challenge,
     Phase3GlobalFri,
@@ -122,9 +122,9 @@ impl STARKPackTranscript {
 
         // Phase 1 absorption order — OSSIFIED per Research Package §3.4.3
         self.hasher.update(DOMAIN_STARK_BATCH); // b"scalar_stark_batch" domain separator
-        // Note: spec uses b"scalar_subepoch_fs" in Phase 1 per RP §3.4.3 spec
-        // but DOMAIN_STARK_BATCH is the STARKPack-specific domain.
-        // Using consistent domain for all phases.
+                                                // Note: spec uses b"scalar_subepoch_fs" in Phase 1 per RP §3.4.3 spec
+                                                // but DOMAIN_STARK_BATCH is the STARKPack-specific domain.
+                                                // Using consistent domain for all phases.
         self.hasher.update(&commitment.merkle_root);
         self.hasher
             .update(&commitment.constraint_count.to_le_bytes());
@@ -138,9 +138,7 @@ impl STARKPackTranscript {
     ///
     /// Returns N challenge coefficients ξ[i] for linear combination.
     /// Called after all Phase 1 absorptions.
-    pub fn squeeze_aggregation_challenge(
-        &mut self,
-    ) -> Result<Vec<[u8; 32]>, TranscriptError> {
+    pub fn squeeze_aggregation_challenge(&mut self) -> Result<Vec<[u8; 32]>, TranscriptError> {
         if self.phase != TranscriptPhase::Phase1Commitment {
             return Err(TranscriptError::WrongPhase {
                 expected: TranscriptPhase::Phase1Commitment,
@@ -192,9 +190,7 @@ impl STARKPackTranscript {
     /// Phase 4: Squeeze query positions. Research Package §3.4.3.
     ///
     /// Returns NUM_FRI_QUERIES=84 query positions.
-    pub fn squeeze_query_positions(
-        &mut self,
-    ) -> Result<Vec<u64>, TranscriptError> {
+    pub fn squeeze_query_positions(&mut self) -> Result<Vec<u64>, TranscriptError> {
         if self.phase != TranscriptPhase::Phase3GlobalFri {
             return Err(TranscriptError::WrongPhase {
                 expected: TranscriptPhase::Phase3GlobalFri,
@@ -252,14 +248,21 @@ pub enum TranscriptError {
         got: TranscriptPhase,
     },
     BatchFull,
-    InvalidBatchSize { n: usize, max: usize },
+    InvalidBatchSize {
+        n: usize,
+        max: usize,
+    },
 }
 
 impl core::fmt::Display for TranscriptError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::WrongPhase { expected, got } => {
-                write!(f, "wrong transcript phase: expected {:?}, got {:?}", expected, got)
+                write!(
+                    f,
+                    "wrong transcript phase: expected {:?}, got {:?}",
+                    expected, got
+                )
             }
             Self::BatchFull => write!(f, "batch full: max {} proofs", STARK_MAX_BATCH_SIZE),
             Self::InvalidBatchSize { n, max } => {
@@ -556,7 +559,11 @@ mod tests {
 
     #[test]
     fn test_sort_by_ordering_key() {
-        let mut commitments = vec![make_commitment(0x03), make_commitment(0x01), make_commitment(0x02)];
+        let mut commitments = vec![
+            make_commitment(0x03),
+            make_commitment(0x01),
+            make_commitment(0x02),
+        ];
         sort_commitments_by_ordering_key(&mut commitments);
         assert_eq!(commitments[0].tx_ordering_key, [0x01u8; 32]);
         assert_eq!(commitments[1].tx_ordering_key, [0x02u8; 32]);
