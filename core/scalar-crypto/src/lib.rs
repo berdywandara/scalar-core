@@ -18,6 +18,7 @@ pub mod channel;
 pub mod domain;
 pub mod encryption;
 pub mod hybrid_hash;
+pub mod imt;
 pub mod ml_kem;
 pub mod poseidon2;
 pub mod sphincs;
