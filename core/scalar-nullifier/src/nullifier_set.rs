@@ -7,6 +7,7 @@
 //! Layer 2 – NS_CHECKPOINT: Recursive STARK proof (stub pre-mainnet).
 //!   Mencakup seluruh nullifier sebelum NS_ACTIVE.
 //!   Storage ~150 KB. archived_smt_root diverifikasi via STARK proof.
+//!   Research Package §3.5.4: supports quaternary SMT (depth-16, Poseidon2 t=8).
 //!
 //! Operasi fundamental (spec §6.3):
 //!   is_spent()   — periksa NS_ACTIVE, jika tidak ada periksa NS_CHECKPOINT.
@@ -127,6 +128,26 @@ impl CheckpointProof {
             to_epoch: 0,
             total_archived_count: 0,
         }
+    }
+
+    /// Buat checkpoint proof dengan quaternary SMT (depth-16). Research Package §3.5.4.
+    ///
+    /// Digunakan ketika NS_CHECKPOINT menggunakan Poseidon2 t=8 quaternary SMT.
+    /// smt_depth = 16 (4^16 = 2^32, same capacity as binary depth-32).
+    pub fn genesis_quaternary() -> Self {
+        Self {
+            proof_bytes: vec![],
+            archived_smt_root: [0u8; 32],
+            smt_depth: 16, // quaternary depth — Research Package §3.5.4
+            from_epoch: 0,
+            to_epoch: 0,
+            total_archived_count: 0,
+        }
+    }
+
+    /// Returns true if this checkpoint uses quaternary SMT. Research Package §3.5.4.
+    pub fn is_quaternary(&self) -> bool {
+        self.smt_depth == 16
     }
 
     /// Cek apakah proof valid (non-empty untuk non-genesis). Spec §6.2.
