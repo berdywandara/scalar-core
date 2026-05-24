@@ -24,6 +24,9 @@ pub const V6_UPTIME_WEIGHT_FLOOR: u64 = 700_000;
 
 /// Versi spec manifest v6.0. OSSIFIED — spec §8.1 v6.0.
 /// Node v5.0 akan REJECT manifest dengan spec_version = 0x02.
+// K12-02 NOTE: 0x02 is a stale pre-genesis value. The OSSIFIED genesis value is
+// 0x01 (scalar_emission::dmm::SPEC_VERSION_MANIFEST). This constant is retained
+// only as a historical compliance marker and is NOT used in production.
 pub const V6_SPEC_VERSION_MANIFEST: u8 = 0x02;
 
 // ── §12.3 v6.0 GSS ───────────────────────────────────────────────────────────

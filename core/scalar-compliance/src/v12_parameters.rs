@@ -3,18 +3,18 @@
 //! Spec §XVII (parameter referensi lengkap v11.1-FINAL), §XXI (test targets).
 //!
 //! Verifikasi semua parameter baru dari v11.1-FINAL:
-//!   SPEC_VERSION_MANIFEST = 0x06
-//!   T_TRANSITION_EPOCHS = 4
+//!   SPEC_VERSION_MANIFEST = 0x01 (genesis)
+//!   T_TRANSITION_EPOCHS = 0 (N/A in genesis)
 //!   network_health_digest field exists
 //!   NodeRewardEntry.uptime_weight_fp field exists
 
 #[cfg(test)]
 mod tests_v12 {
-    // ── §2.4 SPEC_VERSION_MANIFEST = 0x06 ────────────────────────────────────
+    // ── §2.4 SPEC_VERSION_MANIFEST = 0x01 (genesis) ──────────────────────────
 
     #[test]
-    fn compliance_test_spec_version_0x06() {
-        // Spec §2.4, §8.4: SPEC_VERSION_MANIFEST = 0x06. OSSIFIED.
+    fn compliance_test_spec_version_0x01() {
+        // Spec §2.4, §8.4: SPEC_VERSION_MANIFEST = 0x01. OSSIFIED.
         assert_eq!(
             scalar_emission::dmm::SPEC_VERSION_MANIFEST,
             0x01u8,
@@ -24,13 +24,13 @@ mod tests_v12 {
 
     #[test]
     fn compliance_test_spec_version_current() {
-        // types::SPEC_VERSION_CURRENT = 0x06. Spec §2.4.
+        // types::SPEC_VERSION_CURRENT = 0x01. Spec §2.4.
         assert_eq!(scalar_emission::types::SPEC_VERSION_CURRENT, 0x01u8);
     }
 
     #[test]
     fn compliance_test_t_transition_epochs() {
-        // Spec §2.4: T_TRANSITION_EPOCHS = 4.
+        // Spec §2.4: T_TRANSITION_EPOCHS = 0 (genesis, no version transition window).
         assert_eq!(scalar_emission::types::T_TRANSITION_EPOCHS, 0u64);
     }
 
@@ -77,7 +77,7 @@ mod tests_v12 {
     // ── §8.4 Version gate ─────────────────────────────────────────────────────
 
     #[test]
-    fn compliance_test_version_reject_0x05_production() {
+    fn compliance_test_version_0x05_rejected() {
         // Spec §8.4: manifest spec_version=0x05 di-reject di production.
         let result = scalar_emission::types::validate_manifest_version(0x05);
         assert!(
@@ -87,8 +87,8 @@ mod tests_v12 {
     }
 
     #[test]
-    fn compliance_test_version_accept_0x05_testnet() {
-        // Spec §2.4: spec_version=0x05 diterima dengan --testnet-compat.
+    fn compliance_test_version_0x05_rejected_genesis() {
+        // Spec §2.4 genesis: only 0x01 is valid; 0x05 is rejected.
         let result = scalar_emission::types::validate_manifest_version(0x05);
         assert!(
             result.is_err(),
@@ -97,8 +97,8 @@ mod tests_v12 {
     }
 
     #[test]
-    fn compliance_test_version_accept_0x06_always() {
-        // Spec §8.4: 0x06 selalu diterima.
+    fn compliance_test_version_0x06_rejected_genesis() {
+        // Genesis: only 0x01 valid; 0x06 is rejected (validate_manifest_version).
         assert!(scalar_emission::types::validate_manifest_version(0x06).is_err());
         assert!(scalar_emission::types::validate_manifest_version(0x06).is_err());
     }
@@ -118,13 +118,13 @@ mod tests_v12 {
 mod tests_v12_ordering {
     #[test]
     fn compliance_test_tx_order_domain() {
-        // TX_ORDER_DOMAIN = b"scalar_tx_order_v1". OSSIFIED — spec §2.3.
+        // TX_ORDER_DOMAIN = b"scalar_tx_order" (15 bytes). OSSIFIED — spec §2.3.
         assert_eq!(scalar_crypto::domain::DOMAIN_TX_ORDER, b"scalar_tx_order");
     }
 
     #[test]
     fn compliance_test_tx_order_domain_len() {
-        // TX_ORDER_DOMAIN_LEN = 18. Spec §2.3.
+        // TX_ORDER_DOMAIN_LEN = 15. Spec §2.3.
         assert_eq!(scalar_emission::ordering::TX_ORDER_DOMAIN_LEN, 15usize);
     }
 
@@ -158,7 +158,7 @@ mod tests_v12_ordering {
 mod tests_v12_utxo {
     #[test]
     fn compliance_test_utxo_domain_separator() {
-        // DOMAIN_UTXO_SMT = b"scalar_utxo_v2". OSSIFIED — spec §2.3.
+        // DOMAIN_UTXO_SMT = b"scalar_utxo_v2". NON-OSSIFIED (audit K9-02).
         assert_eq!(
             scalar_emission::utxo_set_smt::DOMAIN_UTXO_SMT,
             b"scalar_utxo_v2"
@@ -590,11 +590,11 @@ mod tests_v12_suite_v4 {
         assert!(result.total_selected > 0, "Harus ada peer yang terpilih");
     }
 
-    // ── §XXI: compliance SPEC_VERSION = 0x06 ─────────────────────────────────
+    // ── §XXI: compliance SPEC_VERSION = 0x01 (genesis) ───────────────────────
 
     #[test]
-    fn compliance_spec_version_0x06_manifest() {
-        // Manifest version 0x06 di semua produksi. Spec §XXI, §2.4.
+    fn compliance_spec_version_0x01_manifest() {
+        // Genesis manifest version = 0x01. Spec §XXI, §2.4.
         use scalar_emission::dmm::SPEC_VERSION_MANIFEST;
         use scalar_emission::types::{validate_manifest_version, SPEC_VERSION_CURRENT};
 

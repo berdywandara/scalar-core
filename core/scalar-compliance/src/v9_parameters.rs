@@ -128,7 +128,7 @@ mod tests_v9_l1 {
 
     #[test]
     fn test_spec_version_manifest() {
-        // Spec §8.2: SPEC_VERSION_MANIFEST = 0x02. OSSIFIED.
+        // Spec §2.4/§8.4: SPEC_VERSION_MANIFEST = 0x01 (genesis). OSSIFIED.
         assert_eq!(scalar_emission::dmm::SPEC_VERSION_MANIFEST, 0x01u8);
     }
 
