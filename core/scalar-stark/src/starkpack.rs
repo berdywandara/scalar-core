@@ -27,7 +27,7 @@
 //! Hash discipline: BLAKE3 out-circuit — spec §2.1.
 
 use blake3::Hasher;
-use scalar_crypto::domain::DOMAIN_STARK_BATCH;
+use scalar_crypto::domain::{DOMAIN_STARK_BATCH, DOMAIN_SUBEPOCH_FS};
 
 // ── Constants — OSSIFIED (Decision D-002) ────────────────────────────────────
 
@@ -121,10 +121,11 @@ impl STARKPackTranscript {
         }
 
         // Phase 1 absorption order — OSSIFIED per Research Package §3.4.3
-        self.hasher.update(DOMAIN_STARK_BATCH); // b"scalar_stark_batch" domain separator
-                                                // Note: spec uses b"scalar_subepoch_fs" in Phase 1 per RP §3.4.3 spec
-                                                // but DOMAIN_STARK_BATCH is the STARKPack-specific domain.
-                                                // Using consistent domain for all phases.
+        // Phase 1 domain = b"scalar_subepoch_fs" (RP §3.4.3, §8.3). DISTINCT from
+        // Phase 3's b"scalar_stark_batch" — two domains prevent cross-protocol
+        // correlation between the per-proof commitment phase and the global
+        // DEEP-FRI commitment phase. K7-01 fix.
+        self.hasher.update(DOMAIN_SUBEPOCH_FS);
         self.hasher.update(&commitment.merkle_root);
         self.hasher
             .update(&commitment.constraint_count.to_le_bytes());
@@ -595,5 +596,18 @@ mod tests {
         // DOMAIN_STARK_BATCH = b"scalar_stark_batch" (18 bytes). OSSIFIED.
         assert_eq!(DOMAIN_STARK_BATCH, b"scalar_stark_batch");
         assert_eq!(DOMAIN_STARK_BATCH.len(), 18);
+    }
+
+    // ── K7-01 — Phase 1 (scalar_subepoch_fs) vs Phase 3 (scalar_stark_batch) ──
+    #[test]
+    fn k7_01_phase1_phase3_distinct_domains() {
+        use scalar_crypto::domain::{DOMAIN_STARK_BATCH, DOMAIN_SUBEPOCH_FS};
+        // Both 18 bytes but DISTINCT — prevents cross-protocol correlation (§3.4.3).
+        assert_ne!(
+            DOMAIN_SUBEPOCH_FS, DOMAIN_STARK_BATCH,
+            "K7-01: Phase 1 and Phase 3 must use distinct domain separators"
+        );
+        assert_eq!(DOMAIN_SUBEPOCH_FS, b"scalar_subepoch_fs");
+        assert_eq!(DOMAIN_STARK_BATCH, b"scalar_stark_batch");
     }
 }
