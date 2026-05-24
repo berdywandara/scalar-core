@@ -758,6 +758,24 @@ mod tests {
         assert_eq!(result, VerificationResult::IMTFrontierMismatch);
     }
 
+    #[test]
+    fn test_verify_imt_source_hash_mismatch() {
+        // Step 3 (hash branch, §3.1.5): correct frontier but wrong subepoch_hash.
+        use scalar_crypto::imt::VerificationResult;
+        let mut chain = SubEpochChain::new(1);
+        let mut c = make_commitment(1, 0, [0u8; 32]);
+        let frontier = c.imt_frontier_root;
+        for i in 0..5u8 {
+            c.add_validator_sig([i; 32], vec![i]);
+        }
+        chain.add_commitment(c).unwrap();
+
+        // Quorum OK, but claimed hash is wrong → SubEpochHashMismatch (before frontier check).
+        let wrong_hash = [0xFFu8; 32];
+        let result = chain.verify_imt_source(0, &frontier, &wrong_hash, 100, 1, 1);
+        assert_eq!(result, VerificationResult::SubEpochHashMismatch);
+    }
+
     // ── DMM-lite ──────────────────────────────────────────────────────────────
 
     #[test]
