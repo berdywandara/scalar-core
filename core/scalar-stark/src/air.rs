@@ -122,6 +122,21 @@ impl TransferCircuitPublicInput {
         // SubEpochIMT: imt_frontier_root must be non-zero and count > 0
         self.imt_frontier_root != [0u8; 32] && self.imt_commitment_count > 0
     }
+
+    /// Mutual exclusion guard (INV-4.6): a transaction must NOT claim BOTH an
+    /// EpochSMT root (utxo_set_root) AND a SubEpochIMT root (imt_frontier_root)
+    /// simultaneously. Returns false on the forbidden double-source combination.
+    ///
+    /// WARNING (audit K5-02): this is an OUT-OF-CIRCUIT guard only. The spec
+    /// (INV-4.6, §3.1.3) requires mutual exclusion to be an IN-CIRCUIT AIR
+    /// constraint. The ZK circuit itself is not implemented (audit K5-01),
+    /// so this guard is a partial mitigation, NOT a substitute for the constraint.
+    pub fn enforce_single_utxo_source(&self) -> bool {
+        let uses_epoch_smt = self.utxo_set_root != [0u8; 32];
+        let uses_subepoch_imt = self.uses_imt_source();
+        // Exactly one source allowed (XOR). Neither is also invalid for a spend.
+        uses_epoch_smt ^ uses_subepoch_imt
+    }
 }
 
 /// Public Input lengkap untuk verifier node — digunakan oleh scalar-node.
@@ -531,5 +546,77 @@ mod tests {
         };
         assert_eq!(pi.utxo_set_root, [0xABu8; 32]);
         assert_eq!(pi.crypto_version, 0x01);
+    }
+
+    // ── TV 5.8 — Double-Path Attack (mutual exclusion, INV-4.6) ───────────────
+    // NOTE: out-of-circuit guard test. In-circuit enforcement is NOT implemented
+    // (audit K5-01) — this only proves the helper rejects the double-source combo.
+    #[test]
+    fn tv_5_8_double_path_rejected() {
+        // Both EpochSMT (utxo_set_root) AND SubEpochIMT (imt_frontier_root) set.
+        let pi = TransferCircuitPublicInput {
+            utxo_set_root: [0xAAu8; 32],     // EpochSMT source
+            imt_frontier_root: [0xBBu8; 32], // SubEpochIMT source
+            imt_commitment_count: 5,
+            committed_subepoch_id: 1,
+            crypto_version: 0x01,
+            entry_timestamp: 1_000_000,
+            current_timestamp: 1_000_100,
+        };
+        assert!(
+            !pi.enforce_single_utxo_source(),
+            "TV5.8: claiming BOTH sources must be rejected (INV-4.6)"
+        );
+    }
+
+    #[test]
+    fn tv_5_8_single_epoch_smt_accepted() {
+        let pi = TransferCircuitPublicInput {
+            utxo_set_root: [0xAAu8; 32],
+            imt_frontier_root: [0u8; 32],
+            imt_commitment_count: 0,
+            committed_subepoch_id: 0,
+            crypto_version: 0x01,
+            entry_timestamp: 1_000_000,
+            current_timestamp: 1_000_100,
+        };
+        assert!(
+            pi.enforce_single_utxo_source(),
+            "EpochSMT-only must be accepted"
+        );
+    }
+
+    #[test]
+    fn tv_5_8_single_subepoch_imt_accepted() {
+        let pi = TransferCircuitPublicInput {
+            utxo_set_root: [0u8; 32],
+            imt_frontier_root: [0xBBu8; 32],
+            imt_commitment_count: 5,
+            committed_subepoch_id: 1,
+            crypto_version: 0x01,
+            entry_timestamp: 1_000_000,
+            current_timestamp: 1_000_100,
+        };
+        assert!(
+            pi.enforce_single_utxo_source(),
+            "SubEpochIMT-only must be accepted"
+        );
+    }
+
+    #[test]
+    fn tv_5_8_no_source_rejected() {
+        let pi = TransferCircuitPublicInput {
+            utxo_set_root: [0u8; 32],
+            imt_frontier_root: [0u8; 32],
+            imt_commitment_count: 0,
+            committed_subepoch_id: 0,
+            crypto_version: 0x01,
+            entry_timestamp: 1_000_000,
+            current_timestamp: 1_000_100,
+        };
+        assert!(
+            !pi.enforce_single_utxo_source(),
+            "neither source must be rejected"
+        );
     }
 }
