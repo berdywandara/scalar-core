@@ -23,6 +23,7 @@
 //!   proof::*  — F5, F6, F10, F12 — local ZK proof, zero onchain cost
 //!   record::* — F8, F9 — write-once, biaya 1× fee = 40 sSCL
 
+pub mod pending_pool;
 pub mod proof;
 pub mod query;
 pub mod record;

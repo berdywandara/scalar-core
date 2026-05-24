@@ -313,28 +313,51 @@ impl SubEpochChain {
     /// Verify imt_frontier_root source per Decision D-003.
     ///
     /// Used by verify_imt_source() in network layer.
+    /// Verify imt_frontier_root source per Decision D-003. 5-step (§3.1.5).
+    ///
+    /// Steps: 1 NotFound → 2 QuorumFailed → 3 Hash/FrontierMismatch
+    ///        → 4 IMTCountMismatch → 5 EpochMismatch.
+    #[allow(clippy::too_many_arguments)]
     pub fn verify_imt_source(
         &self,
         subepoch_id: u32,
         claimed_imt_frontier_root: &[u8; 32],
         claimed_subepoch_hash: &[u8; 32],
+        claimed_imt_commitment_count: u64,
+        ref_epoch_id: u64,
+        current_epoch_id: u64,
     ) -> scalar_crypto::imt::VerificationResult {
         use scalar_crypto::imt::VerificationResult;
 
+        // Step 1.
         let Some(commitment) = self.commitments.get(&subepoch_id) else {
             return VerificationResult::SubEpochNotFound;
         };
 
+        // Step 2.
         if !commitment.has_quorum() {
             return VerificationResult::SubEpochQuorumFailed { subepoch_id };
         }
 
+        // Step 3 (hash then frontier).
         if &commitment.subepoch_hash != claimed_subepoch_hash {
             return VerificationResult::SubEpochHashMismatch;
         }
-
         if &commitment.imt_frontier_root != claimed_imt_frontier_root {
             return VerificationResult::IMTFrontierMismatch;
+        }
+
+        // Step 4 (§3.1.5): imt_count pairing with imt_frontier_root (INV-4.2).
+        if commitment.imt_count != claimed_imt_commitment_count {
+            return VerificationResult::IMTCountMismatch;
+        }
+
+        // Step 5 (§3.1.5): SubEpochIMT valid only for the current epoch (INV-4.9, Rule A/C).
+        if ref_epoch_id != current_epoch_id {
+            return VerificationResult::EpochMismatch {
+                tx_epoch_id: ref_epoch_id,
+                current_epoch_id,
+            };
         }
 
         VerificationResult::Valid
@@ -690,7 +713,8 @@ mod tests {
         }
         chain.add_commitment(c).unwrap();
 
-        let result = chain.verify_imt_source(0, &frontier, &hash);
+        // count=100 (make_commitment), epoch ref=current=1.
+        let result = chain.verify_imt_source(0, &frontier, &hash, 100, 1, 1);
         assert_eq!(result, VerificationResult::Valid);
     }
 
@@ -698,7 +722,7 @@ mod tests {
     fn test_verify_imt_source_not_found() {
         use scalar_crypto::imt::VerificationResult;
         let chain = SubEpochChain::new(1);
-        let result = chain.verify_imt_source(99, &[0u8; 32], &[0u8; 32]);
+        let result = chain.verify_imt_source(99, &[0u8; 32], &[0u8; 32], 0, 0, 0);
         assert_eq!(result, VerificationResult::SubEpochNotFound);
     }
 
@@ -711,7 +735,7 @@ mod tests {
         let frontier = c.imt_frontier_root;
         chain.add_commitment(c).unwrap();
 
-        let result = chain.verify_imt_source(0, &frontier, &hash);
+        let result = chain.verify_imt_source(0, &frontier, &hash, 0, 0, 0);
         assert_eq!(
             result,
             VerificationResult::SubEpochQuorumFailed { subepoch_id: 0 }
@@ -730,7 +754,7 @@ mod tests {
         chain.add_commitment(c).unwrap();
 
         let wrong_frontier = [0xFFu8; 32];
-        let result = chain.verify_imt_source(0, &wrong_frontier, &hash);
+        let result = chain.verify_imt_source(0, &wrong_frontier, &hash, 100, 1, 1);
         assert_eq!(result, VerificationResult::IMTFrontierMismatch);
     }
 
@@ -860,6 +884,48 @@ mod tests {
         assert!(
             chain.add_commitment(c).is_ok(),
             "F-005: genesis subepoch must be accepted"
+        );
+    }
+
+    // ── TV 5.6 — IMTCountMismatch (step 4, §3.1.5) ────────────────────────────
+    #[test]
+    fn tv_5_6_imt_count_mismatch() {
+        use scalar_crypto::imt::VerificationResult;
+        let mut chain = SubEpochChain::new(1);
+        let mut c = make_commitment(1, 0, [0u8; 32]); // imt_count = 100
+        let frontier = c.imt_frontier_root;
+        let hash = c.subepoch_hash;
+        for i in 0..5u8 {
+            c.add_validator_sig([i; 32], vec![i]);
+        }
+        chain.add_commitment(c).unwrap();
+
+        // Claim wrong count (50 != 100) — frontier/hash/epoch all correct.
+        let result = chain.verify_imt_source(0, &frontier, &hash, 50, 1, 1);
+        assert_eq!(result, VerificationResult::IMTCountMismatch);
+    }
+
+    // ── TV 5.12 — EpochMismatch (step 5, §3.1.5 / INV-4.9) ────────────────────
+    #[test]
+    fn tv_5_12_epoch_mismatch() {
+        use scalar_crypto::imt::VerificationResult;
+        let mut chain = SubEpochChain::new(1);
+        let mut c = make_commitment(1, 0, [0u8; 32]); // imt_count = 100, epoch_id=1
+        let frontier = c.imt_frontier_root;
+        let hash = c.subepoch_hash;
+        for i in 0..5u8 {
+            c.add_validator_sig([i; 32], vec![i]);
+        }
+        chain.add_commitment(c).unwrap();
+
+        // All correct through step 4, but ref_epoch (0) != current_epoch (1).
+        let result = chain.verify_imt_source(0, &frontier, &hash, 100, 0, 1);
+        assert_eq!(
+            result,
+            VerificationResult::EpochMismatch {
+                tx_epoch_id: 0,
+                current_epoch_id: 1,
+            }
         );
     }
 }

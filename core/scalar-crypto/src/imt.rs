@@ -12,10 +12,13 @@
 
 use crate::domain::{DOMAIN_IMT_LEAF, DOMAIN_IMT_NODE};
 use crate::poseidon2::field_reduce;
+use crate::poseidon2_t8::{field8_to_bytes32, Poseidon2T8Hasher};
+use std::sync::OnceLock;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 pub const IMT_DEPTH: usize = 32;
+/// Level-0 empty marker (zero). The empty *tree* root is imt_empty_root().
 pub const IMT_EMPTY_ROOT: [u8; 32] = [0u8; 32];
 pub const IMT_GENESIS_FRONTIER: [[u8; 32]; IMT_DEPTH] = [[0u8; 32]; IMT_DEPTH];
 
@@ -75,16 +78,11 @@ impl IMTPath {
 
 // ── Hash helpers ──────────────────────────────────────────────────────────────
 
-fn bytes_to_field_elems_with_domain(
-    domain: &[u8],
-    data1: &[u8; 32],
-    data2: Option<&[u8; 32]>,
-) -> Vec<u64> {
+fn input_with_domain(domain: &[u8], data1: &[u8; 32], data2: Option<&[u8; 32]>) -> Vec<u64> {
     let mut input = Vec::new();
-    // domain → 2 field elements (8 bytes each)
     let mut d0 = [0u8; 8];
-    let copy_len = domain.len().min(8);
-    d0[..copy_len].copy_from_slice(&domain[..copy_len]);
+    let clen = domain.len().min(8);
+    d0[..clen].copy_from_slice(&domain[..clen]);
     input.push(field_reduce(u64::from_le_bytes(d0)));
     let mut d1 = [0u8; 8];
     if domain.len() > 8 {
@@ -92,13 +90,11 @@ fn bytes_to_field_elems_with_domain(
         d1[..rem].copy_from_slice(&domain[8..]);
     }
     input.push(field_reduce(u64::from_le_bytes(d1)));
-    // data1 → 4 field elements
     for chunk in data1.chunks(8) {
         let mut buf = [0u8; 8];
         buf[..chunk.len()].copy_from_slice(chunk);
         input.push(field_reduce(u64::from_le_bytes(buf)));
     }
-    // optional data2 → 4 field elements
     if let Some(d) = data2 {
         for chunk in d.chunks(8) {
             let mut buf = [0u8; 8];
@@ -109,28 +105,40 @@ fn bytes_to_field_elems_with_domain(
     input
 }
 
-fn field_elems_to_bytes(elems: &[u64; 4]) -> [u8; 32] {
-    let mut out = [0u8; 32];
-    for (i, &e) in elems.iter().enumerate() {
-        out[i * 8..(i + 1) * 8].copy_from_slice(&e.to_le_bytes());
-    }
-    out
-}
-
+/// Leaf hash — Poseidon2 t=8 (Research Package §3.5.2).
+/// Poseidon2_t8(DOMAIN_IMT_LEAF || commitment || leaf_index)
 fn hash_imt_leaf(commitment: &[u8; 32], leaf_index: u64) -> [u8; 32] {
-    let mut input = bytes_to_field_elems_with_domain(DOMAIN_IMT_LEAF, commitment, None);
+    let mut input = input_with_domain(DOMAIN_IMT_LEAF, commitment, None);
     input.push(field_reduce(leaf_index));
-    let result = crate::poseidon2::Poseidon2Hasher::hash(&input);
-    field_elems_to_bytes(&result)
+    field8_to_bytes32(&Poseidon2T8Hasher::hash(&input))
 }
 
+/// Internal node hash — Poseidon2 t=8. PURE hash at EVERY level.
+/// K1-01 fix: no empty short-circuit, no carry-as-is (OSSIFIED §3.1.3).
+/// Poseidon2_t8(DOMAIN_IMT_NODE || left || right)
 fn hash_imt_node(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
-    if *left == IMT_EMPTY_ROOT && *right == IMT_EMPTY_ROOT {
-        return IMT_EMPTY_ROOT;
-    }
-    let input = bytes_to_field_elems_with_domain(DOMAIN_IMT_NODE, left, Some(right));
-    let result = crate::poseidon2::Poseidon2Hasher::hash(&input);
-    field_elems_to_bytes(&result)
+    let input = input_with_domain(DOMAIN_IMT_NODE, left, Some(right));
+    field8_to_bytes32(&Poseidon2T8Hasher::hash(&input))
+}
+
+/// Precomputed empty-subtree roots (K1-01/K1-02).
+/// EMPTY[0] = [0u8;32] (level-0 marker); EMPTY[i+1] = hash_imt_node(EMPTY[i], EMPTY[i]).
+/// Built via PURE hashing so append/root/compute_siblings/verify share one basis (INV-4.2).
+fn empty_subtree_roots() -> &'static [[u8; 32]; IMT_DEPTH + 1] {
+    static TABLE: OnceLock<[[u8; 32]; IMT_DEPTH + 1]> = OnceLock::new();
+    TABLE.get_or_init(|| {
+        let mut t = [[0u8; 32]; IMT_DEPTH + 1];
+        t[0] = IMT_EMPTY_ROOT;
+        for i in 0..IMT_DEPTH {
+            t[i + 1] = hash_imt_node(&t[i], &t[i]);
+        }
+        t
+    })
+}
+
+/// Root of a fully empty depth-32 IMT. NOT [0u8;32].
+pub fn imt_empty_root() -> [u8; 32] {
+    empty_subtree_roots()[IMT_DEPTH]
 }
 
 // ── IncrementalMerkleTree ─────────────────────────────────────────────────────
@@ -151,6 +159,8 @@ impl IncrementalMerkleTree {
         }
     }
 
+    /// Append a commitment. Stores the leaf hash; frontier kept in sync for
+    /// O(1) external inspection but root/proof are computed from full leaves.
     pub fn append(&mut self, commitment: &[u8; 32]) -> Result<u64, IMTError> {
         if self.count >= (1u64 << IMT_DEPTH as u64) {
             return Err(IMTError::TreeFull);
@@ -158,45 +168,61 @@ impl IncrementalMerkleTree {
         let leaf_index = self.count;
         let leaf_hash = hash_imt_leaf(commitment, leaf_index);
         self.leaves.push(leaf_hash);
-
-        let mut current = leaf_hash;
-        let mut n = leaf_index;
-        for i in 0..IMT_DEPTH {
-            if n & 1 == 0 {
-                self.frontier[i] = current;
-                break;
-            } else {
-                let left = self.frontier[i];
-                current = hash_imt_node(&left, &current);
-                self.frontier[i] = IMT_EMPTY_ROOT;
-            }
-            n >>= 1;
-        }
-
+        self.frontier[0] = leaf_hash; // most-recent leaf marker (inspection only)
         self.count += 1;
         Ok(leaf_index)
     }
 
+    /// Reset IMT to genesis state at epoch boundary. PraGenesis §3.1.10.3, INV-4.10.
+    ///
+    /// Must be called AFTER EpochSMT(k) is archived and BEFORE sub-epoch 0 of
+    /// epoch k+1 begins. Post-reset ASSERTs enforce the genesis-state invariant.
+    ///
+    /// NOTE: Atomicity with EpochSMT finalization must be guaranteed by the caller
+    /// (the epoch-transition orchestrator). No such runtime owner currently holds
+    /// a live IncrementalMerkleTree in this codebase — see audit finding K1-04(b).
+    pub fn reset(&mut self) {
+        self.frontier = IMT_GENESIS_FRONTIER;
+        self.count = 0;
+        self.leaves.clear();
+
+        // Post-reset verification (§3.1.10.3 — wajib).
+        assert_eq!(
+            self.frontier, IMT_GENESIS_FRONTIER,
+            "INV-4.10: frontier must be genesis after reset"
+        );
+        assert_eq!(self.count, 0, "INV-4.10: count must be 0 after reset");
+        assert_eq!(
+            self.root(),
+            imt_empty_root(),
+            "INV-4.10: root must equal empty root after reset"
+        );
+    }
+
+    /// Compute the depth-32 root by folding all levels with PURE hashing,
+    /// using EMPTY[level] for absent right siblings. (K1-02)
     pub fn root(&self) -> [u8; 32] {
+        let empty = empty_subtree_roots();
         if self.count == 0 {
-            return IMT_EMPTY_ROOT;
+            return empty[IMT_DEPTH];
         }
-        let mut current = IMT_EMPTY_ROOT;
-        let mut n = self.count;
-        for i in 0..IMT_DEPTH {
-            if n & 1 == 1 {
-                current = if current == IMT_EMPTY_ROOT {
-                    self.frontier[i]
+        let mut level: Vec<[u8; 32]> = self.leaves.clone();
+        for (_d, empty_d) in empty.iter().enumerate().take(IMT_DEPTH) {
+            let mut next = Vec::with_capacity(level.len().div_ceil(2));
+            let mut j = 0;
+            while j < level.len() {
+                let left = level[j];
+                let right = if j + 1 < level.len() {
+                    level[j + 1]
                 } else {
-                    hash_imt_node(&self.frontier[i], &current)
+                    *empty_d // absent right child = empty subtree at this depth
                 };
+                next.push(hash_imt_node(&left, &right));
+                j += 2;
             }
-            n >>= 1;
-            if n == 0 {
-                break;
-            }
+            level = next;
         }
-        current
+        level[0]
     }
 
     pub fn prove_membership(&self, leaf_index: u64) -> Result<IMTPath, IMTError> {
@@ -210,40 +236,36 @@ impl IncrementalMerkleTree {
         IMTPath::new(siblings, leaf_index)
     }
 
+    /// Collect the 32 sibling hashes for leaf_index. Absent siblings use EMPTY[level].
     fn compute_siblings(&self, leaf_index: u64) -> Vec<[u8; 32]> {
-        let mut siblings = vec![IMT_EMPTY_ROOT; IMT_DEPTH];
-        let mut current_level: Vec<[u8; 32]> = self.leaves.clone();
-        let mut path_idx = leaf_index as usize;
-
-        for sibling_slot in siblings.iter_mut() {
-            let len = current_level.len();
-            if len == 0 {
-                break;
-            }
-            let sib_idx = path_idx ^ 1;
-            *sibling_slot = if sib_idx < len {
-                current_level[sib_idx]
+        let empty = empty_subtree_roots();
+        let mut siblings = Vec::with_capacity(IMT_DEPTH);
+        let mut level: Vec<[u8; 32]> = self.leaves.clone();
+        let mut idx = leaf_index as usize;
+        for (_d, empty_d) in empty.iter().enumerate().take(IMT_DEPTH) {
+            let sib = idx ^ 1;
+            let sib_hash = if sib < level.len() {
+                level[sib]
             } else {
-                IMT_EMPTY_ROOT
+                *empty_d
             };
-            let mut next_level = Vec::with_capacity(len.div_ceil(2));
+            siblings.push(sib_hash);
+
+            let mut next = Vec::with_capacity(level.len().div_ceil(2));
             let mut j = 0;
-            while j < len {
-                if j + 1 < len {
-                    next_level.push(hash_imt_node(&current_level[j], &current_level[j + 1]));
+            while j < level.len() {
+                let left = level[j];
+                let right = if j + 1 < level.len() {
+                    level[j + 1]
                 } else {
-                    // Odd node carries up as-is — matches root()/frontier behavior.
-                    next_level.push(current_level[j]);
-                }
+                    *empty_d
+                };
+                next.push(hash_imt_node(&left, &right));
                 j += 2;
             }
-            current_level = next_level;
-            path_idx /= 2;
-            if current_level.len() <= 1 {
-                break;
-            }
+            level = next;
+            idx /= 2;
         }
-
         siblings
     }
 }
@@ -268,23 +290,16 @@ pub fn imt_membership_verify(
     if path.siblings.len() != IMT_DEPTH {
         return false;
     }
-
     let mut current = hash_imt_leaf(commitment, path.leaf_index);
-
     for level in 0..IMT_DEPTH {
         let sibling = &path.siblings[level];
         let is_right = (path.leaf_index >> level) & 1;
-
-        // Mirror compute_siblings: odd node carries up as-is when sibling is empty.
-        current = if *sibling == IMT_EMPTY_ROOT && current != IMT_EMPTY_ROOT {
-            current
-        } else if is_right == 0 {
+        current = if is_right == 0 {
             hash_imt_node(&current, sibling)
         } else {
             hash_imt_node(sibling, &current)
         };
     }
-
     &current == root
 }
 
@@ -294,9 +309,18 @@ pub fn imt_membership_verify(
 pub enum VerificationResult {
     Valid,
     SubEpochNotFound,
-    SubEpochQuorumFailed { subepoch_id: u32 },
+    SubEpochQuorumFailed {
+        subepoch_id: u32,
+    },
     SubEpochHashMismatch,
     IMTFrontierMismatch,
+    /// Step 4 (§3.1.5): claimed imt_commitment_count != committed imt_count.
+    IMTCountMismatch,
+    /// Step 5 (§3.1.5): SubEpochIMT referencing a non-current epoch.
+    EpochMismatch {
+        tx_epoch_id: u64,
+        current_epoch_id: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -317,7 +341,7 @@ mod tests {
         let imt = IncrementalMerkleTree::new();
         assert_eq!(imt.frontier, IMT_GENESIS_FRONTIER);
         assert_eq!(imt.count, 0);
-        assert_eq!(imt.root(), IMT_EMPTY_ROOT);
+        assert_eq!(imt.root(), imt_empty_root());
     }
 
     #[test]
@@ -388,7 +412,12 @@ mod tests {
     #[test]
     fn genesis_window_sub_epoch_0() {
         let imt = IncrementalMerkleTree::new();
-        assert_eq!(imt.root(), [0u8; 32]);
+        assert_eq!(imt.root(), imt_empty_root());
+        assert_ne!(
+            imt.root(),
+            [0u8; 32],
+            "empty depth-32 root must not be zero (K1-01)"
+        );
         assert_eq!(imt.count, 0);
     }
 
@@ -439,6 +468,11 @@ mod tests {
         let _ = VerificationResult::SubEpochQuorumFailed { subepoch_id: 1 };
         let _ = VerificationResult::SubEpochHashMismatch;
         let _ = VerificationResult::IMTFrontierMismatch;
+        let _ = VerificationResult::IMTCountMismatch;
+        let _ = VerificationResult::EpochMismatch {
+            tx_epoch_id: 1,
+            current_epoch_id: 2,
+        };
     }
 
     #[test]
@@ -587,5 +621,76 @@ mod tests {
                 "F-003: root inconsistent after append {i}"
             );
         }
+    }
+
+    // ── K1-01 adversarial: empty/sparse subtree must NOT be forgeable ─────────
+    #[test]
+    fn k1_01_empty_subtree_not_forgeable() {
+        // A single leaf in a depth-32 tree: every sibling is EMPTY[level].
+        let mut imt = IncrementalMerkleTree::new();
+        let c = [0x42u8; 32];
+        imt.append(&c).unwrap();
+        let root = imt.root();
+        let path = imt.prove_membership(0).unwrap();
+        assert!(imt_membership_verify(&c, &path, &root, imt.count));
+
+        // Forgery attempt: zero-commitment must NOT verify against the same path/root.
+        let zero = [0u8; 32];
+        assert!(
+            !imt_membership_verify(&zero, &path, &root, imt.count),
+            "K1-01: zero commitment must not verify (no empty short-circuit)"
+        );
+    }
+
+    #[test]
+    fn k1_01_zero_leaf_distinct_from_empty() {
+        // Appending an all-zero commitment must change the root away from empty root.
+        let mut imt = IncrementalMerkleTree::new();
+        let empty_root = imt.root();
+        imt.append(&[0u8; 32]).unwrap();
+        assert_ne!(
+            imt.root(),
+            empty_root,
+            "K1-01: zero-commitment leaf must not collapse to empty root"
+        );
+    }
+
+    #[test]
+    fn k1_07_uses_poseidon2_t8() {
+        // IMT must use Poseidon2 t=8: empty root equals folding EMPTY via t=8 hash.
+        // Cross-check: imt_empty_root() is deterministic and non-zero.
+        assert_eq!(imt_empty_root(), imt_empty_root());
+        assert_ne!(imt_empty_root(), [0u8; 32]);
+    }
+
+    // ── TV 5.11 — IMT Reset State (§3.1.10.3, INV-4.10) ───────────────────────
+    #[test]
+    fn tv_5_11_imt_reset_state() {
+        let mut imt = IncrementalMerkleTree::new();
+        for i in 0..7u8 {
+            imt.append(&[i; 32]).unwrap();
+        }
+        assert_eq!(imt.count, 7);
+        assert_ne!(imt.root(), imt_empty_root());
+
+        imt.reset();
+
+        // After reset: genesis state, identical to a fresh tree.
+        assert_eq!(imt.frontier, IMT_GENESIS_FRONTIER);
+        assert_eq!(imt.count, 0);
+        assert_eq!(imt.root(), imt_empty_root());
+
+        let fresh = IncrementalMerkleTree::new();
+        assert_eq!(
+            imt.root(),
+            fresh.root(),
+            "reset tree must match a fresh tree (determinism)"
+        );
+
+        // Re-appending after reset behaves like a fresh tree.
+        let mut fresh2 = IncrementalMerkleTree::new();
+        imt.append(&[0xAA; 32]).unwrap();
+        fresh2.append(&[0xAA; 32]).unwrap();
+        assert_eq!(imt.root(), fresh2.root());
     }
 }

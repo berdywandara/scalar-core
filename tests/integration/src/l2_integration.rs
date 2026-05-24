@@ -299,16 +299,16 @@ fn test_e2e_imt_subepoch_verify_source() {
     chain.add_commitment(commitment).unwrap();
 
     // Step 4: verify_imt_source — valid case
-    let result = chain.verify_imt_source(0, &frontier_root, &subepoch_hash);
+    let result = chain.verify_imt_source(0, &frontier_root, &subepoch_hash, count, 2, 2);
     assert_eq!(result, VerificationResult::Valid);
 
     // Step 5: wrong frontier → mismatch
     let wrong_frontier = [0xFFu8; 32];
-    let result2 = chain.verify_imt_source(0, &wrong_frontier, &subepoch_hash);
+    let result2 = chain.verify_imt_source(0, &wrong_frontier, &subepoch_hash, count, 2, 2);
     assert_eq!(result2, VerificationResult::IMTFrontierMismatch);
 
     // Step 6: non-existent subepoch
-    let result3 = chain.verify_imt_source(999, &frontier_root, &subepoch_hash);
+    let result3 = chain.verify_imt_source(999, &frontier_root, &subepoch_hash, count, 2, 2);
     assert_eq!(result3, VerificationResult::SubEpochNotFound);
 
     // Step 7: prove membership for leaf 0 — verify with frontier
