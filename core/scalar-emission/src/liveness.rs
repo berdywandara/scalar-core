@@ -174,7 +174,10 @@ pub fn compute_heartbeat_mac(
 /// NOTE: prev_hash field dari HB sebelumnya TIDAK disertakan —
 /// hanya mac(n-1) yang menjadi chain anchor.
 ///
-/// Genesis: prev_hash(0) = BLAKE3(genesis_object_bytes) — spec §7.2a.
+/// Genesis: prev_hash(0) = [0u8;32] for the very first heartbeat (no prior HB).
+/// (Implementation: heartbeat_service sets [0u8;32] when last_hb_bytes is None.)
+/// On epoch rollover, the first HB of epoch k+1 chains from EpochAnchor.chain_head
+/// of epoch k (see EpochAnchor below), NOT from a genesis_object hash.
 ///
 /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 pub fn compute_prev_hash(hb: &NodeHeartbeat) -> [u8; 32] {
@@ -1058,5 +1061,111 @@ mod epoch_anchor_tests {
     fn test_epoch_anchor_timing_constant() {
         // Spec §7.2a: EpochAnchor dikirim di END_EPOCH.
         assert_eq!(EPOCH_ANCHOR_TIMING, "END_EPOCH");
+    }
+
+    // ── TV 5.4 — MAC sensitivity to imt_frontier & imt_count (§3.1.4, INV-4.4) ─
+    #[test]
+    fn tv_5_4_mac_sensitive_to_imt_frontier() {
+        let nke = [0x01u8; 32];
+        let nid = [0x02u8; 4];
+        // Identical except imt_frontier.
+        let mac_a = compute_heartbeat_mac(
+            &nke,
+            &nid,
+            1,
+            600,
+            &[0xAAu8; 32],
+            &[0x00u8; 32],
+            42u64,
+            &[0xBBu8; 32],
+        );
+        let mac_b = compute_heartbeat_mac(
+            &nke,
+            &nid,
+            1,
+            600,
+            &[0xAAu8; 32],
+            &[0xCDu8; 32],
+            42u64,
+            &[0xBBu8; 32],
+        );
+        assert_ne!(
+            mac_a, mac_b,
+            "TV5.4: MAC must change when imt_frontier changes"
+        );
+    }
+
+    #[test]
+    fn tv_5_4_mac_sensitive_to_imt_count() {
+        let nke = [0x01u8; 32];
+        let nid = [0x02u8; 4];
+        // Identical except imt_count.
+        let mac_a = compute_heartbeat_mac(
+            &nke,
+            &nid,
+            1,
+            600,
+            &[0xAAu8; 32],
+            &[0xCDu8; 32],
+            42u64,
+            &[0xBBu8; 32],
+        );
+        let mac_b = compute_heartbeat_mac(
+            &nke,
+            &nid,
+            1,
+            600,
+            &[0xAAu8; 32],
+            &[0xCDu8; 32],
+            43u64,
+            &[0xBBu8; 32],
+        );
+        assert_ne!(
+            mac_a, mac_b,
+            "TV5.4: MAC must change when imt_count changes"
+        );
+    }
+
+    // ── TV 5.4 — prev_hash chain integrity includes imt fields + mac(n-1) ─────
+    #[test]
+    fn tv_5_4_prev_hash_sensitive_to_imt_and_mac() {
+        let base = NodeHeartbeat {
+            node_id: [0x02u8; 4],
+            seq_num: 1,
+            timestamp: 600,
+            smt_root: [0xAAu8; 32],
+            imt_frontier: [0xCDu8; 32],
+            imt_count: 42,
+            prev_hash: [0xBBu8; 32],
+            mac: [0x11u8; 32],
+        };
+        let h_base = compute_prev_hash(&base);
+
+        // Changing imt_frontier(n-1) must change prev_hash(n).
+        let mut a = base.clone();
+        a.imt_frontier = [0xEEu8; 32];
+        assert_ne!(
+            h_base,
+            compute_prev_hash(&a),
+            "prev_hash must depend on imt_frontier(n-1)"
+        );
+
+        // Changing imt_count(n-1) must change prev_hash(n).
+        let mut b = base.clone();
+        b.imt_count = 99;
+        assert_ne!(
+            h_base,
+            compute_prev_hash(&b),
+            "prev_hash must depend on imt_count(n-1)"
+        );
+
+        // Changing mac(n-1) must change prev_hash(n) — INV-4.4 chain anchor.
+        let mut c = base.clone();
+        c.mac = [0x22u8; 32];
+        assert_ne!(
+            h_base,
+            compute_prev_hash(&c),
+            "prev_hash must depend on mac(n-1)"
+        );
     }
 }
