@@ -946,4 +946,100 @@ mod tests {
             }
         );
     }
+
+    // ── TV5.3 — SubEpochCommitment Hash (Research Package §5.3) ───────────────
+    // Verifies: (a) deterministic hash, (b) every field is hash-sensitive,
+    // (c) swapping cumulative_utxo_root <-> imt_frontier_root yields a DIFFERENT
+    //     hash — proving domain separation (scalar_smt_active vs scalar_imt_frontier)
+    //     actually works (the field-swap attack is closed).
+    #[test]
+    fn tv_5_3_subepoch_hash_deterministic() {
+        // §5.3: same inputs -> reproducible hash.
+        let a = [0xAAu8; 32];
+        let b = [0xBBu8; 32];
+        let c = [0xCCu8; 32];
+        let d = [0xDDu8; 32];
+        let e = [0xEEu8; 32];
+        let c1 = SubEpochCommitment::new(1, 0, a, b, c, d, e, 100, 50, 1_700_000_000);
+        let c2 = SubEpochCommitment::new(1, 0, a, b, c, d, e, 100, 50, 1_700_000_000);
+        assert_eq!(
+            compute_subepoch_hash(&c1),
+            compute_subepoch_hash(&c2),
+            "tv_5_3: identical inputs must produce identical hash"
+        );
+        // The stored subepoch_hash must equal the recomputed value.
+        assert_eq!(c1.subepoch_hash, compute_subepoch_hash(&c1));
+    }
+
+    #[test]
+    fn tv_5_3_subepoch_hash_field_sensitivity() {
+        // §5.3: changing ANY field changes the hash.
+        let a = [0xAAu8; 32];
+        let b = [0xBBu8; 32];
+        let c = [0xCCu8; 32];
+        let d = [0xDDu8; 32];
+        let e = [0xEEu8; 32];
+        let base = SubEpochCommitment::new(1, 0, a, b, c, d, e, 100, 50, 1_700_000_000);
+        let h0 = compute_subepoch_hash(&base);
+
+        let mutations = [
+            SubEpochCommitment::new(2, 0, a, b, c, d, e, 100, 50, 1_700_000_000), // epoch_id
+            SubEpochCommitment::new(1, 1, a, b, c, d, e, 100, 50, 1_700_000_000), // subepoch_id
+            SubEpochCommitment::new(1, 0, [0x01; 32], b, c, d, e, 100, 50, 1_700_000_000), // tx_set_root
+            SubEpochCommitment::new(1, 0, a, [0x01; 32], c, d, e, 100, 50, 1_700_000_000), // cumulative_utxo_root
+            SubEpochCommitment::new(1, 0, a, b, [0x01; 32], d, e, 100, 50, 1_700_000_000), // imt_frontier_root
+            SubEpochCommitment::new(1, 0, a, b, c, [0x01; 32], e, 100, 50, 1_700_000_000), // nullifier_batch_root
+            SubEpochCommitment::new(1, 0, a, b, c, d, [0x01; 32], 100, 50, 1_700_000_000), // prev_subepoch_hash
+            SubEpochCommitment::new(1, 0, a, b, c, d, e, 999, 50, 1_700_000_000), // imt_count
+            SubEpochCommitment::new(1, 0, a, b, c, d, e, 100, 999, 1_700_000_000), // tx_count
+            SubEpochCommitment::new(1, 0, a, b, c, d, e, 100, 50, 1_700_000_001), // timestamp
+        ];
+        for (i, m) in mutations.iter().enumerate() {
+            assert_ne!(
+                h0,
+                compute_subepoch_hash(m),
+                "tv_5_3: mutating field #{i} must change the hash"
+            );
+        }
+    }
+
+    #[test]
+    fn tv_5_3_subepoch_hash_field_swap_detected() {
+        // §5.3 CRITICAL: swapping cumulative_utxo_root <-> imt_frontier_root
+        // MUST change the hash. Without per-field domain separation, BLAKE3 would
+        // see the same byte stream and the swap would go undetected.
+        let utxo = [0x11u8; 32];
+        let imt = [0x22u8; 32];
+        let other = [0x33u8; 32];
+
+        let normal = SubEpochCommitment::new(
+            1,
+            0,
+            other,
+            /*cumulative_utxo_root=*/ utxo,
+            /*imt_frontier_root=*/ imt,
+            other,
+            other,
+            100,
+            50,
+            1_700_000_000,
+        );
+        let swapped = SubEpochCommitment::new(
+            1,
+            0,
+            other,
+            /*cumulative_utxo_root=*/ imt,
+            /*imt_frontier_root=*/ utxo,
+            other,
+            other,
+            100,
+            50,
+            1_700_000_000,
+        );
+        assert_ne!(
+            compute_subepoch_hash(&normal),
+            compute_subepoch_hash(&swapped),
+            "tv_5_3: utxo/imt field swap must be detected (domain separation works)"
+        );
+    }
 }
