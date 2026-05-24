@@ -354,6 +354,9 @@ impl NullifierSet {
     /// Production: Winterfell recursive STARK proof, timeout 300s.
     fn generate_checkpoint_proof_stub(epoch: u64, archived_root: &[u8; 32], count: u64) -> Vec<u8> {
         let mut hasher = blake3::Hasher::new();
+        // K9-03 NOTE: b"scalar_checkpoint_stub" is a PLACEHOLDER, NOT in the
+        // OSSIFIED domain registry (§8). The recursive STARK checkpoint proof
+        // (RP §6) is not implemented; this stub stands in until then.
         hasher.update(b"scalar_checkpoint_stub");
         hasher.update(&epoch.to_le_bytes());
         hasher.update(archived_root);

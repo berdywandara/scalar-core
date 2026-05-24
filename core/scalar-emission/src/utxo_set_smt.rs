@@ -21,7 +21,13 @@ use blake3::Hasher;
 
 // ── Constants — spec §8.5, §16.1 ─────────────────────────────────────────────
 
-/// Domain separator untuk UTXO commitment. OSSIFIED — spec §2.3.
+/// Domain separator for the UTXO-set root accumulator.
+///
+/// K9-02 NOTE: b"scalar_utxo_v2" is NOT in the OSSIFIED registry (§2.3 / RP §8).
+/// The earlier "OSSIFIED — spec §2.3" claim was incorrect. This separator is a
+/// local, NON-OSSIFIED choice for UtxoSetSMT::compute_root and must be either
+/// (a) added to the canonical domain registry, or (b) reconciled to an existing
+/// OSSIFIED separator, before genesis. Tracked as audit finding K9-02.
 pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_v2";
 
 /// Epoch ID awal (genesis). Spec §8.5.
@@ -441,7 +447,7 @@ mod tests {
 
     #[test]
     fn test_domain_separator_utxo_ossified() {
-        // DOMAIN_UTXO_SMT = b"scalar_utxo_v2". OSSIFIED — spec §2.3.
+        // DOMAIN_UTXO_SMT = b"scalar_utxo_v2". NON-OSSIFIED (audit K9-02).
         assert_eq!(DOMAIN_UTXO_SMT, b"scalar_utxo_v2");
     }
 

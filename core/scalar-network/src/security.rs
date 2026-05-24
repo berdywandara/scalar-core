@@ -15,8 +15,6 @@
 //! (3) Gossip Rate Limiting:
 //!   Mencegah flooding DMM requests via rate limiter di gossip layer.
 
-use blake3::Hasher;
-
 // ── DMM Manipulation Attack Mitigation — spec §14.3 ──────────────────────────
 
 /// Error keamanan DMM. Spec §14.3.
@@ -129,13 +127,14 @@ pub fn verify_tx_ordering_key_deterministic(
 
 /// Hitung tx_ordering_key. Spec §8.5, §14.3.
 ///
-/// BLAKE3(b"scalar_tx_order_v1" || tx_hash || epoch_id_le64)
+/// K9-01 fix: delegates to the SINGLE canonical implementation in
+/// scalar_emission::ordering (DOMAIN_TX_ORDER = b"scalar_tx_order"), removing a
+/// previous divergent b"scalar_tx_order_v1" copy that broke determinism parity
+/// with the on-chain canonical ordering (§8.5).
+///
+/// NOTE: `tx_hash` here is treated as the canonical TXID input to ordering.
 fn compute_ordering_key(tx_hash: &[u8; 32], epoch_id: u64) -> [u8; 32] {
-    let mut hasher = Hasher::new();
-    hasher.update(b"scalar_tx_order_v1");
-    hasher.update(tx_hash);
-    hasher.update(&epoch_id.to_le_bytes());
-    *hasher.finalize().as_bytes()
+    scalar_emission::ordering::compute_tx_ordering_key(tx_hash, epoch_id)
 }
 
 /// Verifikasi bahwa dua node menghasilkan ordering identik untuk tx set yang sama.
