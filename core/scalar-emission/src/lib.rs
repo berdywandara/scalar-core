@@ -20,6 +20,7 @@ pub mod slashing;
 pub mod succession;
 pub mod types;
 pub mod utxo_set_smt;
+pub use utxo_set_smt::{UtxoSetSMT, UtxoSetState, DOMAIN_UTXO_SMT, GENESIS_EPOCH_ID};
 
 // ── EmissionError — digunakan oleh accumulator dan modul lain ────────────────
 

@@ -23,6 +23,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 scalar-consensus = { path = "../scalar-consensus" }
 hex = "0.4"
 blake3 = { workspace = true }
+thiserror = { workspace = true }
 scalar-emission = { path = "../scalar-emission" }
 libp2p = { workspace = true, features = ["gossipsub", "kad", "macros", "noise", "tcp", "tokio", "yamux"] }
 futures = "0.3"
