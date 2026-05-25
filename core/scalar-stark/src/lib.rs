@@ -19,6 +19,7 @@ pub mod transfer_air;
 // ── Legacy modules (retained for consumer compatibility) ──────────────────────
 pub mod air;
 pub mod constraints;
+pub mod independent_stark_verifier;
 pub mod independent_verifier;
 pub mod mint;
 pub mod prover;

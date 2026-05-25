@@ -482,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(not(feature = "bench-hardware"), ignore)]
+    #[ignore = "hardware spec benchmark — run manually on server CPU, not CI"]
     fn bench_mint_proving_time_hardware_spec() {
         use std::time::Instant;
         let pi = valid_pi();

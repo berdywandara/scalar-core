@@ -607,7 +607,7 @@ mod tests {
     /// Target: <=500ms for production circuit on 8GB RAM server CPU.
     /// This test validates the normalization target, not CI performance.
     #[test]
-    #[cfg_attr(not(feature = "bench-hardware"), ignore)]
+    #[ignore = "hardware spec benchmark — run manually on server CPU, not CI"]
     fn bench_proving_time_hardware_spec() {
         use std::time::Instant;
         let pi = valid_pi();
