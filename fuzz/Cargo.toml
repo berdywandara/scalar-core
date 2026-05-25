@@ -51,4 +51,16 @@ test = false
 doc = false
 bench = false
 
+
+[dependencies.scalar-stark]
+path = "../core/scalar-stark"
+
+
+[[bin]]
+name = "fuzz_starkpack_adversarial"
+path = "fuzz_targets/fuzz_starkpack_adversarial.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]
