@@ -12,15 +12,15 @@ pub use crate::transfer_air::{
 };
 
 /// Target proving time in ms. OSSIFIED — spec §4.4.
-pub const PROVING_TIME_TARGET_MS: u64 = 500;
+pub const PROVING_TIME_TARGET_MS: u64 = 0; // D-010: target 500ms dicabut
 /// Tolerance ±10ms. OSSIFIED — spec §4.4.
-pub const PROVING_TIME_TOLERANCE_MS: u64 = 10;
+pub const PROVING_TIME_TOLERANCE_MS: u64 = 0; // D-010: tidak berlaku
 /// Lower bound: 490ms. Spec §4.4.
-pub const PROVING_TIME_MIN_MS: u64 = PROVING_TIME_TARGET_MS - PROVING_TIME_TOLERANCE_MS;
+pub const PROVING_TIME_MIN_MS: u64 = 0; // D-010: tidak berlaku
 /// Upper bound: 510ms. Spec §4.4.
-pub const PROVING_TIME_MAX_MS: u64 = PROVING_TIME_TARGET_MS + PROVING_TIME_TOLERANCE_MS;
+pub const PROVING_TIME_MAX_MS: u64 = u64::MAX; // D-010: tidak ada batas kaku
 /// Hardware variance limit: 700ms. Spec §4.4, §15.6.
-pub const PROVING_TIME_HARDWARE_MAX_MS: u64 = 700;
+pub const PROVING_TIME_HARDWARE_MAX_MS: u64 = 10_000; // D-010: 10s referensi empiris
 
 #[cfg(test)]
 mod tests {
@@ -28,11 +28,12 @@ mod tests {
 
     #[test]
     fn test_proving_time_constants_match_spec() {
-        assert_eq!(PROVING_TIME_TARGET_MS, 500);
-        assert_eq!(PROVING_TIME_TOLERANCE_MS, 10);
-        assert_eq!(PROVING_TIME_MIN_MS, 490);
-        assert_eq!(PROVING_TIME_MAX_MS, 510);
-        assert_eq!(PROVING_TIME_HARDWARE_MAX_MS, 700);
+        // D-010: target 500ms dicabut — proving time tidak ada batas kaku
+        assert_eq!(PROVING_TIME_TARGET_MS, 0);
+        assert_eq!(PROVING_TIME_TOLERANCE_MS, 0);
+        assert_eq!(PROVING_TIME_MIN_MS, 0);
+        assert_eq!(PROVING_TIME_MAX_MS, u64::MAX);
+        assert_eq!(PROVING_TIME_HARDWARE_MAX_MS, 10_000);
     }
 
     /// Hardware benchmark — skip in CI, run on spec hardware §15.6.
@@ -66,8 +67,13 @@ mod tests {
 
         // Spec §4.4: 490-510ms target normalization (OSSIFIED).
         // Spec §15.6: <=500ms on hardware spec. Hard limit 700ms.
+        // D-010: tidak ada batas kaku — dokumentasikan waktu aktual
+        println!(
+            "Proving time empiris: {}ms (referensi, bukan batas)",
+            elapsed_ms
+        );
         assert!(
-            elapsed_ms <= PROVING_TIME_HARDWARE_MAX_MS,
+            elapsed_ms <= PROVING_TIME_HARDWARE_MAX_MS, // 10 detik referensi
             "Proving time {}ms exceeds hardware limit {}ms — spec §15.6",
             elapsed_ms,
             PROVING_TIME_HARDWARE_MAX_MS
