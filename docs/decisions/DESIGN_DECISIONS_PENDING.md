@@ -1,53 +1,98 @@
-# Pending Design Decisions — Pre-Genesis
-## Audit Findings Requiring Team Confirmation
+# Design Decisions — Pre-Genesis Final Record
 
-### D.1 K9-02 — `scalar_utxo_v2` (DOMAIN_UTXO_SMT) Not in OSSIFIED Registry
-
-**Current state**: `core/scalar-emission/src/utxo_set_smt.rs` defines
-`DOMAIN_UTXO_SMT = b"scalar_utxo_v2"` (18 bytes). This separator is NOT
-registered in `core/scalar-crypto/src/domain.rs` (§2.3 OSSIFIED registry).
-
-**Two options**:
-
-| Option | Action | Impact |
-|--------|--------|--------|
-| A | Register `scalar_utxo_v2` as new OSSIFIED separator in `domain.rs` | Changes on-chain `utxo_set_root` — requires hard fork after genesis |
-| B | Replace with existing OSSIFIED separator `scalar_smt_active` (17 bytes) | Keeps registry clean; `utxo_set_root` recomputation needed pre-genesis |
-
-**Trade-off**:
-- Option A: cleaner semantics (UTXO set ≠ active nullifier SMT), but adds new OSSIFIED constant
-- Option B: no new constant, but reuses a separator already used for NullifierSet active layer — potential domain collision risk
-
-**Recommendation**: Option A (register as OSSIFIED). The UTXO set is conceptually distinct from the NullifierSet active layer. Reusing `scalar_smt_active` risks domain collision.
+All decisions documented below have been **resolved** by the protocol architect.
+Items that still require team confirmation before testnet/mainnet are tagged
+`AWAITING CONFIRMATION`.
 
 ---
 
-### D.2 K2-04 — Struct Naming: `NodeHeartbeat` vs `HeartbeatUnit`
+### D.1 K9-02 – `scalar_utxo_v2` (DOMAIN_UTXO_SMT) Not in OSSIFIED Registry
 
-**Current state**: `scalar-emission/src/liveness.rs` defines `NodeHeartbeat`.
-The spec (§7.3) names it `HeartbeatUnit`.
+**FINAL DECISION: OPTION A – APPROVED WITH MODIFICATION**  
+**Status: RESOLVED**
 
-**Decision needed**: Rename to `HeartbeatUnit` for spec consistency, or keep
-`NodeHeartbeat` and update spec. This is a cosmetic change — no protocol impact.
+The UTXO-set root domain separator `b"scalar_utxo_v2"` (18 bytes) was not listed
+in the OSSIFIED domain registry (§2.3).
 
-**Recommendation**: Rename to `HeartbeatUnit`. The spec is the source of truth.
+**Actions taken:**
+
+1. Registered `b"scalar_utxo_set"` (15 bytes) as the canonical OSSIFIED constant
+   `DOMAIN_UTXO_SMT` in `core/scalar-crypto/src/domain.rs`. The version suffix
+   `_v2` was dropped to match the naming convention of all other separators.
+2. Updated `core/scalar-emission/src/utxo_set_smt.rs` to use
+   `DOMAIN_UTXO_SMT = b"scalar_utxo_set"`.
+3. Replaced raw literals in `scalar-wallet-core` and `scalar-compliance` with
+   the imported constant.
+4. **Pre-genesis action required:** recompute `utxo_set_root` with the final
+   separator before the genesis ceremony.
+
+Reusing `scalar_smt_active` was rejected: the UTXO set (CB constraint) and the
+NullifierSet active layer (CC constraint) serve different cryptographic purposes
+and MUST use distinct domain separators (§2.3).
 
 ---
 
-### D.3 Catatan — UtxoSetSMT::compute_root is Sequential Hash, Not SMT
+### D.2 K2-04 – Struct Naming: `NodeHeartbeat` vs `HeartbeatUnit`
 
-**Current state**: `UtxoSetSMT::compute_root()` uses `BLAKE3(DOMAIN_UTXO_SMT || c0 || c1 || ...)` — sequential hash of all commitments, not a true Sparse Merkle Tree.
+**FINAL DECISION: RENAME TO `HeartbeatUnit` – APPROVED**  
+**Status: RESOLVED**
 
-**Spec requirement** (§8.5, §16.1): The spec names this "UtxoSetSMT" and references membership proofs. If true SMT membership proofs are required for UTXO set verification (CB constraint), this implementation is insufficient.
+The Rust struct was named `NodeHeartbeat` while the specification (§7.3) and
+the optimisation document consistently use `HeartbeatUnit`.
 
-**Decision needed**: 
-- (a) Accept sequential hash for UTXO set root (no per-UTXO membership proof needed for CB constraint — membership is verified out-of-circuit via the canonical ordering proof)
-- (b) Replace with true SMT for per-UTXO membership proofs in-circuit
+**Actions taken:**
 
-**Recommendation**: (a) for genesis. The CB constraint in Transfer Circuit uses the root as a public input, with membership verified by the prover (who has the full UTXO set). A true SMT can be added post-genesis as a non-breaking upgrade.
+1. Renamed the struct and all references in **11 files** across
+   `scalar-emission`, `scalar-network`, and `scalar-node`.
+2. Verified that the wire format is unaffected (Rust struct names are not
+   serialised).
+3. The specification requires no changes — it already uses `HeartbeatUnit`
+   throughout.
 
 ---
 
-### D.4 K5-02 Status — In-Circuit Mutual Exclusion (INV-4.6)
+### D.3 – `UtxoSetSMT::compute_root`: Sequential Hash vs True SMT
 
-**Resolved in FASE A**: `transfer_air.rs` column 7 enforces `single_utxo_source` IN-CIRCUIT via Winterfell boundary assertion. The out-of-circuit guard in `air.rs` remains as defense-in-depth. No decision needed.
+**FINAL DECISION: OPTION (a) WITH CONDITIONS – APPROVED FOR GENESIS ONLY**  
+**Status: RESOLVED WITH CONDITIONS**
+
+The current implementation uses a sequential hash
+(`BLAKE3(DOMAIN || c0 || c1 || ...)`) rather than a true Sparse Merkle Tree.
+The architect accepted this for genesis under three **non-negotiable conditions**:
+
+1. **Master Spec §4.3 CB constraint** must document that the pre-genesis
+   implementation uses sequential hash verification (witness O(n)) and will be
+   replaced by `IMT_MembershipVerify` (witness O(log n)) per the
+   *Scalar_Optimalisasi_PraGenesis* §3.1 architecture.
+2. The source file `core/scalar-emission/src/utxo_set_smt.rs` now carries an
+   explicit comment:
+// PRE-GENESIS TEMPORARY: Sequential hash, witness O(n).
+// Must be replaced with IMT-based EpochSMT before testnet
+// with full client proving. See §3.1 Scalar_Optimalisasi_PraGenesis.
+// TRACKING: D3 decision – docs/decisions/DESIGN_DECISIONS_PENDING.md
+
+3. The sequential hash is an **intermediate computation** on the path to the
+IMT-based EpochSMT. Implementation phases 2 (IMT) and 4 (Quaternary SMT)
+of the optimisation roadmap must be completed before mainnet.
+
+**Correction from original recommendation:** the statement "a true SMT can be
+added post-genesis as a non-breaking upgrade" is inaccurate. The replacement
+must occur **before** testnet with full client proving, because it affects the
+CB constraint and the witness structure of the Transfer Circuit. A post-genesis
+change would require a hard fork.
+
+**Current explicit limitations:**
+- Witness size grows O(n) with the number of UTXOs.
+- Per-UTXO Merkle-path verification is not supported.
+- Suitable only for genesis with a small UTXO set.
+- MUST NOT enter production/testnet with full client proving.
+
+---
+
+### D.4 K5-02 – In-Circuit Mutual Exclusion (INV-4.6)
+
+**Status: RESOLVED (FASE A)**
+
+The Winterfell AIR in `transfer_air.rs` enforces `single_utxo_source` in-circuit
+(column 7 boundary assertion). The out-of-circuit guard in `air.rs` is retained
+as defence-in-depth. No team decision is required.
