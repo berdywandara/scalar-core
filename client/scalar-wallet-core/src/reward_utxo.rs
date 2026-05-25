@@ -26,7 +26,7 @@ use scalar_emission::EmissionError;
 // ── Domain separators — spec §2.3, OSSIFIED ──────────────────────────────────
 
 /// UTXO commitment domain separator. OSSIFIED — spec §2.3.
-pub const DOMAIN_COMMITMENT_V2: &[u8] = b"scalar_utxo_v2";
+pub const DOMAIN_COMMITMENT_V2: &[u8] = scalar_emission::utxo_set_smt::DOMAIN_UTXO_SMT;
 
 /// Salt derivation domain separator. OSSIFIED — spec §2.3.
 pub const DOMAIN_SALT_V1: &[u8] = b"scalar_salt_v1";

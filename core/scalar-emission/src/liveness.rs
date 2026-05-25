@@ -43,6 +43,8 @@ pub const W_MATURE: u64 =
 ///
 /// INV-4.4: prev_hash includes mac of previous heartbeat (chain integrity).
 #[derive(Clone, Debug, PartialEq)]
+// K2-04 NOTE: struct is named NodeHeartbeat in code; spec §7.3 names it HeartbeatUnit.
+// Pending team decision — see docs/decisions/DESIGN_DECISIONS_PENDING.md D.2
 pub struct NodeHeartbeat {
     /// Compressed node ID — 4 bytes pertama dari BLAKE3(full_node_id). Spec §7.2.
     pub node_id: [u8; 4],

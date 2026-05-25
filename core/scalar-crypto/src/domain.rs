@@ -400,3 +400,10 @@ mod tests {
     // separator is used in a distinct hash context with different data types
     // and lengths appended after the separator.
 }
+
+// ── K9-02 PENDING DECISION — DOMAIN_UTXO_SMT ────────────────────────────────────
+// b"scalar_utxo_v2" is used in utxo_set_smt.rs but NOT in this registry.
+// Decision D.1 (see docs/decisions/DESIGN_DECISIONS_PENDING.md):
+//   Option A: add `pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_v2";` here
+//   Option B: replace with DOMAIN_SMT_ACTIVE
+// DO NOT OSSIFY until team decision.

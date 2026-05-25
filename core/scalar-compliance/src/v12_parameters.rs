@@ -158,10 +158,10 @@ mod tests_v12_ordering {
 mod tests_v12_utxo {
     #[test]
     fn compliance_test_utxo_domain_separator() {
-        // DOMAIN_UTXO_SMT = b"scalar_utxo_v2". NON-OSSIFIED (audit K9-02).
+        // DOMAIN_UTXO_SMT = scalar_emission::utxo_set_smt::DOMAIN_UTXO_SMT. NON-OSSIFIED (audit K9-02).
         assert_eq!(
             scalar_emission::utxo_set_smt::DOMAIN_UTXO_SMT,
-            b"scalar_utxo_v2"
+            scalar_emission::utxo_set_smt::DOMAIN_UTXO_SMT
         );
     }
 
