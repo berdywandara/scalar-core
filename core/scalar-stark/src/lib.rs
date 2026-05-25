@@ -14,6 +14,7 @@
 
 // ── New real AIR implementations ──────────────────────────────────────────────
 pub mod mint_air;
+pub mod poseidon2_air;
 pub mod transfer_air;
 
 // ── Legacy modules (retained for consumer compatibility) ──────────────────────
