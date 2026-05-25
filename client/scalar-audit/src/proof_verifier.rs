@@ -128,12 +128,20 @@ mod tests {
         use scalar_stark::transfer_air::{TransferProver, TransferPublicInputs};
         let pi = TransferPublicInputs {
             fee_total_sscl: inputs.fee_value,
-            sum_inputs_sscl: inputs.fee_value, // matches scalar_to_transfer_pi
+            sum_inputs_sscl: inputs.fee_value,
             sum_outputs_sscl: 0,
             crypto_version: inputs.crypto_version,
             entry_timestamp_ms: inputs.entry_timestamp,
             current_timestamp_ms: inputs.timestamp,
-            nullifier_nonzero: inputs.nullifier_smt_root != 0,
+            utxo_set_root: inputs.utxo_set_root,
+            cb_membership_verified: inputs.utxo_set_root != [0u8; 32],
+            nullifier_active_root: {
+                let mut r = [0u8; 32];
+                r[0..8].copy_from_slice(&inputs.nullifier_smt_root.to_le_bytes());
+                r
+            },
+            nullifier_archived_root: [0u8; 32],
+            cc_nonmembership_verified: inputs.nullifier_smt_root != 0,
             output_nonzero: inputs.utxo_set_root != [0u8; 32],
             single_utxo_source: true,
         };
