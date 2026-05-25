@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _consensus_engine = Arc::new(Mutex::new(ConsensusEngine::default()));
     println!("[CONSENSUS] ZK Consensus Engine online.");
 
-    // 3. HeartbeatService — NodeHeartbeat v9.0 (108 bytes, BLAKE3-MAC)
+    // 3. HeartbeatService — HeartbeatUnit v9.0 (108 bytes, BLAKE3-MAC)
     // NodeKey dan NodeID: random untuk testing, production pakai Argon2id
     let full_node_id = {
         let mut id = [0u8; 32];
@@ -120,7 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     NodeSwarmEvent::HeartbeatReceived { from, data } => {
                         println!("[CORE] 💓 HB from {} ({} bytes)", from, data.len());
-                        // Verifikasi NodeHeartbeat v9.0 — 5-step spec §7.2b
+                        // Verifikasi HeartbeatUnit v9.0 — 5-step spec §7.2b
                         if data.len() == 108 {
                             let nmt = HeartbeatService::local_nmt();
                             // NodeKey_epoch peer: placeholder [0x42;32] untuk testing
@@ -147,7 +147,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            // Broadcast NodeHeartbeat v9.0 setiap 10 detik — spec §7.2
+            // Broadcast HeartbeatUnit v9.0 setiap 10 detik — spec §7.2
             _ = sleep(Duration::from_secs(10)) => {
                 hb_counter += 1;
                 {
@@ -155,7 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     sm.update_network_sensor(true, true);
                 }
 
-                // Produce NodeHeartbeat v9.0 (108 bytes, BLAKE3-MAC) — spec §7.2
+                // Produce HeartbeatUnit v9.0 (108 bytes, BLAKE3-MAC) — spec §7.2
                 let hb_bytes = {
                     let mut svc = hb_service.lock().unwrap();
                     let hb = svc.produce_heartbeat();
@@ -165,7 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let _ = msg_tx.send((TOPIC_HEARTBEAT.to_string(), hb_bytes)).await;
-                println!("[CORE] 💓 NodeHeartbeat v9.0 #{} broadcast (108 bytes)", hb_counter);
+                println!("[CORE] 💓 HeartbeatUnit v9.0 #{} broadcast (108 bytes)", hb_counter);
             }
         }
     }

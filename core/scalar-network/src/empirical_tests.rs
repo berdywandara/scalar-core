@@ -17,7 +17,7 @@ mod empirical_tests_inner {
         epoch_from_seq_num, HeartbeatRateLimiter, T_FUTURE_TOLERANCE_S, T_HB_MIN_INTERVAL_S,
     };
     use scalar_emission::liveness::{
-        compute_heartbeat_mac, derive_node_key_epoch, NodeHeartbeat, EPOCH_HB_COUNT,
+        compute_heartbeat_mac, derive_node_key_epoch, HeartbeatUnit, EPOCH_HB_COUNT,
     };
 
     const EMPIRICAL_NODE_KEY: [u8; 32] = [0xEEu8; 32];
@@ -33,12 +33,12 @@ mod empirical_tests_inner {
         timestamp: u32,
         prev_hash: [u8; 32],
         smt_root: [u8; 32],
-    ) -> NodeHeartbeat {
+    ) -> HeartbeatUnit {
         let nke = nke();
         let mac = compute_heartbeat_mac(
             &nke, &node_id, seq_num, timestamp, &smt_root, &[0u8; 32], 0u64, &prev_hash,
         );
-        NodeHeartbeat {
+        HeartbeatUnit {
             node_id,
             seq_num,
             timestamp,

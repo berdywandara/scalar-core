@@ -6,7 +6,7 @@
 // GSS adalah metrik sinkronisasi jaringan yang:
 //   - Integer fixed-point (basis 1_000_000) — tidak ada floating point
 //   - Lokal — hanya butuh data dari k=7 peers terdekat
-//   - Verifiable — semua input ada dalam signed NodeHeartbeat
+//   - Verifiable — semua input ada dalam signed HeartbeatUnit
 //   - Tidak mempengaruhi E(k) atau R_i(k) — hanya menentukan fanout
 
 /// Fixed-point basis. OSSIFIED — spec §12.3 v6.0.
@@ -61,7 +61,7 @@ pub fn compute_gss_fp(my_root: &[u8; 32], peers: &[PeerSyncData]) -> u64 {
     sum / n
 }
 
-/// Hitung peer_sync_summary untuk NodeHeartbeat.
+/// Hitung peer_sync_summary untuk HeartbeatUnit.
 /// Spec §12.3 v6.0: BLAKE3(node_id || epoch_id || seq_num || gss_fp_le64)
 pub fn compute_peer_sync_summary(
     node_id: &[u8; 32],

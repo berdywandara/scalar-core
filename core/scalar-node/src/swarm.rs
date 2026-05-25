@@ -4,7 +4,7 @@
 //! Behaviour: gossipsub + kademlia + identify
 //!
 //! Spec §12.2: peer discovery via Kademlia DHT.
-//! Spec §7.2: NodeHeartbeat broadcast via gossipsub topic "scalar/heartbeat/1".
+//! Spec §7.2: HeartbeatUnit broadcast via gossipsub topic "scalar/heartbeat/1".
 
 use futures::StreamExt;
 use libp2p::{
@@ -19,7 +19,7 @@ use tokio::sync::mpsc;
 
 // ── Topic constants — spec §12 ────────────────────────────────────────────────
 
-/// Gossipsub topic untuk NodeHeartbeat. Spec §7.2.
+/// Gossipsub topic untuk HeartbeatUnit. Spec §7.2.
 pub const TOPIC_HEARTBEAT: &str = "scalar/heartbeat/1";
 /// Gossipsub topic untuk GossipMessage. Spec §12.
 pub const TOPIC_GOSSIP: &str = "scalar/gossip/1";

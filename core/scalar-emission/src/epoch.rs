@@ -47,7 +47,7 @@ pub fn verify_step_3_5_slashing(announcements: &[Announcement]) -> Vec<[u8; 32]>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::liveness::{NodeHeartbeat, EPOCH_HB_COUNT};
+    use crate::liveness::{HeartbeatUnit, EPOCH_HB_COUNT};
 
     #[test]
     fn test_step_1_5_connected_with_67_percent_agreement() {
@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn test_node_heartbeat_v9_struct_fields() {
         // Spec §7.2 v9.0: 6 fields, tipe yang benar, NO signature.
-        let hb = NodeHeartbeat {
+        let hb = HeartbeatUnit {
             node_id: [0x01, 0x02, 0x03, 0x04],
             seq_num: 42u32,
             timestamp: 600u32,

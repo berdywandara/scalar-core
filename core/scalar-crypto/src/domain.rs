@@ -402,8 +402,8 @@ mod tests {
 }
 
 // ── K9-02 PENDING DECISION — DOMAIN_UTXO_SMT ────────────────────────────────────
-// b"scalar_utxo_v2" is used in utxo_set_smt.rs but NOT in this registry.
+// b"scalar_utxo_set" is used in utxo_set_smt.rs but NOT in this registry.
 // Decision D.1 (see docs/decisions/DESIGN_DECISIONS_PENDING.md):
-//   Option A: add `pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_v2";` here
+//   Option A: add `pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_set";` here
 //   Option B: replace with DOMAIN_SMT_ACTIVE
 // DO NOT OSSIFY until team decision.

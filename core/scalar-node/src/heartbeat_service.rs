@@ -1,7 +1,7 @@
 //! Heartbeat Service — Spec §7.2, §7.2a, §7.2b
 //!
 //! Menghubungkan:
-//!   - NodeHeartbeat v9.1 (148 bytes, BLAKE3-MAC) dari scalar-emission
+//!   - HeartbeatUnit v9.1 (148 bytes, BLAKE3-MAC) dari scalar-emission
 //!   - HeartbeatVerifier (5-step) dari scalar-network
 //!   - EpochTracker dari scalar-emission
 //!   - P2P swarm broadcast via mpsc channel
@@ -18,7 +18,7 @@
 //!   1-5: HeartbeatVerifier::verify() — TTL, seq_num, prev_hash, MAC, accept
 
 use scalar_emission::liveness::{
-    compress_node_id, compute_heartbeat_mac, derive_node_key_epoch, EpochTracker, NodeHeartbeat,
+    compress_node_id, compute_heartbeat_mac, derive_node_key_epoch, EpochTracker, HeartbeatUnit,
 };
 use scalar_network::heartbeat_verifier::HeartbeatVerifier;
 use std::collections::HashMap;
@@ -69,11 +69,11 @@ impl HeartbeatService {
         }
     }
 
-    /// Produce NodeHeartbeat v9.0 untuk broadcast. Spec §7.2.
+    /// Produce HeartbeatUnit v9.0 untuk broadcast. Spec §7.2.
     ///
     /// Increment seq_num, compute MAC, serialize ke 148 bytes.
     /// Rule T-1: epoch boundary dari seq_num, bukan wall-clock.
-    pub fn produce_heartbeat(&mut self) -> NodeHeartbeat {
+    pub fn produce_heartbeat(&mut self) -> HeartbeatUnit {
         // Increment seq_num — strictly monotonic (Rule T-5)
         self.last_seq_num += 1;
         let seq_num = self.last_seq_num;
@@ -94,7 +94,7 @@ impl HeartbeatService {
                 // Use spec-compliant construction: Research Package §3.1.4, INV-4.4
                 // prev_hash = BLAKE3(b"scalar_beacon" || node_id || seq_num || timestamp ||
                 //             smt_root || imt_frontier || imt_count || mac)
-                let last_hb = NodeHeartbeat::from_bytes(bytes);
+                let last_hb = HeartbeatUnit::from_bytes(bytes);
                 scalar_emission::liveness::compute_prev_hash(&last_hb)
             }
             None => {
@@ -118,7 +118,7 @@ impl HeartbeatService {
             &prev_hash,
         );
 
-        let hb = NodeHeartbeat {
+        let hb = HeartbeatUnit {
             node_id: self.node_id,
             seq_num,
             timestamp,
@@ -174,7 +174,7 @@ impl HeartbeatService {
             Ok(a) => a,
             Err(_) => return false,
         };
-        let hb = NodeHeartbeat::from_bytes(arr);
+        let hb = HeartbeatUnit::from_bytes(arr);
 
         // 5-step verification — spec §7.2b
         match self

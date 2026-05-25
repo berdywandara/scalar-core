@@ -8,7 +8,7 @@
 //! dan menyimpan peer_node_key_epoch yang valid.
 //!
 //! Spec §7.2a:
-//!   chain_head = BLAKE3(last NodeHeartbeat bytes of epoch)
+//!   chain_head = BLAKE3(last HeartbeatUnit bytes of epoch)
 //!   sig = SLH-DSA(NodeKey_epoch_i, canonical_bytes(EpochAnchor minus sig))
 //!
 //! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.

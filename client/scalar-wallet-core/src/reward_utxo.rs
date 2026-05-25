@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_domain_separator_commitment_ossified() {
-        assert_eq!(DOMAIN_COMMITMENT_V2, b"scalar_utxo_v2");
+        assert_eq!(DOMAIN_COMMITMENT_V2, b"scalar_utxo_set");
     }
 
     #[test]

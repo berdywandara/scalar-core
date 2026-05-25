@@ -1,6 +1,6 @@
-//! Liveness — NodeHeartbeat v9.0, Uptime Weight, Maturity, Gov Weight
+//! Liveness — HeartbeatUnit v9.0, Uptime Weight, Maturity, Gov Weight
 //!
-//! Spec §7.2 v9.0: NodeHeartbeat = 108 bytes, BLAKE3-MAC, NO SPHINCS+ per-HB.
+//! Spec §7.2 v9.0: HeartbeatUnit = 108 bytes, BLAKE3-MAC, NO SPHINCS+ per-HB.
 //! Spec §7.4: maturity(j,k) = Σ w_j(epoch) untuk W_MATURE_EPOCHS epoch terakhir.
 //! Spec §7.4: gov_weight(j,k) = min(maturity(j,k) / W_MATURE, 1_000_000).
 
@@ -26,9 +26,9 @@ pub const W_MATURE_EPOCHS: u64 = 6;
 pub const W_MATURE: u64 =
     W_MATURE_EPOCHS * (EXPECTED_HEARTBEATS_PER_EPOCH as u64) * FIXED_POINT_BASIS;
 
-// ── NodeHeartbeat v9.0 — spec §7.2 ───────────────────────────────────────────
+// ── HeartbeatUnit v9.0 — spec §7.2 ───────────────────────────────────────────
 
-/// NodeHeartbeat v9.1 — 148 bytes wire size. Spec §7.2, Research Package §3.1.4.
+/// HeartbeatUnit v9.1 — 148 bytes wire size. Spec §7.2, Research Package §3.1.4.
 ///
 /// v9.1 additions (Research Package §3.1.4):
 ///   - TAMBAH: imt_frontier [u8;32] — IMT frontier root saat heartbeat dikirim
@@ -43,9 +43,9 @@ pub const W_MATURE: u64 =
 ///
 /// INV-4.4: prev_hash includes mac of previous heartbeat (chain integrity).
 #[derive(Clone, Debug, PartialEq)]
-// K2-04 NOTE: struct is named NodeHeartbeat in code; spec §7.3 names it HeartbeatUnit.
+// K2-04 NOTE: struct is named HeartbeatUnit in code; spec §7.3 names it HeartbeatUnit.
 // Pending team decision — see docs/decisions/DESIGN_DECISIONS_PENDING.md D.2
-pub struct NodeHeartbeat {
+pub struct HeartbeatUnit {
     /// Compressed node ID — 4 bytes pertama dari BLAKE3(full_node_id). Spec §7.2.
     pub node_id: [u8; 4],
     /// Monotonic global sequence number, dimulai dari 1 setiap epoch. Spec §7.2.
@@ -69,7 +69,7 @@ pub struct NodeHeartbeat {
     pub mac: [u8; 32],
 }
 
-impl NodeHeartbeat {
+impl HeartbeatUnit {
     /// Serialisasi ke wire format — 148 bytes. Research Package §3.1.4.
     pub fn to_bytes(&self) -> [u8; 148] {
         let mut out = [0u8; 148];
@@ -128,7 +128,7 @@ pub fn derive_node_key_epoch(node_key: &[u8; 32], epoch_id: u64) -> [u8; 32] {
 
 // ── MAC construction — spec §7.2 ─────────────────────────────────────────────
 
-/// Compute MAC untuk NodeHeartbeat. Research Package §3.1.4.
+/// Compute MAC untuk HeartbeatUnit. Research Package §3.1.4.
 ///
 /// mac = BLAKE3(b"scalar_beacon" || NodeKey_epoch || node_id_4 || seq_num_le32 ||
 ///              timestamp_le32 || smt_root || imt_frontier || imt_count_le64 || prev_hash)
@@ -182,7 +182,7 @@ pub fn compute_heartbeat_mac(
 /// of epoch k (see EpochAnchor below), NOT from a genesis_object hash.
 ///
 /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
-pub fn compute_prev_hash(hb: &NodeHeartbeat) -> [u8; 32] {
+pub fn compute_prev_hash(hb: &HeartbeatUnit) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
     hasher.update(b"scalar_beacon"); // DOMAIN_BEACON — spec §2.3
     hasher.update(&hb.node_id);
@@ -284,7 +284,7 @@ impl LivenessSMT {
     }
 
     /// Insert heartbeat — update SMT root. Spec §7.2.
-    pub fn insert_heartbeat(&mut self, _hb: &NodeHeartbeat) {}
+    pub fn insert_heartbeat(&mut self, _hb: &HeartbeatUnit) {}
 
     pub fn root(&self) -> [u8; 32] {
         self.root
@@ -324,12 +324,12 @@ mod tests {
         [b, 0, 0, 0]
     }
 
-    // ── NodeHeartbeat v9.0 struct ─────────────────────────────────────────────
+    // ── HeartbeatUnit v9.0 struct ─────────────────────────────────────────────
 
     #[test]
     fn test_node_heartbeat_v9_fields() {
         // Spec §7.2: 6 fields, tipe yang benar.
-        let hb = NodeHeartbeat {
+        let hb = HeartbeatUnit {
             node_id: [0x01, 0x02, 0x03, 0x04],
             seq_num: 1u32,
             timestamp: 600u32,
@@ -348,7 +348,7 @@ mod tests {
     fn test_node_heartbeat_wire_size_148() {
         // Research Package §3.1.4: wire size = 148 bytes.
         // 4 + 4 + 4 + 32 + 32 + 8 + 32 + 32 = 148
-        let hb = NodeHeartbeat {
+        let hb = HeartbeatUnit {
             node_id: [0x01, 0x00, 0x00, 0x00],
             seq_num: 1u32,
             timestamp: 0u32,
@@ -364,7 +364,7 @@ mod tests {
     #[test]
     fn test_node_heartbeat_roundtrip() {
         // Serialisasi dan deserialisasi harus menghasilkan struct yang sama.
-        let hb = NodeHeartbeat {
+        let hb = HeartbeatUnit {
             node_id: [0xDE, 0xAD, 0xBE, 0xEF],
             seq_num: 42u32,
             timestamp: 1234u32,
@@ -375,16 +375,16 @@ mod tests {
             mac: [0x33u8; 32],
         };
         let bytes = hb.to_bytes();
-        let hb2 = NodeHeartbeat::from_bytes(&bytes);
+        let hb2 = HeartbeatUnit::from_bytes(&bytes);
         assert_eq!(hb, hb2);
     }
 
     #[test]
     fn test_node_heartbeat_no_signature_field() {
-        // Spec §7.2: TIDAK ada signature field di NodeHeartbeat v9.0.
+        // Spec §7.2: TIDAK ada signature field di HeartbeatUnit v9.0.
         // Test ini memverifikasi bahwa struct hanya punya 6 fields yang benar.
         // Jika ada field signature, kode tidak akan compile dengan struct literal ini.
-        let _ = NodeHeartbeat {
+        let _ = HeartbeatUnit {
             node_id: [0u8; 4],
             seq_num: 0u32,
             timestamp: 0u32,
@@ -702,7 +702,7 @@ mod tests {
 /// EpochAnchor — SPHINCS+ commitment sekali per epoch per node. Spec §7.2a.
 ///
 /// Dikirim di END_EPOCH (seq_num-triggered, BUKAN wall-clock — Rule T-1 §7.2c).
-/// chain_head = BLAKE3(last NodeHeartbeat bytes of the epoch).
+/// chain_head = BLAKE3(last HeartbeatUnit bytes of the epoch).
 /// sig = SPHINCS+(NodeKey_epoch_i, canonical_bytes(EpochAnchor minus sig field)).
 ///
 /// Canonical bytes untuk signing:
@@ -722,7 +722,7 @@ pub struct EpochAnchor {
     pub epoch_id: u64,
     /// Jumlah heartbeat yang dikirim dalam epoch ini. Spec §7.2a.
     pub hb_count: u32,
-    /// BLAKE3(last NodeHeartbeat bytes of epoch). Spec §7.2a.
+    /// BLAKE3(last HeartbeatUnit bytes of epoch). Spec §7.2a.
     /// Digunakan sebagai prev_hash untuk HB pertama epoch berikutnya.
     pub chain_head: [u8; 32],
     /// SPHINCS+ public key node (64 bytes). Spec §7.2a.
@@ -750,7 +750,7 @@ impl EpochAnchor {
     /// Compute chain_head = BLAKE3(last_heartbeat_bytes). Spec §7.2a.
     ///
     /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
-    pub fn compute_chain_head(last_heartbeat: &NodeHeartbeat) -> [u8; 32] {
+    pub fn compute_chain_head(last_heartbeat: &HeartbeatUnit) -> [u8; 32] {
         // BLAKE3 out-circuit — spec §7.2a, §2.1.3
         let bytes = last_heartbeat.to_bytes();
         *blake3::hash(&bytes).as_bytes()
@@ -772,7 +772,7 @@ pub struct EpochTracker {
     /// Key: (node_id_4, epoch_id) → heartbeat count dalam epoch ini
     counts: std::collections::HashMap<([u8; 4], u64), u32>,
     /// Key: (node_id_4, epoch_id) → last heartbeat bytes
-    last_hb: std::collections::HashMap<([u8; 4], u64), NodeHeartbeat>,
+    last_hb: std::collections::HashMap<([u8; 4], u64), HeartbeatUnit>,
 }
 
 impl EpochTracker {
@@ -781,7 +781,7 @@ impl EpochTracker {
     }
 
     /// Record heartbeat — update count dan last_hb. Spec §7.2a.
-    pub fn record_heartbeat(&mut self, hb: &NodeHeartbeat, epoch_id: u64) {
+    pub fn record_heartbeat(&mut self, hb: &HeartbeatUnit, epoch_id: u64) {
         let key = (hb.node_id, epoch_id);
         *self.counts.entry(key).or_insert(0) += 1;
         self.last_hb.insert(key, hb.clone());
@@ -802,7 +802,7 @@ impl EpochTracker {
     }
 
     /// Ambil last heartbeat untuk node dalam epoch. Spec §7.2a.
-    pub fn last_heartbeat(&self, node_id: [u8; 4], epoch_id: u64) -> Option<&NodeHeartbeat> {
+    pub fn last_heartbeat(&self, node_id: [u8; 4], epoch_id: u64) -> Option<&HeartbeatUnit> {
         self.last_hb.get(&(node_id, epoch_id))
     }
 }
@@ -811,8 +811,8 @@ impl EpochTracker {
 mod epoch_anchor_tests {
     use super::*;
 
-    fn make_hb(seq: u32) -> NodeHeartbeat {
-        NodeHeartbeat {
+    fn make_hb(seq: u32) -> HeartbeatUnit {
+        HeartbeatUnit {
             node_id: [0x01, 0x02, 0x03, 0x04],
             seq_num: seq,
             timestamp: seq * 600,
@@ -973,7 +973,7 @@ mod epoch_anchor_tests {
         let node = [0x01, 0x00, 0x00, 0x00];
         for i in 1..EPOCH_HB_COUNT {
             tracker.record_heartbeat(
-                &NodeHeartbeat {
+                &HeartbeatUnit {
                     node_id: node,
                     seq_num: i,
                     timestamp: 0,
@@ -996,7 +996,7 @@ mod epoch_anchor_tests {
         let node = [0x01, 0x00, 0x00, 0x00];
         for i in 1..=EPOCH_HB_COUNT {
             tracker.record_heartbeat(
-                &NodeHeartbeat {
+                &HeartbeatUnit {
                     node_id: node,
                     seq_num: i,
                     timestamp: 0,
@@ -1030,7 +1030,7 @@ mod epoch_anchor_tests {
         let mut tracker = EpochTracker::new();
         let node = [0x01, 0x00, 0x00, 0x00];
         tracker.record_heartbeat(
-            &NodeHeartbeat {
+            &HeartbeatUnit {
                 node_id: node,
                 seq_num: 1,
                 timestamp: 0,
@@ -1043,7 +1043,7 @@ mod epoch_anchor_tests {
             0,
         );
         tracker.record_heartbeat(
-            &NodeHeartbeat {
+            &HeartbeatUnit {
                 node_id: node,
                 seq_num: 1,
                 timestamp: 0,
@@ -1131,7 +1131,7 @@ mod epoch_anchor_tests {
     // ── TV 5.4 — prev_hash chain integrity includes imt fields + mac(n-1) ─────
     #[test]
     fn tv_5_4_prev_hash_sensitive_to_imt_and_mac() {
-        let base = NodeHeartbeat {
+        let base = HeartbeatUnit {
             node_id: [0x02u8; 4],
             seq_num: 1,
             timestamp: 600,

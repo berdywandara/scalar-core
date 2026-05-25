@@ -16,7 +16,7 @@
 //! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 
 use crate::time_security::{T_FUTURE_TOLERANCE_S, T_PAST_S};
-use scalar_emission::liveness::{compute_heartbeat_mac, NodeHeartbeat};
+use scalar_emission::liveness::{compute_heartbeat_mac, HeartbeatUnit};
 use std::collections::HashMap;
 
 // ── Timestamp bounds — spec §7.6 T-2 ────────────────────────────────────────
@@ -62,7 +62,7 @@ pub enum VerificationError {
 
 /// State per node untuk verification. Spec §7.2b Step 2, 3, 5.
 #[derive(Clone, Debug)]
-pub struct NodeHeartbeatState {
+pub struct HeartbeatUnitState {
     /// seq_num terakhir yang diterima dari node ini. Spec §7.2b Step 2.
     pub last_seq_num: u32,
     /// Bytes dari heartbeat terakhir — digunakan untuk prev_hash check. Spec §7.2b Step 3.
@@ -77,8 +77,8 @@ pub struct NodeHeartbeatState {
 /// NodeKey_epoch harus disediakan oleh caller (dari key store).
 #[derive(Default)]
 pub struct HeartbeatVerifier {
-    /// Key: node_id [u8;4] → NodeHeartbeatState
-    node_states: HashMap<[u8; 4], NodeHeartbeatState>,
+    /// Key: node_id [u8;4] → HeartbeatUnitState
+    node_states: HashMap<[u8; 4], HeartbeatUnitState>,
 }
 
 impl HeartbeatVerifier {
@@ -98,7 +98,7 @@ impl HeartbeatVerifier {
     /// Returns Err(VerificationError) pada step pertama yang gagal.
     pub fn verify(
         &mut self,
-        hb: &NodeHeartbeat,
+        hb: &HeartbeatUnit,
         nmt: u32,
         node_key_epoch: &[u8; 32],
         _epoch_id: u64,
@@ -143,7 +143,7 @@ impl HeartbeatVerifier {
         if let Some(state) = self.node_states.get(&hb.node_id) {
             // Reconstruct prev_hash from stored HB bytes using spec construction.
             // Research Package §3.1.4: prev_hash = BLAKE3(b"scalar_beacon" || fields || mac)
-            let last_hb = NodeHeartbeat::from_bytes(&state.last_hb_bytes);
+            let last_hb = HeartbeatUnit::from_bytes(&state.last_hb_bytes);
             let expected_prev = scalar_emission::liveness::compute_prev_hash(&last_hb);
             if hb.prev_hash != expected_prev {
                 return Err(VerificationError::PrevHashMismatch {
@@ -179,7 +179,7 @@ impl HeartbeatVerifier {
         let hb_bytes = hb.to_bytes();
         self.node_states.insert(
             hb.node_id,
-            NodeHeartbeatState {
+            HeartbeatUnitState {
                 last_seq_num: hb.seq_num,
                 last_hb_bytes: hb_bytes,
             },
@@ -201,7 +201,7 @@ impl HeartbeatVerifier {
     ) {
         self.node_states.insert(
             node_id,
-            NodeHeartbeatState {
+            HeartbeatUnitState {
                 last_seq_num,
                 last_hb_bytes: chain_head_bytes,
             },
@@ -227,7 +227,7 @@ impl HeartbeatVerifier {
 ///          smt_root || imt_frontier || imt_count || mac)
 ///
 /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
-pub fn compute_prev_hash(hb: &NodeHeartbeat) -> [u8; 32] {
+pub fn compute_prev_hash(hb: &HeartbeatUnit) -> [u8; 32] {
     scalar_emission::liveness::compute_prev_hash(hb)
 }
 
@@ -249,12 +249,12 @@ mod tests {
         timestamp: u32,
         prev_hash: [u8; 32],
         smt_root: [u8; 32],
-    ) -> NodeHeartbeat {
+    ) -> HeartbeatUnit {
         let nke = node_key_epoch();
         let mac = compute_heartbeat_mac(
             &nke, &node_id, seq_num, timestamp, &smt_root, &[0u8; 32], 0u64, &prev_hash,
         );
-        NodeHeartbeat {
+        HeartbeatUnit {
             node_id,
             seq_num,
             timestamp,

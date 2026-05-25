@@ -23,12 +23,12 @@ use blake3::Hasher;
 
 /// Domain separator for the UTXO-set root accumulator.
 ///
-/// K9-02 NOTE: b"scalar_utxo_v2" is NOT in the OSSIFIED registry (§2.3 / RP §8).
+/// K9-02 NOTE: b"scalar_utxo_set" is NOT in the OSSIFIED registry (§2.3 / RP §8).
 /// The earlier "OSSIFIED — spec §2.3" claim was incorrect. This separator is a
 /// local, NON-OSSIFIED choice for UtxoSetSMT::compute_root and must be either
 /// (a) added to the canonical domain registry, or (b) reconciled to an existing
 /// OSSIFIED separator, before genesis. Tracked as audit finding K9-02.
-pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_v2";
+pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_set";
 
 /// Epoch ID awal (genesis). Spec §8.5.
 pub const GENESIS_EPOCH_ID: u64 = 0;
@@ -174,6 +174,10 @@ impl UtxoSetSMT {
     /// Determinisme dijamin karena insertion order = canonical ordering.
     ///
     /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
+    /// PRE-GENESIS TEMPORARY: Sequential hash, witness O(n).
+    /// Wajib diganti dengan IMT-based EpochSMT sebelum testnet
+    /// dengan full client proving. Lihat §3.1 Scalar_Optimalisasi_PraGenesis.
+    /// TRACKING: D3 decision — docs/decisions/DESIGN_DECISIONS_PENDING.md
     fn compute_root(&self) -> [u8; 32] {
         if self.utxos.is_empty() {
             return [0u8; 32];
@@ -447,8 +451,8 @@ mod tests {
 
     #[test]
     fn test_domain_separator_utxo_ossified() {
-        // DOMAIN_UTXO_SMT = b"scalar_utxo_v2". NON-OSSIFIED (audit K9-02).
-        assert_eq!(DOMAIN_UTXO_SMT, b"scalar_utxo_v2");
+        // DOMAIN_UTXO_SMT = b"scalar_utxo_set". NON-OSSIFIED (audit K9-02).
+        assert_eq!(DOMAIN_UTXO_SMT, b"scalar_utxo_set");
     }
 
     // ── test_root_deterministic_same_utxos ───────────────────────────────────

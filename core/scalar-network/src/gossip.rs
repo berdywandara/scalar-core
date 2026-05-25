@@ -1,7 +1,7 @@
 //! ScalarGossipMessage v9.0 — Spec §12 v9.0
 //!
-//! NodeHeartbeat v9.1: 148 bytes, BLAKE3-MAC, NO SPHINCS+ per-HB.
-//! connectivity_proof dihapus dari NodeHeartbeat — diganti peer_sync_summary di GossipMsg.
+//! HeartbeatUnit v9.1: 148 bytes, BLAKE3-MAC, NO SPHINCS+ per-HB.
+//! connectivity_proof dihapus dari HeartbeatUnit — diganti peer_sync_summary di GossipMsg.
 //! Spec §7.2: node_id [u8;4], seq_num u32, timestamp u32 delta.
 
 pub const MAX_FANOUT: usize = 15; // OSSIFIED §12.5
@@ -19,8 +19,8 @@ pub struct DeltaNullifier {
 
 /// ScalarGossipMessage v9.0 — spec §12 v9.0.
 ///
-/// NodeHeartbeat v9.1 sekarang 148 bytes (bukan ~29,900 bytes).
-/// connectivity_proof field dihapus dari NodeHeartbeat.
+/// HeartbeatUnit v9.1 sekarang 148 bytes (bukan ~29,900 bytes).
+/// connectivity_proof field dihapus dari HeartbeatUnit.
 /// peer_sync_summary tetap ada di GossipMessage sebagai GSS commit.
 #[derive(Debug, Clone)]
 pub struct ScalarGossipMessage {
@@ -47,24 +47,24 @@ pub fn compute_adaptive_fanout(gss_fp: u64) -> usize {
     }
 }
 
-/// Deserialise NodeHeartbeat v9.1 dari 148-byte slice. Research Package §3.1.4.
+/// Deserialise HeartbeatUnit v9.1 dari 148-byte slice. Research Package §3.1.4.
 ///
 /// Returns None jika slice bukan tepat 148 bytes.
 /// Hash discipline: BLAKE3 out-circuit untuk MAC verification — spec §2.1.3.
-use scalar_emission::liveness::NodeHeartbeat as EmissionNodeHeartbeat;
+use scalar_emission::liveness::HeartbeatUnit as EmissionHeartbeatUnit;
 
-pub fn deserialize_heartbeat(bytes: &[u8]) -> Option<scalar_emission::liveness::NodeHeartbeat> {
+pub fn deserialize_heartbeat(bytes: &[u8]) -> Option<scalar_emission::liveness::HeartbeatUnit> {
     if bytes.len() != 148 {
         return None;
     }
     let arr: &[u8; 148] = bytes.try_into().ok()?;
-    Some(EmissionNodeHeartbeat::from_bytes(arr))
+    Some(EmissionHeartbeatUnit::from_bytes(arr))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scalar_emission::liveness::NodeHeartbeat;
+    use scalar_emission::liveness::HeartbeatUnit;
 
     #[test]
     fn test_max_fanout_ossified_at_15() {
@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn test_deserialize_heartbeat_valid_148_bytes() {
         // Research Package §3.1.4: deserialize dari tepat 148 bytes.
-        let hb = NodeHeartbeat {
+        let hb = HeartbeatUnit {
             node_id: [0x01, 0x02, 0x03, 0x04],
             seq_num: 7u32,
             timestamp: 300u32,

@@ -156,7 +156,7 @@ pub fn compute_first_hb_prev_hash_epoch_0(genesis_bytes: &[u8]) -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::liveness::{compute_heartbeat_mac, NodeHeartbeat};
+    use crate::liveness::{compute_heartbeat_mac, HeartbeatUnit};
 
     const TEST_NODE_KEY: [u8; 32] = [0x42u8; 32];
     const TEST_GENESIS: &[u8] = b"scalar_network_genesis_v9_test_placeholder_data_1234567890";
@@ -252,7 +252,7 @@ mod tests {
             &nke, &node_id, 1, 0, &[0u8; 32], &[0u8; 32], 0u64, &prev_hash,
         );
         // HB valid dengan prev_hash dari genesis
-        let hb = NodeHeartbeat {
+        let hb = HeartbeatUnit {
             node_id,
             seq_num: 1,
             timestamp: 0,
