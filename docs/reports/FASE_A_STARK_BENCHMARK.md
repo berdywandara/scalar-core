@@ -90,3 +90,16 @@ well within budget for the encoded constraint system.
    constraints). The current AIR encodes constraint results into a compact
    trace; mapping each constraint group to a full arithmetized sub-trace at
    production row counts is a follow-on task.
+
+### 4. UtxoSetSMT sequential hash — PRE-GENESIS ONLY (D3 decision)
+
+The UtxoSetSMT::compute_root() method uses a sequential hash
+(BLAKE3(DOMAIN || c0 || c1 || ...)) — not a true Sparse Merkle Tree.
+This is an intermediate computation that:
+- Has O(n) witness size (grows linearly with UTXO count)
+- Does not support per-UTXO Merkle path verification
+- Is acceptable for genesis only (small UTXO set)
+- MUST be replaced with IMT-based EpochSMT before testnet with full client proving
+  per Scalar_Optimalisasi_PraGenesis §3.1 architecture (Fase 2 & 4)
+
+See docs/decisions/DESIGN_DECISIONS_PENDING.md D.3 for the full decision record.
