@@ -18,7 +18,7 @@ use scalar_crypto::verify_signature;
 // ── Constants — spec §5.2 ─────────────────────────────────────────────────────
 
 /// Valid crypto versions for Mint Claim Circuit. OSSIFIED — spec §5.2 MC1.
-pub const VALID_MINT_CRYPTO_VERSIONS: [u8; 1] = [0x03];
+pub const VALID_MINT_CRYPTO_VERSIONS: [u8; 1] = [0x01]; // K5-04: aligned to CRYPTO_VERSION_CURRENT §2.4
 
 // ── MintClaimPublicInput — spec §5.2 ─────────────────────────────────────────
 
@@ -161,7 +161,7 @@ pub fn build_test_mint_public_input(
     node_key_pubkey: [u8; 32],
 ) -> MintClaimPublicInput {
     MintClaimPublicInput {
-        crypto_version: 0x03,
+        crypto_version: 0x01, // K5-04: aligned
         node_id_full: node_id,
         epoch_id,
         reward_root: [0xAAu8; 32],
@@ -201,20 +201,20 @@ mod tests {
 
     #[test]
     fn test_mc1_valid_crypto_version() {
-        assert!(verify_mc1_crypto_version(0x03).is_ok());
+        assert!(verify_mc1_crypto_version(0x01).is_ok()); // K5-04
     }
 
     #[test]
     fn test_mc1_invalid_crypto_version_rejected() {
-        assert!(verify_mc1_crypto_version(0x01).is_err());
+        assert!(verify_mc1_crypto_version(0x00).is_err()); // K5-04: 0x01 is now valid
         assert!(verify_mc1_crypto_version(0xFF).is_err());
         assert!(verify_mc1_crypto_version(0x00).is_err());
     }
 
     #[test]
     fn test_mc1_version_constant_ossified() {
-        // VALID_MINT_CRYPTO_VERSIONS must contain 0x03. Spec §5.2 MC1.
-        assert!(VALID_MINT_CRYPTO_VERSIONS.contains(&0x03u8));
+        // VALID_MINT_CRYPTO_VERSIONS must contain 0x01. Spec §5.2 MC1, K5-04.
+        assert!(VALID_MINT_CRYPTO_VERSIONS.contains(&0x01u8));
     }
 
     // ── MC5 claim_message tests ───────────────────────────────────────────────

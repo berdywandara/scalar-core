@@ -13,3 +13,8 @@ winterfell.workspace = true
 thiserror.workspace = true
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 blake3 = "1.5"
+
+[features]
+# Run hardware benchmark tests (requires 8GB RAM, server CPU). Spec §15.6.
+# Usage: cargo test -p scalar-stark --features bench-hardware -- bench_
+bench-hardware = []

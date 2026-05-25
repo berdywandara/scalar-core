@@ -34,8 +34,8 @@ mod tests {
 
     #[test]
     fn test_verify_transfer_proof_via_lib() {
-        // API publik verify_transfer_proof tersedia. Spec §16.4.
-        let proof = vec![0xABu8; 100];
+        // K5-01: REAL STARK proof via public API. Spec §16.4.
+        use scalar_stark::transfer_air::{TransferProver, TransferPublicInputs};
         let inputs = AuditPublicInputs {
             utxo_set_root: [0x42u8; 32],
             nullifier_smt_root: 1,
@@ -44,8 +44,23 @@ mod tests {
             entry_timestamp: 1_000_000_000,
             crypto_version: 0x01,
         };
+        // Generate a real proof matching scalar_to_transfer_pi's reconstruction.
+        let tpi = TransferPublicInputs {
+            fee_total_sscl: inputs.fee_value,
+            sum_inputs_sscl: inputs.fee_value,
+            sum_outputs_sscl: 0,
+            crypto_version: inputs.crypto_version,
+            entry_timestamp_ms: inputs.entry_timestamp,
+            current_timestamp_ms: inputs.timestamp,
+            nullifier_nonzero: inputs.nullifier_smt_root != 0,
+            output_nonzero: inputs.utxo_set_root != [0u8; 32],
+            single_utxo_source: true,
+        };
+        let proof = TransferProver::new()
+            .prove_transfer(&tpi)
+            .expect("real proof");
         let result = verify_transfer_proof(&proof, &inputs);
-        assert!(result.is_valid());
+        assert!(result.is_valid(), "real proof must verify: {:?}", result);
     }
 
     // ── test_verify_transfer_proof_invalid ───────────────────────────────────

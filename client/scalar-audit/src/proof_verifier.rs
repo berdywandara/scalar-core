@@ -121,16 +121,38 @@ mod tests {
         }
     }
 
+    /// Generate a REAL STARK proof matching the AuditPublicInputs reconstruction.
+    /// scalar_to_transfer_pi maps audit inputs → TransferPublicInputs with
+    /// fee=fee_value, sum_in=fee, sum_out=0, so we mirror that here.
+    fn real_proof_for(inputs: &AuditPublicInputs) -> Vec<u8> {
+        use scalar_stark::transfer_air::{TransferProver, TransferPublicInputs};
+        let pi = TransferPublicInputs {
+            fee_total_sscl: inputs.fee_value,
+            sum_inputs_sscl: inputs.fee_value, // matches scalar_to_transfer_pi
+            sum_outputs_sscl: 0,
+            crypto_version: inputs.crypto_version,
+            entry_timestamp_ms: inputs.entry_timestamp,
+            current_timestamp_ms: inputs.timestamp,
+            nullifier_nonzero: inputs.nullifier_smt_root != 0,
+            output_nonzero: inputs.utxo_set_root != [0u8; 32],
+            single_utxo_source: true,
+        };
+        TransferProver::new()
+            .prove_transfer(&pi)
+            .expect("real proof generation")
+    }
+
     // ── test_verify_transfer_proof_valid ─────────────────────────────────────
 
     #[test]
     fn test_verify_transfer_proof_valid() {
-        // Proof non-empty dengan inputs valid → Valid. Spec §16.4.
-        let proof = vec![0xABu8; 100];
-        let result = verify_transfer_proof(&proof, &valid_inputs());
+        // K5-01: REAL STARK proof with valid inputs → Valid. Spec §16.4.
+        let inputs = valid_inputs();
+        let proof = real_proof_for(&inputs);
+        let result = verify_transfer_proof(&proof, &inputs);
         assert!(
             result.is_valid(),
-            "Proof valid harus diterima: {:?}",
+            "Real valid proof must be accepted: {:?}",
             result
         );
     }
@@ -172,9 +194,9 @@ mod tests {
 
     #[test]
     fn test_is_proof_valid_convenience() {
-        // is_proof_valid adalah convenience wrapper. Spec §16.4.
-        let proof = vec![0xABu8; 100];
+        // is_proof_valid convenience wrapper with REAL proof. Spec §16.4.
         let inputs = valid_inputs();
+        let proof = real_proof_for(&inputs);
         assert!(is_proof_valid(&proof, &inputs));
     }
 }
