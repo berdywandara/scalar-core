@@ -372,6 +372,139 @@ pub fn sort_commitments_by_ordering_key(commitments: &mut [ProofCommitment]) {
     commitments.sort_by_key(|c| c.tx_ordering_key);
 }
 
+// ── A.5 / K7-02: Aggregation over REAL verified proofs ───────────────────────
+
+use crate::transfer_air::{verify_transfer_proof, TransferPublicInputs, TransferVerifyError};
+
+/// Domain separator for deriving a per-proof commitment from real proof bytes.
+/// Distinct from DOMAIN_STARK_BATCH (Phase 3) and DOMAIN_SUBEPOCH_FS (Phase 1).
+const DOMAIN_PROOF_COMMIT: &[u8] = b"scalar_starkpack_proofcommit";
+
+/// One real transfer proof to be aggregated: bytes + its public inputs + ordering key.
+pub struct RealProofInput {
+    /// Serialized Winterfell proof bytes (from TransferProver::prove_transfer).
+    pub proof_bytes: Vec<u8>,
+    /// Public inputs the proof was generated with (needed to verify it).
+    pub public_inputs: TransferPublicInputs,
+    /// Deterministic ordering key (tx_ordering_key). R1.
+    pub tx_ordering_key: [u8; 32],
+}
+
+/// Error from real-proof aggregation. K7-02.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum RealAggregateError {
+    #[error("batch size {n} invalid (max {max})")]
+    InvalidBatchSize { n: usize, max: usize },
+    #[error("proof {index} failed verification: {reason}")]
+    ProofVerificationFailed { index: usize, reason: String },
+    #[error("transcript error: {0:?}")]
+    Transcript(TranscriptError),
+}
+
+/// Derive a ProofCommitment from REAL, already-verified proof bytes.
+///
+/// The merkle_root and deep_ali_root are derived via domain-separated BLAKE3
+/// over the actual proof bytes, so they are cryptographically bound to the
+/// real proof — NOT supplied by the caller. constraint_count is read from the
+/// proof's own context (trace length × width is not exposed, so we bind the
+/// proof byte length as a structural witness).
+fn commitment_from_real_proof(proof_bytes: &[u8], tx_ordering_key: [u8; 32]) -> ProofCommitment {
+    // merkle_root := BLAKE3(DOMAIN || "merkle" || proof_bytes)
+    let mut h1 = Hasher::new();
+    h1.update(DOMAIN_PROOF_COMMIT);
+    h1.update(b"merkle");
+    h1.update(proof_bytes);
+    let merkle_root = *h1.finalize().as_bytes();
+
+    // deep_ali_root := BLAKE3(DOMAIN || "deepali" || proof_bytes)
+    let mut h2 = Hasher::new();
+    h2.update(DOMAIN_PROOF_COMMIT);
+    h2.update(b"deepali");
+    h2.update(proof_bytes);
+    let deep_ali_root = *h2.finalize().as_bytes();
+
+    ProofCommitment {
+        merkle_root,
+        constraint_count: proof_bytes.len() as u32,
+        deep_ali_root,
+        tx_ordering_key,
+    }
+}
+
+/// Compute the global DEEP-FRI root from the per-proof commitments of REAL proofs.
+///
+/// K7-02 fix: global_fri_root is DERIVED from the aggregated real-proof
+/// commitments here — it is NOT passed in by the caller. The root binds every
+/// proof's merkle_root and deep_ali_root in canonical (sorted) order.
+fn compute_global_fri_root(sorted_commitments: &[ProofCommitment]) -> [u8; 32] {
+    let mut h = Hasher::new();
+    h.update(DOMAIN_STARK_BATCH);
+    h.update(&(sorted_commitments.len() as u32).to_le_bytes());
+    for c in sorted_commitments {
+        h.update(&c.merkle_root);
+        h.update(&c.deep_ali_root);
+        h.update(&c.constraint_count.to_le_bytes());
+    }
+    *h.finalize().as_bytes()
+}
+
+/// Aggregate N REAL transfer proofs into a single AggregateProof. K7-02 / A.5.
+///
+/// Workflow:
+///   1. Verify EACH proof with the real Winterfell verifier. Any failure aborts
+///      the whole batch (no invalid proof can be hidden inside an aggregate).
+///   2. Derive each ProofCommitment from the real proof bytes (bound by BLAKE3).
+///   3. Sort commitments by tx_ordering_key (R1).
+///   4. Compute global_fri_root FROM the real-proof commitments (not supplied).
+///   5. Run the Fiat-Shamir transcript (R1–R4) to produce the AggregateProof.
+///
+/// LIMITATION (documented, open): this is aggregation-over-verified-proofs, not
+/// a single recursive low-degree FRI proof that re-proves all N in one shot.
+/// Each proof is verified individually (step 1) and bound into one transcript
+/// (steps 2–5). Full recursive FRI folding (one proof attesting all N without
+/// re-running N verifications) remains future work — see Research Package §3.4.
+pub fn aggregate_real_proofs(
+    inputs: &[RealProofInput],
+) -> Result<AggregateProof, RealAggregateError> {
+    let n = inputs.len();
+    if n == 0 || n > STARK_MAX_BATCH_SIZE {
+        return Err(RealAggregateError::InvalidBatchSize {
+            n,
+            max: STARK_MAX_BATCH_SIZE,
+        });
+    }
+
+    // Step 1: verify every proof with the REAL verifier. Abort on any failure.
+    for (i, inp) in inputs.iter().enumerate() {
+        match verify_transfer_proof(&inp.proof_bytes, &inp.public_inputs) {
+            Ok(()) => {}
+            Err(e) => {
+                let reason = match e {
+                    TransferVerifyError::EmptyProof => "empty proof".to_string(),
+                    TransferVerifyError::DeserializationFailed(s) => s,
+                    TransferVerifyError::VerificationFailed(s) => s,
+                };
+                return Err(RealAggregateError::ProofVerificationFailed { index: i, reason });
+            }
+        }
+    }
+
+    // Step 2: derive commitments from the real proof bytes.
+    let mut commitments: Vec<ProofCommitment> = inputs
+        .iter()
+        .map(|inp| commitment_from_real_proof(&inp.proof_bytes, inp.tx_ordering_key))
+        .collect();
+
+    // Step 3: canonical sort (R1).
+    sort_commitments_by_ordering_key(&mut commitments);
+
+    // Step 4: compute global_fri_root from the real-proof commitments (K7-02).
+    let global_fri_root = compute_global_fri_root(&commitments);
+
+    // Step 5: run the transcript with the derived root.
+    aggregate_proofs(&commitments, global_fri_root).map_err(RealAggregateError::Transcript)
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -609,5 +742,144 @@ mod tests {
         );
         assert_eq!(DOMAIN_SUBEPOCH_FS, b"scalar_subepoch_fs");
         assert_eq!(DOMAIN_STARK_BATCH, b"scalar_stark_batch");
+    }
+}
+
+// ── A.5 / K7-02 tests — aggregation over REAL proofs ─────────────────────────
+
+#[cfg(test)]
+mod real_aggregation_tests {
+    use super::*;
+    use crate::transfer_air::{TransferProver, TransferPublicInputs};
+
+    fn valid_tpi(fee: u64) -> TransferPublicInputs {
+        TransferPublicInputs {
+            fee_total_sscl: fee,
+            sum_inputs_sscl: fee,
+            sum_outputs_sscl: 0,
+            crypto_version: 0x01,
+            entry_timestamp_ms: 1_000_000_000,
+            current_timestamp_ms: 1_000_060_000,
+            nullifier_nonzero: true,
+            output_nonzero: true,
+            single_utxo_source: true,
+        }
+    }
+
+    fn real_input(fee: u64, key_seed: u8) -> RealProofInput {
+        let pi = valid_tpi(fee);
+        let proof_bytes = TransferProver::new()
+            .prove_transfer(&pi)
+            .expect("real proof");
+        RealProofInput {
+            proof_bytes,
+            public_inputs: pi,
+            tx_ordering_key: [key_seed; 32],
+        }
+    }
+
+    #[test]
+    fn test_aggregate_real_proofs_basic() {
+        // K7-02: aggregate 3 real verified proofs; global_fri_root derived from them.
+        let inputs = vec![
+            real_input(40, 0x01),
+            real_input(50, 0x02),
+            real_input(60, 0x03),
+        ];
+        let agg = aggregate_real_proofs(&inputs).expect("aggregation must succeed");
+        assert_eq!(agg.n_proofs, 3);
+        assert!(agg.verify_structure());
+        // global_fri_root must be non-zero (derived from real proofs)
+        assert_ne!(agg.global_fri_root, [0u8; 32]);
+    }
+
+    #[test]
+    fn test_global_fri_root_derived_not_supplied() {
+        // K7-02: the same set of real proofs yields a deterministic root,
+        // and a DIFFERENT set yields a DIFFERENT root — proving the root is
+        // bound to the actual proofs, not an arbitrary caller-supplied value.
+        let a = vec![real_input(40, 0x01), real_input(50, 0x02)];
+        let b = vec![real_input(70, 0x01), real_input(80, 0x02)];
+        let ra = aggregate_real_proofs(&a).unwrap();
+        let rb = aggregate_real_proofs(&b).unwrap();
+        assert_ne!(
+            ra.global_fri_root, rb.global_fri_root,
+            "different real proofs must yield different global_fri_root"
+        );
+    }
+
+    #[test]
+    fn test_aggregate_rejects_empty_proof_in_batch() {
+        // K7-02: an empty (invalid) proof in the batch aborts aggregation.
+        let mut inputs = vec![real_input(40, 0x01)];
+        inputs.push(RealProofInput {
+            proof_bytes: vec![], // invalid
+            public_inputs: valid_tpi(50),
+            tx_ordering_key: [0x02; 32],
+        });
+        let r = aggregate_real_proofs(&inputs);
+        assert!(matches!(
+            r,
+            Err(RealAggregateError::ProofVerificationFailed { index: 1, .. })
+        ));
+    }
+
+    #[test]
+    fn test_aggregate_rejects_tampered_proof_in_batch() {
+        // K7-02: a tampered proof in the batch must be rejected (real verify).
+        let mut good = real_input(40, 0x01);
+        let mut tampered = real_input(50, 0x02);
+        let mid = tampered.proof_bytes.len() / 2;
+        tampered.proof_bytes[mid] ^= 0xFF;
+        let _ = &mut good;
+        let inputs = vec![good, tampered];
+        let r = aggregate_real_proofs(&inputs);
+        assert!(
+            matches!(
+                r,
+                Err(RealAggregateError::ProofVerificationFailed { index: 1, .. })
+            ),
+            "tampered proof in batch must abort aggregation: {:?}",
+            r
+        );
+    }
+
+    #[test]
+    fn test_aggregate_rejects_wrong_pubinputs_in_batch() {
+        // K7-02: proof verified against mismatched public inputs is rejected.
+        let mut bad = real_input(40, 0x01);
+        bad.public_inputs.fee_total_sscl = 999; // doesn't match the proof
+        let inputs = vec![bad];
+        let r = aggregate_real_proofs(&inputs);
+        assert!(matches!(
+            r,
+            Err(RealAggregateError::ProofVerificationFailed { index: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn test_aggregate_empty_batch_rejected() {
+        let r = aggregate_real_proofs(&[]);
+        assert!(matches!(
+            r,
+            Err(RealAggregateError::InvalidBatchSize { n: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn test_aggregate_deterministic() {
+        // Same real proofs → identical aggregate (determinism, R1–R4).
+        let mk = || {
+            vec![
+                real_input(40, 0x03),
+                real_input(50, 0x01),
+                real_input(60, 0x02),
+            ]
+        };
+        let r1 = aggregate_real_proofs(&mk()).unwrap();
+        let r2 = aggregate_real_proofs(&mk()).unwrap();
+        assert_eq!(r1.global_fri_root, r2.global_fri_root);
+        assert_eq!(r1.transcript_hash, r2.transcript_hash);
+        assert_eq!(r1.query_positions, r2.query_positions);
     }
 }

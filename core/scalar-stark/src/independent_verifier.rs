@@ -340,6 +340,66 @@ pub fn dual_verify(
     }
 }
 
+// ── A.7 / §15.3: Dual verification over a REAL proof ─────────────────────────
+
+use crate::transfer_air::{verify_transfer_proof, TransferPublicInputs};
+
+/// Map a TransferPublicInputs to the IndependentPublicInput consumed by the
+/// second (semantic) implementation. The independent verifier re-checks the
+/// same public facts WITHOUT using Winterfell/FRI — see module docs.
+fn transfer_pi_to_independent(pi: &TransferPublicInputs) -> IndependentPublicInput {
+    // Reconstruct minimal commitment/nullifier/output vectors from the public
+    // flags. The independent verifier checks structural + value constraints
+    // (fee floor, version, censorship window, conservation, non-zero nullifier).
+    let nullifier = if pi.nullifier_nonzero {
+        [0x01u8; 32]
+    } else {
+        [0u8; 32]
+    };
+    let out_commit = if pi.output_nonzero {
+        [0x03u8; 32]
+    } else {
+        [0u8; 32]
+    };
+    IndependentPublicInput {
+        input_commitments: vec![[0x02u8; 32]],
+        input_nullifiers: vec![nullifier],
+        output_commitments: vec![out_commit],
+        fee_total: pi.fee_total_sscl,
+        crypto_version: pi.crypto_version,
+        entry_timestamp: pi.entry_timestamp_ms,
+        current_timestamp: pi.current_timestamp_ms,
+    }
+}
+
+/// Run BOTH verifiers on a REAL transfer proof and require agreement. §15.3, A.7.
+///
+/// Implementation 1 (Winterfell): real FRI/DEEP-ALI verification of proof bytes.
+/// Implementation 2 (Independent): semantic re-check of public constraints with
+///   Poseidon2/BLAKE3 directly — no Winterfell, no FRI.
+///
+/// The proof is accepted (BothValid) ONLY if BOTH implementations accept.
+/// Any disagreement is surfaced (not hidden) as a security incident per §2.2.
+///
+/// LIMITATION (documented, open): the two implementations check overlapping but
+/// not identical statements. Winterfell attests the full AIR (CA–CG) over the
+/// trace; the independent verifier re-derives the public-input constraints
+/// semantically. Full constraint-for-constraint re-execution of the AIR by a
+/// second prover/verifier stack (true multi-client STARK agreement, §15.3)
+/// remains future work. This function guarantees that a proof rejected by EITHER
+/// implementation is rejected overall.
+pub fn dual_verify_real_proof(proof_bytes: &[u8], pi: &TransferPublicInputs) -> DualVerifyResult {
+    // Implementation 1: real Winterfell verification (may panic on malformed
+    // bytes inside Winterfell's parser; treat a panic as a rejection).
+    let winterfell_accepted =
+        std::panic::catch_unwind(|| verify_transfer_proof(proof_bytes, pi).is_ok())
+            .unwrap_or(false);
+
+    // Implementation 2: independent semantic verification.
+    let independent_input = transfer_pi_to_independent(pi);
+    dual_verify(&independent_input, winterfell_accepted)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -645,5 +705,88 @@ mod tests {
     fn test_independent_t_max_wait_is_30_minutes() {
         // Spec §4.3 C10: T_MAX_WAIT = 30 menit = 1_800_000 ms.
         assert_eq!(INDEPENDENT_T_MAX_WAIT_MS, 1_800_000u64);
+    }
+}
+
+// ── A.7 / §15.3 tests — dual verification over REAL proofs ───────────────────
+
+#[cfg(test)]
+mod dual_real_tests {
+    use super::*;
+    use crate::transfer_air::{TransferProver, TransferPublicInputs};
+
+    fn valid_tpi() -> TransferPublicInputs {
+        TransferPublicInputs {
+            fee_total_sscl: 40,
+            sum_inputs_sscl: 40,
+            sum_outputs_sscl: 0,
+            crypto_version: 0x01,
+            entry_timestamp_ms: 1_000_000_000,
+            current_timestamp_ms: 1_000_060_000,
+            nullifier_nonzero: true,
+            output_nonzero: true,
+            single_utxo_source: true,
+        }
+    }
+
+    #[test]
+    fn test_dual_real_both_valid() {
+        // §15.3: real valid proof accepted by BOTH implementations.
+        let pi = valid_tpi();
+        let proof = TransferProver::new().prove_transfer(&pi).unwrap();
+        let result = dual_verify_real_proof(&proof, &pi);
+        assert_eq!(
+            result,
+            DualVerifyResult::BothValid,
+            "both implementations must accept a valid proof"
+        );
+    }
+
+    #[test]
+    fn test_dual_real_tampered_winterfell_rejects() {
+        // §15.3: tampered proof → Winterfell rejects. Independent (semantic)
+        // still passes on public inputs, so result surfaces WinterfellRejects.
+        let pi = valid_tpi();
+        let mut proof = TransferProver::new().prove_transfer(&pi).unwrap();
+        let mid = proof.len() / 2;
+        proof[mid] ^= 0xFF;
+        let result = dual_verify_real_proof(&proof, &pi);
+        assert_eq!(
+            result,
+            DualVerifyResult::WinterfellRejects,
+            "tampered proof must be rejected by Winterfell"
+        );
+    }
+
+    #[test]
+    fn test_dual_real_empty_winterfell_rejects() {
+        let pi = valid_tpi();
+        let result = dual_verify_real_proof(&[], &pi);
+        assert_eq!(result, DualVerifyResult::WinterfellRejects);
+    }
+
+    #[test]
+    fn test_dual_real_independent_rejects_bad_fee() {
+        // §15.3: if a (hypothetically) valid Winterfell proof carried public
+        // inputs that violate a semantic constraint (fee below floor), the
+        // independent verifier rejects — surfacing the disagreement.
+        // We simulate by generating a proof whose pub-inputs pass Winterfell
+        // but fail the independent fee-floor check is impossible (prover refuses
+        // fee<40). Instead we feed an empty proof + bad fee: both reject.
+        let mut pi = valid_tpi();
+        pi.fee_total_sscl = 0; // independent will reject (C6)
+        let result = dual_verify_real_proof(&[], &pi);
+        // Winterfell rejects empty AND independent rejects fee=0 → BothReject.
+        assert_eq!(result, DualVerifyResult::BothReject);
+    }
+
+    #[test]
+    fn test_dual_real_garbage_rejected() {
+        // §15.3: arbitrary bytes rejected by Winterfell (panic-safe).
+        let pi = valid_tpi();
+        let garbage = vec![0x5cu8; 64];
+        let result = dual_verify_real_proof(&garbage, &pi);
+        // Independent passes on valid pub-inputs; Winterfell rejects garbage.
+        assert_eq!(result, DualVerifyResult::WinterfellRejects);
     }
 }
