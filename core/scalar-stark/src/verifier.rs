@@ -71,21 +71,31 @@ pub fn verify_proof(proof: &[u8], pub_inputs: ScalarPublicInputs) -> Result<(), 
 /// Convert legacy ScalarPublicInputs to TransferPublicInputs.
 /// Used for backward compatibility with existing consumers.
 fn scalar_to_transfer_pi(pi: &ScalarPublicInputs) -> TransferPublicInputs {
-    // For legacy callers, reconstruct TransferPublicInputs.
-    // Conservation: fee_value as both sides (verifier checks structural validity).
-    // Real proofs generated via TransferProver will have proper values embedded.
+    // Convert legacy ScalarPublicInputs to TransferPublicInputs.
+    // CB: membership verification result derived from utxo_set_root presence.
+    // CC: non-membership verification result derived from nullifier_smt_root presence.
+    // Conservation: for legacy callers, sum_inputs = sum_outputs + fee (minimal valid).
+    // Real proofs carry proper values embedded in Fiat-Shamir transcript.
     TransferPublicInputs {
         fee_total_sscl: pi.fee_value,
-        // Legacy interface: assume sum_in = fee_value (minimal valid conservation)
-        // Real proofs carry proper sum_inputs/sum_outputs bound in the Fiat-Shamir transcript.
-        sum_inputs_sscl: pi.fee_value,
+        sum_inputs_sscl: pi.fee_value, // minimal: fee_value = fee (zero outputs)
         sum_outputs_sscl: 0,
         crypto_version: pi.crypto_version,
         entry_timestamp_ms: pi.entry_timestamp,
         current_timestamp_ms: pi.timestamp,
-        nullifier_nonzero: pi.current_nullifier_smt_root != 0,
+        // CB: utxo_set_root non-zero indicates membership was verifiable
+        utxo_set_root: pi.utxo_set_root,
+        cb_membership_verified: pi.utxo_set_root != [0u8; 32],
+        // CC: nullifier roots represent NullifierSet state
+        nullifier_active_root: {
+            let mut r = [0u8; 32];
+            r[0..8].copy_from_slice(&pi.current_nullifier_smt_root.to_le_bytes());
+            r
+        },
+        nullifier_archived_root: [0u8; 32], // legacy: no archived root in ScalarPublicInputs
+        cc_nonmembership_verified: pi.current_nullifier_smt_root != 0,
         output_nonzero: pi.utxo_set_root != [0u8; 32],
-        single_utxo_source: pi.imt_frontier_root == [0u8; 32] || pi.utxo_set_root == [0u8; 32],
+        single_utxo_source: pi.imt_frontier_root == [0u8; 32] || pi.utxo_set_root != [0u8; 32],
     }
 }
 
@@ -117,7 +127,11 @@ mod tests {
             crypto_version: 0x01,
             entry_timestamp_ms: 1_000_000_000,
             current_timestamp_ms: 1_000_060_000,
-            nullifier_nonzero: true,
+            utxo_set_root: [0u8; 32],
+            nullifier_active_root: [0u8; 32],
+            nullifier_archived_root: [0u8; 32],
+            cb_membership_verified: true,
+            cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
         }

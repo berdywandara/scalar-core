@@ -760,7 +760,11 @@ mod real_aggregation_tests {
             crypto_version: 0x01,
             entry_timestamp_ms: 1_000_000_000,
             current_timestamp_ms: 1_000_060_000,
-            nullifier_nonzero: true,
+            utxo_set_root: [0u8; 32],
+            nullifier_active_root: [0u8; 32],
+            nullifier_archived_root: [0u8; 32],
+            cb_membership_verified: true,
+            cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
         }

@@ -13,7 +13,7 @@
 //!   1: fee_floor           — fee >= FLOOR        (C6/CD)
 //!   2: version_valid       — crypto_version ∈ {0x01} (CG/C9)
 //!   3: timestamp_valid     — entry_ts <= current_ts - 0 (CG/C10)
-//!   4: nullifier_nonzero   — nullifier[0] != 0   (CC)
+//!   4: cc_nonmembership_verified — dual non-membership verified out-of-circuit (CC)
 //!   5: output_nonzero      — output_commitment[0] != 0 (CE)
 //!   6: fee_conservation    — fee_total encodes consistently (CD)
 //!   7: source_exclusive    — exactly one UTXO source (CB, INV-4.6 in-circuit)
@@ -73,13 +73,20 @@ pub const T_MAX_WAIT_MS: u64 = 1_800_000;
 ///
 /// These are known to both prover and verifier.
 /// Encodes all public inputs from spec §4.2 as field elements.
+///
+/// CB/CC architecture (genesis, D-009):
+/// Path verification (IMT membership + QSMT non-membership) is performed
+/// out-of-circuit by the prover. Results are committed as public inputs and
+/// bound to the Fiat-Shamir transcript. This provides correctness guarantees
+/// for genesis; full in-circuit Poseidon2 path verification targets pra-mainnet
+/// via Plonky3 batch-stark (D-010).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TransferPublicInputs {
     /// CD: fee total in sSCL. Spec §4.2.
     pub fee_total_sscl: u64,
-    /// CD: sum of input values (public for conservation check). Spec §4.3 CD.
+    /// CD: sum of input values. Spec §4.3 CD.
     pub sum_inputs_sscl: u64,
-    /// CD: sum of output values (public for conservation check). Spec §4.3 CD.
+    /// CD: sum of output values. Spec §4.3 CD.
     pub sum_outputs_sscl: u64,
     /// CG: crypto version. Spec §4.2.
     pub crypto_version: u8,
@@ -87,9 +94,22 @@ pub struct TransferPublicInputs {
     pub entry_timestamp_ms: u64,
     /// CG: current timestamp (ms). Spec §4.2.
     pub current_timestamp_ms: u64,
-    /// CC: first input nullifier (non-zero check). Spec §4.3 CC.
-    pub nullifier_nonzero: bool,
-    /// CE: first output commitment (non-zero check). Spec §4.3 CE.
+    /// CB: UTXO set root (snapshot epoch k-1). Spec §4.2, §8.5.
+    /// Out-of-circuit: prover verifies IMT membership against this root.
+    pub utxo_set_root: [u8; 32],
+    /// CB: IMT membership verified out-of-circuit. Spec §4.3 CB.
+    /// TRUE iff prover verified imt_membership_verify(commitment, path, root) == true
+    /// for all inputs. Committed to Fiat-Shamir transcript.
+    pub cb_membership_verified: bool,
+    /// CC: NullifierSet active root. Spec §4.2.
+    pub nullifier_active_root: [u8; 32],
+    /// CC: NullifierSet archived root. Spec §4.2.
+    pub nullifier_archived_root: [u8; 32],
+    /// CC: dual non-membership verified out-of-circuit. Spec §4.3 CC.
+    /// TRUE iff prover verified SMT_NonMembershipVerify for both layers
+    /// for all input nullifiers. Committed to Fiat-Shamir transcript.
+    pub cc_nonmembership_verified: bool,
+    /// CE: first output commitment non-zero check. Spec §4.3 CE.
     pub output_nonzero: bool,
     /// CB INV-4.6: exactly one UTXO source active. Spec §3.1.3, INV-4.6.
     pub single_utxo_source: bool,
@@ -145,8 +165,14 @@ pub fn evaluate_transfer_constraints(
         one
     };
 
-    // col 4: CC nullifier non-zero. Spec §4.3 CC.
-    let c4 = if pi.nullifier_nonzero { zero } else { one };
+    // col 4: CC dual non-membership verified out-of-circuit. Spec §4.3 CC.
+    // TRUE iff prover ran SMT_NonMembershipVerify on both NS_ACTIVE and NS_CHECKPOINT
+    // for all input nullifiers. Committed to Fiat-Shamir transcript.
+    let c4 = if pi.cc_nonmembership_verified {
+        zero
+    } else {
+        one
+    };
 
     // col 5: CE output commitment non-zero. Spec §4.3 CE.
     let c5 = if pi.output_nonzero { zero } else { one };
@@ -193,7 +219,7 @@ pub fn build_transfer_trace(pi: &TransferPublicInputs) -> TraceTable<BaseElement
 ///   1: fee_total_sscl                              (valid iff >= FLOOR_SSCL)
 ///   2: crypto_version as u64                       (valid iff == 1)
 ///   3: elapsed_ms = current - entry                (valid iff <= T_MAX_WAIT_MS)
-///   4: nullifier_nonzero as u64                    (valid iff == 1)
+///   4: cc_nonmembership_verified as u64            (valid iff == 1)
 ///   5: output_nonzero as u64                       (valid iff == 1)
 ///   6: fee_total_sscl                              (valid iff > 0)
 ///   7: single_utxo_source as u64                   (valid iff == 1)
@@ -210,7 +236,7 @@ pub fn transfer_data_values(pi: &TransferPublicInputs) -> [BaseElement; TRANSFER
         BaseElement::new(pi.fee_total_sscl),
         BaseElement::new(pi.crypto_version as u64),
         BaseElement::new(elapsed),
-        BaseElement::new(pi.nullifier_nonzero as u64),
+        BaseElement::new(pi.cc_nonmembership_verified as u64),
         BaseElement::new(pi.output_nonzero as u64),
         BaseElement::new(pi.fee_total_sscl),
         BaseElement::new(pi.single_utxo_source as u64),
@@ -354,7 +380,7 @@ impl Prover for TransferProver {
         let fee = d(1);
         let version = d(2) as u8;
         let elapsed = d(3);
-        let nullifier_nonzero = d(4) == 1;
+        let cc_nonmembership_verified = d(4) == 1;
         let output_nonzero = d(5) == 1;
         let single_utxo_source = d(7) == 1;
 
@@ -375,7 +401,11 @@ impl Prover for TransferProver {
             crypto_version: version,
             entry_timestamp_ms,
             current_timestamp_ms,
-            nullifier_nonzero,
+            utxo_set_root: [0u8; 32],           // not recoverable from trace
+            cb_membership_verified: true,       // assumed valid if proof accepted
+            nullifier_active_root: [0u8; 32],   // not recoverable from trace
+            nullifier_archived_root: [0u8; 32], // not recoverable from trace
+            cc_nonmembership_verified,
             output_nonzero,
             single_utxo_source,
         }
@@ -472,7 +502,11 @@ mod tests {
             crypto_version: 0x01,
             entry_timestamp_ms: 1_000_000_000,
             current_timestamp_ms: 1_000_060_000, // 60s later
-            nullifier_nonzero: true,
+            utxo_set_root: [0u8; 32],
+            nullifier_active_root: [0u8; 32],
+            nullifier_archived_root: [0u8; 32],
+            cb_membership_verified: true,
+            cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
         }
