@@ -123,45 +123,17 @@ pub fn verify_mint_constraints_mc1_mc5(
     Ok(())
 }
 
-// ── Mock prover/verifier (pre-mainnet placeholder) ────────────────────────────
+// ── Legacy test helper ───────────────────────────────────────────────────────
 
-/// Mock STARK prover for Mint Claim Circuit. Spec §5.2.
-/// Production: replace with Winterfell-based proof generation.
-pub fn prove_mint_claim(
-    public_input: &MintClaimPublicInput,
-    signature: &[u8],
-) -> Result<Vec<u8>, &'static str> {
-    verify_mint_constraints_mc1_mc5(public_input, signature)?;
-    // Mock proof: real proof will be Winterfell STARK bytes.
-    let mut proof = vec![0x5cu8; 32]; // sentinel byte 0x5c = "Scalar"
-    proof.extend_from_slice(&public_input.epoch_id.to_le_bytes());
-    proof.extend_from_slice(&public_input.node_id_full);
-    Ok(proof)
-}
-
-/// Mock STARK verifier for Mint Claim Circuit. Spec §5.2.
-/// Production: replace with Winterfell-based proof verification.
-pub fn verify_mint_claim(
-    proof: &[u8],
-    public_input: &MintClaimPublicInput,
-    signature: &[u8],
-) -> bool {
-    if proof.len() < 32 {
-        return false;
-    }
-    // Check sentinel and MC1/MC5
-    proof[0] == 0x5cu8 && verify_mint_constraints_mc1_mc5(public_input, signature).is_ok()
-}
-
-/// Build a test public input with valid crypto_version. For tests only.
-pub fn build_test_mint_public_input(
+/// Build a test MintClaimPublicInput. For tests only.
+pub fn build_test_mint_public_input_legacy(
     node_id: [u8; 32],
     epoch_id: u64,
     reward_amount_sscl: u64,
     node_key_pubkey: [u8; 32],
 ) -> MintClaimPublicInput {
     MintClaimPublicInput {
-        crypto_version: 0x01, // K5-04: aligned
+        crypto_version: 0x01,
         node_id_full: node_id,
         epoch_id,
         reward_root: [0xAAu8; 32],
@@ -171,13 +143,6 @@ pub fn build_test_mint_public_input(
         output_commitments: vec![[0xDDu8; 32]],
         node_key_pubkey,
     }
-}
-
-// ── MintClaimAir (kept for compatibility) ────────────────────────────────────
-
-#[allow(dead_code)]
-pub struct MintClaimAir {
-    pub_inputs: MintClaimPublicInput,
 }
 
 #[cfg(test)]
@@ -331,7 +296,7 @@ mod tests {
         let reward = 1_000_000u64;
 
         let pubkey_arr = make_pubkey_array(&kp.public);
-        let pub_input = build_test_mint_public_input(node_id, epoch_id, reward, pubkey_arr);
+        let pub_input = build_test_mint_public_input_legacy(node_id, epoch_id, reward, pubkey_arr);
 
         let claim_msg = compute_claim_message(&node_id, epoch_id, reward);
         let sig = sign_message(&claim_msg, &kp.secret).unwrap();
@@ -348,7 +313,7 @@ mod tests {
         let node_id = make_node_id(0x01);
         let pubkey_arr = make_pubkey_array(&kp.public);
 
-        let mut pub_input = build_test_mint_public_input(node_id, 1, 1_000_000, pubkey_arr);
+        let mut pub_input = build_test_mint_public_input_legacy(node_id, 1, 1_000_000, pubkey_arr);
         pub_input.crypto_version = 0xFF; // bad version
 
         let claim_msg = compute_claim_message(&node_id, 1, 1_000_000);
@@ -361,38 +326,4 @@ mod tests {
     }
 
     // ── Mock prove/verify roundtrip ───────────────────────────────────────────
-
-    #[test]
-    fn test_prove_verify_roundtrip() {
-        let kp = generate_keypair().unwrap();
-        let node_id = make_node_id(0x02);
-        let epoch_id = 5u64;
-        let reward = 250_000u64;
-
-        let pubkey_arr = make_pubkey_array(&kp.public);
-        let pub_input = build_test_mint_public_input(node_id, epoch_id, reward, pubkey_arr);
-        let claim_msg = compute_claim_message(&node_id, epoch_id, reward);
-        let sig = sign_message(&claim_msg, &kp.secret).unwrap();
-
-        let proof = prove_mint_claim(&pub_input, &sig).unwrap();
-        assert!(
-            verify_mint_claim(&proof, &pub_input, &sig),
-            "Proof must verify after prove"
-        );
-    }
-
-    #[test]
-    fn test_empty_proof_rejected() {
-        let kp = generate_keypair().unwrap();
-        let node_id = make_node_id(0x01);
-        let pubkey_arr = make_pubkey_array(&kp.public);
-        let pub_input = build_test_mint_public_input(node_id, 1, 1_000_000, pubkey_arr);
-        let claim_msg = compute_claim_message(&node_id, 1, 1_000_000);
-        let sig = sign_message(&claim_msg, &kp.secret).unwrap();
-
-        assert!(
-            !verify_mint_claim(&[], &pub_input, &sig),
-            "Empty proof must be rejected"
-        );
-    }
 }

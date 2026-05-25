@@ -351,7 +351,7 @@ fn transfer_pi_to_independent(pi: &TransferPublicInputs) -> IndependentPublicInp
     // Reconstruct minimal commitment/nullifier/output vectors from the public
     // flags. The independent verifier checks structural + value constraints
     // (fee floor, version, censorship window, conservation, non-zero nullifier).
-    let nullifier = if pi.nullifier_nonzero {
+    let nullifier = if pi.cc_nonmembership_verified {
         [0x01u8; 32]
     } else {
         [0u8; 32]
@@ -723,7 +723,11 @@ mod dual_real_tests {
             crypto_version: 0x01,
             entry_timestamp_ms: 1_000_000_000,
             current_timestamp_ms: 1_000_060_000,
-            nullifier_nonzero: true,
+            utxo_set_root: [0u8; 32],
+            nullifier_active_root: [0u8; 32],
+            nullifier_archived_root: [0u8; 32],
+            cb_membership_verified: true,
+            cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
         }
