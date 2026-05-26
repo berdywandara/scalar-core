@@ -57,11 +57,11 @@ use crate::poseidon2_p3::{
 ///         + ending_full_rounds[0..2](3*16=48) + ending_full_rounds[3].sbox(8)
 ///         = 172
 /// The last FullRound's `.post[0..WIDTH]` at cols [172..180) IS the output state.
-const P2_OUTPUT_COL_OFFSET: usize = 172;
+pub const P2_OUTPUT_COL_OFFSET: usize = 172;
 
 /// Number of output elements bound to public values (first 4 = rate portion).
 /// Spec §3.4: hash output = state[0..4] (256-bit digest from 4 x Goldilocks).
-const P2_OUTPUT_BOUND: usize = 4;
+pub const P2_OUTPUT_BOUND: usize = 4;
 
 /// OwnershipAir: ScalarPoseidon2Air + boundary constraints binding
 /// output state[0..4] of each row to its corresponding public_values slot.

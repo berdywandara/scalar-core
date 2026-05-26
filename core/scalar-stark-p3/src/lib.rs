@@ -16,6 +16,7 @@
 pub mod batch_transfer_p3;
 pub mod config;
 pub mod membership_air_p3;
+pub mod mint_air_p3;
 pub mod nonmembership_air_p3;
 pub mod ownership_air_p3;
 pub mod poseidon2_p3;
