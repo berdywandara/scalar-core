@@ -52,7 +52,8 @@ pub type P2Compress = TruncatedPermutation<Perm, 2, 4, 8>;
 /// Merkle tree MMCS over Goldilocks field elements using Poseidon2.
 /// DIGEST_ELEMS=4: each digest is 4 Goldilocks field elements (256 bits).
 /// DIGEST_ELEMS=4: each digest is 4 Goldilocks field elements (256 bits).
-pub type ValMmcs = MerkleTreeMmcs<F, F, P2Hash, P2Compress, 4, 4>;
+/// N=2: binary Merkle tree (2 children per node). DIGEST_ELEMS=4: 4 field elements per digest.
+pub type ValMmcs = MerkleTreeMmcs<F, F, P2Hash, P2Compress, 2, 4>;
 
 /// Extension field MMCS for FRI query phase.
 pub type ChallengeMmcs = ExtensionMmcs<F, EF, ValMmcs>;

@@ -34,6 +34,7 @@ p3-symmetric     = "0.5"
 p3-uni-stark     = "0.5"
 p3-keccak        = "0.5"
 rand             = "0.9"
+postcard         = { version = "1", features = ["alloc"] }
 
 [features]
 # Run hardware benchmark tests. Spec §15.6.
