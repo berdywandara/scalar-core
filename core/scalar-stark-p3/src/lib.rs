@@ -15,6 +15,8 @@
 
 pub mod config;
 pub mod poseidon2_p3;
+pub mod transfer_public_inputs;
+pub mod transfer_air_p3;
 
 /// Plonky3 crate versions used. Spec §2.1.
 pub const P3_VERSION: &str = "0.5.3";
