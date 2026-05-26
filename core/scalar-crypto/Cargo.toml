@@ -6,6 +6,9 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+p3-goldilocks = "0.5"
+p3-field = "0.5"
+p3-symmetric = "0.5"
 thiserror = "1"
 pqcrypto-traits = "0.3.5"
 pqcrypto-sphincsplus = "0.7"

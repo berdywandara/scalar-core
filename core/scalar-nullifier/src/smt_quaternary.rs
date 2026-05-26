@@ -23,7 +23,7 @@
 
 use scalar_crypto::domain::DOMAIN_SMT_ACTIVE;
 use scalar_crypto::poseidon2::field_reduce;
-use scalar_crypto::poseidon2_t8::{field8_to_bytes32, Poseidon2T8Hasher};
+use scalar_crypto::poseidon2_t8::poseidon2_hash_chained_bytes32;
 use std::collections::HashMap;
 
 // ── Constants — OSSIFIED ──────────────────────────────────────────────────────
@@ -95,8 +95,7 @@ pub fn hash_qsmt_node(children: &[[u8; 32]; QSMT_ARITY]) -> [u8; 32] {
         }
     }
 
-    let result = Poseidon2T8Hasher::hash(&input);
-    field8_to_bytes32(&result)
+    poseidon2_hash_chained_bytes32(&input)
 }
 
 /// Hash quaternary leaf node using Poseidon2 t=8.
@@ -135,8 +134,7 @@ pub fn hash_qsmt_leaf(nullifier: &[u8; 32], epoch_id: u64) -> [u8; 32] {
     // epoch_id
     input.push(field_reduce(epoch_id));
 
-    let result = Poseidon2T8Hasher::hash(&input);
-    field8_to_bytes32(&result)
+    poseidon2_hash_chained_bytes32(&input)
 }
 
 // ── QuaternarySmtProof ────────────────────────────────────────────────────────
