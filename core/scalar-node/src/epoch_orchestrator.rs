@@ -1,6 +1,6 @@
 //! Epoch Transition Orchestrator — B.1, B.2, B.3, INV-4.10
 //!
-//! Memegang IMT dan UtxoSetSMT, menjalankan urutan atomic epoch transition:
+//! Memegang IMT dan UtxoSetAccumulator, menjalankan urutan atomic epoch transition:
 //!   finalize EpochSMT(k) → reset IMT → mulai sub-epoch 0 epoch k+1
 //!
 //! Crash-recovery: deteksi state tidak konsisten (EpochSMT terarsip tapi IMT
@@ -9,7 +9,7 @@
 //! Spec: PraGenesis §3.1.10.2, INV-4.10, TV5.14
 
 use scalar_crypto::imt::IncrementalMerkleTree;
-use scalar_emission::utxo_set_smt::{UtxoSetSMT, UtxoSetState, GENESIS_EPOCH_ID};
+use scalar_emission::utxo_set_smt::{UtxoSetAccumulator, UtxoSetState, GENESIS_EPOCH_ID};
 
 /// Status konsistensi state IMT + EpochSMT. INV-4.10.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,7 +33,7 @@ pub struct EpochTransitionOrchestrator {
     /// Incremental Merkle Tree untuk komitmen UTXO intra-epoch.
     pub imt: IncrementalMerkleTree,
     /// UTXO Set SMT untuk komitmen UTXO lintas-epoch.
-    pub utxo_set_smt: UtxoSetSMT,
+    pub utxo_set_smt: UtxoSetAccumulator,
     /// Epoch saat ini.
     current_epoch: u64,
     /// Flag: apakah EpochSMT sudah di-finalize untuk epoch saat ini.
@@ -47,7 +47,7 @@ impl EpochTransitionOrchestrator {
     pub fn new() -> Self {
         Self {
             imt: IncrementalMerkleTree::new(),
-            utxo_set_smt: UtxoSetSMT::new(),
+            utxo_set_smt: UtxoSetAccumulator::new(),
             current_epoch: GENESIS_EPOCH_ID,
             smt_archived_this_epoch: false,
             imt_reset_this_epoch: false,
@@ -153,7 +153,7 @@ impl EpochTransitionOrchestrator {
     }
 
     /// Proses transaksi valid di dalam epoch berjalan.
-    /// Menambahkan output commitment ke IMT dan UtxoSetSMT.
+    /// Menambahkan output commitment ke IMT dan UtxoSetAccumulator.
     pub fn process_transaction(
         &mut self,
         commitment: &[u8; 32],
@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn test_imt_utxo_independence() {
-        // INV-4.10: IMT dan UtxoSetSMT harus independen.
+        // INV-4.10: IMT dan UtxoSetAccumulator harus independen.
         let mut orch = EpochTransitionOrchestrator::new();
 
         orch.process_transaction(&[0xAAu8; 32]).unwrap();

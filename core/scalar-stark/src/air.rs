@@ -63,7 +63,7 @@ pub struct TransferCircuitPublicInput {
     /// CB: Root SMT dari semua UTXO epoch k-1 (canonical ordering). Spec §4.2, §4.3 CB.
     /// ANTI-DOUBLE-SPEND: harus dari epoch k-1, BUKAN epoch k saat ini.
     /// Dihasilkan via sort_transactions_canonical() — PR-V12-003.
-    /// Disimpan via UtxoSetSMT::take_snapshot() — PR-V12-004.
+    /// Disimpan via UtxoSetAccumulator::take_snapshot() — PR-V12-004.
     pub utxo_set_root: [u8; 32],
     /// CB IMT: IMT frontier root dari SubEpochCommitment quorum 5/7. Research Package §3.1.
     /// Decision D-003: HARUS dari SubEpochCommitment dengan quorum 5/7.

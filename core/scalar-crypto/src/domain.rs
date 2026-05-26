@@ -378,6 +378,7 @@ mod tests {
             DOMAIN_SUBEPOCH_SCORE,
             DOMAIN_SUBEPOCH_FS,
             DOMAIN_STARK_BATCH,
+            DOMAIN_UTXO_SMT,
         ];
         let mut seen = std::collections::HashSet::new();
         for d in &domains {
@@ -389,8 +390,8 @@ mod tests {
         }
         assert_eq!(
             domains.len(),
-            28,
-            "Expected 28 byte-slice domain separators"
+            29,
+            "Expected 29 byte-slice domain separators"
         );
     }
 
@@ -401,9 +402,16 @@ mod tests {
     // and lengths appended after the separator.
 }
 
-// ── K9-02 PENDING DECISION — DOMAIN_UTXO_SMT ────────────────────────────────────
-// b"scalar_utxo_set" is used in utxo_set_smt.rs but NOT in this registry.
-// Decision D.1 (see docs/decisions/DESIGN_DECISIONS_PENDING.md):
-//   Option A: add `pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_set";` here
-//   Option B: replace with DOMAIN_SMT_ACTIVE
-// DO NOT OSSIFY until team decision.
+// ── D.1 Decision (FASE D) — DOMAIN_UTXO_SMT OSSIFIED ────────────────────────
+// Decision: register b"scalar_utxo_set" as OSSIFIED separator.
+// Rationale: value was always correct per spec §2.3; this formalizes
+// its presence in the canonical registry so domain.rs remains the
+// single source of truth ("Secured by Analysis"). No byte value
+// changed — utxo_set_root on-chain is unaffected.
+
+/// UTXO Set accumulator root domain. Spec §2.3, §8.5, §4.3 CB. 15 bytes. OSSIFIED.
+///
+/// Used in: UtxoSetAccumulator::compute_root() — BLAKE3 domain prefix for
+/// the sequential hash accumulator (genesis architecture, pre-testnet temporary).
+/// Wajib diganti dengan IMT-based EpochSMT sebelum testnet (utang teknis D3).
+pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_set";
