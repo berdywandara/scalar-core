@@ -462,6 +462,7 @@ mod tests {
 
     /// Build a minimal empty SMT of depth 32.
     /// All internal nodes are zero (empty tree), so the root is all-zeros.
+    #[allow(dead_code)]
     fn empty_smt_root() -> [u8; 32] {
         // An empty sparse Merkle tree has root = hash-of-zeros propagated up.
         // For simplicity in tests, we use zero root (all leaves zero → root zero
@@ -471,6 +472,7 @@ mod tests {
     }
 
     /// Compute the root of an empty depth-32 SMT (all leaves = zero).
+    #[allow(dead_code)]
     fn build_empty_tree_root() -> [u8; 32] {
         let (domain_lo, domain_hi) = (DOMAIN_SMT_ACTIVE_LO, DOMAIN_SMT_ACTIVE_HI);
         let mut current = zero_leaf();
