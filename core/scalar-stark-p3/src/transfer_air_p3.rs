@@ -46,9 +46,9 @@ use p3_goldilocks::Goldilocks;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{prove_with_preprocessed, verify};
 
-use crate::config::{ScalarStarkConfig, build_scalar_config};
+use crate::config::{build_scalar_config, ScalarStarkConfig};
 use crate::transfer_public_inputs::{
-    TransferPublicInputsP3, VALID_CRYPTO_VERSION, check_all_constraints,
+    check_all_constraints, TransferPublicInputsP3, VALID_CRYPTO_VERSION,
 };
 
 // ── Trace layout constants — OSSIFIED ─────────────────────────────────────────
@@ -90,17 +90,17 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
         let main = builder.main();
         let local: &[AB::Var] = main.current_slice();
 
-        let fee        = local[COL_FEE];
-        let sum_in     = local[COL_SUM_IN];
-        let sum_out    = local[COL_SUM_OUT];
-        let version    = local[COL_VERSION];
-        let entry_lo   = local[COL_ENTRY_TS_LO];
-        let entry_hi   = local[COL_ENTRY_TS_HI];
+        let fee = local[COL_FEE];
+        let sum_in = local[COL_SUM_IN];
+        let sum_out = local[COL_SUM_OUT];
+        let version = local[COL_VERSION];
+        let entry_lo = local[COL_ENTRY_TS_LO];
+        let entry_hi = local[COL_ENTRY_TS_HI];
         let current_lo = local[COL_CURRENT_TS_LO];
         let current_hi = local[COL_CURRENT_TS_HI];
-        let cb_ok      = local[COL_CB_VERIFIED];
-        let cc_ok      = local[COL_CC_VERIFIED];
-        let out_nz     = local[COL_OUTPUT_NONZERO];
+        let cb_ok = local[COL_CB_VERIFIED];
+        let cc_ok = local[COL_CC_VERIFIED];
+        let out_nz = local[COL_OUTPUT_NONZERO];
         let single_src = local[COL_SINGLE_SOURCE];
 
         // ── CD: Value conservation ────────────────────────────────────────────
@@ -137,7 +137,7 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
         // Here: assert current >= entry (lo parts), hi parts equal (same epoch window).
         // Pre-flight check_all_constraints() enforces full window before proving.
         let two32 = AB::F::from_u64(1u64 << 32);
-        let entry_ts: AB::Expr = entry_lo.into()   + entry_hi * two32.clone();
+        let entry_ts: AB::Expr = entry_lo.into() + entry_hi * two32.clone();
         let current_ts: AB::Expr = current_lo.into() + current_hi * two32.clone();
         // current_ts - entry_ts >= 0 enforced by pre-flight
         // Here: assert current_ts != entry_ts - T_MAX_WAIT_MS - 1 (partial)
@@ -226,9 +226,7 @@ pub enum TransferP3Error {
 // ── Prover ────────────────────────────────────────────────────────────────────
 
 /// Prove a transfer with CD/CE/CG constraints. P3-R4b.
-pub fn prove_transfer_p3(
-    pi: &TransferPublicInputsP3,
-) -> Result<Vec<u8>, TransferP3Error> {
+pub fn prove_transfer_p3(pi: &TransferPublicInputsP3) -> Result<Vec<u8>, TransferP3Error> {
     // Pre-flight: fast constraint check before expensive proving.
     check_all_constraints(pi).map_err(TransferP3Error::ConstraintViolated)?;
 
@@ -239,8 +237,7 @@ pub fn prove_transfer_p3(
 
     let proof = prove_with_preprocessed(&config, &air, trace, &public_values, None);
 
-    postcard::to_allocvec(&proof)
-        .map_err(|e| TransferP3Error::SerializationFailed(e.to_string()))
+    postcard::to_allocvec(&proof).map_err(|e| TransferP3Error::SerializationFailed(e.to_string()))
 }
 
 // ── Verifier ──────────────────────────────────────────────────────────────────
@@ -259,8 +256,7 @@ pub fn verify_transfer_p3(
     let air = TransferAirP3;
     let public_values = pi.to_goldilocks();
 
-    verify(&config, &air, &proof, &public_values)
-        .map_err(|_| TransferP3Error::VerificationFailed)
+    verify(&config, &air, &proof, &public_values).map_err(|_| TransferP3Error::VerificationFailed)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -268,24 +264,24 @@ pub fn verify_transfer_p3(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use p3_matrix::Matrix;
     use crate::transfer_public_inputs::T_MAX_WAIT_MS;
+    use p3_matrix::Matrix;
 
     fn valid_pi() -> TransferPublicInputsP3 {
         TransferPublicInputsP3 {
-            fee_total_sscl:            40,
-            sum_inputs_sscl:           1_000_000_040,
-            sum_outputs_sscl:          1_000_000_000,
-            crypto_version:            0x01,
-            entry_timestamp_ms:        1_000_000_000,
-            current_timestamp_ms:      1_000_060_000,
-            utxo_set_root:             [0x42u8; 32],
-            cb_membership_verified:    true,
-            nullifier_active_root:     [0xAAu8; 32],
-            nullifier_archived_root:   [0xBBu8; 32],
+            fee_total_sscl: 40,
+            sum_inputs_sscl: 1_000_000_040,
+            sum_outputs_sscl: 1_000_000_000,
+            crypto_version: 0x01,
+            entry_timestamp_ms: 1_000_000_000,
+            current_timestamp_ms: 1_000_060_000,
+            utxo_set_root: [0x42u8; 32],
+            cb_membership_verified: true,
+            nullifier_active_root: [0xAAu8; 32],
+            nullifier_archived_root: [0xBBu8; 32],
             cc_nonmembership_verified: true,
-            output_nonzero:            true,
-            single_utxo_source:        true,
+            output_nonzero: true,
+            single_utxo_source: true,
         }
     }
 
@@ -341,7 +337,10 @@ mod tests {
         let mut pi = valid_pi();
         pi.sum_inputs_sscl = 500; // conservation fails
         let result = prove_transfer_p3(&pi);
-        assert!(matches!(result, Err(TransferP3Error::ConstraintViolated(0))));
+        assert!(matches!(
+            result,
+            Err(TransferP3Error::ConstraintViolated(0))
+        ));
     }
 
     #[test]
@@ -351,7 +350,10 @@ mod tests {
         pi.fee_total_sscl = 10;
         pi.sum_inputs_sscl = pi.sum_outputs_sscl + 10;
         let result = prove_transfer_p3(&pi);
-        assert!(matches!(result, Err(TransferP3Error::ConstraintViolated(1))));
+        assert!(matches!(
+            result,
+            Err(TransferP3Error::ConstraintViolated(1))
+        ));
     }
 
     #[test]
@@ -360,7 +362,10 @@ mod tests {
         let mut pi = valid_pi();
         pi.crypto_version = 0xFF;
         let result = prove_transfer_p3(&pi);
-        assert!(matches!(result, Err(TransferP3Error::ConstraintViolated(2))));
+        assert!(matches!(
+            result,
+            Err(TransferP3Error::ConstraintViolated(2))
+        ));
     }
 
     #[test]
@@ -369,7 +374,10 @@ mod tests {
         let mut pi = valid_pi();
         pi.current_timestamp_ms = pi.entry_timestamp_ms + T_MAX_WAIT_MS + 1;
         let result = prove_transfer_p3(&pi);
-        assert!(matches!(result, Err(TransferP3Error::ConstraintViolated(3))));
+        assert!(matches!(
+            result,
+            Err(TransferP3Error::ConstraintViolated(3))
+        ));
     }
 
     #[test]
@@ -378,6 +386,9 @@ mod tests {
         let mut pi = valid_pi();
         pi.single_utxo_source = false;
         let result = prove_transfer_p3(&pi);
-        assert!(matches!(result, Err(TransferP3Error::ConstraintViolated(7))));
+        assert!(matches!(
+            result,
+            Err(TransferP3Error::ConstraintViolated(7))
+        ));
     }
 }

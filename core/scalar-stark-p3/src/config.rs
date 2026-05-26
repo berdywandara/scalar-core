@@ -15,7 +15,7 @@ use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
 use p3_fri::{FriParameters, TwoAdicFriPcs};
-use p3_goldilocks::{Goldilocks, default_goldilocks_poseidon2_8};
+use p3_goldilocks::{default_goldilocks_poseidon2_8, Goldilocks};
 use p3_merkle_tree::MerkleTreeMmcs;
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use p3_uni_stark::StarkConfig;
@@ -106,10 +106,10 @@ pub fn build_scalar_config() -> ScalarStarkConfig {
     let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
     let fri_params = FriParameters {
-        log_blowup: FRI_LOG_BLOWUP,              // 2^3 = 8x blowup. OSSIFIED.
+        log_blowup: FRI_LOG_BLOWUP, // 2^3 = 8x blowup. OSSIFIED.
         log_final_poly_len: 0,
-        max_log_arity: 4,                        // folding factor 4. OSSIFIED spec §4.4.
-        num_queries: FRI_NUM_QUERIES,            // 84 queries. OSSIFIED.
+        max_log_arity: 4,             // folding factor 4. OSSIFIED spec §4.4.
+        num_queries: FRI_NUM_QUERIES, // 84 queries. OSSIFIED.
         commit_proof_of_work_bits: FRI_PROOF_OF_WORK_BITS, // 20 bits grinding. OSSIFIED.
         query_proof_of_work_bits: 0,
         mmcs: challenge_mmcs,

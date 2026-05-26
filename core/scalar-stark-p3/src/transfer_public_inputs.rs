@@ -127,19 +127,19 @@ impl TransferPublicInputsP3 {
         let current_ts = v[6].as_canonical_u64() | (v[7].as_canonical_u64() << 32);
 
         Some(Self {
-            fee_total_sscl:           v[0].as_canonical_u64(),
-            sum_inputs_sscl:          v[1].as_canonical_u64(),
-            sum_outputs_sscl:         v[2].as_canonical_u64(),
-            crypto_version:           v[3].as_canonical_u64() as u8,
-            entry_timestamp_ms:       entry_ts,
-            current_timestamp_ms:     current_ts,
-            utxo_set_root:            read_bytes32(&v[8..16]),
-            cb_membership_verified:   v[16].as_canonical_u64() != 0,
-            nullifier_active_root:    read_bytes32(&v[17..25]),
-            nullifier_archived_root:  read_bytes32(&v[25..33]),
+            fee_total_sscl: v[0].as_canonical_u64(),
+            sum_inputs_sscl: v[1].as_canonical_u64(),
+            sum_outputs_sscl: v[2].as_canonical_u64(),
+            crypto_version: v[3].as_canonical_u64() as u8,
+            entry_timestamp_ms: entry_ts,
+            current_timestamp_ms: current_ts,
+            utxo_set_root: read_bytes32(&v[8..16]),
+            cb_membership_verified: v[16].as_canonical_u64() != 0,
+            nullifier_active_root: read_bytes32(&v[17..25]),
+            nullifier_archived_root: read_bytes32(&v[25..33]),
             cc_nonmembership_verified: v[33].as_canonical_u64() != 0,
-            output_nonzero:           v[34].as_canonical_u64() != 0,
-            single_utxo_source:       v[35].as_canonical_u64() != 0,
+            output_nonzero: v[34].as_canonical_u64() != 0,
+            single_utxo_source: v[35].as_canonical_u64() != 0,
         })
     }
 }
@@ -211,14 +211,30 @@ pub fn check_cc_nonmembership(pi: &TransferPublicInputsP3) -> bool {
 /// Used as pre-flight before proving (defense-in-depth).
 /// Constraints are evaluated by the AIR; this is a fast error-reporting layer.
 pub fn check_all_constraints(pi: &TransferPublicInputsP3) -> Result<(), usize> {
-    if !check_cd_conservation(pi) { return Err(0); }
-    if !check_cd_fee_floor(pi)    { return Err(1); }
-    if !check_cg_version(pi)      { return Err(2); }
-    if !check_cg_timestamp(pi)    { return Err(3); }
-    if !check_cb_membership(pi)   { return Err(4); }
-    if !check_cc_nonmembership(pi){ return Err(5); }
-    if !check_ce_output_nonzero(pi){ return Err(6); }
-    if !check_inv46_single_source(pi){ return Err(7); }
+    if !check_cd_conservation(pi) {
+        return Err(0);
+    }
+    if !check_cd_fee_floor(pi) {
+        return Err(1);
+    }
+    if !check_cg_version(pi) {
+        return Err(2);
+    }
+    if !check_cg_timestamp(pi) {
+        return Err(3);
+    }
+    if !check_cb_membership(pi) {
+        return Err(4);
+    }
+    if !check_cc_nonmembership(pi) {
+        return Err(5);
+    }
+    if !check_ce_output_nonzero(pi) {
+        return Err(6);
+    }
+    if !check_inv46_single_source(pi) {
+        return Err(7);
+    }
     Ok(())
 }
 
@@ -230,19 +246,19 @@ mod tests {
 
     fn valid_pi() -> TransferPublicInputsP3 {
         TransferPublicInputsP3 {
-            fee_total_sscl:           40,
-            sum_inputs_sscl:          1_000_000_040,
-            sum_outputs_sscl:         1_000_000_000,
-            crypto_version:           0x01,
-            entry_timestamp_ms:       1_000_000_000,
-            current_timestamp_ms:     1_000_060_000,
-            utxo_set_root:            [0x42u8; 32],
-            cb_membership_verified:   true,
-            nullifier_active_root:    [0xAAu8; 32],
-            nullifier_archived_root:  [0xBBu8; 32],
+            fee_total_sscl: 40,
+            sum_inputs_sscl: 1_000_000_040,
+            sum_outputs_sscl: 1_000_000_000,
+            crypto_version: 0x01,
+            entry_timestamp_ms: 1_000_000_000,
+            current_timestamp_ms: 1_000_060_000,
+            utxo_set_root: [0x42u8; 32],
+            cb_membership_verified: true,
+            nullifier_active_root: [0xAAu8; 32],
+            nullifier_archived_root: [0xBBu8; 32],
             cc_nonmembership_verified: true,
-            output_nonzero:           true,
-            single_utxo_source:       true,
+            output_nonzero: true,
+            single_utxo_source: true,
         }
     }
 

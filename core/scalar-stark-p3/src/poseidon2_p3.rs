@@ -14,14 +14,13 @@
 //! Soundness: collision resistance 128-bit per spec §4.4.
 
 use p3_goldilocks::{
-    Goldilocks, GenericPoseidon2LinearLayersGoldilocks,
-    GOLDILOCKS_POSEIDON2_RC_8_EXTERNAL_FINAL, GOLDILOCKS_POSEIDON2_RC_8_EXTERNAL_INITIAL,
-    GOLDILOCKS_POSEIDON2_RC_8_INTERNAL,
+    GenericPoseidon2LinearLayersGoldilocks, Goldilocks, GOLDILOCKS_POSEIDON2_RC_8_EXTERNAL_FINAL,
+    GOLDILOCKS_POSEIDON2_RC_8_EXTERNAL_INITIAL, GOLDILOCKS_POSEIDON2_RC_8_INTERNAL,
 };
-use p3_poseidon2_air::{Poseidon2Air, RoundConstants, generate_trace_rows};
+use p3_poseidon2_air::{generate_trace_rows, Poseidon2Air, RoundConstants};
 use p3_uni_stark::{prove_with_preprocessed, verify};
 
-use crate::config::{ScalarStarkConfig, build_scalar_config};
+use crate::config::{build_scalar_config, ScalarStarkConfig};
 
 // ── Goldilocks Poseidon2 AIR constants — OSSIFIED ─────────────────────────────
 
@@ -43,19 +42,19 @@ pub type GoldilocksLinearLayers = GenericPoseidon2LinearLayersGoldilocks;
 pub type ScalarPoseidon2Air = Poseidon2Air<
     Goldilocks,
     GoldilocksLinearLayers,
-    8,   // P2_WIDTH
-    7,   // P2_SBOX_DEGREE
-    1,   // P2_SBOX_REGISTERS
-    4,   // P2_HALF_FULL_ROUNDS
-    22   // P2_PARTIAL_ROUNDS
+    8,  // P2_WIDTH
+    7,  // P2_SBOX_DEGREE
+    1,  // P2_SBOX_REGISTERS
+    4,  // P2_HALF_FULL_ROUNDS
+    22, // P2_PARTIAL_ROUNDS
 >;
 
 /// Round constants for Poseidon2 AIR (format compatible with p3-poseidon2-air).
 pub type ScalarRoundConstants = RoundConstants<
     Goldilocks,
-    8,   // P2_WIDTH
-    4,   // P2_HALF_FULL_ROUNDS
-    22   // P2_PARTIAL_ROUNDS
+    8,  // P2_WIDTH
+    4,  // P2_HALF_FULL_ROUNDS
+    22, // P2_PARTIAL_ROUNDS
 >;
 
 // ── Builder ───────────────────────────────────────────────────────────────────
@@ -105,9 +104,10 @@ pub enum Poseidon2P3Error {
 /// num_hashes must be a power of two (Plonky3 requirement).
 pub fn prove_poseidon2(num_hashes: usize) -> Result<Vec<u8>, Poseidon2P3Error> {
     if !num_hashes.is_power_of_two() {
-        return Err(Poseidon2P3Error::InvalidInput(
-            format!("num_hashes must be power of two, got {}", num_hashes)
-        ));
+        return Err(Poseidon2P3Error::InvalidInput(format!(
+            "num_hashes must be power of two, got {}",
+            num_hashes
+        )));
     }
 
     let config = build_scalar_config();
@@ -117,15 +117,9 @@ pub fn prove_poseidon2(num_hashes: usize) -> Result<Vec<u8>, Poseidon2P3Error> {
     let inputs: Vec<[Goldilocks; P2_WIDTH]> = (0..num_hashes)
         .map(|i| core::array::from_fn(|j| Goldilocks::new(i as u64 * P2_WIDTH as u64 + j as u64)))
         .collect();
-    let trace = generate_trace_rows::<
-        Goldilocks,
-        GoldilocksLinearLayers,
-        8,
-        7,
-        1,
-        4,
-        22
-    >(inputs, &constants, 0);
+    let trace = generate_trace_rows::<Goldilocks, GoldilocksLinearLayers, 8, 7, 1, 4, 22>(
+        inputs, &constants, 0,
+    );
 
     // prove_with_preprocessed: (config, air, trace, public_values, preprocessed)
     let proof = prove_with_preprocessed(&config, &air, trace, &[], None);
@@ -150,8 +144,7 @@ pub fn verify_poseidon2(proof_bytes: &[u8]) -> Result<(), Poseidon2P3Error> {
     let air = build_poseidon2_air();
 
     // verify: (config, air, proof, public_values)
-    verify(&config, &air, &proof, &[])
-        .map_err(|_| Poseidon2P3Error::VerificationFailed)
+    verify(&config, &air, &proof, &[]).map_err(|_| Poseidon2P3Error::VerificationFailed)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -165,9 +158,9 @@ mod tests {
         // Spec D-008: t=8, R_F=8, R_P=22, alpha=7. OSSIFIED.
         assert_eq!(P2_WIDTH, 8);
         assert_eq!(P2_SBOX_DEGREE, 7);
-        assert_eq!(P2_HALF_FULL_ROUNDS, 4);  // 4+4 = R_F=8
+        assert_eq!(P2_HALF_FULL_ROUNDS, 4); // 4+4 = R_F=8
         assert_eq!(P2_PARTIAL_ROUNDS, 22);
-        assert_eq!(P2_SBOX_REGISTERS, 1);    // optimal for degree-7
+        assert_eq!(P2_SBOX_REGISTERS, 1); // optimal for degree-7
     }
 
     #[test]
@@ -184,8 +177,7 @@ mod tests {
     #[test]
     fn test_poseidon2_prove_verify_roundtrip() {
         // P3-R3: prove 4 Poseidon2 permutations, verify proof. Spec §15.1.
-        let proof_bytes = prove_poseidon2(4)
-            .expect("prove must succeed");
+        let proof_bytes = prove_poseidon2(4).expect("prove must succeed");
         assert!(!proof_bytes.is_empty(), "proof must be non-empty");
 
         let result = verify_poseidon2(&proof_bytes);
@@ -195,8 +187,7 @@ mod tests {
     #[test]
     fn test_poseidon2_tampered_proof_rejected() {
         // Falsifiability: tampered proof must be rejected. Spec §15.1.
-        let mut proof_bytes = prove_poseidon2(4)
-            .expect("prove must succeed");
+        let mut proof_bytes = prove_poseidon2(4).expect("prove must succeed");
 
         // Tamper with proof bytes
         let mid = proof_bytes.len() / 2;
