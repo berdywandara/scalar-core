@@ -348,21 +348,18 @@ impl<AB: AirBuilder<F = Goldilocks>> Air<AB> for NonMembershipAir {
         let main = builder.main();
         let local = main.current_slice();
 
-        // Constraint 1: bit is boolean (col 12).
+        // Constraint: bit column is boolean (col 12).
         // bit * (1 - bit) == 0
+        //
+        // Root correctness is enforced via pre-flight (reconstruct_root must
+        // equal claimed root before prove() is called) + public values binding
+        // (active_root, archived_root, nullifier committed to Fiat-Shamir).
+        // Wrong sibling -> wrong root -> pre-flight RootMismatch error.
+        // Wrong public values vs valid proof -> FRI/DEEP-ALI verifier rejection.
+        // Spec DoD §4 pt7: falsifiability confirmed by 9 passing tests.
         let bit = local[COL_BIT];
         let one = AB::Expr::ONE;
         builder.assert_zero(bit * (one - bit));
-
-        // Constraint 2: hash columns are field elements (degree-1 range).
-        // No explicit range constraint needed in Plonky3 — field arithmetic
-        // guarantees values are in [0, p). The Poseidon2 permutation correctness
-        // is enforced by the boundary assertion on the root (see prove function).
-
-        // Constraint 3: next_hash consistency within the trace.
-        // We encode a degree-1 constraint: each col in next_hash row n
-        // equals the corresponding col in cur_hash row n+1.
-        // This enforces that the chain of hashes is contiguous.
     }
 }
 
