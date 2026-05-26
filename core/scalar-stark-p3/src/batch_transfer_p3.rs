@@ -13,6 +13,8 @@
 //! This is the foundation for P3-R8 (STARKPack aggregation).
 //! Spec §4.1, §4.3, PraGenesis §3.4.
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     membership_air_p3::{
         prove_membership_p3, verify_membership_p3, MembershipP3Error, MembershipPublicClaim,
@@ -66,7 +68,7 @@ pub struct TransferPublicClaims {
 ///
 /// Each field is a serialised Plonky3 proof (postcard bytes).
 /// All four must verify against the same `TransferPublicClaims`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BatchTransferProof {
     /// CA ownership proof bytes.
     pub ca_proof: Vec<u8>,

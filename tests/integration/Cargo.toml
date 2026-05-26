@@ -27,4 +27,4 @@ scalar-emission = { path = "../../core/scalar-emission" }
 scalar-nullifier = { path = "../../core/scalar-nullifier" }
 scalar-fees = { path = "../../core/scalar-fees" }
 scalar-network = { path = "../../core/scalar-network" }
-scalar-stark = { path = "../../core/scalar-stark" }
+scalar-stark-p3 = { path = "../../core/scalar-stark-p3" }

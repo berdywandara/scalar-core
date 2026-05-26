@@ -14,7 +14,8 @@ description = "Scalar Network audit crate — read-only audit, verify proof, ins
 
 [dependencies]
 scalar-crypto  = { path = "../../core/scalar-crypto" }
-scalar-stark   = { path = "../../core/scalar-stark" }
+scalar-stark-p3 = { path = "../../core/scalar-stark-p3" }
+postcard = { version = "1", features = ["alloc"] }
 scalar-emission = { path = "../../core/scalar-emission" }
 blake3         = "1.8.4"
 thiserror      = "1"

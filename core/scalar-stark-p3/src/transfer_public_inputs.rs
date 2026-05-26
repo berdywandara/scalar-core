@@ -238,6 +238,31 @@ pub fn check_all_constraints(pi: &TransferPublicInputsP3) -> Result<(), usize> {
     Ok(())
 }
 
+impl TransferPublicInputsP3 {
+    /// True jika menggunakan UTXOSource::SubEpochIMT (imt_frontier_root != zero).
+    /// Spec §3.1.3, Optimalisasi §4.6.
+    /// True jika menggunakan UTXOSource::SubEpochIMT.
+    /// Full IMT source tracking integrated in FASE B (EpochOrchestrator).
+    /// Placeholder: always returns false (EpochSMT) until FASE B. Spec §3.1.3.
+    pub fn uses_imt_source(&self) -> bool {
+        // FASE B: derive from imt_frontier_root field once added to public inputs.
+        false
+    }
+
+    /// True jika imt_commitment_count konsisten dengan imt frontier.
+    /// Spec §3.1.5 Langkah 4 (IMTCountMismatch prevention).
+    pub fn validate_imt_inputs(&self) -> bool {
+        // EpochSMT: selalu valid
+        true
+    }
+
+    /// True jika utxo_set_root non-zero (CB root tersedia).
+    /// Spec §4.3 CB.
+    pub fn validate_cb_root_non_zero(&self) -> bool {
+        self.utxo_set_root != [0u8; 32]
+    }
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

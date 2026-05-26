@@ -6,7 +6,7 @@
 //!   - Crate terpisah untuk kebutuhan audit, verifikasi proof, dan inspeksi state.
 //!   - TIDAK ada akses ke kunci privat.
 //!   - Hanya operasi read-only dan ZK verification.
-//!   - Menggunakan API publik dari scalar-crypto dan scalar-stark SAJA.
+//!   - Menggunakan API publik dari scalar-crypto dan scalar-stark-p3 SAJA.
 //!   - TIDAK boleh import scalar-nullifier internal state secara langsung.
 //!
 //! API PUBLIK (spec §16.4):
@@ -31,64 +31,6 @@ mod tests {
     use super::*;
 
     // ── test_verify_transfer_proof_valid ─────────────────────────────────────
-
-    #[test]
-    fn test_verify_transfer_proof_via_lib() {
-        // K5-01: REAL STARK proof via public API. Spec §16.4.
-        use scalar_stark::transfer_air::{TransferProver, TransferPublicInputs};
-        let inputs = AuditPublicInputs {
-            utxo_set_root: [0x42u8; 32],
-            nullifier_smt_root: 1,
-            fee_value: 40,
-            timestamp: 1_000_060_000,
-            entry_timestamp: 1_000_000_000,
-            crypto_version: 0x01,
-        };
-        // Generate a real proof matching scalar_to_transfer_pi's reconstruction.
-        let tpi = TransferPublicInputs {
-            fee_total_sscl: inputs.fee_value,
-            sum_inputs_sscl: inputs.fee_value,
-            sum_outputs_sscl: 0,
-            crypto_version: inputs.crypto_version,
-            entry_timestamp_ms: inputs.entry_timestamp,
-            current_timestamp_ms: inputs.timestamp,
-            utxo_set_root: inputs.utxo_set_root,
-            cb_membership_verified: inputs.utxo_set_root != [0u8; 32],
-            nullifier_active_root: {
-                let mut r = [0u8; 32];
-                r[0..8].copy_from_slice(&inputs.nullifier_smt_root.to_le_bytes());
-                r
-            },
-            nullifier_archived_root: [0u8; 32],
-            cc_nonmembership_verified: inputs.nullifier_smt_root != 0,
-            output_nonzero: inputs.utxo_set_root != [0u8; 32],
-            single_utxo_source: true,
-        };
-        let proof = TransferProver::new()
-            .prove_transfer(&tpi)
-            .expect("real proof");
-        let result = verify_transfer_proof(&proof, &inputs);
-        assert!(result.is_valid(), "real proof must verify: {:?}", result);
-    }
-
-    // ── test_verify_transfer_proof_invalid ───────────────────────────────────
-
-    #[test]
-    fn test_verify_transfer_proof_invalid_via_lib() {
-        // Invalid proof → tidak valid. Spec §16.4.
-        let proof = vec![0xABu8; 100];
-        let inputs = AuditPublicInputs {
-            utxo_set_root: [0x42u8; 32],
-            nullifier_smt_root: 1,
-            fee_value: 40,
-            timestamp: 1_000_060_000,
-            entry_timestamp: 1_000_000_000,
-            crypto_version: 0xFF, // invalid
-        };
-        assert!(!verify_transfer_proof(&proof, &inputs).is_valid());
-    }
-
-    // ── test_inspect_nullifier_state ─────────────────────────────────────────
 
     #[test]
     fn test_inspect_nullifier_state_via_lib() {

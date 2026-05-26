@@ -13,7 +13,8 @@ production = []
 [dependencies]
 scalar-crypto = { path = "../scalar-crypto" }
 scalar-nullifier = { path = "../scalar-nullifier" }
-scalar-stark = { path = "../scalar-stark" }
+scalar-stark-p3 = { path = "../scalar-stark-p3" }
+postcard = { version = "1", features = ["alloc"] }
 scalar-network = { path = "../scalar-network" }
 tokio = { workspace = true, features = ["full"] }
 anyhow.workspace = true
