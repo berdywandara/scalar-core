@@ -11,6 +11,7 @@
 //! Empty subtree root = [0u8;32].
 
 use std::collections::HashMap;
+use scalar_crypto::domain::{DOMAIN_SMT_ACTIVE, DOMAIN_SMT_ARCHIVED};
 
 /// Depth SMT NS_ACTIVE. OSSIFIED — spec §6.1.
 pub const SMT_DEPTH: usize = 32;
@@ -24,7 +25,7 @@ pub const MAX_NULLIFIERS_PER_CHECKPOINT: usize = 200_000;
 /// Domain separator dari spec §2.3: b"scalar_smt_active".
 fn hash_internal(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
     let mut h = blake3::Hasher::new();
-    h.update(b"scalar_smt_active");
+    h.update(DOMAIN_SMT_ACTIVE);
     h.update(left);
     h.update(right);
     *h.finalize().as_bytes()
@@ -33,7 +34,7 @@ fn hash_internal(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
 /// Hash leaf: BLAKE3(domain || nullifier || epoch_le).
 fn hash_leaf(nullifier: &[u8; 32], epoch_id: u64) -> [u8; 32] {
     let mut h = blake3::Hasher::new();
-    h.update(b"scalar_smt_active");
+    h.update(DOMAIN_SMT_ACTIVE);
     h.update(b"leaf");
     h.update(nullifier);
     h.update(&epoch_id.to_le_bytes());
@@ -299,7 +300,7 @@ pub fn compute_archived_root(
     let mut sorted = new_nullifiers.to_vec();
     sorted.sort();
     let mut h = blake3::Hasher::new();
-    h.update(b"scalar_smt_archived");
+    h.update(DOMAIN_SMT_ARCHIVED);
     h.update(prev_archived_root);
     for n in &sorted {
         h.update(n);

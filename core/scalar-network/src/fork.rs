@@ -10,6 +10,7 @@
 
 use scalar_crypto::sphincs::verify_signature;
 use std::collections::HashMap;
+use scalar_crypto::domain::DOMAIN_VOTE;
 
 pub const FORK_COMMIT_THRESHOLD_FP: u64 = 750_000;
 pub const FORK_ABORT_THRESHOLD_FP: u64 = 670_000;
@@ -44,7 +45,7 @@ impl ForkSignalMessage {
     /// Spec §11.1: vote ditandatangani dengan NodeKey.
     pub fn vote_message(&self) -> Vec<u8> {
         let mut msg = Vec::with_capacity(11 + 32 + 8 + 32 + 1);
-        msg.extend_from_slice(b"scalar_vote"); // DOMAIN_VOTE — spec §2.3
+        msg.extend_from_slice(DOMAIN_VOTE); // spec §2.3
         msg.extend_from_slice(&self.node_id);
         msg.extend_from_slice(&self.epoch_id.to_le_bytes());
         msg.extend_from_slice(&self.fork_hash);

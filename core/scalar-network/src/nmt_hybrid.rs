@@ -21,7 +21,7 @@ use blake3::Hasher;
 use rand::RngCore;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha20Rng;
-use scalar_crypto::domain::DOMAIN_NMT_RANDOM;
+use scalar_crypto::domain::{DOMAIN_NMT, DOMAIN_NMT_RANDOM};
 
 // ── Ossified constants — spec §12.3, §17 ─────────────────────────────────────
 
@@ -79,7 +79,7 @@ impl NmtNodeCandidate {
 /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 pub fn compute_nmt_rank(node_id_full: &[u8; 32], seed_k: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
-    hasher.update(b"scalar_nmt"); // domain separator — spec §2.3
+    hasher.update(DOMAIN_NMT); // spec §2.3
     hasher.update(node_id_full);
     hasher.update(seed_k);
     *hasher.finalize().as_bytes()
