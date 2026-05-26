@@ -16,6 +16,7 @@
 
 use blake3::Hasher;
 use std::collections::HashSet;
+use scalar_crypto::domain::DOMAIN_NODEID;
 
 // ── Constants — OSSIFIED (Decision D-007) ────────────────────────────────────
 
@@ -71,7 +72,7 @@ impl NodeId {
     /// Generate a random node ID for a given bucket (for bucket refresh).
     pub fn random_for_bucket(local: &NodeId, bucket: usize, seed: &[u8; 32]) -> NodeId {
         let mut h = Hasher::new();
-        h.update(b"scalar_nodeid");
+        h.update(DOMAIN_NODEID);
         h.update(&local.0);
         h.update(&(bucket as u64).to_le_bytes());
         h.update(seed);

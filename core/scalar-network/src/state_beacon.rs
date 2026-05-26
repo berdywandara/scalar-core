@@ -20,6 +20,7 @@
 //! Hash discipline: BLAKE3 out-circuit — spec §2.1.
 
 use blake3::Hasher;
+use scalar_crypto::domain::DOMAIN_BEACON;
 
 // ── Constants — spec §12.2 ───────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ pub fn compute_beacon_mac(
     smt_root: &[u8; 32],
 ) -> [u8; 4] {
     let mut hasher = Hasher::new();
-    hasher.update(b"scalar_beacon"); // DOMAIN_BEACON — spec §2.3, Finding #13
+    hasher.update(DOMAIN_BEACON); // spec §2.3
     hasher.update(node_key_epoch);
     hasher.update(&epoch_id.to_le_bytes());
     hasher.update(smt_root);

@@ -267,6 +267,7 @@ pub use crate::poseidon2_air::{
 #[cfg(test)]
 mod tests {
     use super::*;
+    use scalar_crypto::domain::{DOMAIN_NULLIFIER, DOMAIN_UTXO_COMMITMENT};
     use scalar_crypto::poseidon2::poseidon2_permutation;
 
     /// Helper: compute expected nullifier via native Poseidon2.
@@ -281,7 +282,7 @@ mod tests {
     #[test]
     fn test_domain_null_bytes_correct() {
         // Verify DOMAIN_NULL_FE0 and DOMAIN_NULL_FE1 match b"scalar_nullifier".
-        let b = b"scalar_nullifier";
+        let b = DOMAIN_NULLIFIER;
         let fe0 = u64::from_le_bytes(b[..8].try_into().unwrap());
         let fe1 = u64::from_le_bytes(b[8..16].try_into().unwrap());
         assert_eq!(
@@ -452,7 +453,7 @@ mod tests {
     fn test_domain_null_differs_from_domain_commitment() {
         // DOMAIN_NULL must differ from DOMAIN_COMMITMENT to prevent cross-context collision.
         // Spec §2.3 INV-4.5: no two contexts may use the same separator.
-        let commitment_domain = b"scalar_commitment";
+        let commitment_domain = DOMAIN_UTXO_COMMITMENT;
         let fe0_commit = u64::from_le_bytes(commitment_domain[..8].try_into().unwrap());
         assert_ne!(
             DOMAIN_NULL_FE0, fe0_commit,

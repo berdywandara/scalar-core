@@ -5,6 +5,7 @@
 //! Spec §7.4: gov_weight(j,k) = min(maturity(j,k) / W_MATURE, 1_000_000).
 
 use std::collections::HashMap;
+use scalar_crypto::domain::DOMAIN_BEACON;
 
 // ── Ossified Constants ────────────────────────────────────────────────────────
 
@@ -148,7 +149,7 @@ pub fn compute_heartbeat_mac(
     prev_hash: &[u8; 32],
 ) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
-    hasher.update(b"scalar_beacon"); // DOMAIN_BEACON — spec §2.3
+    hasher.update(DOMAIN_BEACON); // spec §2.3
     hasher.update(node_key_epoch);
     hasher.update(node_id);
     hasher.update(&seq_num.to_le_bytes());
@@ -184,7 +185,7 @@ pub fn compute_heartbeat_mac(
 /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 pub fn compute_prev_hash(hb: &HeartbeatUnit) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
-    hasher.update(b"scalar_beacon"); // DOMAIN_BEACON — spec §2.3
+    hasher.update(DOMAIN_BEACON); // spec §2.3
     hasher.update(&hb.node_id);
     hasher.update(&hb.seq_num.to_le_bytes());
     hasher.update(&hb.timestamp.to_le_bytes());
