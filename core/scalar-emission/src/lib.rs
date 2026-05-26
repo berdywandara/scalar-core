@@ -20,8 +20,11 @@ pub mod slashing;
 pub mod succession;
 pub mod types;
 pub mod utxo_set_smt;
-pub use utxo_set_smt::{UtxoSetAccumulator, UtxoSetState, DOMAIN_UTXO_SMT, GENESIS_EPOCH_ID};
-// Backward-compat alias — remove after all callers updated.
+pub use utxo_set_smt::{
+    UtxoSetEpochSMT, UtxoSetAccumulator, UtxoSetState,
+    DOMAIN_UTXO_SMT, GENESIS_EPOCH_ID,
+};
+// Backward-compat alias for old name.
 pub use utxo_set_smt::UtxoSetAccumulator as UtxoSetSMT;
 
 // ── EmissionError — digunakan oleh accumulator dan modul lain ────────────────

@@ -223,7 +223,9 @@ mod tests {
         let orch = EpochTransitionOrchestrator::new();
         assert_eq!(orch.current_epoch(), GENESIS_EPOCH_ID);
         assert_eq!(orch.imt_count(), 0);
-        assert_eq!(orch.utxo_set_root(), [0u8; 32]);
+        // D3: empty UtxoSetEpochSMT root = imt_empty_root(), NOT [0u8;32].
+        assert_eq!(orch.utxo_set_root(), scalar_crypto::imt::imt_empty_root());
+        assert_ne!(orch.utxo_set_root(), [0u8; 32]);
         assert_eq!(orch.detect_atomicity_status(), AtomicityStatus::Fresh);
     }
 
