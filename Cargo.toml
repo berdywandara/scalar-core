@@ -2,6 +2,7 @@
 [workspace]
 members = [
     "core/*",
+    "core/scalar-stark-p3",
     "client/*",
     "tools/*",
     "tests/integration",
