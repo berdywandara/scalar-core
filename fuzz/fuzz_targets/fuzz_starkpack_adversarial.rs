@@ -10,14 +10,19 @@ use scalar_stark::starkpack::{
 use scalar_stark::transfer_air::{TransferProver, TransferPublicInputs};
 
 fn make_pi(seed: u64) -> TransferPublicInputs {
+    // Mirror valid_pi() from transfer_air tests — all fields current as of FASE A.
     TransferPublicInputs {
         fee_total_sscl: 40 + (seed % 1000),
-        sum_inputs_sscl: 40 + (seed % 1000),
-        sum_outputs_sscl: 0,
+        sum_inputs_sscl: 1_000_000_040 + (seed % 1000),
+        sum_outputs_sscl: 1_000_000_000,
         crypto_version: 0x01,
         entry_timestamp_ms: 1_000_000_000 + seed,
         current_timestamp_ms: 1_000_060_000 + seed,
-        nullifier_nonzero: true,
+        utxo_set_root: [0u8; 32],
+        nullifier_active_root: [0u8; 32],
+        nullifier_archived_root: [0u8; 32],
+        cb_membership_verified: true,
+        cc_nonmembership_verified: true,
         output_nonzero: true,
         single_utxo_source: true,
     }
@@ -46,14 +51,12 @@ fuzz_target!(|data: &[u8]| {
 
     match mode {
         0 => {
+            // P1: valid batch must aggregate successfully
             let r = aggregate_real_proofs(&inputs);
-            assert!(
-                r.is_ok(),
-                "P1: valid batch must aggregate: {:?}",
-                r.err()
-            );
+            assert!(r.is_ok(), "P1: valid batch must aggregate: {:?}", r.err());
         }
         1 => {
+            // P1: tampered proof bytes must be rejected
             if let Some(inp) = inputs.first_mut() {
                 inp.proof_bytes = vec![0x5c; 64];
             }
@@ -65,6 +68,7 @@ fuzz_target!(|data: &[u8]| {
             );
         }
         2 => {
+            // P1: empty proof bytes must be rejected
             inputs.push(RealProofInput {
                 proof_bytes: vec![],
                 public_inputs: make_pi(0),
@@ -78,8 +82,9 @@ fuzz_target!(|data: &[u8]| {
             );
         }
         3 => {
+            // P1: mismatched public inputs must be rejected
             if let Some(inp) = inputs.first_mut() {
-                inp.public_inputs.fee_total_sscl = 999;
+                inp.public_inputs.fee_total_sscl = 999_999_999;
             }
             let r = aggregate_real_proofs(&inputs);
             assert!(
@@ -89,17 +94,16 @@ fuzz_target!(|data: &[u8]| {
             );
         }
         4 => {
+            // P2: order manipulation — transcript_hash must differ
             if inputs.len() >= 2 {
                 let r1 = aggregate_real_proofs(&inputs).unwrap();
                 inputs.reverse();
                 let r2 = aggregate_real_proofs(&inputs).unwrap();
-                assert_ne!(
-                    r1.transcript_hash, r2.transcript_hash,
-                    "P2: order matters"
-                );
+                assert_ne!(r1.transcript_hash, r2.transcript_hash, "P2: order matters");
             }
         }
         5 => {
+            // P2: element skipping — transcript_hash must differ
             if inputs.len() >= 2 {
                 let r1 = aggregate_real_proofs(&inputs).unwrap();
                 inputs.pop();
@@ -111,23 +115,25 @@ fuzz_target!(|data: &[u8]| {
             }
         }
         6 => {
+            // P2+P3: determinism — same input same output
             let r1 = aggregate_real_proofs(&inputs).unwrap();
             let r2 = aggregate_real_proofs(&inputs).unwrap();
             assert_eq!(
                 r1.transcript_hash, r2.transcript_hash,
-                "P2: determinism"
+                "P2: transcript determinism"
             );
             assert_eq!(
                 r1.global_fri_root, r2.global_fri_root,
-                "P3: root determinism"
+                "P3: fri root determinism"
             );
         }
         7 => {
+            // P1: batch size overflow must be rejected
             if inputs.len() > STARK_MAX_BATCH_SIZE {
                 let r = aggregate_real_proofs(&inputs);
                 assert!(
                     matches!(r, Err(RealAggregateError::InvalidBatchSize { .. })),
-                    "P1: max batch: {:?}",
+                    "P1: max batch exceeded: {:?}",
                     r
                 );
             }
