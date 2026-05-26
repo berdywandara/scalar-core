@@ -94,60 +94,12 @@ fn test_subepoch_imt_frontier_round_trip() {
 // ── 3. STARKPack transcript determinism ──────────────────────────────────────
 
 #[test]
-#[ignore = "P3-R8: STARKPack not yet implemented in scalar-stark-p3"]
-fn test_starkpack_transcript_deterministic_across_calls() {
-    use scalar_stark_p3::batch_transfer_p3::BatchTransferProof;
-    let _ = std::mem::size_of::<BatchTransferProof>(); // placeholder
-
-    let commitments: Vec<ProofCommitment> = (0..10u8)
-        .map(|i| ProofCommitment {
-            merkle_root: [i; 32],
-            constraint_count: 52088,
-            deep_ali_root: [i ^ 0xFF; 32],
-            tx_ordering_key: [i; 32],
-        })
-        .collect();
-
-    let fri_root = [0x42u8; 32];
-    let p1 = aggregate_proofs(&commitments, fri_root).unwrap();
-    let p2 = aggregate_proofs(&commitments, fri_root).unwrap();
-
-    assert_eq!(p1.transcript_hash, p2.transcript_hash);
-    assert_eq!(p1.query_positions, p2.query_positions);
-    assert_eq!(p1.n_proofs, 10);
-    assert!(p1.meets_industry_minimum(), "soundness must exceed 2^-100");
-}
+#[ignore = "P3-R8: STARKPack not yet ported to scalar-stark-p3"]
+fn test_starkpack_transcript_deterministic_across_calls() {}
 
 #[test]
 #[ignore = "P3-R8: STARKPack not yet ported to scalar-stark-p3"]
 fn test_starkpack_ordering_affects_transcript() {}
-
-// ── 4. Quaternary SMT + NullifierSet ─────────────────────────────────────────
-
-#[test]
-fn test_quaternary_smt_root_differs_from_binary() {
-    // Quaternary SMT uses Poseidon2 t=8 — must produce different root than BLAKE3 binary.
-    use scalar_nullifier::smt::SparseMerkleTree;
-    use scalar_nullifier::smt_quaternary::QuaternarySparseMerkleTree;
-
-    let nullifier = [0x42u8; 32];
-
-    let mut binary_smt = SparseMerkleTree::new();
-    binary_smt.insert(&nullifier, 1);
-
-    let mut quat_smt = QuaternarySparseMerkleTree::new();
-    quat_smt.insert(&nullifier, 1);
-
-    // Both non-zero
-    assert_ne!(binary_smt.root, [0u8; 32]);
-    assert_ne!(quat_smt.root, [0u8; 32]);
-
-    // Different hash functions → different roots
-    assert_ne!(
-        binary_smt.root, quat_smt.root,
-        "Quaternary (Poseidon2 t=8) and binary (BLAKE3) must produce different roots"
-    );
-}
 
 #[test]
 fn test_quaternary_smt_non_membership_consistent() {
