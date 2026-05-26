@@ -14,6 +14,7 @@
 //!   P3-R9: Empirical benchmark — proving time on spec hardware
 
 pub mod config;
+pub mod membership_air_p3;
 pub mod ownership_air_p3;
 pub mod poseidon2_p3;
 pub mod transfer_air_p3;

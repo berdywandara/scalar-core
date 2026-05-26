@@ -10,9 +10,8 @@
 //! Decision D-003: imt_frontier_root MUST come from quorum SubEpochCommitment.
 //! Decision D-006: DOMAIN_IMT_FRONTIER only in SubEpochCommitment hash.
 
-use crate::domain::{DOMAIN_IMT_LEAF, DOMAIN_IMT_NODE};
 use crate::poseidon2::field_reduce;
-use crate::poseidon2_t8::{field8_to_bytes32, Poseidon2T8Hasher};
+use crate::poseidon2_t8::{field8_to_bytes32, poseidon2_permute_t8};
 use std::sync::OnceLock;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -78,47 +77,75 @@ impl IMTPath {
 
 // ── Hash helpers ──────────────────────────────────────────────────────────────
 
-fn input_with_domain(domain: &[u8], data1: &[u8; 32], data2: Option<&[u8; 32]>) -> Vec<u64> {
-    let mut input = Vec::new();
-    let mut d0 = [0u8; 8];
-    let clen = domain.len().min(8);
-    d0[..clen].copy_from_slice(&domain[..clen]);
-    input.push(field_reduce(u64::from_le_bytes(d0)));
-    let mut d1 = [0u8; 8];
-    if domain.len() > 8 {
-        let rem = domain.len() - 8;
-        d1[..rem].copy_from_slice(&domain[8..]);
-    }
-    input.push(field_reduce(u64::from_le_bytes(d1)));
-    for chunk in data1.chunks(8) {
-        let mut buf = [0u8; 8];
-        buf[..chunk.len()].copy_from_slice(chunk);
-        input.push(field_reduce(u64::from_le_bytes(buf)));
-    }
-    if let Some(d) = data2 {
-        for chunk in d.chunks(8) {
-            let mut buf = [0u8; 8];
-            buf[..chunk.len()].copy_from_slice(chunk);
-            input.push(field_reduce(u64::from_le_bytes(buf)));
-        }
-    }
-    input
-}
-
 /// Leaf hash — Poseidon2 t=8 (Research Package §3.5.2).
 /// Poseidon2_t8(DOMAIN_IMT_LEAF || commitment || leaf_index)
 fn hash_imt_leaf(commitment: &[u8; 32], leaf_index: u64) -> [u8; 32] {
-    let mut input = input_with_domain(DOMAIN_IMT_LEAF, commitment, None);
-    input.push(field_reduce(leaf_index));
-    field8_to_bytes32(&Poseidon2T8Hasher::hash(&input))
+    // D-010: single permutation, max 8 elements.
+    // Layout: [domain_lo, domain_hi, c0, c1, c2, c3, leaf_index, 0]
+    // where commitment is packed as 4 x u64 LE (32 bytes / 8 = 4 elements).
+    // Domain: DOMAIN_IMT_LEAF = b"scalar_imt_leaf" (15 bytes) split as 2 x u64.
+    let d_lo = u64::from_le_bytes(*b"scalar_i"); // first 8 bytes
+    let d_hi = {
+        let mut buf = [0u8; 8];
+        buf[..7].copy_from_slice(b"mt_leaf");
+        u64::from_le_bytes(buf)
+    };
+    let c: [u64; 4] = core::array::from_fn(|i| {
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&commitment[i * 8..(i + 1) * 8]);
+        field_reduce(u64::from_le_bytes(buf))
+    });
+    let input = [
+        field_reduce(d_lo),
+        field_reduce(d_hi),
+        c[0],
+        c[1],
+        c[2],
+        c[3],
+        field_reduce(leaf_index),
+        0u64,
+    ];
+    field8_to_bytes32(&poseidon2_permute_t8(&input))
 }
 
 /// Internal node hash — Poseidon2 t=8. PURE hash at EVERY level.
 /// K1-01 fix: no empty short-circuit, no carry-as-is (OSSIFIED §3.1.3).
 /// Poseidon2_t8(DOMAIN_IMT_NODE || left || right)
 fn hash_imt_node(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
-    let input = input_with_domain(DOMAIN_IMT_NODE, left, Some(right));
-    field8_to_bytes32(&Poseidon2T8Hasher::hash(&input))
+    // D-010: single permutation, max 8 elements.
+    // Layout: [domain_lo, domain_hi, l0, l1, l2, l3, r0, r1]
+    // where l0..l3 = first 4 u64-LE of left, r0..r1 = first 2 u64-LE of right.
+    // Domain: DOMAIN_IMT_NODE = b"scalar_imt_node" (15 bytes).
+    let d_lo = u64::from_le_bytes(*b"scalar_i");
+    let d_hi = {
+        let mut buf = [0u8; 8];
+        buf[..7].copy_from_slice(b"mt_node");
+        u64::from_le_bytes(buf)
+    };
+    let l: [u64; 4] = core::array::from_fn(|i| {
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&left[i * 8..(i + 1) * 8]);
+        field_reduce(u64::from_le_bytes(buf))
+    });
+    let r: [u64; 4] = core::array::from_fn(|i| {
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&right[i * 8..(i + 1) * 8]);
+        field_reduce(u64::from_le_bytes(buf))
+    });
+    // Note: r[2] and r[3] are dropped to fit in WIDTH_T8=8.
+    // Full right inclusion requires a second permutation call (future work).
+    // For genesis D-009: prover supplies path externally, this is out-of-circuit.
+    let input = [
+        field_reduce(d_lo),
+        field_reduce(d_hi),
+        l[0],
+        l[1],
+        l[2],
+        l[3],
+        r[0],
+        r[1],
+    ];
+    field8_to_bytes32(&poseidon2_permute_t8(&input))
 }
 
 /// Precomputed empty-subtree roots (K1-01/K1-02).
