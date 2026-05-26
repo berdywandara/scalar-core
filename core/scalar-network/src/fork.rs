@@ -8,9 +8,9 @@
 //! NORMAL FORK: Lock 90d + Review 30d + Activation epoch+3
 //! EMERGENCY FORK: Lock 48 jam, scope crypto primitives only, 51% threshold
 
+use scalar_crypto::domain::DOMAIN_VOTE;
 use scalar_crypto::sphincs::verify_signature;
 use std::collections::HashMap;
-use scalar_crypto::domain::DOMAIN_VOTE;
 
 pub const FORK_COMMIT_THRESHOLD_FP: u64 = 750_000;
 pub const FORK_ABORT_THRESHOLD_FP: u64 = 670_000;

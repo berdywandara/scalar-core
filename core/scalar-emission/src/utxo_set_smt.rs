@@ -15,7 +15,7 @@
 //! Spec §8.5, §16.1, §3.1 Scalar_Optimalisasi_PraGenesis, INV-4.1, INV-4.2.
 
 use crate::ordering::{sort_transactions_canonical, TxEntry};
-use scalar_crypto::imt::{imt_empty_root, IncrementalMerkleTree, IMTPath};
+use scalar_crypto::imt::{imt_empty_root, IMTPath, IncrementalMerkleTree};
 
 // Re-export DOMAIN_UTXO_SMT for backward compatibility (D.1 OSSIFIED).
 pub use scalar_crypto::domain::DOMAIN_UTXO_SMT;
@@ -128,7 +128,10 @@ impl UtxoSetEpochSMT {
     /// Generate membership proof for UTXO at leaf_index. Spec §3.1.3, CB constraint.
     ///
     /// Proof can be verified with imt_membership_verify() in Transfer Circuit.
-    pub fn prove_membership(&self, leaf_index: u64) -> Result<IMTPath, scalar_crypto::imt::IMTError> {
+    pub fn prove_membership(
+        &self,
+        leaf_index: u64,
+    ) -> Result<IMTPath, scalar_crypto::imt::IMTError> {
         self.imt.prove_membership(leaf_index)
     }
 
@@ -198,7 +201,7 @@ pub fn extract_expected_root_from_manifest(
 mod tests {
     use super::*;
     use crate::ordering::TxEntry;
-    use scalar_crypto::imt::{imt_membership_verify, imt_empty_root};
+    use scalar_crypto::imt::{imt_empty_root, imt_membership_verify};
 
     fn make_commitment(seed: u8) -> [u8; 32] {
         [seed; 32]
@@ -294,7 +297,8 @@ mod tests {
         smt2.process_epoch_transactions(&txs_reordered, 5);
 
         assert_eq!(
-            smt1.root(), smt2.root(),
+            smt1.root(),
+            smt2.root(),
             "D3: canonical ordering must produce identical root regardless of receive order"
         );
     }
@@ -329,7 +333,11 @@ mod tests {
         assert_ne!(smt.root(), imt_empty_root());
 
         smt.reset();
-        assert_eq!(smt.root(), imt_empty_root(), "D3: reset must restore empty root");
+        assert_eq!(
+            smt.root(),
+            imt_empty_root(),
+            "D3: reset must restore empty root"
+        );
         assert_eq!(smt.utxo_count(), 0);
     }
 
@@ -375,12 +383,18 @@ mod tests {
     fn test_d3_new_node_sync() {
         let epoch_id = 3u64;
         let txs = vec![
-            make_tx(0x01), make_tx(0x02), make_tx(0x03),
-            make_tx(0x04), make_tx(0x05),
+            make_tx(0x01),
+            make_tx(0x02),
+            make_tx(0x03),
+            make_tx(0x04),
+            make_tx(0x05),
         ];
         let txs_gossip = vec![
-            make_tx(0x05), make_tx(0x01), make_tx(0x04),
-            make_tx(0x02), make_tx(0x03),
+            make_tx(0x05),
+            make_tx(0x01),
+            make_tx(0x04),
+            make_tx(0x02),
+            make_tx(0x03),
         ];
 
         let mut old_node = UtxoSetEpochSMT::new();
@@ -389,8 +403,11 @@ mod tests {
         let mut new_node = UtxoSetEpochSMT::new();
         new_node.process_epoch_transactions(&txs_gossip, epoch_id);
 
-        assert_eq!(old_node.root(), new_node.root(),
-            "D3: new node sync must produce identical root");
+        assert_eq!(
+            old_node.root(),
+            new_node.root(),
+            "D3: new node sync must produce identical root"
+        );
     }
 
     // ── D3: DOMAIN_UTXO_SMT still OSSIFIED ───────────────────────────────────

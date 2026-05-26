@@ -10,8 +10,8 @@
 //! menggunakan 32 bit pertama sebagai path. Internal nodes di-hash dengan BLAKE3.
 //! Empty subtree root = [0u8;32].
 
-use std::collections::HashMap;
 use scalar_crypto::domain::{DOMAIN_SMT_ACTIVE, DOMAIN_SMT_ARCHIVED};
+use std::collections::HashMap;
 
 /// Depth SMT NS_ACTIVE. OSSIFIED — spec §6.1.
 pub const SMT_DEPTH: usize = 32;

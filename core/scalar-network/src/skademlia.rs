@@ -15,8 +15,8 @@
 //! Hash discipline: BLAKE3 out-circuit — spec §2.1.
 
 use blake3::Hasher;
-use std::collections::HashSet;
 use scalar_crypto::domain::DOMAIN_NODEID;
+use std::collections::HashSet;
 
 // ── Constants — OSSIFIED (Decision D-007) ────────────────────────────────────
 

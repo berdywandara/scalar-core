@@ -172,10 +172,15 @@ mod tests_v12_utxo {
         use scalar_crypto::imt::imt_empty_root;
         use scalar_emission::utxo_set_smt::UtxoSetState;
         let state = UtxoSetState::genesis();
-        assert_eq!(state.utxo_set_root, imt_empty_root(),
-            "D3: genesis root must be imt_empty_root()");
-        assert_ne!(state.utxo_set_root, [0u8; 32],
-            "D3: genesis root must not be zero");
+        assert_eq!(
+            state.utxo_set_root,
+            imt_empty_root(),
+            "D3: genesis root must be imt_empty_root()"
+        );
+        assert_ne!(
+            state.utxo_set_root, [0u8; 32],
+            "D3: genesis root must not be zero"
+        );
         assert_eq!(state.snapshot_epoch, 0);
     }
 

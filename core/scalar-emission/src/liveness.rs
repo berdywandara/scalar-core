@@ -4,8 +4,8 @@
 //! Spec §7.4: maturity(j,k) = Σ w_j(epoch) untuk W_MATURE_EPOCHS epoch terakhir.
 //! Spec §7.4: gov_weight(j,k) = min(maturity(j,k) / W_MATURE, 1_000_000).
 
-use std::collections::HashMap;
 use scalar_crypto::domain::DOMAIN_BEACON;
+use std::collections::HashMap;
 
 // ── Ossified Constants ────────────────────────────────────────────────────────
 
