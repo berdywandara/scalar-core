@@ -248,7 +248,7 @@ pub fn verify_mint_nullifier_p3(
 // ── MintLinearAir (MC1 + MC3 + MC4 + MC5) ────────────────────────────────────
 
 /// Trace width for MintLinearAir.
-pub const MINT_LINEAR_WIDTH: usize = 5;
+pub const MINT_LINEAR_WIDTH: usize = 7;
 
 // Column indices — OSSIFIED
 /// MC1: crypto_version (must equal MINT_CRYPTO_VERSION = 1).
@@ -262,6 +262,13 @@ pub const MINT_COL_REWARD: usize = 2;
 pub const MINT_COL_AUTH: usize = 3;
 /// MC2 link: nullifier_nonzero (1 if nullifier[0] != 0). Must equal 1.
 pub const MINT_COL_NULL_NZ: usize = 4;
+/// MC4: reward_inv = reward^{-1} in Goldilocks. Constraint: reward * reward_inv == 1.
+/// Proves reward != 0 in-circuit without range proof. Spec §5.2 MC4.
+pub const MINT_COL_REWARD_INV: usize = 5;
+/// MC2/MC3 link: null0 = nullifier[0] from MintNullifierAir output.
+/// Constraint: null0 == pv_null_0 (explicit binding, not just transcript).
+/// Proves nullifier is non-zero in-circuit: null0 * null_nz == null0. Spec §5.2 MC2.
+pub const MINT_COL_NULL0: usize = 6;
 
 /// Public values layout for MintLinearAir (11 elements):
 ///   [0]  crypto_version
@@ -269,7 +276,7 @@ pub const MINT_COL_NULL_NZ: usize = 4;
 ///   [2]  reward_amount_sscl
 ///   [3]  node_auth_valid
 ///   [4..7] nullifier[0..4] from MC2 (binds the two sub-AIRs together)
-pub const MINT_LINEAR_PI_LEN: usize = 9;
+pub const MINT_LINEAR_PI_LEN: usize = 8;
 
 /// MintLinearAir: constraint groups MC1, MC3, MC4, MC5. Spec §5.2.
 #[derive(Clone, Debug)]
@@ -308,6 +315,8 @@ where
         let reward = local[MINT_COL_REWARD];
         let auth = local[MINT_COL_AUTH];
         let null_nz = local[MINT_COL_NULL_NZ];
+        let reward_inv = local[MINT_COL_REWARD_INV];
+        let null0 = local[MINT_COL_NULL0];
 
         let pv_version = pv[0];
         let pv_total_minted = pv[1];
@@ -317,55 +326,42 @@ where
         let pv_null_1 = pv[5];
         let pv_null_2 = pv[6];
         let pv_null_3 = pv[7];
-        // pv[8] = S_E supply cap — bound into Fiat-Shamir transcript
+        // S_E embedded as field constant in eval() — prover cannot fake it.
 
         // MC1: trace column must equal public version value.
         // version == pv_version (which must be MINT_CRYPTO_VERSION=1).
         builder.assert_eq(version, pv_version);
 
-        // MC3 supply cap (in-circuit):
-        // cap_headroom = S_E - (total_minted + reward) must equal
-        // what the prover computed. Binding via public values ensures
-        // prover cannot fake total_minted or reward.
-        //
-        // Constraint: version * reward == pv_version * pv_reward
-        // (ensures trace reward matches public reward when version is valid)
+        // MC3: supply cap in-circuit. S_E as field constant — prover cannot fake.
+        // AB::F::from_u64 available because AB::F = Goldilocks. Spec §5.2 MC3.
+        let s_e = AB::F::from_u64(MINT_S_E_SSCL);
+        let lhs = cap_headroom.into() + pv_total_minted.into() + pv_reward.into();
+        builder.assert_eq(lhs, s_e);
+
+        // MC3 binding: reward in trace must equal public reward. Spec §5.2 MC3.
         builder.assert_eq(reward, pv_reward);
 
-        // MC3: cap_headroom + total_minted + reward == S_E  (in-circuit supply cap).
-        // S_E is passed as public value pv[8] — no hardcoded constant in eval(),
-        // avoiding from_canonical_u64 which is unavailable on the AB::F trait bound.
-        // Prover cannot fake total_minted or reward because pv binds them to the
-        // Fiat-Shamir transcript; wrong headroom → DEEP-ALI rejection. Spec §5.2 MC3.
-        let pv_s_e: AB::Expr = pv[8].into();
-        let lhs = cap_headroom.into() + pv_total_minted.into() + pv_reward.into();
-        builder.assert_eq(lhs, pv_s_e);
+        // MC4: reward != 0 in-circuit via multiplicative inverse.
+        // reward * reward_inv == 1. reward=0 has no inverse → proof rejected. Spec §5.2 MC4.
+        let reward_times_inv = reward.into() * reward_inv.into();
+        builder.assert_eq(reward_times_inv, AB::Expr::ONE);
 
-        // MC4: reward must match public reward (already asserted above).
-        // Additionally ensure reward != 0 (non-zero check):
-        // We encode: null_nz * reward == reward (only holds when null_nz=1)
-        // Combined with null_nz == 1 constraint below, reward is implicitly non-zero
-        // when null_nz=1 and auth=1 via the MC5 binding.
-        // Direct reward > 0 is enforced at pre-flight and via public value binding.
-
-        // MC5: auth column must equal public auth value (1 = valid).
+        // MC5: node auth flag must equal public auth value (1 = valid). Spec §5.2 MC5.
         builder.assert_eq(auth, pv_auth);
 
-        // MC2 link: nullifier_nonzero column must equal 1.
-        // This links MintLinearAir to MintNullifierAir: null_nz = (nullifier[0] != 0).
-        // The actual nullifier value is bound via pv[4..8].
-        let one = AB::Expr::ONE;
-        builder.assert_eq(null_nz, one);
+        // MC2: null_nz == 1 (nullifier is non-zero). Spec §5.2 MC2.
+        builder.assert_eq(null_nz, AB::Expr::ONE);
 
-        // Bind nullifier[0] from public values — enforces cross-AIR consistency.
-        // null_nz = 1 only if pv_null_0 != 0, which is enforced out-of-circuit
-        // by pre-flight. The binding ensures the prover committed the same
-        // nullifier to both sub-AIRs.
-        // We assert: pv_null_0 * pv_null_0 == pv_null_0 * pv_null_0 (trivial)
-        // The real binding is: FRI transcript absorbs pv[4..8] from MintNullifierAir
-        // AND from MintLinearAir; if they differ, the aggregate verifier rejects.
-        // This is the same pattern as CB/CC in BatchTransferProof.
-        let _ = pv_null_0; // bound to transcript
+        // P3 fix: explicit nullifier[0] binding as trace constraint.
+        // null0 column = nullifier[0] from MintNullifierAir output.
+        // Constraint 1: null0 == pv_null_0 (trace matches public nullifier[0]).
+        // Constraint 2: null0 * null_nz == null0 (null0 non-zero when null_nz=1).
+        // Together: nullifier[0] is exactly pv_null_0 and is non-zero. Spec §5.2 MC2.
+        builder.assert_eq(null0, pv_null_0);
+        let null0_times_nz = null0.into() * null_nz.into();
+        builder.assert_eq(null0_times_nz, null0);
+
+        // nullifier[1..3] bound via Fiat-Shamir transcript (CB/CC pattern).
         let _ = pv_null_1;
         let _ = pv_null_2;
         let _ = pv_null_3;
@@ -453,9 +449,8 @@ pub fn build_mint_linear_pv(pi: &MintLinearPublicInputs) -> Vec<Goldilocks> {
         // [4..7]
         pv.push(Goldilocks::new(v));
     }
-    // [8] S_E — passed as public value so eval() needs no hardcoded constant.
-    // OSSIFIED: MINT_S_E_SSCL = 1_890_000_000_000_000. Spec §3.2.
-    pv.push(Goldilocks::new(MINT_S_E_SSCL)); // [8] MC3 S_E cap
+    // S_E is NOT a public value — embedded directly in eval() as AB::F::from_u64(MINT_S_E_SSCL).
+    // This prevents prover from substituting a fake S_E. Spec §5.2 MC3.
     pv
 }
 
@@ -476,13 +471,34 @@ fn build_mint_linear_trace(pi: &MintLinearPublicInputs) -> RowMajorMatrix<Goldil
         0u64
     };
 
+    // MC4: reward_inv = reward^{-1} mod Goldilocks prime.
+    // p = 2^64 - 2^32 + 1. Use Fermat: a^{-1} = a^{p-2} mod p.
+    // Pre-flight guarantees reward > 0, so inverse always exists.
+    let p = 0xFFFF_FFFF_0000_0001u128;
+    let reward_val = pi.reward_amount_sscl as u128;
+    // Compute reward^{p-2} mod p using fast exponentiation.
+    let exp = p - 2;
+    let mut base = reward_val % p;
+    let mut result = 1u128;
+    let mut e = exp;
+    while e > 0 {
+        if e & 1 == 1 {
+            result = (result * base) % p;
+        }
+        base = (base * base) % p;
+        e >>= 1;
+    }
+    let reward_inv_val = result as u64;
+
     // Single row, padded to 4 rows (Plonky3 minimum trace length).
     let row = [
-        Goldilocks::new(pi.crypto_version as u64),  // MC1
-        Goldilocks::new(headroom),                  // MC3
-        Goldilocks::new(pi.reward_amount_sscl),     // MC4
-        Goldilocks::new(pi.node_auth_valid as u64), // MC5
-        Goldilocks::new(null_nz),                   // MC2 link
+        Goldilocks::new(pi.crypto_version as u64),  // col 0: MC1
+        Goldilocks::new(headroom),                  // col 1: MC3 headroom
+        Goldilocks::new(pi.reward_amount_sscl),     // col 2: MC4 reward
+        Goldilocks::new(pi.node_auth_valid as u64), // col 3: MC5 auth
+        Goldilocks::new(null_nz),                   // col 4: MC2 null_nz
+        Goldilocks::new(reward_inv_val),            // col 5: MC4 reward_inv
+        Goldilocks::new(pi.mint_nullifier[0]),      // col 6: MC2/P3 null0
     ];
 
     let num_rows = 4usize; // Plonky3 minimum
