@@ -119,7 +119,7 @@ fn node_hash_input(left: &[u64; 4], right: &[u64; 4]) -> [Goldilocks; P2_WIDTH] 
 }
 
 /// Execute one Poseidon2 permutation and return output state[0..4] as [u64;4].
-fn poseidon2_permute(input: &[Goldilocks; P2_WIDTH]) -> [u64; 4] {
+pub(crate) fn poseidon2_permute(input: &[Goldilocks; P2_WIDTH]) -> [u64; 4] {
     let perm = build_poseidon2_perm();
     let mut state = *input;
     perm.permute_mut(&mut state);
