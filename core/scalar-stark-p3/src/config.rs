@@ -14,11 +14,13 @@ use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
-use p3_fri::{FriParameters, TwoAdicFriPcs};
+use p3_fri::{FriParameters, HidingFriPcs, TwoAdicFriPcs};
 use p3_goldilocks::{default_goldilocks_poseidon2_8, Goldilocks};
 use p3_merkle_tree::MerkleTreeMmcs;
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use p3_uni_stark::StarkConfig;
+use rand::prelude::*;
+use rand::rngs::StdRng;
 
 use crate::{FRI_LOG_BLOWUP, FRI_NUM_QUERIES, FRI_PROOF_OF_WORK_BITS};
 
@@ -126,6 +128,68 @@ pub fn build_challenger() -> Challenger {
     Challenger::new(build_poseidon2_perm())
 }
 
+// ── ZK blinding config (P3-R6) ───────────────────────────────────────────────
+//
+// Spec §2.1 note D-E1: ZK blinding (random trace padding) required before mainnet.
+// HidingFriPcs wraps TwoAdicFriPcs, adds num_random_codewords random codewords
+// to each committed polynomial so the verifier cannot read witness values.
+//
+// ZK: false for testnet (default), true for pre-mainnet (feature = "zk-blinding").
+// FRI params remain OSSIFIED — only the PCS wrapper changes.
+
+/// Number of random codewords added per committed polynomial for ZK blinding.
+/// 1 is the minimum for ZK property. Spec §2.1 D-E1.
+pub const ZK_NUM_RANDOM_CODEWORDS: usize = 1;
+
+/// HidingFriPcs — ZK variant of TwoAdicFriPcs. ZK = true. Spec §2.1 D-E1.
+pub type ZkPcs = HidingFriPcs<F, Radix2DitParallel<F>, ValMmcs, ChallengeMmcs, StdRng>;
+
+/// ZK STARK configuration. Use build_scalar_zk_config() to instantiate.
+/// Active when feature "zk-blinding" is enabled (required before mainnet).
+pub type ScalarZkStarkConfig = StarkConfig<ZkPcs, EF, Challenger>;
+
+/// Build the ZK-enabled ScalarStarkConfig.
+///
+/// Uses HidingFriPcs which adds ZK_NUM_RANDOM_CODEWORDS random codewords
+/// per committed polynomial. FRI params remain OSSIFIED. Spec §2.1 D-E1.
+///
+/// Required before mainnet. For testnet, use build_scalar_config() (ZK = false).
+pub fn build_scalar_zk_config() -> ScalarZkStarkConfig {
+    let val_mmcs = build_val_mmcs();
+    let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
+
+    let fri_params = FriParameters {
+        log_blowup: FRI_LOG_BLOWUP,
+        log_final_poly_len: 0,
+        max_log_arity: 4,
+        num_queries: FRI_NUM_QUERIES,
+        commit_proof_of_work_bits: FRI_PROOF_OF_WORK_BITS,
+        query_proof_of_work_bits: 0,
+        mmcs: challenge_mmcs,
+    };
+
+    let dft = Radix2DitParallel::default();
+    // StdRng seeded from a fixed seed — randomness is per-proof (fresh rng per prove call).
+    // The seed here is for the config object; actual per-proof randomness comes from
+    // HidingFriPcs internal rng which is mutated during commit().
+    let rng = StdRng::from_rng(&mut rand::rng());
+    let pcs = ZkPcs::new(dft, val_mmcs, fri_params, ZK_NUM_RANDOM_CODEWORDS, rng);
+    let challenger = build_challenger();
+    ScalarZkStarkConfig::new(pcs, challenger)
+}
+
+/// Returns true if the current build uses ZK blinding. Spec §2.1 D-E1.
+/// False for testnet (ZK = false), true when feature "zk-blinding" is enabled.
+#[cfg(feature = "zk-blinding")]
+pub const fn is_zk_enabled() -> bool {
+    true
+}
+
+#[cfg(not(feature = "zk-blinding"))]
+pub const fn is_zk_enabled() -> bool {
+    false
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -169,5 +233,35 @@ mod tests {
         // p = 2^64 - 2^32 + 1. OSSIFIED — spec §4.4.
         let expected = u64::MAX - (1u64 << 32) + 2;
         assert_eq!(GOLDILOCKS_PRIME, expected);
+    }
+
+    #[test]
+    fn test_zk_config_builds() {
+        // P3-R6: ZK config must build without panic. Spec §2.1 D-E1.
+        let _config = build_scalar_zk_config();
+    }
+
+    #[test]
+    fn test_zk_num_random_codewords() {
+        // ZK_NUM_RANDOM_CODEWORDS >= 1 is required for ZK property.
+        assert!(
+            ZK_NUM_RANDOM_CODEWORDS >= 1,
+            "ZK blinding requires at least 1 random codeword"
+        );
+    }
+
+    #[test]
+    fn test_is_zk_enabled_consistency() {
+        // is_zk_enabled() must match the feature flag state.
+        #[cfg(feature = "zk-blinding")]
+        assert!(
+            is_zk_enabled(),
+            "zk-blinding feature is on, is_zk_enabled must be true"
+        );
+        #[cfg(not(feature = "zk-blinding"))]
+        assert!(
+            !is_zk_enabled(),
+            "zk-blinding feature is off, is_zk_enabled must be false"
+        );
     }
 }

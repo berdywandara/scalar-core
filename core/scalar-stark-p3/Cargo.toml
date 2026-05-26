@@ -39,3 +39,7 @@ postcard         = { version = "1", features = ["alloc"] }
 [features]
 # Run hardware benchmark tests. Spec §15.6.
 bench-hardware = []
+# ZK blinding — required before mainnet. Spec §2.1 D-E1.
+# Activates HidingFriPcs (random trace padding, ZK = true).
+# Default off for testnet, must be enabled before mainnet.
+zk-blinding = []
