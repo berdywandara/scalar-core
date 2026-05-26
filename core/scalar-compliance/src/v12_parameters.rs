@@ -167,10 +167,15 @@ mod tests_v12_utxo {
 
     #[test]
     fn compliance_test_utxo_genesis_state() {
-        // Genesis state: root zero, epoch 0. Spec §8.5.
+        // Genesis state: root = imt_empty_root() (Poseidon2 depth-32), epoch 0.
+        // D3: empty IMT root is NOT [0u8;32] — it is a Poseidon2 hash. Spec §8.5.
+        use scalar_crypto::imt::imt_empty_root;
         use scalar_emission::utxo_set_smt::UtxoSetState;
         let state = UtxoSetState::genesis();
-        assert_eq!(state.utxo_set_root, [0u8; 32]);
+        assert_eq!(state.utxo_set_root, imt_empty_root(),
+            "D3: genesis root must be imt_empty_root()");
+        assert_ne!(state.utxo_set_root, [0u8; 32],
+            "D3: genesis root must not be zero");
         assert_eq!(state.snapshot_epoch, 0);
     }
 
