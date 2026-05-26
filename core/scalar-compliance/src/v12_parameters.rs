@@ -178,8 +178,8 @@ mod tests_v12_utxo {
     fn compliance_test_utxo_root_snapshot_after_processing() {
         // Snapshot diambil SETELAH semua tx epoch diproses. Spec §8.5.
         use scalar_emission::ordering::TxEntry;
-        use scalar_emission::utxo_set_smt::UtxoSetSMT;
-        let mut smt = UtxoSetSMT::new();
+        use scalar_emission::utxo_set_smt::UtxoSetAccumulator;
+        let mut smt = UtxoSetAccumulator::new();
         let txs = vec![
             TxEntry {
                 tx_hash: [0x01u8; 32],
@@ -203,7 +203,7 @@ mod tests_v12_utxo {
     fn compliance_test_utxo_root_deterministic() {
         // Canonical ordering → root identik antar node. Spec §8.5.
         use scalar_emission::ordering::TxEntry;
-        use scalar_emission::utxo_set_smt::UtxoSetSMT;
+        use scalar_emission::utxo_set_smt::UtxoSetAccumulator;
 
         let txs_a = vec![
             TxEntry {
@@ -226,10 +226,10 @@ mod tests_v12_utxo {
             },
         ];
 
-        let mut smt_a = UtxoSetSMT::new();
+        let mut smt_a = UtxoSetAccumulator::new();
         smt_a.process_epoch_transactions(&txs_a, 2);
 
-        let mut smt_b = UtxoSetSMT::new();
+        let mut smt_b = UtxoSetAccumulator::new();
         smt_b.process_epoch_transactions(&txs_b, 2);
 
         assert_eq!(
@@ -417,7 +417,7 @@ mod tests_v12_suite_v4 {
     fn compliance_tx_ordering_determinism() {
         // Verifikasi utxo_set_root identik antar node. Spec §XXI, §8.5.
         use scalar_emission::ordering::TxEntry;
-        use scalar_emission::utxo_set_smt::UtxoSetSMT;
+        use scalar_emission::utxo_set_smt::UtxoSetAccumulator;
 
         let txs_node_a = vec![
             TxEntry {
@@ -448,10 +448,10 @@ mod tests_v12_suite_v4 {
             },
         ];
 
-        let mut smt_a = UtxoSetSMT::new();
+        let mut smt_a = UtxoSetAccumulator::new();
         smt_a.process_epoch_transactions(&txs_node_a, 1);
 
-        let mut smt_b = UtxoSetSMT::new();
+        let mut smt_b = UtxoSetAccumulator::new();
         smt_b.process_epoch_transactions(&txs_node_b, 1);
 
         assert_eq!(
@@ -506,7 +506,7 @@ mod tests_v12_suite_v4 {
         // Node baru sync → utxo_set_root identik dengan node lama. Spec §XXI, §8.5.
         use scalar_emission::ordering::TxEntry;
         use scalar_emission::utxo_set_smt::{
-            verify_utxo_root_against_manifest, SyncVerificationResult, UtxoSetSMT,
+            verify_utxo_root_against_manifest, SyncVerificationResult, UtxoSetAccumulator,
         };
 
         let txs = vec![
@@ -521,12 +521,12 @@ mod tests_v12_suite_v4 {
         ];
 
         // Node lama
-        let mut old_node = UtxoSetSMT::new();
+        let mut old_node = UtxoSetAccumulator::new();
         old_node.process_epoch_transactions(&txs, 3);
         let expected_root = old_node.root();
 
         // Node baru rebuild dari genesis
-        let mut new_node = UtxoSetSMT::new();
+        let mut new_node = UtxoSetAccumulator::new();
         let txs_reordered = vec![
             TxEntry {
                 tx_hash: [0xBB; 32],

@@ -1,8 +1,13 @@
-//! UTXO Set SMT — Snapshot Management & Node Sync Protocol
+//! UTXO Set Accumulator — Snapshot Management & Node Sync Protocol
+//!
+//! NOTE: This is a sequential-hash accumulator, NOT a true Sparse Merkle Tree.
+//! Named 'Accumulator' to reflect implementation reality ("Truth by Mathematics").
+//! Wajib diganti dengan IMT-based EpochSMT sebelum testnet (utang teknis D3).
+//! Spec §8.5, §16.1, §3.1 Scalar_Optimalisasi_PraGenesis.
 //!
 //! Spec §8.5 v11.1 + v11.1-FINAL, §16.1.
 //!
-//! Setiap node memelihara UtxoSetSMT yang diperbarui setiap kali output baru
+//! Setiap node memelihara UtxoSetAccumulator yang diperbarui setiap kali output baru
 //! tercipta. Snapshot utxo_set_root diambil pada akhir epoch k setelah semua
 //! transaksi epoch k diproses secara deterministik (canonical ordering §8.5).
 //!
@@ -21,14 +26,9 @@ use blake3::Hasher;
 
 // ── Constants — spec §8.5, §16.1 ─────────────────────────────────────────────
 
-/// Domain separator for the UTXO-set root accumulator.
-///
-/// K9-02 NOTE: b"scalar_utxo_set" is NOT in the OSSIFIED registry (§2.3 / RP §8).
-/// The earlier "OSSIFIED — spec §2.3" claim was incorrect. This separator is a
-/// local, NON-OSSIFIED choice for UtxoSetSMT::compute_root and must be either
-/// (a) added to the canonical domain registry, or (b) reconciled to an existing
-/// OSSIFIED separator, before genesis. Tracked as audit finding K9-02.
-pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_set";
+// DOMAIN_UTXO_SMT is now OSSIFIED in scalar_crypto::domain (D.1 decision, FASE D).
+// Re-exported from scalar_crypto::domain for backward compatibility.
+pub use scalar_crypto::domain::DOMAIN_UTXO_SMT;
 
 /// Epoch ID awal (genesis). Spec §8.5.
 pub const GENESIS_EPOCH_ID: u64 = 0;
@@ -82,7 +82,7 @@ impl UtxoSetState {
     }
 }
 
-// ── UtxoSetSMT — SMT untuk semua UTXO ────────────────────────────────────────
+// ── UtxoSetAccumulator — SMT untuk semua UTXO ────────────────────────────────────────
 
 /// UTXO Set Sparse Merkle Tree. Spec §16.1, §8.5.
 ///
@@ -92,7 +92,7 @@ impl UtxoSetState {
 /// Implementasi ini adalah simplified SMT menggunakan BLAKE3 sebagai
 /// hash function untuk node internal (out-circuit). Produksi menggunakan
 /// Poseidon2 in-circuit untuk ZK proof; BLAKE3 untuk state management.
-pub struct UtxoSetSMT {
+pub struct UtxoSetAccumulator {
     /// Semua UTXO yang pernah dibuat, dalam urutan insertion.
     utxos: Vec<UtxoEntry>,
     /// Root SMT terkini (dihitung ulang setelah setiap batch update).
@@ -101,7 +101,7 @@ pub struct UtxoSetSMT {
     current_epoch: u64,
 }
 
-impl UtxoSetSMT {
+impl UtxoSetAccumulator {
     /// Buat SMT baru dari genesis. Spec §8.5.
     pub fn new() -> Self {
         Self {
@@ -192,7 +192,7 @@ impl UtxoSetSMT {
     }
 }
 
-impl Default for UtxoSetSMT {
+impl Default for UtxoSetAccumulator {
     fn default() -> Self {
         Self::new()
     }
@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn test_utxo_root_snapshot_timing() {
         // Snapshot diambil SETELAH semua tx epoch diproses. Spec §8.5.
-        let mut smt = UtxoSetSMT::new();
+        let mut smt = UtxoSetAccumulator::new();
         let txs = vec![make_tx(0x01), make_tx(0x02), make_tx(0x03)];
 
         // Sebelum processing — root masih zero
@@ -313,13 +313,13 @@ mod tests {
         let txs = vec![make_tx(0xAA), make_tx(0xBB), make_tx(0xCC)];
 
         // Node 1: proses dari genesis
-        let mut smt1 = UtxoSetSMT::new();
+        let mut smt1 = UtxoSetAccumulator::new();
         smt1.process_epoch_transactions(&txs, 5);
         let root1 = smt1.root();
 
         // Node 2: proses dari genesis dengan tx set sama (urutan berbeda)
         let txs_reordered = vec![make_tx(0xCC), make_tx(0xAA), make_tx(0xBB)];
-        let mut smt2 = UtxoSetSMT::new();
+        let mut smt2 = UtxoSetAccumulator::new();
         smt2.process_epoch_transactions(&txs_reordered, 5);
         let root2 = smt2.root();
 
@@ -369,7 +369,7 @@ mod tests {
         ];
 
         // "Node lama" yang sudah sinkron
-        let mut old_node = UtxoSetSMT::new();
+        let mut old_node = UtxoSetAccumulator::new();
         old_node.process_epoch_transactions(&txs, epoch_id);
         let old_root = old_node.root();
 
@@ -382,7 +382,7 @@ mod tests {
             make_tx(0x02),
             make_tx(0x03),
         ];
-        let mut new_node = UtxoSetSMT::new();
+        let mut new_node = UtxoSetAccumulator::new();
         new_node.process_epoch_transactions(&txs_gossip_order, epoch_id);
         let new_root = new_node.root();
 
@@ -432,7 +432,7 @@ mod tests {
     #[test]
     fn test_insert_utxo_updates_root() {
         // Setiap insert memperbarui root. Spec §8.5.
-        let mut smt = UtxoSetSMT::new();
+        let mut smt = UtxoSetAccumulator::new();
         assert_eq!(smt.root(), [0u8; 32]);
 
         smt.insert_utxo(make_commitment(0x01), 1);
@@ -460,8 +460,8 @@ mod tests {
     #[test]
     fn test_root_deterministic_same_utxos() {
         // Dua SMT dengan UTXO yang sama → root identik. Spec §8.5.
-        let mut smt1 = UtxoSetSMT::new();
-        let mut smt2 = UtxoSetSMT::new();
+        let mut smt1 = UtxoSetAccumulator::new();
+        let mut smt2 = UtxoSetAccumulator::new();
 
         for seed in [0x01u8, 0x02, 0x03] {
             smt1.insert_utxo(make_commitment(seed), 1);
@@ -480,7 +480,7 @@ mod tests {
     #[test]
     fn test_snapshot_multiple_epochs() {
         // Snapshot per epoch terakumulasi dengan benar. Spec §8.5.
-        let mut smt = UtxoSetSMT::new();
+        let mut smt = UtxoSetAccumulator::new();
 
         smt.process_epoch_transactions(&[make_tx(0x01), make_tx(0x02)], 1);
         let snap1 = smt.take_snapshot(1);
