@@ -107,7 +107,20 @@ scalar-stark-p3 (Plonky3) in P3-R8 (commit cea7040).
 **Success criteria:** No crashes, no assertion failures after 10M iterations.
 
 **Milestone:** Pramainnet
-**Status:** TARGET READY (migrated P3-R8), NOT YET EXECUTED (requires nightly)
+**Status:** ✅ COMPLETE (2026-05-27, commit 1ad46d2)
+
+**Results — AMD EPYC 7763, 4 vCPU, Rust nightly 1.98.0:**
+
+| Target | Runs | Exec/sec | Crashes |
+|---|---|---|---|
+| fuzz_nullifier_cc (§15.4) | 259,161,283 | 861,000 | 0 |
+| fuzz_canonical_serialization | 28,422,565 | 94,427 | 0 |
+| fuzz_fee_floor | 249,719,993 | 829,634 | 0 |
+| fuzz_emission_formula | 249,152,430 | 827,748 | 0 |
+| fuzz_starkpack_adversarial (TV5.15) | 9,985,926 | 33,175 | 0 |
+
+TV5.15 spec §5.15: 9.99M runs ≈ 10M target. No soundness violations detected.
+No crashes across all targets. All invariants hold.
 
 ```bash
 # To run (requires nightly):
@@ -166,7 +179,7 @@ compliance with the Scalar Master Technical Specification.
 | E2   | Testnet     | ✅ COMPLETE (P3-R1..R7, 107 tests) |
 | E3   | Pramainnet  | NOT STARTED (needs TLC/auditor) |
 | E4   | Pramainnet  | NOT STARTED (needs TLC/auditor) |
-| E5   | Pramainnet  | TARGET READY (needs nightly fuzz run) |
+| E5   | Pramainnet  | ✅ COMPLETE (fuzz run 2026-05-27, see below) |
 | E6   | Mainnet     | NOT STARTED (needs 2nd implementation) |
 | E7   | Mainnet     | NOT STARTED (needs external firms) |
 
