@@ -776,16 +776,15 @@ mod tests {
 #[cfg(test)]
 mod bench {
     use super::*;
-    use crate::membership_air_p3::{IMT_DEPTH, MembershipWitness};
+    use crate::membership_air_p3::poseidon2_permute;
+    use crate::membership_air_p3::{MembershipWitness, IMT_DEPTH};
     use crate::nonmembership_air_p3::{
-        NonMembershipWitness, SparseTree, SMT_DEPTH,
-        DOMAIN_SMT_ACTIVE_HI, DOMAIN_SMT_ACTIVE_LO,
-        DOMAIN_SMT_ARCHIVED_HI, DOMAIN_SMT_ARCHIVED_LO,
+        NonMembershipWitness, SparseTree, DOMAIN_SMT_ACTIVE_HI, DOMAIN_SMT_ACTIVE_LO,
+        DOMAIN_SMT_ARCHIVED_HI, DOMAIN_SMT_ARCHIVED_LO, SMT_DEPTH,
     };
     use crate::ownership_air_p3::{
         compute_expected_commitment, compute_expected_nullifier, InputWitness,
     };
-    use crate::membership_air_p3::poseidon2_permute;
     use p3_goldilocks::Goldilocks;
     use scalar_crypto::imt::{imt_membership_verify, IncrementalMerkleTree};
     use std::time::Instant;
@@ -805,32 +804,45 @@ mod bench {
     fn commitment_bytes(w: &InputWitness) -> [u8; 32] {
         let h = compute_expected_commitment(w);
         let mut c = [0u8; 32];
-        for i in 0..4 { c[i*8..(i+1)*8].copy_from_slice(&h[i].to_le_bytes()); }
+        for i in 0..4 {
+            c[i * 8..(i + 1) * 8].copy_from_slice(&h[i].to_le_bytes());
+        }
         c
     }
 
     fn nullifier_bytes(w: &InputWitness) -> [u8; 32] {
         let h = compute_expected_nullifier(w);
         let mut n = [0u8; 32];
-        for i in 0..4 { n[i*8..(i+1)*8].copy_from_slice(&h[i].to_le_bytes()); }
+        for i in 0..4 {
+            n[i * 8..(i + 1) * 8].copy_from_slice(&h[i].to_le_bytes());
+        }
         n
     }
 
     fn empty_smt_root(tree: SparseTree) -> [u8; 32] {
         let (dl, dh) = match tree {
-            SparseTree::Active   => (DOMAIN_SMT_ACTIVE_LO,   DOMAIN_SMT_ACTIVE_HI),
+            SparseTree::Active => (DOMAIN_SMT_ACTIVE_LO, DOMAIN_SMT_ACTIVE_HI),
             SparseTree::Archived => (DOMAIN_SMT_ARCHIVED_LO, DOMAIN_SMT_ARCHIVED_HI),
         };
         let mut cur = [0u64; 4];
         for _ in 0..SMT_DEPTH {
             let mut inp = [Goldilocks::new(0u64); 8];
-            inp[0] = Goldilocks::new(dl); inp[1] = Goldilocks::new(dh);
-            inp[2..6].iter_mut().zip(cur.iter()).for_each(|(d,&s)| *d = Goldilocks::new(s));
-            inp[6..8].iter_mut().zip(cur.iter()).for_each(|(d,&s)| *d = Goldilocks::new(s));
+            inp[0] = Goldilocks::new(dl);
+            inp[1] = Goldilocks::new(dh);
+            inp[2..6]
+                .iter_mut()
+                .zip(cur.iter())
+                .for_each(|(d, &s)| *d = Goldilocks::new(s));
+            inp[6..8]
+                .iter_mut()
+                .zip(cur.iter())
+                .for_each(|(d, &s)| *d = Goldilocks::new(s));
             cur = poseidon2_permute(&inp);
         }
         let mut root = [0u8; 32];
-        for i in 0..4 { root[i*8..(i+1)*8].copy_from_slice(&cur[i].to_le_bytes()); }
+        for i in 0..4 {
+            root[i * 8..(i + 1) * 8].copy_from_slice(&cur[i].to_le_bytes());
+        }
         root
     }
 
@@ -839,63 +851,110 @@ mod bench {
         let commitments: Vec<[u8; 32]> = ownership.iter().map(commitment_bytes).collect();
 
         let mut imt = IncrementalMerkleTree::new();
-        for c in &commitments { imt.append(c).unwrap(); }
+        for c in &commitments {
+            imt.append(c).unwrap();
+        }
         let root_bytes = imt.root();
         let imt_root: [u64; 4] = core::array::from_fn(|i| {
-            u64::from_le_bytes(root_bytes[i*8..(i+1)*8].try_into().unwrap())
+            u64::from_le_bytes(root_bytes[i * 8..(i + 1) * 8].try_into().unwrap())
         });
-        let membership: Vec<MembershipWitness> = commitments.iter().enumerate().map(|(idx, c)| {
-            let path = imt.prove_membership(idx as u64).unwrap();
-            assert!(imt_membership_verify(c, &path, &root_bytes, imt.count));
-            let siblings: [[u64; 4]; IMT_DEPTH] = core::array::from_fn(|i| {
-                let s = &path.siblings[i];
-                [u64::from_le_bytes(s[0..8].try_into().unwrap()),
-                 u64::from_le_bytes(s[8..16].try_into().unwrap()),
-                 u64::from_le_bytes(s[16..24].try_into().unwrap()),
-                 u64::from_le_bytes(s[24..32].try_into().unwrap())]
-            });
-            MembershipWitness { commitment: *c, leaf_index: idx as u64, siblings }
-        }).collect();
+        let membership: Vec<MembershipWitness> = commitments
+            .iter()
+            .enumerate()
+            .map(|(idx, c)| {
+                let path = imt.prove_membership(idx as u64).unwrap();
+                assert!(imt_membership_verify(c, &path, &root_bytes, imt.count));
+                let siblings: [[u64; 4]; IMT_DEPTH] = core::array::from_fn(|i| {
+                    let s = &path.siblings[i];
+                    [
+                        u64::from_le_bytes(s[0..8].try_into().unwrap()),
+                        u64::from_le_bytes(s[8..16].try_into().unwrap()),
+                        u64::from_le_bytes(s[16..24].try_into().unwrap()),
+                        u64::from_le_bytes(s[24..32].try_into().unwrap()),
+                    ]
+                });
+                MembershipWitness {
+                    commitment: *c,
+                    leaf_index: idx as u64,
+                    siblings,
+                }
+            })
+            .collect();
 
-        let active_root   = empty_smt_root(SparseTree::Active);
+        let active_root = empty_smt_root(SparseTree::Active);
         let archived_root = empty_smt_root(SparseTree::Archived);
 
-        let nm_active: Vec<_> = ownership.iter().map(|w| {
-            let null = nullifier_bytes(w);
-            let (dl,dh) = (DOMAIN_SMT_ACTIVE_LO, DOMAIN_SMT_ACTIVE_HI);
-            let mut siblings = [[0u64;4]; SMT_DEPTH];
-            let mut cur = [0u64;4];
-            for lv in 0..SMT_DEPTH {
-                siblings[lv] = cur;
-                let mut inp = [Goldilocks::new(0u64); 8];
-                inp[0]=Goldilocks::new(dl); inp[1]=Goldilocks::new(dh);
-                inp[2..6].iter_mut().zip(cur.iter()).for_each(|(d,&s)| *d=Goldilocks::new(s));
-                inp[6..8].iter_mut().zip(cur.iter()).for_each(|(d,&s)| *d=Goldilocks::new(s));
-                cur = poseidon2_permute(&inp);
-            }
-            NonMembershipWitness { nullifier: null, tree: SparseTree::Active, siblings }
-        }).collect();
+        let nm_active: Vec<_> = ownership
+            .iter()
+            .map(|w| {
+                let null = nullifier_bytes(w);
+                let (dl, dh) = (DOMAIN_SMT_ACTIVE_LO, DOMAIN_SMT_ACTIVE_HI);
+                let mut siblings = [[0u64; 4]; SMT_DEPTH];
+                let mut cur = [0u64; 4];
+                for lv in 0..SMT_DEPTH {
+                    siblings[lv] = cur;
+                    let mut inp = [Goldilocks::new(0u64); 8];
+                    inp[0] = Goldilocks::new(dl);
+                    inp[1] = Goldilocks::new(dh);
+                    inp[2..6]
+                        .iter_mut()
+                        .zip(cur.iter())
+                        .for_each(|(d, &s)| *d = Goldilocks::new(s));
+                    inp[6..8]
+                        .iter_mut()
+                        .zip(cur.iter())
+                        .for_each(|(d, &s)| *d = Goldilocks::new(s));
+                    cur = poseidon2_permute(&inp);
+                }
+                NonMembershipWitness {
+                    nullifier: null,
+                    tree: SparseTree::Active,
+                    siblings,
+                }
+            })
+            .collect();
 
-        let nm_archived: Vec<_> = ownership.iter().map(|w| {
-            let null = nullifier_bytes(w);
-            let (dl,dh) = (DOMAIN_SMT_ARCHIVED_LO, DOMAIN_SMT_ARCHIVED_HI);
-            let mut siblings = [[0u64;4]; SMT_DEPTH];
-            let mut cur = [0u64;4];
-            for lv in 0..SMT_DEPTH {
-                siblings[lv] = cur;
-                let mut inp = [Goldilocks::new(0u64); 8];
-                inp[0]=Goldilocks::new(dl); inp[1]=Goldilocks::new(dh);
-                inp[2..6].iter_mut().zip(cur.iter()).for_each(|(d,&s)| *d=Goldilocks::new(s));
-                inp[6..8].iter_mut().zip(cur.iter()).for_each(|(d,&s)| *d=Goldilocks::new(s));
-                cur = poseidon2_permute(&inp);
-            }
-            NonMembershipWitness { nullifier: null, tree: SparseTree::Archived, siblings }
-        }).collect();
+        let nm_archived: Vec<_> = ownership
+            .iter()
+            .map(|w| {
+                let null = nullifier_bytes(w);
+                let (dl, dh) = (DOMAIN_SMT_ARCHIVED_LO, DOMAIN_SMT_ARCHIVED_HI);
+                let mut siblings = [[0u64; 4]; SMT_DEPTH];
+                let mut cur = [0u64; 4];
+                for lv in 0..SMT_DEPTH {
+                    siblings[lv] = cur;
+                    let mut inp = [Goldilocks::new(0u64); 8];
+                    inp[0] = Goldilocks::new(dl);
+                    inp[1] = Goldilocks::new(dh);
+                    inp[2..6]
+                        .iter_mut()
+                        .zip(cur.iter())
+                        .for_each(|(d, &s)| *d = Goldilocks::new(s));
+                    inp[6..8]
+                        .iter_mut()
+                        .zip(cur.iter())
+                        .for_each(|(d, &s)| *d = Goldilocks::new(s));
+                    cur = poseidon2_permute(&inp);
+                }
+                NonMembershipWitness {
+                    nullifier: null,
+                    tree: SparseTree::Archived,
+                    siblings,
+                }
+            })
+            .collect();
 
-        (TransferWitnesses { ownership, membership,
-            nonmembership_active: nm_active,
-            nonmembership_archived: nm_archived },
-         imt_root, active_root, archived_root)
+        (
+            TransferWitnesses {
+                ownership,
+                membership,
+                nonmembership_active: nm_active,
+                nonmembership_archived: nm_archived,
+            },
+            imt_root,
+            active_root,
+            archived_root,
+        )
     }
 
     /// P3-R9: Full BatchTransferProof proving time (2-in/2-out). Spec §15.6.
@@ -909,7 +968,10 @@ mod bench {
     /// Run with: cargo test -p scalar-stark-p3 --features bench-hardware \
     ///           -- bench::bench_batch_transfer_2in2out --nocapture --ignored
     #[test]
-    #[cfg_attr(not(feature = "bench-hardware"), ignore = "P3-R9: run with --features bench-hardware")]
+    #[cfg_attr(
+        not(feature = "bench-hardware"),
+        ignore = "P3-R9: run with --features bench-hardware"
+    )]
     fn bench_batch_transfer_2in2out() {
         let (witnesses, imt_root, active_root, archived_root) = build_bench_witnesses(2);
         let pi = TransferPublicInputsP3 {
@@ -932,18 +994,16 @@ mod bench {
             .expect("derive_public_claims must succeed");
 
         // Warm-up
-        let _ = prove_batch_transfer(&witnesses, &claims)
-            .expect("warm-up prove must succeed");
+        let _ = prove_batch_transfer(&witnesses, &claims).expect("warm-up prove must succeed");
 
         // Timed run
         let start = Instant::now();
-        let batch_proof = prove_batch_transfer(&witnesses, &claims)
-            .expect("prove_batch_transfer must succeed");
+        let batch_proof =
+            prove_batch_transfer(&witnesses, &claims).expect("prove_batch_transfer must succeed");
         let prove_ms = start.elapsed().as_millis();
 
         let start = Instant::now();
-        verify_batch_transfer(&batch_proof, &claims)
-            .expect("verify_batch_transfer must succeed");
+        verify_batch_transfer(&batch_proof, &claims).expect("verify_batch_transfer must succeed");
         let verify_ms = start.elapsed().as_millis();
 
         println!(
@@ -958,12 +1018,8 @@ mod bench {
             batch_proof.cdcecg_proof.len(),
             batch_proof.total_bytes()
         );
-        println!(
-            "[P3-R9] FRI: blowup=8, queries=84, grinding=20 (OSSIFIED §4.4)"
-        );
-        println!(
-            "[P3-R9] Spec §15.6: no hard time limit — empirical reference only"
-        );
+        println!("[P3-R9] FRI: blowup=8, queries=84, grinding=20 (OSSIFIED §4.4)");
+        println!("[P3-R9] Spec §15.6: no hard time limit — empirical reference only");
         println!(
             "[P3-R9] Spec §15.6: all tiers (A/B/C) must prove without GPU — verified by CPU-only Codespace"
         );

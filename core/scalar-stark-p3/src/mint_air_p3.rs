@@ -947,7 +947,10 @@ mod bench {
     /// Run with: cargo test -p scalar-stark-p3 --features bench-hardware \
     ///           -- bench::bench_mint_nullifier_proving --nocapture --ignored
     #[test]
-    #[cfg_attr(not(feature = "bench-hardware"), ignore = "P3-R9: run with --features bench-hardware")]
+    #[cfg_attr(
+        not(feature = "bench-hardware"),
+        ignore = "P3-R9: run with --features bench-hardware"
+    )]
     fn bench_mint_nullifier_proving() {
         let witness = valid_nullifier_witness();
         let claim_derived = compute_mint_nullifier_claim(&witness);
@@ -966,7 +969,9 @@ mod bench {
 
         println!(
             "[P3-R9] MintNullifierAir MC2 — prove: {}ms, verify: {}ms, proof: {} bytes",
-            prove_ms, verify_ms, proof.len()
+            prove_ms,
+            verify_ms,
+            proof.len()
         );
         println!("[P3-R9] Spec §15.6: empirical reference, no hard limit");
     }
@@ -976,7 +981,10 @@ mod bench {
     /// Run with: cargo test -p scalar-stark-p3 --features bench-hardware \
     ///           -- bench::bench_mint_linear_proving --nocapture --ignored
     #[test]
-    #[cfg_attr(not(feature = "bench-hardware"), ignore = "P3-R9: run with --features bench-hardware")]
+    #[cfg_attr(
+        not(feature = "bench-hardware"),
+        ignore = "P3-R9: run with --features bench-hardware"
+    )]
     fn bench_mint_linear_proving() {
         let pi = valid_mint_pi();
 
@@ -993,7 +1001,9 @@ mod bench {
 
         println!(
             "[P3-R9] MintLinearAir MC1+MC3+MC4+MC5 — prove: {}ms, verify: {}ms, proof: {} bytes",
-            prove_ms, verify_ms, proof.len()
+            prove_ms,
+            verify_ms,
+            proof.len()
         );
         println!(
             "[P3-R9] MC3 supply cap in-circuit: total_minted={}, reward={}, S_E={}",
