@@ -28,3 +28,4 @@ scalar-nullifier = { path = "../../core/scalar-nullifier" }
 scalar-fees = { path = "../../core/scalar-fees" }
 scalar-network = { path = "../../core/scalar-network" }
 scalar-stark-p3 = { path = "../../core/scalar-stark-p3" }
+postcard = { version = "1", features = ["alloc"] }

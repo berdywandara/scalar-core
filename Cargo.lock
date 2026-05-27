@@ -3063,6 +3063,7 @@ dependencies = [
 name = "scalar-integration-tests"
 version = "0.1.0"
 dependencies = [
+ "postcard",
  "scalar-crypto",
  "scalar-emission",
  "scalar-fees",

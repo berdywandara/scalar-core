@@ -52,8 +52,8 @@ doc = false
 bench = false
 
 
-[dependencies.scalar-stark]
-path = "../core/scalar-stark"
+[dependencies.scalar-stark-p3]
+path = "../core/scalar-stark-p3"
 
 
 [[bin]]

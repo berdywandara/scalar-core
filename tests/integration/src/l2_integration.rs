@@ -94,15 +94,135 @@ fn test_subepoch_imt_frontier_round_trip() {
 // ── 3. STARKPack transcript determinism ──────────────────────────────────────
 
 #[test]
-#[ignore = "P3-R8: STARKPack not yet ported to scalar-stark-p3"]
-fn test_starkpack_transcript_deterministic_across_calls() {}
+fn test_starkpack_transcript_deterministic_across_calls() {
+    // TV5.15 P3: same inputs → same transcript_hash across two calls.
+    // Spec §3.4.3 R4: one transcript per batch, deterministic.
+    use scalar_stark_p3::batch_transfer_p3::BatchTransferProof;
+    use scalar_stark_p3::starkpack_p3::{aggregate_real_proofs, RealProofInput};
+    use scalar_stark_p3::transfer_air_p3::prove_transfer_p3;
+    use scalar_stark_p3::transfer_public_inputs::TransferPublicInputsP3;
+
+    fn make_pi(fee_extra: u64) -> TransferPublicInputsP3 {
+        TransferPublicInputsP3 {
+            fee_total_sscl: 40 + fee_extra,
+            sum_inputs_sscl: 1_000_000_040 + fee_extra,
+            sum_outputs_sscl: 1_000_000_000,
+            crypto_version: 0x01,
+            entry_timestamp_ms: 1_000_000_000,
+            current_timestamp_ms: 1_000_060_000,
+            utxo_set_root: [0x42u8; 32],
+            cb_membership_verified: true,
+            nullifier_active_root: [0xAAu8; 32],
+            nullifier_archived_root: [0xBBu8; 32],
+            cc_nonmembership_verified: true,
+            output_nonzero: true,
+            single_utxo_source: true,
+        }
+    }
+
+    fn make_input(fee_extra: u64, key_byte: u8) -> RealProofInput {
+        let pi = make_pi(fee_extra);
+        // Build a minimal BatchTransferProof: only cdcecg_proof is verified
+        // by the aggregator; ca/cb/cc are structural non-empty checks.
+        let cdcecg = prove_transfer_p3(&pi).expect("prove must succeed");
+        let batch = BatchTransferProof {
+            ca_proof: vec![0xCAu8; 64],
+            cb_proof: vec![0xCBu8; 64],
+            cc_proof: vec![0xCCu8; 64],
+            cdcecg_proof: cdcecg,
+        };
+        let proof_bytes = postcard::to_allocvec(&batch).unwrap();
+        let mut key = [0u8; 32];
+        key[0] = key_byte;
+        RealProofInput {
+            proof_bytes,
+            public_inputs: pi,
+            tx_ordering_key: key,
+        }
+    }
+
+    let inputs = vec![make_input(0, 0x01), make_input(10, 0x02)];
+
+    let r1 = aggregate_real_proofs(&inputs).expect("first aggregation must succeed");
+    let r2 = aggregate_real_proofs(&inputs).expect("second aggregation must succeed");
+
+    assert_eq!(
+        r1.transcript_hash, r2.transcript_hash,
+        "transcript_hash must be identical across repeated calls"
+    );
+    assert_eq!(
+        r1.global_fri_root, r2.global_fri_root,
+        "global_fri_root must be identical across repeated calls"
+    );
+}
 
 #[test]
-#[ignore = "P3-R8: STARKPack not yet ported to scalar-stark-p3"]
-fn test_starkpack_ordering_affects_transcript() {}
+fn test_starkpack_ordering_affects_transcript() {
+    // TV5.15 P2: different tx_ordering_key order → different transcript_hash.
+    // Spec §3.4.3 R1: proofs absorbed in tx_ordering_key order.
+    use scalar_stark_p3::batch_transfer_p3::BatchTransferProof;
+    use scalar_stark_p3::starkpack_p3::{aggregate_real_proofs, RealProofInput};
+    use scalar_stark_p3::transfer_air_p3::prove_transfer_p3;
+    use scalar_stark_p3::transfer_public_inputs::TransferPublicInputsP3;
+
+    fn make_pi(fee_extra: u64) -> TransferPublicInputsP3 {
+        TransferPublicInputsP3 {
+            fee_total_sscl: 40 + fee_extra,
+            sum_inputs_sscl: 1_000_000_040 + fee_extra,
+            sum_outputs_sscl: 1_000_000_000,
+            crypto_version: 0x01,
+            entry_timestamp_ms: 1_000_000_000,
+            current_timestamp_ms: 1_000_060_000,
+            utxo_set_root: [0x42u8; 32],
+            cb_membership_verified: true,
+            nullifier_active_root: [0xAAu8; 32],
+            nullifier_archived_root: [0xBBu8; 32],
+            cc_nonmembership_verified: true,
+            output_nonzero: true,
+            single_utxo_source: true,
+        }
+    }
+
+    fn make_input(fee_extra: u64) -> RealProofInput {
+        let pi = make_pi(fee_extra);
+        let cdcecg = prove_transfer_p3(&pi).expect("prove must succeed");
+        let batch = BatchTransferProof {
+            ca_proof: vec![0xCAu8; 64],
+            cb_proof: vec![0xCBu8; 64],
+            cc_proof: vec![0xCCu8; 64],
+            cdcecg_proof: cdcecg,
+        };
+        let proof_bytes = postcard::to_allocvec(&batch).unwrap();
+        RealProofInput {
+            proof_bytes,
+            public_inputs: pi,
+            tx_ordering_key: [0u8; 32],
+        }
+    }
+
+    let mut inp_a = make_input(0);
+    let mut inp_b = make_input(50);
+
+    // Assign different keys so sort order is deterministic and different when reversed.
+    inp_a.tx_ordering_key = [0x01u8; 32];
+    inp_b.tx_ordering_key = [0xFFu8; 32];
+
+    let r_ab =
+        aggregate_real_proofs(&[inp_a.clone(), inp_b.clone()]).expect("forward order must succeed");
+    // Swap keys to force reversed sort order.
+    inp_a.tx_ordering_key = [0xFFu8; 32];
+    inp_b.tx_ordering_key = [0x01u8; 32];
+    let r_ba = aggregate_real_proofs(&[inp_a, inp_b]).expect("reverse order must succeed");
+
+    assert_ne!(
+        r_ab.transcript_hash, r_ba.transcript_hash,
+        "different ordering must produce different transcript_hash (spec §3.4.3 R1)"
+    );
+}
 
 #[test]
 fn test_quaternary_smt_non_membership_consistent() {
+    use postcard;
     use scalar_nullifier::smt_quaternary::QuaternarySparseMerkleTree;
 
     let mut smt = QuaternarySparseMerkleTree::new();
