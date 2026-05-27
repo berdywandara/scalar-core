@@ -121,6 +121,11 @@ pub enum BatchTransferError {
     EmptyWitnesses,
 
     #[error(
+        "CD conservation violated: sum_inputs_from_witnesses={witness_sum}              != sum_outputs + fee = {claimed_sum} (A-R10)"
+    )]
+    ConservationViolated { witness_sum: u64, claimed_sum: u64 },
+
+    #[error(
         "Nonmembership witness tree mismatch at index {index}: expected {expected}, \
              got {got}"
     )]
@@ -240,6 +245,37 @@ pub fn derive_public_claims(
         archived_root: pi.nullifier_archived_root,
     };
 
+    // A-R10: CD conservation binding — derive sum_inputs_sscl from witness values.
+    // This prevents bypass: caller cannot supply arbitrary sum_inputs/sum_outputs
+    // that satisfy conservation without matching actual witness values.
+    // Spec §4.3 CD: sum_inputs == sum_outputs + fee.
+    let witness_sum_inputs: u64 = witnesses
+        .ownership
+        .iter()
+        .map(|w| w.value)
+        .try_fold(0u64, |acc, v| acc.checked_add(v))
+        .ok_or(BatchTransferError::WitnessCountMismatch {
+            ownership: witnesses.ownership.len(),
+            membership: witnesses.membership.len(),
+            active: witnesses.nonmembership_active.len(),
+            archived: witnesses.nonmembership_archived.len(),
+        })?;
+
+    // Override sum_inputs_sscl in PI with witness-derived value.
+    // The caller-supplied value is ignored for sum_inputs; only sum_outputs and
+    // fee_total are accepted from PI (outputs are not in witnesses here).
+    let mut pi = pi;
+    pi.sum_inputs_sscl = witness_sum_inputs;
+
+    // Verify conservation: sum_inputs == sum_outputs + fee.
+    let claimed_sum = pi.sum_outputs_sscl.saturating_add(pi.fee_total_sscl);
+    if witness_sum_inputs != claimed_sum {
+        return Err(BatchTransferError::ConservationViolated {
+            witness_sum: witness_sum_inputs,
+            claimed_sum,
+        });
+    }
+
     let _ = n; // used implicitly via iterators above
 
     // A-R9: Compute cross-binding hashes from witnesses.
@@ -267,7 +303,6 @@ pub fn derive_public_claims(
         })
         .collect();
 
-    let mut pi = pi;
     pi.commitment_hash = compute_commitment_hash(&commitment_bytes);
     pi.nullifier_hash = compute_nullifier_hash(&nullifier_bytes);
 
@@ -760,6 +795,38 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A-R10 falsifiability: conservation violated → derive_public_claims rejects.
+    ///
+    /// Caller cannot supply sum_outputs + fee != sum(witness values).
+    /// Spec §4.3 CD, A-R10 DoD.
+    #[test]
+    fn test_falsifiability_ar10_conservation_violated() {
+        let (witnesses, imt_root, active_root, archived_root) = build_test_witnesses();
+
+        // witness values: 500_000_000 + 500_000_040 = 1_000_000_040
+        // fee = 40, sum_outputs = 1_000_000_000 → conserved
+        // Tamper: claim sum_outputs = 999_999_999 (doesn't balance)
+        let mut pi = valid_pi(active_root, archived_root);
+        pi.sum_outputs_sscl = 999_999_999; // conservation fails
+
+        let result = derive_public_claims(&witnesses, pi, imt_root);
+        assert!(
+            matches!(result, Err(BatchTransferError::ConservationViolated { .. })),
+            "non-conservative PI must be rejected by derive_public_claims (A-R10)"
+        );
+    }
+
+    /// A-R10: correct conservation passes derive_public_claims.
+    #[test]
+    fn test_ar10_conservation_valid_passes() {
+        let (witnesses, imt_root, active_root, archived_root) = build_test_witnesses();
+        let pi = valid_pi(active_root, archived_root);
+        // witness values sum = 1_000_000_040, fee=40, sum_outputs=1_000_000_000
+        // → conserved: 1_000_000_040 == 1_000_000_000 + 40
+        let result = derive_public_claims(&witnesses, pi, imt_root);
+        assert!(result.is_ok(), "conserved PI must pass: {:?}", result.err());
     }
 
     /// A-R9 falsifiability: commitment_hash mismatch → CD/CE/CG proof rejected.
