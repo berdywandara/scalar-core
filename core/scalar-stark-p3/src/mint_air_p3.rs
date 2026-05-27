@@ -917,3 +917,88 @@ mod tests {
         assert_eq!(DOMAIN_POU_MINT_FE, 0x706f755f6d696e74u64);
     }
 }
+
+// ── P3-R9: Empirical benchmark — spec §15.6, §5.2 ────────────────────────────
+
+#[cfg(test)]
+mod bench {
+    use super::*;
+    use std::time::Instant;
+
+    fn valid_mint_pi() -> MintLinearPublicInputs {
+        MintLinearPublicInputs {
+            crypto_version: 0x01,
+            total_minted_sscl: 0,
+            reward_amount_sscl: 1_000_000,
+            node_auth_valid: true,
+            mint_nullifier: [1u64; 4],
+        }
+    }
+
+    fn valid_nullifier_witness() -> MintNullifierWitness {
+        MintNullifierWitness {
+            node_id_lo: 0xDEAD_BEEF,
+            epoch_id: 42,
+        }
+    }
+
+    /// P3-R9: Mint nullifier proving time (MC2 in-circuit). Spec §15.6.
+    ///
+    /// Run with: cargo test -p scalar-stark-p3 --features bench-hardware \
+    ///           -- bench::bench_mint_nullifier_proving --nocapture --ignored
+    #[test]
+    #[cfg_attr(not(feature = "bench-hardware"), ignore = "P3-R9: run with --features bench-hardware")]
+    fn bench_mint_nullifier_proving() {
+        let witness = valid_nullifier_witness();
+        let claim_derived = compute_mint_nullifier_claim(&witness);
+        let claim = claim_derived;
+
+        // Warm-up
+        let _ = prove_mint_nullifier_p3(&witness, &claim).expect("warm-up");
+
+        let start = Instant::now();
+        let proof = prove_mint_nullifier_p3(&witness, &claim).expect("prove");
+        let prove_ms = start.elapsed().as_millis();
+
+        let start = Instant::now();
+        verify_mint_nullifier_p3(&proof, &claim).expect("verify");
+        let verify_ms = start.elapsed().as_millis();
+
+        println!(
+            "[P3-R9] MintNullifierAir MC2 — prove: {}ms, verify: {}ms, proof: {} bytes",
+            prove_ms, verify_ms, proof.len()
+        );
+        println!("[P3-R9] Spec §15.6: empirical reference, no hard limit");
+    }
+
+    /// P3-R9: Mint linear proving time (MC1+MC3+MC4+MC5). Spec §15.6.
+    ///
+    /// Run with: cargo test -p scalar-stark-p3 --features bench-hardware \
+    ///           -- bench::bench_mint_linear_proving --nocapture --ignored
+    #[test]
+    #[cfg_attr(not(feature = "bench-hardware"), ignore = "P3-R9: run with --features bench-hardware")]
+    fn bench_mint_linear_proving() {
+        let pi = valid_mint_pi();
+
+        // Warm-up
+        let _ = prove_mint_linear_p3(&pi).expect("warm-up");
+
+        let start = Instant::now();
+        let proof = prove_mint_linear_p3(&pi).expect("prove");
+        let prove_ms = start.elapsed().as_millis();
+
+        let start = Instant::now();
+        verify_mint_linear_p3(&proof, &pi).expect("verify");
+        let verify_ms = start.elapsed().as_millis();
+
+        println!(
+            "[P3-R9] MintLinearAir MC1+MC3+MC4+MC5 — prove: {}ms, verify: {}ms, proof: {} bytes",
+            prove_ms, verify_ms, proof.len()
+        );
+        println!(
+            "[P3-R9] MC3 supply cap in-circuit: total_minted={}, reward={}, S_E={}",
+            pi.total_minted_sscl, pi.reward_amount_sscl, MINT_S_E_SSCL
+        );
+        println!("[P3-R9] Spec §15.6: empirical reference, no hard limit");
+    }
+}

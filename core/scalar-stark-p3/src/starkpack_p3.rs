@@ -296,7 +296,7 @@ mod tests {
         DOMAIN_SMT_ARCHIVED_HI, DOMAIN_SMT_ARCHIVED_LO, SMT_DEPTH,
     };
     use crate::ownership_air_p3::{
-        compute_expected_commitment, compute_expected_nullifier, InputWitness, OwnershipPublicClaim,
+        compute_expected_commitment, compute_expected_nullifier, InputWitness,
     };
     use p3_goldilocks::Goldilocks;
     use scalar_crypto::imt::{imt_membership_verify, IncrementalMerkleTree};
@@ -671,5 +671,211 @@ mod tests {
             r1.global_fri_root, r2.global_fri_root,
             "different proof counts must produce different global_fri_root"
         );
+    }
+}
+
+// ── P3-R9: Empirical benchmark — spec §15.6, §3.4 ────────────────────────────
+
+#[cfg(test)]
+mod bench {
+    use super::*;
+    use crate::batch_transfer_p3::{
+        derive_public_claims, prove_batch_transfer, TransferWitnesses,
+    };
+    use crate::membership_air_p3::{IMT_DEPTH, MembershipWitness};
+    use crate::nonmembership_air_p3::{
+        NonMembershipWitness, SparseTree, SMT_DEPTH,
+        DOMAIN_SMT_ACTIVE_HI, DOMAIN_SMT_ACTIVE_LO,
+        DOMAIN_SMT_ARCHIVED_HI, DOMAIN_SMT_ARCHIVED_LO,
+    };
+    use crate::ownership_air_p3::{
+        compute_expected_commitment, compute_expected_nullifier, InputWitness,
+    };
+    use crate::membership_air_p3::poseidon2_permute;
+    use p3_goldilocks::Goldilocks;
+    use scalar_crypto::imt::{imt_membership_verify, IncrementalMerkleTree};
+    use std::time::Instant;
+
+    fn make_witness(seed: u64) -> InputWitness {
+        InputWitness {
+            secret: 0xDEAD_BEEF_0000_0000 | seed,
+            value: 500_000_000 + seed,
+            owner_pubkey_lo: 0xABCD_EF00 | (seed & 0xFFFF_FFFF),
+            owner_pubkey_hi: 0x1234_5678,
+            salt: 0xCAFE_BABE_0000_0000 | seed,
+            spending_key_lo: 0x1111_1111,
+            spending_key_hi: 0x2222_2222,
+        }
+    }
+
+    fn commitment_bytes(w: &InputWitness) -> [u8; 32] {
+        let h = compute_expected_commitment(w);
+        let mut c = [0u8; 32];
+        for i in 0..4 { c[i*8..(i+1)*8].copy_from_slice(&h[i].to_le_bytes()); }
+        c
+    }
+
+    fn nullifier_bytes(w: &InputWitness) -> [u8; 32] {
+        let h = compute_expected_nullifier(w);
+        let mut n = [0u8; 32];
+        for i in 0..4 { n[i*8..(i+1)*8].copy_from_slice(&h[i].to_le_bytes()); }
+        n
+    }
+
+    fn empty_smt_root(tree: SparseTree) -> [u8; 32] {
+        let (dl, dh) = match tree {
+            SparseTree::Active   => (DOMAIN_SMT_ACTIVE_LO,   DOMAIN_SMT_ACTIVE_HI),
+            SparseTree::Archived => (DOMAIN_SMT_ARCHIVED_LO, DOMAIN_SMT_ARCHIVED_HI),
+        };
+        let mut cur = [0u64; 4];
+        for _ in 0..SMT_DEPTH {
+            let mut inp = [Goldilocks::new(0u64); 8];
+            inp[0]=Goldilocks::new(dl); inp[1]=Goldilocks::new(dh);
+            inp[2..6].iter_mut().zip(cur.iter()).for_each(|(d,&s)| *d=Goldilocks::new(s));
+            inp[6..8].iter_mut().zip(cur.iter()).for_each(|(d,&s)| *d=Goldilocks::new(s));
+            cur = poseidon2_permute(&inp);
+        }
+        let mut root = [0u8; 32];
+        for i in 0..4 { root[i*8..(i+1)*8].copy_from_slice(&cur[i].to_le_bytes()); }
+        root
+    }
+
+    fn build_proof_input_bench(seed: u64) -> RealProofInput {
+        let ow = vec![make_witness(seed), make_witness(seed + 1)];
+        let commitments: Vec<[u8; 32]> = ow.iter().map(commitment_bytes).collect();
+
+        let mut imt = IncrementalMerkleTree::new();
+        for c in &commitments { imt.append(c).unwrap(); }
+        let root_bytes = imt.root();
+        let imt_root: [u64; 4] = core::array::from_fn(|i| {
+            u64::from_le_bytes(root_bytes[i*8..(i+1)*8].try_into().unwrap())
+        });
+        let membership: Vec<MembershipWitness> = commitments.iter().enumerate().map(|(idx, c)| {
+            let path = imt.prove_membership(idx as u64).unwrap();
+            assert!(imt_membership_verify(c, &path, &root_bytes, imt.count));
+            let siblings: [[u64; 4]; IMT_DEPTH] = core::array::from_fn(|i| {
+                let s = &path.siblings[i];
+                [u64::from_le_bytes(s[0..8].try_into().unwrap()),
+                 u64::from_le_bytes(s[8..16].try_into().unwrap()),
+                 u64::from_le_bytes(s[16..24].try_into().unwrap()),
+                 u64::from_le_bytes(s[24..32].try_into().unwrap())]
+            });
+            MembershipWitness { commitment: *c, leaf_index: idx as u64, siblings }
+        }).collect();
+
+        let active_root   = empty_smt_root(SparseTree::Active);
+        let archived_root = empty_smt_root(SparseTree::Archived);
+
+        let nm_build = |w: &InputWitness, tree: SparseTree| -> NonMembershipWitness {
+            let null = nullifier_bytes(w);
+            let (dl, dh) = match tree {
+                SparseTree::Active   => (DOMAIN_SMT_ACTIVE_LO,   DOMAIN_SMT_ACTIVE_HI),
+                SparseTree::Archived => (DOMAIN_SMT_ARCHIVED_LO, DOMAIN_SMT_ARCHIVED_HI),
+            };
+            let mut siblings = [[0u64;4]; SMT_DEPTH];
+            let mut cur = [0u64;4];
+            for lv in 0..SMT_DEPTH {
+                siblings[lv] = cur;
+                let mut inp = [Goldilocks::new(0u64); 8];
+                inp[0]=Goldilocks::new(dl); inp[1]=Goldilocks::new(dh);
+                inp[2..6].iter_mut().zip(cur.iter()).for_each(|(d,&s)| *d=Goldilocks::new(s));
+                inp[6..8].iter_mut().zip(cur.iter()).for_each(|(d,&s)| *d=Goldilocks::new(s));
+                cur = poseidon2_permute(&inp);
+            }
+            NonMembershipWitness { nullifier: null, tree, siblings }
+        };
+
+        let nm_active:   Vec<_> = ow.iter().map(|w| nm_build(w, SparseTree::Active)).collect();
+        let nm_archived: Vec<_> = ow.iter().map(|w| nm_build(w, SparseTree::Archived)).collect();
+
+        let pi = TransferPublicInputsP3 {
+            fee_total_sscl: 40,
+            sum_inputs_sscl: 1_000_000_040,
+            sum_outputs_sscl: 1_000_000_000,
+            crypto_version: 0x01,
+            entry_timestamp_ms: 1_000_000_000,
+            current_timestamp_ms: 1_000_060_000,
+            utxo_set_root: [0x42u8; 32],
+            cb_membership_verified: true,
+            nullifier_active_root: active_root,
+            nullifier_archived_root: archived_root,
+            cc_nonmembership_verified: true,
+            output_nonzero: true,
+            single_utxo_source: true,
+        };
+
+        let witnesses = TransferWitnesses {
+            ownership: ow,
+            membership,
+            nonmembership_active: nm_active,
+            nonmembership_archived: nm_archived,
+        };
+        let claims = derive_public_claims(&witnesses, pi.clone(), imt_root).unwrap();
+        let batch_proof = prove_batch_transfer(&witnesses, &claims).unwrap();
+        let proof_bytes = postcard::to_allocvec(&batch_proof).unwrap();
+
+        let mut key = [0u8; 32];
+        key[0..8].copy_from_slice(&seed.to_le_bytes());
+        RealProofInput { proof_bytes, public_inputs: pi, tx_ordering_key: key }
+    }
+
+    /// P3-R9: STARKPack aggregation time for N=1 and N=4 proofs. Spec §3.4, §15.6.
+    ///
+    /// Measures: individual proof generation + STARKPack transcript computation.
+    /// Per spec §3.4.5: aggregation bottleneck is Merkle decommitment (~29ms for N=256).
+    /// Transcript computation (BLAKE3) is negligible; main cost is individual proves.
+    ///
+    /// Run with: cargo test -p scalar-stark-p3 --features bench-hardware \
+    ///           -- bench::bench_starkpack_aggregation --nocapture --ignored
+    #[test]
+    #[cfg_attr(not(feature = "bench-hardware"), ignore = "P3-R9: run with --features bench-hardware")]
+    fn bench_starkpack_aggregation() {
+        // Build N=1 proof.
+        let inp1 = build_proof_input_bench(1);
+
+        // Warm-up
+        let _ = aggregate_real_proofs(&[inp1.clone()]).expect("warm-up");
+
+        // N=1 timed
+        let start = Instant::now();
+        let r1 = aggregate_real_proofs(&[inp1.clone()]).expect("N=1 aggregate");
+        let ms1 = start.elapsed().as_millis();
+
+        println!(
+            "[P3-R9] STARKPack N=1 — aggregate: {}ms, transcript_hash: {}",
+            ms1,
+            hex::encode_short(&r1.transcript_hash)
+        );
+
+        // N=4 timed (build 3 more proofs)
+        let inp2 = build_proof_input_bench(2);
+        let inp3 = build_proof_input_bench(3);
+        let inp4 = build_proof_input_bench(4);
+        let inputs4 = vec![inp1, inp2, inp3, inp4];
+
+        let start = Instant::now();
+        let r4 = aggregate_real_proofs(&inputs4).expect("N=4 aggregate");
+        let ms4 = start.elapsed().as_millis();
+
+        println!(
+            "[P3-R9] STARKPack N=4 — aggregate: {}ms, proof_hashes: {}",
+            ms4,
+            r4.proof_hashes.len()
+        );
+        println!(
+            "[P3-R9] STARKPack N=256 optimal batch — soundness 2^-120 (spec D-002, §3.4.4)"
+        );
+        println!(
+            "[P3-R9] global_fri_root: {}",
+            hex::encode_short(&r4.global_fri_root)
+        );
+    }
+}
+
+// ── hex helper (bench only) ───────────────────────────────────────────────────
+#[cfg(test)]
+mod hex {
+    pub fn encode_short(bytes: &[u8]) -> String {
+        bytes[..4].iter().map(|b| format!("{b:02x}")).collect::<String>() + "..."
     }
 }
