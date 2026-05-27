@@ -22,12 +22,15 @@
 //!   [33]    cc_nonmembership_verified (CC) — 0 or 1
 //!   [34]    output_nonzero          (CE) — 0 or 1
 //!   [35]    single_utxo_source      (INV-4.6) — 0 or 1
+//!   [36..39] commitment_hash        (A-R9 CB binding) — BLAKE3(all commitments)[0..4] as u64 LE
+//!   [40..43] nullifier_hash         (A-R9 CC binding) — BLAKE3(all nullifiers)[0..4] as u64 LE
 
+use blake3::Hasher;
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
 
 /// Total number of public input field elements for Transfer Circuit. OSSIFIED.
-pub const TRANSFER_PI_LEN: usize = 36;
+pub const TRANSFER_PI_LEN: usize = 44; // +8: commitment_hash[4] + nullifier_hash[4] (A-R9)
 
 /// T_MAX_WAIT = 30 minutes in ms. OSSIFIED — spec §4.3 CG.
 pub const T_MAX_WAIT_MS: u64 = 30 * 60 * 1_000;
@@ -70,6 +73,14 @@ pub struct TransferPublicInputsP3 {
     pub output_nonzero: bool,
     /// INV-4.6: exactly one UTXO source active. Spec §3.1.3.
     pub single_utxo_source: bool,
+    /// A-R9 CB binding: BLAKE3(all input commitments)[0..32] as [u64;4].
+    /// Binds CD/CE/CG AIR to the same commitments proven by CA/CB sub-AIRs.
+    /// Spec §4.3 CB — prevents bypass via mismatched sub-proofs.
+    pub commitment_hash: [u64; 4],
+    /// A-R9 CC binding: BLAKE3(all input nullifiers)[0..32] as [u64;4].
+    /// Binds CD/CE/CG AIR to the same nullifiers proven by CA/CC sub-AIRs.
+    /// Spec §4.3 CC — prevents bypass via mismatched sub-proofs.
+    pub nullifier_hash: [u64; 4],
 }
 
 impl TransferPublicInputsP3 {
@@ -113,6 +124,16 @@ impl TransferPublicInputsP3 {
         // [35] INV-4.6: single UTXO source flag
         v.push(Goldilocks::new(self.single_utxo_source as u64));
 
+        // [36..39] A-R9: commitment_hash (CB binding)
+        for &c in &self.commitment_hash {
+            v.push(Goldilocks::new(c));
+        }
+
+        // [40..43] A-R9: nullifier_hash (CC binding)
+        for &n in &self.nullifier_hash {
+            v.push(Goldilocks::new(n));
+        }
+
         debug_assert_eq!(v.len(), TRANSFER_PI_LEN);
         v
     }
@@ -140,6 +161,18 @@ impl TransferPublicInputsP3 {
             cc_nonmembership_verified: v[33].as_canonical_u64() != 0,
             output_nonzero: v[34].as_canonical_u64() != 0,
             single_utxo_source: v[35].as_canonical_u64() != 0,
+            commitment_hash: [
+                v[36].as_canonical_u64(),
+                v[37].as_canonical_u64(),
+                v[38].as_canonical_u64(),
+                v[39].as_canonical_u64(),
+            ],
+            nullifier_hash: [
+                v[40].as_canonical_u64(),
+                v[41].as_canonical_u64(),
+                v[42].as_canonical_u64(),
+                v[43].as_canonical_u64(),
+            ],
         })
     }
 }
@@ -263,6 +296,44 @@ impl TransferPublicInputsP3 {
     }
 }
 
+// ── Cross-binding hash helpers (A-R9) ────────────────────────────────────────
+
+/// Compute commitment_hash = BLAKE3(all commitments concatenated)[0..32] as [u64;4].
+/// Used to bind CD/CE/CG AIR to the same commitments proven by CA/CB sub-AIRs.
+/// Spec §4.3 CB, A-R9.
+pub fn compute_commitment_hash(commitments: &[[u8; 32]]) -> [u64; 4] {
+    let mut hasher = Hasher::new();
+    for c in commitments {
+        hasher.update(c);
+    }
+    let hash = hasher.finalize();
+    let b = hash.as_bytes();
+    [
+        u64::from_le_bytes(b[0..8].try_into().unwrap()),
+        u64::from_le_bytes(b[8..16].try_into().unwrap()),
+        u64::from_le_bytes(b[16..24].try_into().unwrap()),
+        u64::from_le_bytes(b[24..32].try_into().unwrap()),
+    ]
+}
+
+/// Compute nullifier_hash = BLAKE3(all nullifiers concatenated)[0..32] as [u64;4].
+/// Used to bind CD/CE/CG AIR to the same nullifiers proven by CA/CC sub-AIRs.
+/// Spec §4.3 CC, A-R9.
+pub fn compute_nullifier_hash(nullifiers: &[[u8; 32]]) -> [u64; 4] {
+    let mut hasher = Hasher::new();
+    for n in nullifiers {
+        hasher.update(n);
+    }
+    let hash = hasher.finalize();
+    let b = hash.as_bytes();
+    [
+        u64::from_le_bytes(b[0..8].try_into().unwrap()),
+        u64::from_le_bytes(b[8..16].try_into().unwrap()),
+        u64::from_le_bytes(b[16..24].try_into().unwrap()),
+        u64::from_le_bytes(b[24..32].try_into().unwrap()),
+    ]
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -284,12 +355,14 @@ mod tests {
             cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
+            commitment_hash: [0u64; 4], // A-R9: placeholder for unit tests
+            nullifier_hash: [0u64; 4],  // A-R9: placeholder for unit tests
         }
     }
 
     #[test]
     fn test_pi_len_ossified() {
-        assert_eq!(TRANSFER_PI_LEN, 36);
+        assert_eq!(TRANSFER_PI_LEN, 44); // +8 cross-binding fields (A-R9)
     }
 
     #[test]

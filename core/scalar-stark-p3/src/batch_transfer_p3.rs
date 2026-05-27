@@ -29,7 +29,9 @@ use crate::{
         verify_ownership_p3, InputWitness, OwnershipP3Error, OwnershipPublicClaim,
     },
     transfer_air_p3::{prove_transfer_p3, verify_transfer_p3, TransferP3Error},
-    transfer_public_inputs::TransferPublicInputsP3,
+    transfer_public_inputs::{
+        compute_commitment_hash, compute_nullifier_hash, TransferPublicInputsP3,
+    },
 };
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -239,6 +241,35 @@ pub fn derive_public_claims(
     };
 
     let _ = n; // used implicitly via iterators above
+
+    // A-R9: Compute cross-binding hashes from witnesses.
+    // These bind the CD/CE/CG AIR to the same commitments/nullifiers
+    // proven by CA (ownership) and CB/CC (membership/non-membership).
+    // Spec §4.3 CB/CC binding — prevents sub-proof bypass.
+    let commitment_bytes: Vec<[u8; 32]> = ownership_claims
+        .iter()
+        .map(|c| {
+            let mut b = [0u8; 32];
+            for i in 0..4 {
+                b[i * 8..(i + 1) * 8].copy_from_slice(&c.expected_commitment[i].to_le_bytes());
+            }
+            b
+        })
+        .collect();
+    let nullifier_bytes: Vec<[u8; 32]> = ownership_claims
+        .iter()
+        .map(|c| {
+            let mut b = [0u8; 32];
+            for i in 0..4 {
+                b[i * 8..(i + 1) * 8].copy_from_slice(&c.expected_nullifier[i].to_le_bytes());
+            }
+            b
+        })
+        .collect();
+
+    let mut pi = pi;
+    pi.commitment_hash = compute_commitment_hash(&commitment_bytes);
+    pi.nullifier_hash = compute_nullifier_hash(&nullifier_bytes);
 
     Ok(TransferPublicClaims {
         pi,
@@ -554,6 +585,8 @@ mod tests {
             cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
+            commitment_hash: [0u64; 4], // A-R9: set via derive_public_claims
+            nullifier_hash: [0u64; 4],  // A-R9: set via derive_public_claims
         }
     }
 
@@ -727,6 +760,56 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A-R9 falsifiability: commitment_hash mismatch → CD/CE/CG proof rejected.
+    ///
+    /// If commitment_hash in PI does not match ownership_claims,
+    /// the CD/CE/CG sub-proof must be rejected because the trace
+    /// was built with different commitment_hash values than the PI.
+    /// Spec §4.3 CB binding, A-R9 DoD pt1.
+    #[test]
+    fn test_falsifiability_ar9_commitment_hash_mismatch() {
+        let (witnesses, imt_root, active_root, archived_root) = build_test_witnesses();
+        let pi = valid_pi(active_root, archived_root);
+        let claims = derive_public_claims(&witnesses, pi, imt_root).unwrap();
+
+        // Prove with correct claims (valid commitment_hash derived from witnesses).
+        let batch_proof = prove_batch_transfer(&witnesses, &claims).unwrap();
+
+        // Tamper: build claims with wrong commitment_hash.
+        let mut wrong_claims = claims.clone();
+        wrong_claims.pi.commitment_hash = [0xDEAD_BEEF_u64; 4]; // wrong hash
+
+        // CD/CE/CG verify must fail: proof was made with correct hash,
+        // but we verify against wrong hash (different public_values).
+        let result = verify_batch_transfer(&batch_proof, &wrong_claims);
+        assert!(
+            result.is_err(),
+            "commitment_hash mismatch must be rejected by verifier (A-R9 CB binding)"
+        );
+    }
+
+    /// A-R9 falsifiability: nullifier_hash mismatch → CD/CE/CG proof rejected.
+    ///
+    /// Spec §4.3 CC binding, A-R9 DoD pt2.
+    #[test]
+    fn test_falsifiability_ar9_nullifier_hash_mismatch() {
+        let (witnesses, imt_root, active_root, archived_root) = build_test_witnesses();
+        let pi = valid_pi(active_root, archived_root);
+        let claims = derive_public_claims(&witnesses, pi, imt_root).unwrap();
+
+        let batch_proof = prove_batch_transfer(&witnesses, &claims).unwrap();
+
+        // Tamper: wrong nullifier_hash.
+        let mut wrong_claims = claims.clone();
+        wrong_claims.pi.nullifier_hash = [0xCAFE_BABE_u64; 4];
+
+        let result = verify_batch_transfer(&batch_proof, &wrong_claims);
+        assert!(
+            result.is_err(),
+            "nullifier_hash mismatch must be rejected by verifier (A-R9 CC binding)"
+        );
     }
 
     /// Proof size smoke test — all four proofs must be non-trivially sized.
@@ -988,6 +1071,8 @@ mod bench {
             cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
+            commitment_hash: [0u64; 4], // A-R9: set via derive_public_claims
+            nullifier_hash: [0u64; 4],  // A-R9: set via derive_public_claims
         };
 
         let claims = derive_public_claims(&witnesses, pi, imt_root)

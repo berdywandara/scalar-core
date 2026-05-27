@@ -124,6 +124,8 @@ fn batch_proof_to_claims(
             cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
+            commitment_hash: [0u64; 4], // A-R9: set via derive_public_claims
+            nullifier_hash: [0u64; 4],  // A-R9: set via derive_public_claims
         },
         ownership_claims: vec![],
         membership_claim: MembershipPublicClaim {

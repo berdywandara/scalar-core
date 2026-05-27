@@ -25,6 +25,8 @@ fn make_pi(seed: u64) -> TransferPublicInputsP3 {
         cc_nonmembership_verified: true,
         output_nonzero: true,
         single_utxo_source: true,
+            commitment_hash: [0u64; 4], // A-R9: set via derive_public_claims
+            nullifier_hash: [0u64; 4], // A-R9: set via derive_public_claims
     }
 }
 

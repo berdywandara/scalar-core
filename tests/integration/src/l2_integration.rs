@@ -117,6 +117,8 @@ fn test_starkpack_transcript_deterministic_across_calls() {
             cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
+            commitment_hash: [0u64; 4], // A-R9: set via derive_public_claims
+            nullifier_hash: [0u64; 4],  // A-R9: set via derive_public_claims
         }
     }
 
@@ -180,6 +182,8 @@ fn test_starkpack_ordering_affects_transcript() {
             cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
+            commitment_hash: [0u64; 4], // A-R9: set via derive_public_claims
+            nullifier_hash: [0u64; 4],  // A-R9: set via derive_public_claims
         }
     }
 
@@ -266,6 +270,8 @@ fn test_transfer_circuit_epoch_smt_default() {
         cc_nonmembership_verified: true,
         output_nonzero: true,
         single_utxo_source: true,
+        commitment_hash: [0u64; 4], // A-R9: placeholder
+        nullifier_hash: [0u64; 4],  // A-R9: placeholder
         crypto_version: 0x01,
         entry_timestamp_ms: 1_000_000_000,
         current_timestamp_ms: 1_000_001_000,
@@ -290,6 +296,8 @@ fn test_transfer_circuit_subepoch_imt_source() {
         cc_nonmembership_verified: true,
         output_nonzero: true,
         single_utxo_source: true,
+        commitment_hash: [0u64; 4], // A-R9: placeholder
+        nullifier_hash: [0u64; 4],  // A-R9: placeholder
         crypto_version: 0x01,
         entry_timestamp_ms: 1_000_000_000,
         current_timestamp_ms: 1_000_001_000,
@@ -313,6 +321,8 @@ fn test_transfer_circuit_invalid_imt_inputs() {
         cc_nonmembership_verified: true,
         output_nonzero: true,
         single_utxo_source: true,
+        commitment_hash: [0u64; 4], // A-R9: placeholder
+        nullifier_hash: [0u64; 4],  // A-R9: placeholder
         crypto_version: 0x01,
         entry_timestamp_ms: 1_000_000_000,
         current_timestamp_ms: 1_000_001_000,

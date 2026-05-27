@@ -548,6 +548,8 @@ mod tests {
             cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
+            commitment_hash: [0u64; 4], // A-R9: placeholder
+            nullifier_hash: [0u64; 4],  // A-R9: placeholder
         };
 
         let claims = derive_public_claims(&witnesses, pi.clone(), imt_root).unwrap();
@@ -602,6 +604,8 @@ mod tests {
             cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
+            commitment_hash: [0u64; 4], // A-R9: placeholder
+            nullifier_hash: [0u64; 4],  // A-R9: placeholder
         };
         let inputs: Vec<RealProofInput> = (0..257)
             .map(|i| RealProofInput {
@@ -925,6 +929,8 @@ mod bench {
             cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
+            commitment_hash: [0u64; 4], // A-R9: placeholder
+            nullifier_hash: [0u64; 4],  // A-R9: placeholder
         };
 
         let witnesses = TransferWitnesses {
