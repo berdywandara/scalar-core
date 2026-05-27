@@ -222,7 +222,6 @@ fn test_starkpack_ordering_affects_transcript() {
 
 #[test]
 fn test_quaternary_smt_non_membership_consistent() {
-    use postcard;
     use scalar_nullifier::smt_quaternary::QuaternarySparseMerkleTree;
 
     let mut smt = QuaternarySparseMerkleTree::new();
