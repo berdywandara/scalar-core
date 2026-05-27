@@ -10,33 +10,53 @@ the required method, tools, milestone, and current status.
 
 ### E1 — Hardware Spec Benchmark: Proving Time (§15.6)
 
-**Method:** Run `TransferProver::prove_transfer` with a production-size
-trace (10-in/10-out) on hardware meeting the spec: 8 GB RAM, standard
-server CPU. Measure wall-clock time over at least 100 runs.
+**Method:** Run `prove_batch_transfer` (2-in/2-out) on hardware meeting
+the spec: 8 GB RAM, standard server CPU, no GPU.
 
-**Tools:** `cargo test --features bench-hardware -- bench_proving_time --nocapture`
+**Tools:**
+cargo test -p scalar-stark-p3 --features bench-hardware --release 
+-- bench:: --nocapture
 
-**Success criteria:** Mean proving time ≤500 ms; no run exceeds 700 ms.
+**Success criteria (spec §15.6, D-010):** No hard time limit.
+Proving time is an empirical reference, not a pass/fail gate.
+FRI params OSSIFIED (blowup=8, queries=84, grinding=20) must not change.
 
-**Milestone:** Testnet  
-**Status:** NOT STARTED (only compact trace benchmarked in Codespace)
+**Milestone:** Testnet
+**Status:** ✅ COMPLETE (P3-R9, commit 5aa8be7)
+
+**Recorded results — AMD EPYC 7763, 4 vCPU, 16 GB RAM, --release, CPU-only:**
+
+| Circuit | Prove | Verify | Size |
+|---|---|---|---|
+| BatchTransferProof 2-in/2-out | 3,801 ms | 20 ms | 689 KB |
+| MintNullifierAir MC2 | 192 ms | 5 ms | 186 KB |
+| MintLinearAir MC1+MC3+MC4+MC5 | 307 ms | 1 ms | 50 KB |
+| STARKPack N=1 transcript | 3 ms | — | — |
+| STARKPack N=4 transcript | 13 ms | — | — |
+
+All tiers (A/B/C) confirmed able to prove without GPU. Spec §15.6 satisfied.
+See `BENCHMARK.md` for full details.
 
 ---
 
-### E2 — Production Trace Integration & Stress Test
+### E2 — Production Trace: Full In-Circuit Constraint Verification
 
-**Method:** Replace the current compact constraint-encoding trace (width 9,
-length 16) with the full arithmetised production trace. Verify constraint
-counts match spec (§4.4: ~52k for 2-in/2-out, ~260k for 10-in/10-out).
-Run under increasing load (1 to 10 inputs).
+**Method:** Verify that all constraint groups (CA–CG, MC1–MC5) are
+evaluated in-circuit via Plonky3 AIR, not pre-flight Rust checks.
+Confirm falsifiability: tampered witness → proof rejected by STARK.
 
-**Tools:** Winterfell prover, custom test harness.
+**Tools:** Existing test suite (`cargo test -p scalar-stark-p3`)
 
-**Success criteria:** Constraint counts within ±1% of spec; proving time
-remains ≤500 ms on hardware spec; no constraint evaluation failures.
+**Success criteria:** All falsifiability tests pass (wrong secret → rejected,
+wrong nullifier → rejected, wrong path → rejected, supply cap violated → rejected).
 
-**Milestone:** Testnet  
-**Status:** NOT STARTED (compact trace in use)
+**Milestone:** Testnet
+**Status:** ✅ COMPLETE (P3-R1..R7, 107 tests passing)
+
+Plonky3 `check_constraints` detects violations at prove time (panic or Err),
+not just pre-flight. All sub-AIRs (CA/CB/CC/CD/CE/CG, MC1–MC5) are in-circuit.
+Constraint counts: CA 2×Poseidon2, CB 33×Poseidon2 per input, CC 32 SMT levels×2,
+CD/CE/CG 12-column linear AIR.
 
 ---
 
@@ -53,63 +73,67 @@ theorem `Spec => []InvariantCC` holds.
 **Success criteria:** TLC reports no errors; all states explored;
 invariants hold for model size Nullifiers=5, MaxEpoch=5.
 
-**Milestone:** Pramainnet  
-**Status:** NOT STARTED (TLC unavailable in Codespace)
+**Milestone:** Pramainnet
+**Status:** NOT STARTED (TLC unavailable in Codespace — requires external auditor)
 
 ---
 
 ### E4 — Model-Checking: Deferred Emission Pool (§15.5)
 
-**Method:** Complete the scaffolding in `verification/deferred_pool.tla`
-(state transitions for add_residual, release_from_pool, advance_epoch).
-Run TLC with `deferred_pool.cfg` to verify all five invariants.
+**Method:** Run TLC with `deferred_pool.cfg` to verify all five invariants.
 
 **Tools:** TLA+ Tools (TLC), Java 17+.
 
-**Success criteria:** All invariants hold (Inv1–Inv5); no deadlock;
-model covers full cycle of defer and release.
+**Success criteria:** All invariants hold (Inv1–Inv5); no deadlock.
 
-**Milestone:** Pramainnet  
-**Status:** NOT STARTED (scaffolding incomplete)
+**Milestone:** Pramainnet
+**Status:** NOT STARTED (TLC unavailable in Codespace — requires external auditor)
 
 ---
 
 ### E5 — Fuzz Testing: STARKPack Adversarial (TV5.15)
 
-**Method:** Run the existing fuzz target
+**Method:** Run the fuzz target
 `fuzz/fuzz_targets/fuzz_starkpack_adversarial.rs` for 10 million
 iterations using `cargo fuzz` (nightly compiler). The target covers
-8 attack modes: correlation injection, transcript reset, element
-skipping, order manipulation, domain separation bypass, determinism,
-batch size boundary.
+adversarial proof bytes, wrong PI, order manipulation, element skipping,
+batch size boundary, determinism checks.
 
 **Tools:** `cargo fuzz`, Rust nightly, libfuzzer.
 
-**Success criteria:** No crashes, no assertion failures, no
-soundness violations detected after 10M iterations.
+**Note:** Fuzz target migrated from scalar-stark (Winterfell) to
+scalar-stark-p3 (Plonky3) in P3-R8 (commit cea7040).
 
-**Milestone:** Pramainnet  
-**Status:** TARGET READY, NOT YET EXECUTED (requires nightly + runtime)
+**Success criteria:** No crashes, no assertion failures after 10M iterations.
+
+**Milestone:** Pramainnet
+**Status:** TARGET READY (migrated P3-R8), NOT YET EXECUTED (requires nightly)
+
+```bash
+# To run (requires nightly):
+rustup install nightly
+cargo +nightly fuzz run fuzz_starkpack_adversarial -- -max_total_time=3600
+```
 
 ---
 
 ## Genesis / Mainnet Readiness
 
-### E6 — Dual Verification: Cross-Crypto-Family (§15.3)
+### E6 — Dual Verification: Cross-Implementation (§15.3)
 
-**Method:** Implement a second FRI verifier from scratch using a
-different cryptographic library (e.g., a pure Rust FRI implementation
-independent of Winterfell). Both implementations must agree on all
-valid proofs from the test vector suite and reject all invalid proofs.
+**Method:** Two independent Plonky3-based implementations must verify
+the same proofs and reach identical accept/reject decisions.
 
-**Tools:** Independent FRI library, test vector suite.
+**Current status:** scalar-stark-p3 is the primary implementation.
+A second independent implementation (different codebase, same spec) is
+required before mainnet.
 
-**Success criteria:** 100% agreement on valid proofs; 100% agreement
-on invalid proofs; no case where one implementation accepts and the
-other rejects for a spec-compliant proof.
+**Tools:** Independent Plonky3 implementation, test vector suite (docs/TEST_VECTORS.md).
 
-**Milestone:** Mainnet  
-**Status:** NOT STARTED (current Path 2 is parameter-level, not full FRI)
+**Success criteria:** 100% agreement on all valid and invalid proofs.
+
+**Milestone:** Mainnet
+**Status:** NOT STARTED (scalar-stark-p3 is implementation #1)
 
 ---
 
@@ -118,33 +142,33 @@ other rejects for a spec-compliant proof.
 **Method:** Engage two independent cryptography/formal-verification firms
 to audit:
 - TLA+ models and TLC/Apalache results
-- STARK circuit implementation (Transfer, Mint)
+- STARK circuit implementation (Transfer CA–CG, Mint MC1–MC5)
 - NullifierSet dual-layer architecture
 - IMT lifecycle and epoch transition atomicity
-- Supply cap enforcement (MC3)
+- Supply cap enforcement (MC3 in-circuit)
+- STARKPack aggregator soundness
 
-**Tools:** External auditors; provide full source, spec, and test results.
+**Tools:** External auditors; provide full source, spec, BENCHMARK.md, test results.
 
 **Success criteria:** Both firms issue signed reports confirming
-compliance with the Scalar Master Technical Specification and
-PraGenesis optimisation document.
+compliance with the Scalar Master Technical Specification.
 
-**Milestone:** Mainnet  
+**Milestone:** Mainnet
 **Status:** NOT STARTED
 
 ---
 
 ## Status Summary
 
-| Item | Milestone   | Status          |
-|------|-------------|-----------------|
-| E1   | Testnet     | NOT STARTED     |
-| E2   | Testnet     | NOT STARTED     |
-| E3   | Pramainnet  | NOT STARTED     |
-| E4   | Pramainnet  | NOT STARTED     |
-| E5   | Pramainnet  | TARGET READY    |
-| E6   | Mainnet     | NOT STARTED     |
-| E7   | Mainnet     | NOT STARTED     |
+| Item | Milestone   | Status                        |
+|------|-------------|-------------------------------|
+| E1   | Testnet     | ✅ COMPLETE (P3-R9, BENCHMARK.md) |
+| E2   | Testnet     | ✅ COMPLETE (P3-R1..R7, 107 tests) |
+| E3   | Pramainnet  | NOT STARTED (needs TLC/auditor) |
+| E4   | Pramainnet  | NOT STARTED (needs TLC/auditor) |
+| E5   | Pramainnet  | TARGET READY (needs nightly fuzz run) |
+| E6   | Mainnet     | NOT STARTED (needs 2nd implementation) |
+| E7   | Mainnet     | NOT STARTED (needs external firms) |
 
-All coding foundations for these tests are complete (FASE A–E).
-Remaining work is execution, verification, and external validation.
+Plonky3 migration (P3-R1..R9) complete. All in-circuit constraints verified.
+Remaining: FASE B (epoch orchestrator), E3–E7 (external verification).

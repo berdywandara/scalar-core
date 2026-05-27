@@ -91,8 +91,9 @@ change would require a hard fork.
 
 ### D.4 K5-02 – In-Circuit Mutual Exclusion (INV-4.6)
 
-**Status: RESOLVED (FASE A)**
+**Status: RESOLVED (FASE A — Plonky3)**
 
-The Winterfell AIR in `transfer_air.rs` enforces `single_utxo_source` in-circuit
-(column 7 boundary assertion). The out-of-circuit guard in `air.rs` is retained
-as defence-in-depth. No team decision is required.
+`TransferAir` (scalar-stark-p3/transfer_air_p3.rs) enforces `single_utxo_source`
+in-circuit (col 11, boolean + assert_one constraint). Pre-flight `check_all_constraints`
+retained as defence-in-depth. Winterfell implementation removed (P3-R7).
+No team decision is required.

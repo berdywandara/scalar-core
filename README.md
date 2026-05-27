@@ -60,7 +60,7 @@ Bitcoin and Ethereum rely on elliptic curve cryptography. A sufficiently powerfu
 
 | Purpose | Algorithm | Standard / Note |
 |---|---|---|
-| ZK Proof System | zk-STARK (Winterfell) | Hash-based; no trusted setup |
+| ZK Proof System | zk-STARK (Plonky3 0.5) | Hash-based; no trusted setup; ZK blinding via HidingFriPcs |
 | In-circuit Hash | Poseidon2 (Goldilocks field) | ZK-optimized; ~200–400 constraints/op |
 | Out-of-circuit Hash | BLAKE3 | MAC, key derivation, Fiat-Shamir transcript |
 | Post-Quantum Signatures | SLH-DSA-SHAKE-128s | NIST FIPS 205; 7,856-byte signature |
@@ -107,7 +107,7 @@ Full table in §2.3 of the specification.
 ├─────────────────────────────────────────────────────────────────┤
 │  scalar-nullifier     — 2-Layer NullifierSet (NS_ACTIVE + NS_CHECKPOINT) │
 ├─────────────────────────────────────────────────────────────────┤
-│  scalar-stark         — Transfer Circuit (CA–CG) + Mint (MC1–MC5) │
+│  scalar-stark-p3      — Transfer Circuit (CA–CG) + Mint (MC1–MC5) │
 │    constraints/       — Poseidon2 in-circuit only               │
 ├─────────────────────────────────────────────────────────────────┤
 │  scalar-crypto        — Poseidon2, SLH-DSA, BLAKE3, Argon2id    │
@@ -122,7 +122,7 @@ Full table in §2.3 of the specification.
 
 **Crate dependency chain (strict):**
 ```
-scalar-crypto → scalar-nullifier → scalar-emission → scalar-stark
+scalar-crypto → scalar-nullifier → scalar-emission → scalar-stark-p3
              → scalar-network → scalar-node
 scalar-sdk   (public API only — no direct protocol crate imports)
 scalar-audit (read-only; no private key access)
@@ -307,7 +307,7 @@ scalar-core/
 ├── crates/
 │   ├── scalar-crypto/        # Poseidon2, SLH-DSA, BLAKE3, Argon2id
 │   ├── scalar-nullifier/     # 2-layer NullifierSet (NS_ACTIVE + NS_CHECKPOINT)
-│   ├── scalar-stark/         # Transfer Circuit (CA–CG) + Mint Circuit (MC1–MC5)
+│   ├── scalar-stark-p3/      # Transfer Circuit (CA–CG) + Mint (MC1–MC5) — Plonky3
 │   ├── scalar-network/       # P2P networking, Dandelion++, State Beacon
 │   ├── scalar-consensus/     # Epoch manifest, DMM, UTXO ordering
 │   ├── scalar-emission/      # PoU emission formula, Deferred Pool
@@ -375,7 +375,8 @@ curl http://localhost:7777/node_state  # state: BOOTSTRAPPING→SYNCING→ACTIVE
 | Phase 7 | Mainnet launch | ⏳ Pending |
 
 **Pre-mainnet requirements (mandatory):**
-- [ ] Two independent STARK implementations (Winterfell + second) — cross-verified
+- [x] Plonky3 migration complete (P3-R1..R9) — scalar-stark-p3
+- [ ] Second independent implementation (spec §15.3) — required before mainnet
 - [ ] Two independent Argon2id implementations — byte-identical test vectors
 - [ ] Formal verification of CC invariant (TLA+ or Coq)
 - [ ] Two independent security audits of circuits and protocol
