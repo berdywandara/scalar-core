@@ -23,7 +23,8 @@ use scalar_crypto::domain::DOMAIN_SCORE;
 pub const MAX_CONSECUTIVE_DEFER: u32 = 2;
 
 /// Domain separator untuk manifest hash. OSSIFIED — spec §2.3.
-pub const DOMAIN_MANIFEST_HASH: &[u8] = b"scalar_seed";
+// DOMAIN_MANIFEST_HASH = DOMAIN_SEED (b"scalar_seed") — spec §2.3 OSSIFIED.
+use scalar_crypto::domain::DOMAIN_SEED as DOMAIN_MANIFEST_HASH;
 
 // ── NodeRewardEntry v11.1-FINAL — spec §8.4 ──────────────────────────────────
 

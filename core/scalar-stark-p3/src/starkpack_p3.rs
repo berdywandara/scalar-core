@@ -56,13 +56,8 @@ use p3_field::PrimeField64;
 /// Soundness: 2^-128 baseline → 2^-120 after log2(256)=8 bit degradation.
 pub const STARK_MAX_BATCH_SIZE: usize = 256;
 
-/// Domain separator Phase 1 (per-proof commitment). OSSIFIED — spec §3.4.3, §8.3.
-/// Must match scalar_crypto::domain::DOMAIN_SUBEPOCH_FS.
-const DOMAIN_SUBEPOCH_FS: &[u8] = b"scalar_subepoch_fs";
-
-/// Domain separator Phase 3 (global DEEP-FRI commitment). OSSIFIED — spec §3.4.3, §8.4.
-/// Must match scalar_crypto::domain::DOMAIN_STARK_BATCH.
-const DOMAIN_STARK_BATCH: &[u8] = b"scalar_stark_batch";
+// Domain separators imported from OSSIFIED registry. Spec §3.4.3, §8.3, §8.4.
+use scalar_crypto::domain::{DOMAIN_STARK_BATCH, DOMAIN_SUBEPOCH_FS};
 
 /// Constraint count per BatchTransferProof (CA+CB+CC+CD/CE/CG sub-AIRs).
 /// Committed to transcript to prevent padding attacks. Spec §3.4.3 Phase 1.

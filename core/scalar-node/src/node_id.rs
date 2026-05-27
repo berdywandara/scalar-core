@@ -23,7 +23,8 @@ use argon2::{Algorithm, Argon2, Params, Version};
 // ── Constants — spec §10.2 ────────────────────────────────────────────────────
 
 /// Salt prefix untuk NodeID derivation. OSSIFIED — spec §10.2.
-pub const NODE_ID_SALT_PREFIX: &[u8] = b"scalar_nodeid";
+// NODE_ID_SALT_PREFIX = DOMAIN_NODEID (b"scalar_nodeid") — spec §2.3 OSSIFIED.
+pub use scalar_crypto::domain::DOMAIN_NODEID as NODE_ID_SALT_PREFIX;
 
 /// Salt prefix length. Spec §10.2.
 pub const NODE_ID_SALT_PREFIX_LEN: usize = 13;
