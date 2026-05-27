@@ -380,7 +380,7 @@ curl http://localhost:7777/node_state  # state: BOOTSTRAPPING→SYNCING→ACTIVE
 - [ ] Two independent Argon2id implementations — byte-identical test vectors
 - [ ] Formal verification of CC invariant (TLA+ or Coq)
 - [ ] Two independent security audits of circuits and protocol
-- [ ] All test vectors in `docs/TEST_VECTORS.md` verified by both implementations
+- [ ] All test vectors in `docs/testing/TEST_VECTORS.md` verified by both implementations
 
 ---
 
@@ -423,7 +423,7 @@ Scalar Network protocol was conceived and designed by **Berdy Wandara** (Origina
 |---|---|
 | Master Technical Specification v11.1-FINAL | `docs/` (canonical spec) |
 | Regulatory Framework (Appendix A) | [`docs/REGULATORY_FRAMEWORK.md`](./docs/REGULATORY_FRAMEWORK.md) |
-| Test Vectors & Cryptographic Reference (Appendix B) | [`docs/TEST_VECTORS.md`](./docs/TEST_VECTORS.md) |
-| Architecture Diagrams & Protocol Flows (Appendix D) | [`docs/ARCHITECTURE_DIAGRAMS.md`](./docs/ARCHITECTURE_DIAGRAMS.md) |
+| Test Vectors & Cryptographic Reference (Appendix B) | [`docs/testing/TEST_VECTORS.md`](./docs/testing/TEST_VECTORS.md) |
+| Architecture Diagrams & Protocol Flows (Appendix D) | [`docs/architecture/ARCHITECTURE_DIAGRAMS.md`](./docs/architecture/ARCHITECTURE_DIAGRAMS.md) |
 | Security Policy | [`SECURITY.md`](./SECURITY.md) |
 | Contributing Guide | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
