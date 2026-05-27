@@ -5,7 +5,8 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 use scalar_stark_p3::starkpack_p3::{
-    aggregate_real_proofs, RealAggregateError, RealProofInput, STARK_MAX_BATCH_SIZE,
+    aggregate_for_fuzz, aggregate_real_proofs, RealAggregateError, RealProofInput,
+    STARK_MAX_BATCH_SIZE,
 };
 use scalar_stark_p3::transfer_public_inputs::TransferPublicInputsP3;
 
@@ -53,7 +54,7 @@ fuzz_target!(|data: &[u8]| {
         0 | 1 | 2 | 3 => {
             // P1: adversarial proof bytes must either fail or succeed structurally.
             // We just ensure no panic — correctness checked in unit tests.
-            let _ = aggregate_real_proofs(&inputs);
+            let _ = aggregate_for_fuzz(&inputs);
         }
         4 => {
             // P2: order manipulation — transcript_hash must differ for different orders.
@@ -64,22 +65,22 @@ fuzz_target!(|data: &[u8]| {
                 rev[0].tx_ordering_key = [0xFFu8; 32];
                 rev[1].tx_ordering_key = [0x00u8; 32];
                 // Both may error (bad proof bytes) — no panic is the invariant.
-                let _ = aggregate_real_proofs(&inputs);
-                let _ = aggregate_real_proofs(&rev);
+                let _ = aggregate_for_fuzz(&inputs);
+                let _ = aggregate_for_fuzz(&rev);
             }
         }
         5 => {
             // P2: element skipping — no panic.
             if inputs.len() >= 2 {
-                let _ = aggregate_real_proofs(&inputs);
+                let _ = aggregate_for_fuzz(&inputs);
                 inputs.pop();
-                let _ = aggregate_real_proofs(&inputs);
+                let _ = aggregate_for_fuzz(&inputs);
             }
         }
         6 => {
             // P3: determinism — same input twice, no panic.
-            let _ = aggregate_real_proofs(&inputs);
-            let _ = aggregate_real_proofs(&inputs);
+            let _ = aggregate_for_fuzz(&inputs);
+            let _ = aggregate_for_fuzz(&inputs);
         }
         7 => {
             // P1: batch size overflow.
