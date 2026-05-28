@@ -3,6 +3,7 @@
 members = [
     "core/*",
     "core/scalar-stark-p3",
+    "core/scalar-stark-p3-verify",
     "client/*",
     "tools/*",
     "tests/integration",
