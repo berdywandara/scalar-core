@@ -3176,6 +3176,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "scalar-stark-p3-verify"
+version = "0.1.0"
+dependencies = [
+ "p3-air",
+ "p3-field",
+ "p3-goldilocks",
+ "p3-matrix",
+ "p3-uni-stark",
+ "postcard",
+ "scalar-stark-p3",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "scalar-wallet-core"
 version = "0.1.0"
 dependencies = [
