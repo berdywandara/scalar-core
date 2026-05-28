@@ -104,10 +104,8 @@ pub fn verify_mint_independent(
 mod tests {
     use super::*;
     use scalar_stark_p3::{
-        mint_air_p3::prove_mint_linear_p3,
-        transfer_air_p3::prove_transfer_p3,
-        transfer_public_inputs::TransferPublicInputsP3,
-        mint_air_p3::MintLinearPublicInputs,
+        mint_air_p3::prove_mint_linear_p3, mint_air_p3::MintLinearPublicInputs,
+        transfer_air_p3::prove_transfer_p3, transfer_public_inputs::TransferPublicInputsP3,
     };
 
     fn valid_transfer_pi() -> TransferPublicInputsP3 {
