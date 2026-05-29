@@ -145,6 +145,13 @@ pub const DOMAIN_SUBEPOCH_FS: &[u8] = b"scalar_subepoch_fs";
 /// Decision D-002: batch size N=256, soundness 2^-120.
 pub const DOMAIN_STARK_BATCH: &[u8] = b"scalar_stark_batch";
 
+/// UTXO Set accumulator root domain. Spec §2.3, §8.5, §4.3 CB. 15 bytes. OSSIFIED.
+///
+/// Used in: UtxoSetAccumulator::compute_root() — BLAKE3 domain prefix for
+/// the sequential hash accumulator (genesis architecture, pre-testnet temporary).
+/// Wajib diganti dengan IMT-based EpochSMT sebelum testnet (utang teknis D3).
+pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_set";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -409,9 +416,3 @@ mod tests {
 // single source of truth ("Secured by Analysis"). No byte value
 // changed — utxo_set_root on-chain is unaffected.
 
-/// UTXO Set accumulator root domain. Spec §2.3, §8.5, §4.3 CB. 15 bytes. OSSIFIED.
-///
-/// Used in: UtxoSetAccumulator::compute_root() — BLAKE3 domain prefix for
-/// the sequential hash accumulator (genesis architecture, pre-testnet temporary).
-/// Wajib diganti dengan IMT-based EpochSMT sebelum testnet (utang teknis D3).
-pub const DOMAIN_UTXO_SMT: &[u8] = b"scalar_utxo_set";
