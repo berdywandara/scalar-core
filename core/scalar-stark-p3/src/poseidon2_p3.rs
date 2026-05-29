@@ -207,4 +207,47 @@ mod tests {
         let result = prove_poseidon2(3);
         assert!(result.is_err());
     }
+
+    /// MAD §1.2 — CI gate (BLOCKING).
+    ///
+    /// Out-of-circuit (scalar-crypto::poseidon2_t8) and in-circuit
+    /// (ScalarPoseidon2Air / p3-goldilocks) MUST produce identical output
+    /// for every input. Both sides use p3-goldilocks RC as single source
+    /// of truth (D-011). Failure = hash alignment broken = BLOCKING.
+    #[test]
+    fn invariant_poseidon2_alignment() {
+        use p3_field::PrimeField64;
+        use p3_symmetric::Permutation as P3PermTrait;
+        use scalar_crypto::poseidon2_t8::poseidon2_permute_t8;
+
+        // Three test vectors — chosen to exercise different field regions.
+        // All values are below Goldilocks prime (2^64 - 2^32 + 1).
+        let test_inputs: &[[u64; 8]] = &[
+            [1, 2, 3, 4, 5, 6, 7, 8],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [123_456_789, 0xDEAD_BEEF, 42, 99, 1_000_000, 7, 3, 255],
+        ];
+
+        for (i, input_u64) in test_inputs.iter().enumerate() {
+            // ── Out-of-circuit: scalar-crypto single permutation ──────────
+            let out_oc: [u64; 8] = poseidon2_permute_t8(input_u64);
+
+            // ── In-circuit: same p3-goldilocks permutation backing
+            //    ScalarPoseidon2Air (D-011: identical RC source) ──────────
+            let perm = p3_goldilocks::default_goldilocks_poseidon2_8();
+            let mut state_ic: [Goldilocks; P2_WIDTH] =
+                core::array::from_fn(|j| Goldilocks::new(input_u64[j]));
+            <_ as P3PermTrait<_>>::permute_mut(&perm, &mut state_ic);
+            let out_ic: [u64; P2_WIDTH] = core::array::from_fn(|j| state_ic[j].as_canonical_u64());
+
+            assert_eq!(
+                out_oc,
+                out_ic,
+                "invariant_poseidon2_alignment FAILED for input[{}]:\n                   out-of-circuit (scalar-crypto): {:?}\n                   in-circuit     (p3-goldilocks):  {:?}\n                   Hash alignment broken — BLOCKING per MAD §1.2 D-011",
+                i,
+                out_oc,
+                out_ic
+            );
+        }
+    }
 }

@@ -18,7 +18,6 @@ blake3 = "1.5"
 hex = "0.4"                    # BLAKE3
 
 # ZK Proving
-winterfell = "0.9"                # STARK prover/verifier
 
 # Data structures
 
