@@ -1,3 +1,4 @@
+pub mod wal;
 pub mod api;
 pub mod gossip;
 pub mod state_machine;
