@@ -3,6 +3,12 @@
 /// Conviction Factor menggunakan tabel diskrit precomputed
 /// OSSIFIED: semua client menggunakan tabel yang sama
 /// Tidak ada floating point runtime computation
+/// Conviction time constant tau. OSSIFIED — MAD §21.1.
+/// CF(t) saturates toward 1.0 as t → ∞ with half-life τ = 60 days.
+/// Formula: CF(t) = 1 - (1 - 1/τ)^t = 1 - (59/60)^t (continuous approx)
+/// Precomputed table uses this tau. Any change requires new table + hard fork.
+pub const TAU_CONVICTION: u32 = 60;
+
 pub struct ConvictionTable;
 
 impl ConvictionTable {

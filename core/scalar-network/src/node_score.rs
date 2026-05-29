@@ -31,6 +31,26 @@ pub const TIER_C_PREFIX: u8 = 0xFE;
 
 /// Fixed-point basis. Spec §18.1.
 pub const FIXED_POINT_BASIS: u64 = 1_000_000;
+/// NodeScore uptime component weight. OSSIFIED — MAD §21.1.
+/// uptime_component = (uptime_fp / 1_000_000) * NODESCORE_UPTIME_W
+pub const NODESCORE_UPTIME_W: u64 = 500_000;
+
+/// NodeScore proof component weight. OSSIFIED — MAD §21.1.
+/// proof_component = (proof_rate_fp / 1_000_000) * NODESCORE_PROOF_W
+pub const NODESCORE_PROOF_W: u64 = 300_000;
+
+/// NodeScore age component weight. OSSIFIED — MAD §21.1.
+/// age_component = (age_fp / 1_000_000) * NODESCORE_AGE_W
+/// Invariant: NODESCORE_UPTIME_W + NODESCORE_PROOF_W + NODESCORE_AGE_W == 1_000_000
+pub const NODESCORE_AGE_W: u64 = 200_000;
+
+/// Compile-time check: weights sum to 1_000_000. OSSIFIED — MAD §21.1.
+const _: () = assert!(
+    NODESCORE_UPTIME_W + NODESCORE_PROOF_W + NODESCORE_AGE_W == 1_000_000,
+    "NodeScore weights must sum to 1_000_000 (MAD §21.1)"
+);
+
+
 
 // ── Tier detection — spec §10.1 ───────────────────────────────────────────────
 
