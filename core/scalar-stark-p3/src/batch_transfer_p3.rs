@@ -543,8 +543,8 @@ mod tests {
         // the empty subtree at that level.
         let mut siblings = [[0u64; 4]; SMT_DEPTH];
         let mut current = [0u64; 4]; // zero_leaf
-        for level in 0..SMT_DEPTH {
-            siblings[level] = current;
+        for sibling in &mut siblings {
+            *sibling = current;
             // Hash two children of current level to get parent level's empty hash.
             let mut input = [Goldilocks::new(0u64); 8];
             input[0] = Goldilocks::new(domain_lo);
@@ -1163,8 +1163,8 @@ mod bench {
                 let (dl, dh) = (DOMAIN_SMT_ACTIVE_LO, DOMAIN_SMT_ACTIVE_HI);
                 let mut siblings = [[0u64; 4]; SMT_DEPTH];
                 let mut cur = [0u64; 4];
-                for lv in 0..SMT_DEPTH {
-                    siblings[lv] = cur;
+                for sibling in &mut siblings {
+                    *sibling = cur;
                     let mut inp = [Goldilocks::new(0u64); 8];
                     inp[0] = Goldilocks::new(dl);
                     inp[1] = Goldilocks::new(dh);
@@ -1193,8 +1193,8 @@ mod bench {
                 let (dl, dh) = (DOMAIN_SMT_ARCHIVED_LO, DOMAIN_SMT_ARCHIVED_HI);
                 let mut siblings = [[0u64; 4]; SMT_DEPTH];
                 let mut cur = [0u64; 4];
-                for lv in 0..SMT_DEPTH {
-                    siblings[lv] = cur;
+                for sibling in &mut siblings {
+                    *sibling = cur;
                     let mut inp = [Goldilocks::new(0u64); 8];
                     inp[0] = Goldilocks::new(dl);
                     inp[1] = Goldilocks::new(dh);

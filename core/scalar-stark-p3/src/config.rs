@@ -241,14 +241,12 @@ mod tests {
         let _config = build_scalar_zk_config();
     }
 
-    #[test]
-    fn test_zk_num_random_codewords() {
-        // ZK_NUM_RANDOM_CODEWORDS >= 1 is required for ZK property.
-        assert!(
-            ZK_NUM_RANDOM_CODEWORDS >= 1,
-            "ZK blinding requires at least 1 random codeword"
-        );
-    }
+    // Compile-time assertion: ZK_NUM_RANDOM_CODEWORDS >= 1 (MAD §2.1 D-E1).
+    // Stronger than a runtime test — build fails if violated.
+    const _: () = assert!(
+        ZK_NUM_RANDOM_CODEWORDS >= 1,
+        "ZK blinding requires at least 1 random codeword"
+    );
 
     #[test]
     fn test_is_zk_enabled_consistency() {

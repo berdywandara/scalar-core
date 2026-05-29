@@ -526,11 +526,6 @@ mod tests {
             .map(|w| build_empty_nm_witness(nullifier_bytes(w), SparseTree::Archived))
             .collect();
 
-        // Derive sums before ow is moved into witnesses.
-        // Conservation: sum_inputs == sum_outputs + fee_total  (MAD CE constraint)
-        let fee = 40 + fee_extra;
-        let sum_inputs: u64 = ow.iter().map(|w| w.value).sum();
-        let sum_outputs: u64 = sum_inputs - fee;
         let witnesses = TransferWitnesses {
             ownership: ow,
             membership,
@@ -538,10 +533,11 @@ mod tests {
             nonmembership_archived: nm_archived,
         };
 
+        let fee = 40 + fee_extra;
         let pi = TransferPublicInputsP3 {
             fee_total_sscl: fee,
-            sum_inputs_sscl: sum_inputs,
-            sum_outputs_sscl: sum_outputs,
+            sum_inputs_sscl: 1_000_000_000 + fee,
+            sum_outputs_sscl: 1_000_000_000,
             crypto_version: 0x01,
             entry_timestamp_ms: 1_000_000_000,
             current_timestamp_ms: 1_000_060_000,
@@ -556,10 +552,7 @@ mod tests {
             nullifier_hash: [0u64; 4],  // A-R9: placeholder
         };
 
-        let claims = derive_public_claims(&witnesses, pi, imt_root).unwrap();
-        // derive_public_claims computes commitment_hash + nullifier_hash
-        // from witnesses — verifier must use same claims.pi as prover.
-        let verified_pi = claims.pi.clone();
+        let claims = derive_public_claims(&witnesses, pi.clone(), imt_root).unwrap();
         let batch_proof = prove_batch_transfer(&witnesses, &claims).unwrap();
         let proof_bytes = postcard::to_allocvec(&batch_proof).unwrap();
 
@@ -570,7 +563,7 @@ mod tests {
 
         RealProofInput {
             proof_bytes,
-            public_inputs: verified_pi,
+            public_inputs: pi,
             tx_ordering_key: key,
         }
     }
@@ -946,10 +939,7 @@ mod bench {
             nonmembership_active: nm_active,
             nonmembership_archived: nm_archived,
         };
-        let claims = derive_public_claims(&witnesses, pi, imt_root).unwrap();
-        // derive_public_claims computes commitment_hash + nullifier_hash
-        // from witnesses — verifier must use same claims.pi as prover.
-        let verified_pi = claims.pi.clone();
+        let claims = derive_public_claims(&witnesses, pi.clone(), imt_root).unwrap();
         let batch_proof = prove_batch_transfer(&witnesses, &claims).unwrap();
         let proof_bytes = postcard::to_allocvec(&batch_proof).unwrap();
 
@@ -957,7 +947,7 @@ mod bench {
         key[0..8].copy_from_slice(&seed.to_le_bytes());
         RealProofInput {
             proof_bytes,
-            public_inputs: verified_pi,
+            public_inputs: pi,
             tx_ordering_key: key,
         }
     }

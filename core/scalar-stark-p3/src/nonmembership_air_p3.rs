@@ -506,9 +506,7 @@ mod tests {
 
         // Siblings: at each level, the sibling is the empty subtree of that level.
         let mut siblings = [[0u64; 4]; SMT_DEPTH];
-        for level in 0..SMT_DEPTH {
-            siblings[level] = empty_hashes[level];
-        }
+        siblings.copy_from_slice(&empty_hashes[..SMT_DEPTH]);
 
         NonMembershipWitness {
             nullifier,
