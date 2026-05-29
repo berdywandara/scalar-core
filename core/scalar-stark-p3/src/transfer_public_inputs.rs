@@ -50,8 +50,6 @@ pub const T_MAX_WAIT_EFFECTIVE_MS: u64 = T_MAX_WAIT_MS - 2 * NMT_DRIFT_BOUND_MS;
 /// Valid crypto versions. OSSIFIED — spec §4.3 CG.
 pub const VALID_CRYPTO_VERSION: u8 = 0x01;
 
-/// Fee floor in sSCL. OSSIFIED — spec §9.1.
-
 // Compile-time sanity: effective window must be positive and less than full window. D-026.
 const _: () = assert!(T_MAX_WAIT_EFFECTIVE_MS > 0, "T_MAX_WAIT_EFFECTIVE_MS must be > 0");
 const _: () = assert!(
@@ -63,6 +61,7 @@ const _: () = assert!(
     "T_MAX_WAIT_MS exceeds 21-bit circuit capacity — circuit upgrade required (D-026)"
 );
 
+/// Fee floor in sSCL. OSSIFIED — spec §9.1.
 pub const FEE_FLOOR_SSCL: u64 = 40;
 
 // ── TransferPublicInputsP3 ────────────────────────────────────────────────────
