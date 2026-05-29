@@ -32,13 +32,37 @@ use p3_goldilocks::Goldilocks;
 /// Total number of public input field elements for Transfer Circuit. OSSIFIED.
 pub const TRANSFER_PI_LEN: usize = 44; // +8: commitment_hash[4] + nullifier_hash[4] (A-R9)
 
-/// T_MAX_WAIT = 30 minutes in ms. OSSIFIED — spec §4.3 CG.
-pub const T_MAX_WAIT_MS: u64 = 30 * 60 * 1_000;
+/// T_MAX_WAIT = 30 minutes in ms. CONSTRAINED — D-026, MAD §21.2.
+/// Anti-stale / freshness constraint (NOT anti-censorship — see Shadow Pool §4.4).
+/// Can be changed via COMMIT 75% governance. Max governance-adjustable value
+/// without circuit change: 2_097_151 ms (21-bit capacity). D-026.
+pub const T_MAX_WAIT_MS: u64 = 30 * 60 * 1_000; // 1_800_000 ms
+
+/// NMT drift bound. CONSTRAINED — MAD §12.
+/// Maximum clock drift between honest NMT nodes: ±300 seconds.
+pub const NMT_DRIFT_BOUND_MS: u64 = 300 * 1_000; // 300_000 ms
+
+/// Effective T_MAX_WAIT after NMT drift compensation. CONSTRAINED — D-026.
+/// = T_MAX_WAIT_MS - 2 × NMT_DRIFT_BOUND_MS = 1_800_000 - 600_000 = 1_200_000 ms (20 min).
+/// A tx submitted at t=0 is guaranteed valid if entry_timestamp ≥ current_ts - T_MAX_WAIT_EFFECTIVE_MS.
+pub const T_MAX_WAIT_EFFECTIVE_MS: u64 = T_MAX_WAIT_MS - 2 * NMT_DRIFT_BOUND_MS; // 1_200_000 ms
 
 /// Valid crypto versions. OSSIFIED — spec §4.3 CG.
 pub const VALID_CRYPTO_VERSION: u8 = 0x01;
 
 /// Fee floor in sSCL. OSSIFIED — spec §9.1.
+
+// Compile-time sanity: effective window must be positive and less than full window. D-026.
+const _: () = assert!(T_MAX_WAIT_EFFECTIVE_MS > 0, "T_MAX_WAIT_EFFECTIVE_MS must be > 0");
+const _: () = assert!(
+    T_MAX_WAIT_EFFECTIVE_MS < T_MAX_WAIT_MS,
+    "T_MAX_WAIT_EFFECTIVE_MS must be < T_MAX_WAIT_MS"
+);
+const _: () = assert!(
+    T_MAX_WAIT_MS <= 2_097_151,
+    "T_MAX_WAIT_MS exceeds 21-bit circuit capacity — circuit upgrade required (D-026)"
+);
+
 pub const FEE_FLOOR_SSCL: u64 = 40;
 
 // ── TransferPublicInputsP3 ────────────────────────────────────────────────────

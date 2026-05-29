@@ -15,7 +15,8 @@
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-/// T_MAX_WAIT dalam milliseconds. Layer 2 CONSTRAINED — spec §9.3.
+/// T_MAX_WAIT dalam milliseconds. CONSTRAINED — D-026, MAD §21.2.
+/// Anti-stale constraint: tx ditolak jika entry_timestamp terlalu lama.
 /// Default: 30 menit = 1_800_000 ms. Range: 5-120 menit.
 pub const T_MAX_WAIT_MS: u64 = 1_800_000;
 
@@ -143,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_t_max_wait_is_30_minutes() {
-        // Spec §9.3: T_MAX_WAIT = 30 menit = 1_800_000 ms. Layer 2 CONSTRAINED.
+        // D-026: T_MAX_WAIT = 30 menit = 1_800_000 ms. CONSTRAINED (not OSSIFIED).
         assert_eq!(T_MAX_WAIT_MS, 1_800_000u64);
     }
 

@@ -10,7 +10,8 @@
 //!   CD — Fee floor: fee >= 40 sSCL (spec §9.1)
 //!   CE — Output non-zero (spec §4.3 CE)
 //!   CG — Crypto version valid (spec §4.3 CG)
-//!   CG — Timestamp within T_MAX_WAIT (spec §4.3 CG)
+//!   CG — Timestamp freshness / anti-stale (D-026, spec §4.3 CG)
+//!        Anti-censorship is handled by Shadow Pool §4.4, NOT by CG.
 //!   CB — Membership verified flag (out-of-circuit commitment binding)
 //!   CC — Non-membership verified flag (out-of-circuit commitment binding)
 //!   INV-4.6 — Single UTXO source (spec §3.1.3)
@@ -63,7 +64,7 @@ use crate::transfer_public_inputs::{
 // A-R11: bit decomposition layout.
 // fee_above_floor = fee - FEE_FLOOR_SSCL  (52 bits: covers S_MAX ≈ 2^51 sSCL)
 // ts_delta        = current_ts - entry_ts  (auxiliary, reconstructed from lo/hi)
-// ts_slack        = T_MAX_WAIT_MS - ts_delta (21 bits: T_MAX_WAIT_MS = 1_800_000 < 2^21)
+// ts_slack        = T_MAX_WAIT_MS - ts_delta (21 bits, max 2_097_151 ms per D-026)
 // Bit cols: COL_FEE_BIT_0..51 (52), COL_TS_SLACK_BIT_0..20 (21)
 // Auxiliary cols: COL_FEE_ABOVE_FLOOR, COL_TS_DELTA, COL_TS_SLACK_AUX
 // Total new cols: 52 + 21 + 3 = 76 → width 20 + 76 = 96
