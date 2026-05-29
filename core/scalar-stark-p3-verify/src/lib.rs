@@ -13,10 +13,8 @@
 
 extern crate alloc;
 
-pub mod transfer_air_v2;
 pub mod mint_air_v2;
+pub mod transfer_air_v2;
 pub mod verify;
 
-pub use verify::{
-    verify_transfer_independent, verify_mint_independent, IndependentVerifyError,
-};
+pub use verify::{verify_mint_independent, verify_transfer_independent, IndependentVerifyError};

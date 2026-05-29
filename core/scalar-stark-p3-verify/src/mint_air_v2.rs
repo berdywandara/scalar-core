@@ -82,19 +82,19 @@ where
             return;
         }
 
-        let version    = local[COL_VERSION];
+        let version = local[COL_VERSION];
         let cap_headroom = local[COL_CAP_HEADROOM];
-        let reward     = local[COL_REWARD];
-        let auth       = local[COL_AUTH];
-        let null_nz    = local[COL_NULL_NZ];
+        let reward = local[COL_REWARD];
+        let auth = local[COL_AUTH];
+        let null_nz = local[COL_NULL_NZ];
         let reward_inv = local[COL_REWARD_INV];
-        let null0      = local[COL_NULL0];
+        let null0 = local[COL_NULL0];
 
-        let pv_version     = pv[PV_VERSION];
+        let pv_version = pv[PV_VERSION];
         let pv_total_minted = pv[PV_TOTAL_MINTED];
-        let pv_reward      = pv[PV_REWARD];
-        let pv_auth        = pv[PV_AUTH];
-        let pv_null_0      = pv[PV_NULL_0];
+        let pv_reward = pv[PV_REWARD];
+        let pv_auth = pv[PV_AUTH];
+        let pv_null_0 = pv[PV_NULL_0];
 
         // MC1: version matches public version. Spec §5.2 MC1.
         builder.assert_eq(version, pv_version);
@@ -102,8 +102,7 @@ where
         // MC3: supply cap in-circuit. S_E is field constant — prover cannot fake.
         // cap_headroom + total_minted + reward == S_E. Spec §5.2 MC3.
         let s_e = AB::F::from_u64(MINT_S_E_SSCL);
-        let lhs: AB::Expr =
-            cap_headroom.into() + pv_total_minted.into() + pv_reward.into();
+        let lhs: AB::Expr = cap_headroom.into() + pv_total_minted.into() + pv_reward.into();
         builder.assert_eq(lhs, s_e);
 
         // MC3 binding: reward in trace == public reward.

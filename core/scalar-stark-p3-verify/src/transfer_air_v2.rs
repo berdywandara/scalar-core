@@ -84,21 +84,21 @@ impl<AB: AirBuilder> Air<AB> for TransferAirV2 {
         let main = builder.main();
         let local: &[AB::Var] = main.current_slice();
 
-        let fee         = local[COL_FEE];
-        let sum_in      = local[COL_SUM_IN];
-        let sum_out     = local[COL_SUM_OUT];
-        let version     = local[COL_VERSION];
-        let entry_lo    = local[COL_ENTRY_TS_LO];
-        let entry_hi    = local[COL_ENTRY_TS_HI];
-        let current_lo  = local[COL_CURRENT_TS_LO];
-        let current_hi  = local[COL_CURRENT_TS_HI];
-        let cb_ok       = local[COL_CB_VERIFIED];
-        let cc_ok       = local[COL_CC_VERIFIED];
-        let out_nz      = local[COL_OUTPUT_NONZERO];
-        let single_src  = local[COL_SINGLE_SOURCE];
+        let fee = local[COL_FEE];
+        let sum_in = local[COL_SUM_IN];
+        let sum_out = local[COL_SUM_OUT];
+        let version = local[COL_VERSION];
+        let entry_lo = local[COL_ENTRY_TS_LO];
+        let entry_hi = local[COL_ENTRY_TS_HI];
+        let current_lo = local[COL_CURRENT_TS_LO];
+        let current_hi = local[COL_CURRENT_TS_HI];
+        let cb_ok = local[COL_CB_VERIFIED];
+        let cc_ok = local[COL_CC_VERIFIED];
+        let out_nz = local[COL_OUTPUT_NONZERO];
+        let single_src = local[COL_SINGLE_SOURCE];
         let fee_above_floor = local[COL_FEE_ABOVE_FLOOR];
-        let ts_delta    = local[COL_TS_DELTA];
-        let ts_slack    = local[COL_TS_SLACK];
+        let ts_delta = local[COL_TS_DELTA];
+        let ts_slack = local[COL_TS_SLACK];
 
         // ── CD: Value conservation ────────────────────────────────────────────
         // sum_inputs == sum_outputs + fee → sum_in - sum_out - fee == 0
@@ -126,12 +126,15 @@ impl<AB: AirBuilder> Air<AB> for TransferAirV2 {
 
         // ── CG: Timestamp window — 21-bit ts_slack range proof (D-012) ───────
         let two32 = AB::F::from_u64(1u64 << 32);
-        let entry_ts: AB::Expr  = entry_lo.into()   + entry_hi  * two32.clone();
+        let entry_ts: AB::Expr = entry_lo.into() + entry_hi * two32.clone();
         let current_ts: AB::Expr = current_lo.into() + current_hi * two32;
         // ts_delta == current_ts - entry_ts
         builder.assert_eq(ts_delta.into(), current_ts - entry_ts);
         // ts_delta + ts_slack == T_MAX_WAIT_MS
-        builder.assert_eq(ts_delta.into() + ts_slack.into(), AB::F::from_u64(T_MAX_WAIT_MS));
+        builder.assert_eq(
+            ts_delta.into() + ts_slack.into(),
+            AB::F::from_u64(T_MAX_WAIT_MS),
+        );
         // ts_slack bit decomposition (proves ts_slack in [0, 2^21))
         {
             let mut reconstructed: AB::Expr = AB::F::ZERO.into();
@@ -165,6 +168,9 @@ impl<AB: AirBuilder> Air<AB> for TransferAirV2 {
 
 /// Build trace for V2 verifier — identical layout to scalar-stark-p3.
 /// Used in cross-verification tests. Spec §15.3.
+// Each argument maps directly to a Transfer circuit column (MAD §5.2).
+// Argument count is protocol-mandated, not a design choice.
+#[allow(clippy::too_many_arguments)]
 pub fn build_transfer_trace_v2(
     fee: u64,
     sum_in: u64,
@@ -196,18 +202,18 @@ pub fn build_transfer_trace_v2(
     }
 
     let mut row = [Goldilocks::new(0u64); TRANSFER_TRACE_WIDTH_V2];
-    row[COL_FEE]            = Goldilocks::new(fee);
-    row[COL_SUM_IN]         = Goldilocks::new(sum_in);
-    row[COL_SUM_OUT]        = Goldilocks::new(sum_out);
-    row[COL_VERSION]        = Goldilocks::new(crypto_version as u64);
-    row[COL_ENTRY_TS_LO]    = Goldilocks::new(entry_ts_ms & 0xFFFF_FFFF);
-    row[COL_ENTRY_TS_HI]    = Goldilocks::new(entry_ts_ms >> 32);
-    row[COL_CURRENT_TS_LO]  = Goldilocks::new(current_ts_ms & 0xFFFF_FFFF);
-    row[COL_CURRENT_TS_HI]  = Goldilocks::new(current_ts_ms >> 32);
-    row[COL_CB_VERIFIED]    = Goldilocks::new(cb_ok as u64);
-    row[COL_CC_VERIFIED]    = Goldilocks::new(cc_ok as u64);
+    row[COL_FEE] = Goldilocks::new(fee);
+    row[COL_SUM_IN] = Goldilocks::new(sum_in);
+    row[COL_SUM_OUT] = Goldilocks::new(sum_out);
+    row[COL_VERSION] = Goldilocks::new(crypto_version as u64);
+    row[COL_ENTRY_TS_LO] = Goldilocks::new(entry_ts_ms & 0xFFFF_FFFF);
+    row[COL_ENTRY_TS_HI] = Goldilocks::new(entry_ts_ms >> 32);
+    row[COL_CURRENT_TS_LO] = Goldilocks::new(current_ts_ms & 0xFFFF_FFFF);
+    row[COL_CURRENT_TS_HI] = Goldilocks::new(current_ts_ms >> 32);
+    row[COL_CB_VERIFIED] = Goldilocks::new(cb_ok as u64);
+    row[COL_CC_VERIFIED] = Goldilocks::new(cc_ok as u64);
     row[COL_OUTPUT_NONZERO] = Goldilocks::new(output_nonzero as u64);
-    row[COL_SINGLE_SOURCE]  = Goldilocks::new(single_source as u64);
+    row[COL_SINGLE_SOURCE] = Goldilocks::new(single_source as u64);
     row[12] = Goldilocks::new(commitment_hash[0]);
     row[13] = Goldilocks::new(commitment_hash[1]);
     row[14] = Goldilocks::new(commitment_hash[2]);
@@ -217,8 +223,8 @@ pub fn build_transfer_trace_v2(
     row[18] = Goldilocks::new(nullifier_hash[2]);
     row[19] = Goldilocks::new(nullifier_hash[3]);
     row[COL_FEE_ABOVE_FLOOR] = Goldilocks::new(fee_above_floor);
-    row[COL_TS_DELTA]        = Goldilocks::new(ts_delta);
-    row[COL_TS_SLACK]        = Goldilocks::new(ts_slack);
+    row[COL_TS_DELTA] = Goldilocks::new(ts_delta);
+    row[COL_TS_SLACK] = Goldilocks::new(ts_slack);
     for i in 0..FEE_BIT_COUNT {
         row[COL_FEE_BIT_START + i] = Goldilocks::new(fee_bits[i]);
     }
