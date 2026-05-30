@@ -228,3 +228,147 @@ mod tests {
         assert_eq!(PROVING_TIME_10IN10OUT_TARGET_MS, 500u64);
     }
 }
+
+// ── INV-SUPPLY (MAD §16.1, D-021) ────────────────────────────────────────────
+//
+// FORMAL SPECIFICATION:
+//   ∀ state s: total_minted(s) ≤ S_E
+//   S_E = 21_000_000 × 10^8 sSCL (OSSIFIED — MAD §21.1)
+//
+// PRUSTI ANNOTATION (activate with --features prusti):
+//   #[ensures(result.total_minted_sscl <= S_E_SSCL)]
+//
+// SCOPE: mint, reward, deferred emission functions in scalar-emission.
+
+/// Supply cap violation. MAD §16.1 INV-SUPPLY.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupplyCapViolation {
+    /// Total minted including this operation (sSCL).
+    pub total_minted_sscl: u64,
+    /// Supply cap S_E (sSCL).
+    pub cap_sscl: u64,
+    /// Context: which operation triggered the violation.
+    pub context: &'static str,
+}
+
+impl core::fmt::Display for SupplyCapViolation {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "INV-SUPPLY VIOLATION [{}]: total_minted={} > S_E={} — MAD §16.1",
+            self.context, self.total_minted_sscl, self.cap_sscl
+        )
+    }
+}
+
+/// Assert INV-SUPPLY: total_minted ≤ S_E. MAD §16.1.
+///
+/// Call after every mint/reward/release operation.
+/// Returns Err if supply cap would be exceeded.
+///
+/// FORMAL: ∀ state s, total_minted(s) ≤ S_E
+pub fn assert_inv_supply(
+    total_minted_sscl: u64,
+    context: &'static str,
+) -> Result<(), SupplyCapViolation> {
+    if total_minted_sscl > S_E_SSCL {
+        return Err(SupplyCapViolation {
+            total_minted_sscl,
+            cap_sscl: S_E_SSCL,
+            context,
+        });
+    }
+    Ok(())
+}
+
+// ── INV-REWARD (MAD §16.1, D-021) ────────────────────────────────────────────
+//
+// FORMAL SPECIFICATION:
+//   ∀ epoch k: sum(rewards(k)) ≤ E_active(k)
+//   E_active(k) = emission budget for epoch k (from schedule)
+//
+// PRUSTI ANNOTATION (activate with --features prusti):
+//   #[requires(sum_rewards <= e_active)]
+//   #[ensures(result.is_ok())]
+//
+// SCOPE: reward_calculation.rs in scalar-emission.
+
+/// Reward budget violation. MAD §16.1 INV-REWARD.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RewardBudgetViolation {
+    /// Sum of all rewards this epoch (sSCL).
+    pub sum_rewards_sscl: u64,
+    /// E_active(k): emission budget for this epoch (sSCL).
+    pub e_active_sscl: u64,
+    /// Epoch number.
+    pub epoch_id: u64,
+}
+
+impl core::fmt::Display for RewardBudgetViolation {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "INV-REWARD VIOLATION epoch {}: sum_rewards={} > E_active={} — MAD §16.1",
+            self.epoch_id, self.sum_rewards_sscl, self.e_active_sscl
+        )
+    }
+}
+
+/// Assert INV-REWARD: sum(rewards(k)) ≤ E_active(k). MAD §16.1.
+///
+/// FORMAL: ∀ epoch k, Σ rewards(k) ≤ E_active(k)
+pub fn assert_inv_reward(
+    sum_rewards_sscl: u64,
+    e_active_sscl: u64,
+    epoch_id: u64,
+) -> Result<(), RewardBudgetViolation> {
+    if sum_rewards_sscl > e_active_sscl {
+        return Err(RewardBudgetViolation {
+            sum_rewards_sscl,
+            e_active_sscl,
+            epoch_id,
+        });
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod inv_supply_reward_tests {
+    use super::*;
+
+    #[test]
+    fn test_inv_supply_at_cap_ok() {
+        assert!(assert_inv_supply(S_E_SSCL, "mint").is_ok());
+    }
+
+    #[test]
+    fn test_inv_supply_below_cap_ok() {
+        assert!(assert_inv_supply(0, "mint").is_ok());
+        assert!(assert_inv_supply(S_E_SSCL - 1, "reward").is_ok());
+    }
+
+    #[test]
+    fn test_inv_supply_exceeded() {
+        let err = assert_inv_supply(S_E_SSCL + 1, "mint").unwrap_err();
+        assert_eq!(err.cap_sscl, S_E_SSCL);
+        assert_eq!(err.context, "mint");
+    }
+
+    #[test]
+    fn test_inv_reward_within_budget() {
+        assert!(assert_inv_reward(1_000, 2_000, 1).is_ok());
+        assert!(assert_inv_reward(2_000, 2_000, 1).is_ok()); // boundary
+    }
+
+    #[test]
+    fn test_inv_reward_exceeds_budget() {
+        let err = assert_inv_reward(2_001, 2_000, 42).unwrap_err();
+        assert_eq!(err.epoch_id, 42);
+        assert!(err.sum_rewards_sscl > err.e_active_sscl);
+    }
+
+    #[test]
+    fn test_inv_reward_zero_budget_zero_rewards_ok() {
+        assert!(assert_inv_reward(0, 0, 0).is_ok());
+    }
+}

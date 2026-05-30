@@ -1,3 +1,4 @@
+pub mod formal;
 // File: crates/scalar-consensus/src/lib.rs
 //
 // Consensus Engine — Spec §10

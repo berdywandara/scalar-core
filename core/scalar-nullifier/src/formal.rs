@@ -158,3 +158,108 @@ mod tests {
         assert!(result.is_err());
     }
 }
+
+// ── INV-NULLIFIER (MAD §16.1, D-021) ─────────────────────────────────────────
+//
+// FORMAL SPECIFICATION:
+//   ∀ nullifier n:
+//     spend(n, tx1) ∧ spend(n, tx2) → tx1 = tx2
+//
+//   Equivalently: each nullifier appears at most once in the nullifier set.
+//
+// PRUSTI ANNOTATION (activate with --features prusti):
+//   #[requires(!nullifier_set.contains(n))]
+//   #[ensures(nullifier_set.contains(n))]
+//
+// SCOPE: nullifier_set.rs, checkpoint WAL.
+// RUNTIME: assert_cc_invariant() (above) enforces this at runtime.
+
+/// Formal statement of INV-NULLIFIER. MAD §16.1.
+///
+/// Models the set semantics: a nullifier can be inserted at most once.
+/// This struct carries proof that the invariant was checked before insertion.
+#[derive(Debug, Clone)]
+pub struct NullifierInsertionProof {
+    /// The nullifier that was inserted.
+    pub nullifier: [u8; 32],
+    /// Epoch in which the nullifier was inserted.
+    pub epoch_id: u64,
+}
+
+/// Assert INV-NULLIFIER before inserting a nullifier. MAD §16.1.
+///
+/// FORMAL: spend(n, tx1) ∧ spend(n, tx2) → tx1 = tx2
+/// ↔ nullifier n inserted at most once.
+///
+/// `already_present`: result of set membership check (true = double-spend).
+/// Returns proof token on success (can be passed to insertion function).
+pub fn assert_inv_nullifier(
+    nullifier: &[u8; 32],
+    already_present: bool,
+    epoch_id: u64,
+) -> Result<NullifierInsertionProof, NullifierDoubleSpend> {
+    if already_present {
+        return Err(NullifierDoubleSpend {
+            nullifier: *nullifier,
+            epoch_id,
+        });
+    }
+    Ok(NullifierInsertionProof {
+        nullifier: *nullifier,
+        epoch_id,
+    })
+}
+
+/// Double-spend attempt detected. MAD §16.1 INV-NULLIFIER.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NullifierDoubleSpend {
+    /// The nullifier that was already spent.
+    pub nullifier: [u8; 32],
+    /// Epoch of detection.
+    pub epoch_id: u64,
+}
+
+impl core::fmt::Display for NullifierDoubleSpend {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "INV-NULLIFIER VIOLATION: nullifier {:?}... already spent in epoch {} — MAD §16.1",
+            &self.nullifier[..4],
+            self.epoch_id
+        )
+    }
+}
+
+#[cfg(test)]
+mod inv_nullifier_tests {
+    use super::*;
+
+    fn null(seed: u8) -> [u8; 32] {
+        [seed; 32]
+    }
+
+    #[test]
+    fn test_inv_nullifier_first_spend_ok() {
+        let proof = assert_inv_nullifier(&null(1), false, 42).unwrap();
+        assert_eq!(proof.nullifier, null(1));
+        assert_eq!(proof.epoch_id, 42);
+    }
+
+    #[test]
+    fn test_inv_nullifier_double_spend_detected() {
+        let err = assert_inv_nullifier(&null(2), true, 5).unwrap_err();
+        assert_eq!(err.nullifier, null(2));
+        assert_eq!(err.epoch_id, 5);
+    }
+
+    #[test]
+    fn test_inv_nullifier_display() {
+        let err = NullifierDoubleSpend {
+            nullifier: [0xABu8; 32],
+            epoch_id: 10,
+        };
+        let s = format!("{err}");
+        assert!(s.contains("INV-NULLIFIER VIOLATION"));
+        assert!(s.contains("epoch 10"));
+    }
+}
