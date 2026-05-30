@@ -490,3 +490,333 @@ mod tests {
         assert!(w.get_snapshot(0).is_none());
     }
 }
+
+// ── Persistent WAL Backend ────────────────────────────────────────────────────
+//
+// File-based WAL untuk testnet dan production. ADR-SEC-002.
+//
+// Design:
+//   - Satu file per checkpoint entry: {wal_dir}/{checkpoint_id:016x}.wal
+//   - Atomic write: tulis ke .tmp → fsync → rename (crash-safe)
+//   - Recovery: scan direktori dan load semua .wal files saat startup
+//   - Business logic tetap di CheckpointWal — FileCheckpointWal hanya wraps
+//
+// Serialization: postcard (sudah ada di Cargo.toml, compact binary format)
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+/// I/O error dari FileCheckpointWal.
+#[derive(Debug, thiserror::Error)]
+pub enum WalIoError {
+    #[error("WAL I/O error for checkpoint {checkpoint_id}: {source}")]
+    Io {
+        checkpoint_id: u64,
+        source: std::io::Error,
+    },
+
+    #[error("WAL serialization error for checkpoint {checkpoint_id}: {source}")]
+    Serialization {
+        checkpoint_id: u64,
+        source: postcard::Error,
+    },
+
+    #[error("WAL logic error: {0}")]
+    Logic(#[from] WalError),
+}
+
+/// File-backed WAL store. Crash-safe via atomic rename. ADR-SEC-002.
+///
+/// Wraps `CheckpointWal` (in-memory) dengan persistence ke disk.
+/// Setiap entry disimpan sebagai file terpisah untuk recovery granular.
+pub struct FileCheckpointWal {
+    /// In-memory state (source of truth setelah load).
+    inner: CheckpointWal,
+    /// Direktori tempat file WAL disimpan.
+    wal_dir: PathBuf,
+}
+
+impl FileCheckpointWal {
+    /// Buat atau buka existing WAL di `wal_dir`.
+    ///
+    /// Jika direktori sudah ada dan berisi file .wal:
+    ///   → load semua entries ke memory (recovery).
+    /// Jika direktori baru:
+    ///   → mulai WAL kosong.
+    pub fn open(wal_dir: impl AsRef<Path>) -> Result<Self, WalIoError> {
+        let wal_dir = wal_dir.as_ref().to_path_buf();
+        fs::create_dir_all(&wal_dir).map_err(|e| WalIoError::Io {
+            checkpoint_id: 0,
+            source: e,
+        })?;
+
+        let mut wal = FileCheckpointWal {
+            inner: CheckpointWal::new(),
+            wal_dir,
+        };
+
+        // Recovery: load all existing .wal files
+        wal.load_all()?;
+        Ok(wal)
+    }
+
+    /// Nama file untuk checkpoint_id.
+    fn entry_path(&self, checkpoint_id: u64) -> PathBuf {
+        self.wal_dir.join(format!("{checkpoint_id:016x}.wal"))
+    }
+
+    /// Nama file temporary untuk atomic write.
+    fn tmp_path(&self, checkpoint_id: u64) -> PathBuf {
+        self.wal_dir.join(format!("{checkpoint_id:016x}.tmp"))
+    }
+
+    /// Tulis entry ke disk secara atomic. ADR-SEC-002.
+    ///
+    /// Protocol: write .tmp → fsync → rename ke .wal
+    /// Rename adalah atomic pada POSIX — tidak ada state intermediate.
+    fn persist_entry(&self, entry: &CheckpointWalEntry) -> Result<(), WalIoError> {
+        let cid = entry.checkpoint_id;
+        let bytes = postcard::to_allocvec(entry).map_err(|e| WalIoError::Serialization {
+            checkpoint_id: cid,
+            source: e,
+        })?;
+
+        let tmp = self.tmp_path(cid);
+        let final_path = self.entry_path(cid);
+
+        // Tulis ke file temporary
+        fs::write(&tmp, &bytes).map_err(|e| WalIoError::Io {
+            checkpoint_id: cid,
+            source: e,
+        })?;
+
+        // fsync — pastikan bytes di disk sebelum rename
+        {
+            let f = fs::File::open(&tmp).map_err(|e| WalIoError::Io {
+                checkpoint_id: cid,
+                source: e,
+            })?;
+            f.sync_all().map_err(|e| WalIoError::Io {
+                checkpoint_id: cid,
+                source: e,
+            })?;
+        }
+
+        // Atomic rename .tmp → .wal
+        fs::rename(&tmp, &final_path).map_err(|e| WalIoError::Io {
+            checkpoint_id: cid,
+            source: e,
+        })?;
+
+        Ok(())
+    }
+
+    /// Load semua .wal files dari wal_dir ke memory. Recovery. ADR-SEC-002.
+    fn load_all(&mut self) -> Result<(), WalIoError> {
+        let read_dir = fs::read_dir(&self.wal_dir).map_err(|e| WalIoError::Io {
+            checkpoint_id: 0,
+            source: e,
+        })?;
+
+        let mut entries: Vec<CheckpointWalEntry> = Vec::new();
+
+        for dir_entry in read_dir {
+            let dir_entry = dir_entry.map_err(|e| WalIoError::Io {
+                checkpoint_id: 0,
+                source: e,
+            })?;
+            let path = dir_entry.path();
+
+            // Hanya proses .wal files — skip .tmp (incomplete writes)
+            if path.extension().and_then(|e| e.to_str()) != Some("wal") {
+                continue;
+            }
+
+            let bytes = fs::read(&path).map_err(|e| WalIoError::Io {
+                checkpoint_id: 0,
+                source: e,
+            })?;
+
+            let entry: CheckpointWalEntry =
+                postcard::from_bytes(&bytes).map_err(|e| WalIoError::Serialization {
+                    checkpoint_id: 0,
+                    source: e,
+                })?;
+
+            entries.push(entry);
+        }
+
+        // Sort by checkpoint_id untuk deterministic recovery order
+        entries.sort_by_key(|e| e.checkpoint_id);
+
+        // Restore in-memory state
+        for entry in entries {
+            self.inner.entries.insert(entry.checkpoint_id, entry);
+        }
+
+        Ok(())
+    }
+
+    /// Phase 1 — PREPARE. Atomic write ke disk. ADR-SEC-002.
+    pub fn prepare(
+        &mut self,
+        checkpoint_id: u64,
+        proving_key_version: u32,
+        snapshot: CheckpointSnapshot,
+        now_ms: u64,
+    ) -> Result<WalResult, WalIoError> {
+        let result = self
+            .inner
+            .prepare(checkpoint_id, proving_key_version, snapshot, now_ms)?;
+        if result == WalResult::Applied {
+            let entry = self.inner.entries.get(&checkpoint_id).unwrap();
+            self.persist_entry(entry)?;
+        }
+        Ok(result)
+    }
+
+    /// Phase 2 — COMMIT. Atomic write ke disk. ADR-SEC-002.
+    pub fn commit(
+        &mut self,
+        checkpoint_id: u64,
+        proof_bytes: Vec<u8>,
+        now_ms: u64,
+    ) -> Result<WalResult, WalIoError> {
+        let result = self.inner.commit(checkpoint_id, proof_bytes, now_ms)?;
+        if result == WalResult::Applied {
+            let entry = self.inner.entries.get(&checkpoint_id).unwrap();
+            self.persist_entry(entry)?;
+        }
+        Ok(result)
+    }
+
+    /// Phase 3 — ABORT. Atomic write ke disk. ADR-SEC-002.
+    pub fn abort(&mut self, checkpoint_id: u64, now_ms: u64) -> Result<WalResult, WalIoError> {
+        let result = self.inner.abort(checkpoint_id, now_ms)?;
+        if result == WalResult::Applied {
+            let entry = self.inner.entries.get(&checkpoint_id).unwrap();
+            self.persist_entry(entry)?;
+        }
+        Ok(result)
+    }
+
+    /// Apakah checkpoint sudah COMMITTED? ADR-SEC-002.
+    pub fn is_committed(&self, checkpoint_id: u64) -> bool {
+        self.inner.is_committed(checkpoint_id)
+    }
+
+    /// Hapus file WAL untuk checkpoint yang sudah COMMITTED (cleanup). ADR-SEC-002.
+    pub fn remove_committed(&mut self, checkpoint_id: u64) -> Result<(), WalIoError> {
+        if !self.is_committed(checkpoint_id) {
+            return Ok(());
+        }
+        let path = self.entry_path(checkpoint_id);
+        if path.exists() {
+            fs::remove_file(&path).map_err(|e| WalIoError::Io {
+                checkpoint_id,
+                source: e,
+            })?;
+        }
+        self.inner.entries.remove(&checkpoint_id);
+        Ok(())
+    }
+
+    /// Jumlah entries yang COMMITTED. ADR-SEC-002.
+    pub fn count_by_phase(&self, phase: &WalPhase) -> usize {
+        self.inner.count_by_phase(phase)
+    }
+}
+
+// ── Tests FileCheckpointWal ───────────────────────────────────────────────────
+
+#[cfg(test)]
+mod persistent_wal_tests {
+    use super::*;
+    use std::env;
+
+    fn tmp_wal_dir(prefix: &str) -> PathBuf {
+        let mut dir = env::temp_dir();
+        dir.push(format!("scalar_wal_test_{prefix}_{}", std::process::id()));
+        dir
+    }
+
+    fn snapshot(epoch: u64) -> CheckpointSnapshot {
+        CheckpointSnapshot {
+            epoch_id: epoch,
+            imt_frontier_root: [0xAAu8; 32],
+            imt_count: epoch * 1000,
+            utxo_set_root: [0xBBu8; 32],
+            nullifier_active_root: [0xCCu8; 32],
+            nullifier_archived_root: [0xDDu8; 32],
+            total_supply_sscl: 1_800_000_000_000_000,
+        }
+    }
+
+    #[test]
+    fn test_file_wal_prepare_creates_file() {
+        let dir = tmp_wal_dir("prepare");
+        let mut wal = FileCheckpointWal::open(&dir).unwrap();
+        wal.prepare(1, 1, snapshot(1), 1000).unwrap();
+        assert!(dir.join("0000000000000001.wal").exists());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_file_wal_commit_updates_file() {
+        let dir = tmp_wal_dir("commit");
+        let mut wal = FileCheckpointWal::open(&dir).unwrap();
+        wal.prepare(2, 1, snapshot(2), 1000).unwrap();
+        wal.commit(2, vec![0xFFu8; 64], 2000).unwrap();
+        assert!(wal.is_committed(2));
+        assert!(dir.join("0000000000000002.wal").exists());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_file_wal_recovery_after_reopen() {
+        let dir = tmp_wal_dir("recovery");
+        {
+            let mut wal = FileCheckpointWal::open(&dir).unwrap();
+            wal.prepare(3, 1, snapshot(3), 1000).unwrap();
+            wal.commit(3, vec![0xABu8; 32], 2000).unwrap();
+        }
+        // Reopen — should recover committed entry
+        let wal2 = FileCheckpointWal::open(&dir).unwrap();
+        assert!(wal2.is_committed(3), "entry must survive restart");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_file_wal_recovery_skips_tmp_files() {
+        let dir = tmp_wal_dir("skip_tmp");
+        fs::create_dir_all(&dir).unwrap();
+        // Simulate incomplete write (.tmp file left behind by crash)
+        fs::write(dir.join("0000000000000009.tmp"), b"corrupted").unwrap();
+        let wal = FileCheckpointWal::open(&dir).unwrap();
+        assert!(!wal.is_committed(9), ".tmp must be ignored on recovery");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_file_wal_idempotency_persist() {
+        let dir = tmp_wal_dir("idempotent");
+        let mut wal = FileCheckpointWal::open(&dir).unwrap();
+        wal.prepare(5, 1, snapshot(5), 1000).unwrap();
+        wal.commit(5, vec![0u8; 32], 2000).unwrap();
+        // Re-commit is idempotent — no I/O error
+        let r = wal.commit(5, vec![0u8; 32], 3000).unwrap();
+        assert_eq!(r, WalResult::AlreadyInState);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_file_wal_remove_committed() {
+        let dir = tmp_wal_dir("remove");
+        let mut wal = FileCheckpointWal::open(&dir).unwrap();
+        wal.prepare(6, 1, snapshot(6), 1000).unwrap();
+        wal.commit(6, vec![], 2000).unwrap();
+        wal.remove_committed(6).unwrap();
+        assert!(!dir.join("0000000000000006.wal").exists());
+        fs::remove_dir_all(&dir).ok();
+    }
+}
