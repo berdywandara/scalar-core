@@ -162,3 +162,32 @@ is ~3.8s per spec MTS benchmark (P3-R9, commit 5aa8be7). Transfer AIR alone = 1.
 **Impact D-023/D-025:**
 - D-023: 41 tx per MicroCommitment batch (turun dari 50)
 - D-025: 695KB total proof — well within 1MB network budget
+
+---
+
+## KEPUTUSAN FINAL — Benchmark Engineer (2026-05-31)
+
+| Decision | Verdict | Catatan |
+|----------|---------|---------|
+| D-023 MicroCommitment | **CONDITIONAL GO** | Tunggu B1.2-BATCH |
+| D-024 Multi-speed Heartbeat | **GO** | SLH-DSA verify 0.479ms ✅ |
+| D-025 Optimistic Finality | **NO-GO** | Research Paper 2 belum ada |
+
+### Klarifikasi D-024 — 20ms full proof verify BUKAN blocker
+
+Threshold 10ms D-024 berlaku untuk **SLH-DSA heartbeat signature verify** = 0.479ms ✅
+
+Full STARK proof verify = 20ms adalah data berbeda:
+- Konteks: aggregator memverifikasi transfer proof
+- 50 proof/detik capacity (1000ms / 20ms)
+- Tidak disebutkan di NSFA sebelumnya — data baru
+
+Perlu konfirmasi ke tim arsitektur: apakah 50 proof/detik cukup untuk target throughput aggregator.
+
+### Action Items (Coding Team)
+
+| Item | Status | Catatan |
+|------|--------|---------|
+| Typo MTS §20 "3.801ms→3.801s" | ⚠️ Spec-only | Tidak ada di codebase — perlu edit dokumen MTS eksternal |
+| B1.2-BATCH benchmark | ⏳ Pending | Jadwalkan setelah testnet infra siap |
+| Konfirmasi 50 proof/detik cukup | ⏳ Pending | Arsitektur perlu review |
