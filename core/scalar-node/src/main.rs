@@ -75,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let node_key = [0x42u8; 32]; // placeholder — production: dari seed derivation §13.1
     let hb_service = Arc::new(Mutex::new(HeartbeatService::new(full_node_id, node_key)));
-    println!("[HB] HeartbeatService v9.0 online (108 bytes, BLAKE3-MAC).");
+    println!("[HB] HeartbeatService v9.1 online (148 bytes, BLAKE3-MAC).");
 
     // 4. RPC Server
     let rpc_server = LocalRpcServer { port };
@@ -121,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     NodeSwarmEvent::HeartbeatReceived { from, data } => {
                         println!("[CORE] 💓 HB from {} ({} bytes)", from, data.len());
                         // Verifikasi HeartbeatUnit v9.0 — 5-step spec §7.2b
-                        if data.len() == 108 {
+                        if data.len() == 148 {
                             let nmt = HeartbeatService::local_nmt();
                             // NodeKey_epoch peer: placeholder [0x42;32] untuk testing
                             // Production: ambil dari EpochAnchor peer — spec §7.2a
@@ -135,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 println!("[CORE] ❌ HB rejected from {}", from);
                             }
                         } else {
-                            println!("[CORE] ⚠️  HB wrong size: {} (expected 108)", data.len());
+                            println!("[CORE] ⚠️  HB wrong size: {} (expected 148)", data.len());
                         }
                     }
                     NodeSwarmEvent::GossipReceived { from, data } => {
@@ -165,7 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let _ = msg_tx.send((TOPIC_HEARTBEAT.to_string(), hb_bytes)).await;
-                println!("[CORE] 💓 HeartbeatUnit v9.0 #{} broadcast (108 bytes)", hb_counter);
+                println!("[CORE] 💓 HeartbeatUnit v9.1 #{} broadcast (148 bytes)", hb_counter);
             }
         }
     }
