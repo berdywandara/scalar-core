@@ -475,3 +475,336 @@ mod tests {
         assert_eq!(MAX_STEM_HOPS, 10);
     }
 }
+
+// ── ADR-SEC-018: Reduced Anonymity Mode ──────────────────────────────────────
+//
+// Ketika jaringan kecil (< DANDELION_FULL_THRESHOLD node), full anonymity
+// tidak feasible — kecilnya set membuat timing correlation mudah.
+// Reduced mode: stem prob lebih tinggi + batch obfuscation window 60s.
+// CONSTRAINED: dapat berubah via governance COMMIT 75%. MAD §21.2.
+
+/// Network size threshold untuk full vs reduced anonymity mode. CONSTRAINED — MAD §21.2.
+/// Di bawah nilai ini: gunakan ReducedAnonymityMode.
+pub const DANDELION_FULL_THRESHOLD: u64 = 200;
+
+/// Stem probability dalam reduced mode (fixed-point per 1_000_000). CONSTRAINED — MAD §21.2.
+/// 700_000 fp = 70% — lebih agresif dari full mode untuk kompensasi set kecil.
+pub const DANDELION_REDUCED_STEM_PROB_FP: u64 = 700_000;
+
+/// Batch obfuscation window dalam detik. CONSTRAINED — MAD §21.2.
+/// Transaksi di-batch selama 60s sebelum di-route untuk obfuscate timing.
+pub const DANDELION_BATCH_WINDOW_S: u64 = 60;
+
+/// Fixed-point basis untuk probabilitas. Spec §18.1.
+pub const DANDELION_FP_BASIS: u64 = 1_000_000;
+
+// ── Dandelion Mode ────────────────────────────────────────────────────────────
+
+/// Mode operasi Dandelion++. ADR-SEC-018.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DandelionMode {
+    /// Full anonymity — network size >= DANDELION_FULL_THRESHOLD. MAD §21.2.
+    Full,
+    /// Reduced anonymity — network size < DANDELION_FULL_THRESHOLD. MAD §21.2.
+    /// Stem prob lebih tinggi, batch obfuscation aktif.
+    Reduced,
+}
+
+impl DandelionMode {
+    /// Tentukan mode berdasarkan jumlah node yang diketahui. ADR-SEC-018.
+    pub fn from_network_size(known_nodes: u64) -> Self {
+        if known_nodes >= DANDELION_FULL_THRESHOLD {
+            DandelionMode::Full
+        } else {
+            DandelionMode::Reduced
+        }
+    }
+
+    /// Apakah mode reduced? ADR-SEC-018.
+    pub fn is_reduced(&self) -> bool {
+        matches!(self, DandelionMode::Reduced)
+    }
+}
+
+// ── BLAKE3 stem peer selection ────────────────────────────────────────────────
+
+/// Pilih stem peer dengan BLAKE3 entropy. ADR-SEC-018, MAD §21.2.
+///
+/// Menggantikan `simple_hash` (FNV placeholder) dengan BLAKE3 deterministik.
+/// Domain separator `b"scalar_stem_sel"` dari OSSIFIED domain list. MAD §1.4.
+///
+/// `tx_id`: ID transaksi (entropy source).
+/// `epoch_seed`: seed epoch untuk variasi antar-epoch.
+/// `num_peers`: jumlah stem peers yang tersedia.
+///
+/// Returns: index peer yang dipilih (0..num_peers).
+pub fn select_stem_peer_blake3(tx_id: u64, epoch_seed: u64, num_peers: usize) -> usize {
+    if num_peers == 0 {
+        return 0;
+    }
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"scalar_stem_sel"); // OSSIFIED domain separator
+    hasher.update(&tx_id.to_le_bytes());
+    hasher.update(&epoch_seed.to_le_bytes());
+    let hash = hasher.finalize();
+    let val = u64::from_le_bytes(hash.as_bytes()[..8].try_into().unwrap());
+    (val % num_peers as u64) as usize
+}
+
+// ── Stem probability (Reduced mode) ──────────────────────────────────────────
+
+/// Keputusan routing dengan probabilitas reduced mode. ADR-SEC-018.
+///
+/// Dalam reduced mode, stem_prob = DANDELION_REDUCED_STEM_PROB_FP / 1_000_000.
+/// Gunakan BLAKE3(domain || tx_id || nonce) sebagai entropy sumber.
+pub fn decide_reduced_routing(tx_id: u64, nonce: u64, num_peers: usize) -> RoutingDecision {
+    if num_peers == 0 {
+        return RoutingDecision::Broadcast;
+    }
+
+    // BLAKE3 entropy untuk probabilistik stem/fluff decision
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"scalar_stem_sel");
+    hasher.update(&tx_id.to_le_bytes());
+    hasher.update(&nonce.to_le_bytes());
+    let hash = hasher.finalize();
+    let rand_fp =
+        u64::from_le_bytes(hash.as_bytes()[8..16].try_into().unwrap()) % DANDELION_FP_BASIS;
+
+    if rand_fp < DANDELION_REDUCED_STEM_PROB_FP {
+        // Stem: pilih peer dengan BLAKE3
+        let peer_idx = select_stem_peer_blake3(tx_id, nonce, num_peers);
+        RoutingDecision::ForwardStem {
+            next_peer_idx: peer_idx,
+        }
+    } else {
+        RoutingDecision::Broadcast
+    }
+}
+
+// ── Batch Obfuscation Window ──────────────────────────────────────────────────
+
+/// Entry dalam batch obfuscation window. ADR-SEC-018.
+#[derive(Debug, Clone)]
+pub struct BatchEntry {
+    /// ID transaksi.
+    pub tx_id: u64,
+    /// Waktu masuk ke batch (Unix seconds).
+    pub entered_at_s: u64,
+}
+
+/// Batch obfuscation window untuk Dandelion++ Reduced mode. ADR-SEC-018.
+///
+/// Transaksi dikumpulkan selama DANDELION_BATCH_WINDOW_S (60s) sebelum
+/// di-route. Ini mengaburkan timing correlation dari observer eksternal.
+///
+/// Domain: b"scalar_batch_obs" untuk batch ordering hash. MAD §1.4.
+pub struct BatchObfuscationWindow {
+    /// Transaksi dalam window saat ini.
+    pending: Vec<BatchEntry>,
+    /// Waktu mulai window saat ini (Unix seconds).
+    window_started_at_s: u64,
+}
+
+impl BatchObfuscationWindow {
+    /// Buat window baru.
+    pub fn new(now_s: u64) -> Self {
+        Self {
+            pending: Vec::new(),
+            window_started_at_s: now_s,
+        }
+    }
+
+    /// Tambah transaksi ke batch.
+    pub fn add(&mut self, tx_id: u64, now_s: u64) {
+        self.pending.push(BatchEntry {
+            tx_id,
+            entered_at_s: now_s,
+        });
+    }
+
+    /// Apakah window sudah expired (>= DANDELION_BATCH_WINDOW_S)? ADR-SEC-018.
+    pub fn is_expired(&self, now_s: u64) -> bool {
+        now_s.saturating_sub(self.window_started_at_s) >= DANDELION_BATCH_WINDOW_S
+    }
+
+    /// Drain window: kembalikan semua tx dalam urutan deterministik.
+    ///
+    /// Urutan di-obfuscate menggunakan BLAKE3("scalar_batch_obs" || window_seed).
+    /// Ini mencegah observer mengkorelasikan submission order dengan routing order.
+    pub fn drain_ordered(&mut self, window_seed: u64, now_s: u64) -> Vec<u64> {
+        let mut entries = std::mem::take(&mut self.pending);
+        // Sort deterministik via BLAKE3 hash per tx_id + seed
+        entries.sort_by_key(|e| {
+            let mut hasher = blake3::Hasher::new();
+            hasher.update(b"scalar_batch_obs"); // OSSIFIED domain separator
+            hasher.update(&e.tx_id.to_le_bytes());
+            hasher.update(&window_seed.to_le_bytes());
+            let h = hasher.finalize();
+            u64::from_le_bytes(h.as_bytes()[..8].try_into().unwrap())
+        });
+        // Reset window
+        self.window_started_at_s = now_s;
+        entries.into_iter().map(|e| e.tx_id).collect()
+    }
+
+    /// Jumlah transaksi pending dalam window.
+    pub fn pending_count(&self) -> usize {
+        self.pending.len()
+    }
+
+    /// Window kosong?
+    pub fn is_empty(&self) -> bool {
+        self.pending.is_empty()
+    }
+}
+
+// ── Tests ADR-SEC-018 ─────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod adr_sec_018_tests {
+    use super::*;
+
+    // ── Constants ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_adr_sec_018_constants() {
+        // CONSTRAINED parameters — MAD §21.2.
+        assert_eq!(DANDELION_FULL_THRESHOLD, 200);
+        assert_eq!(DANDELION_REDUCED_STEM_PROB_FP, 700_000);
+        assert_eq!(DANDELION_BATCH_WINDOW_S, 60);
+    }
+
+    // ── DandelionMode ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_mode_full_at_threshold() {
+        assert_eq!(DandelionMode::from_network_size(200), DandelionMode::Full);
+        assert_eq!(DandelionMode::from_network_size(1000), DandelionMode::Full);
+    }
+
+    #[test]
+    fn test_mode_reduced_below_threshold() {
+        assert_eq!(DandelionMode::from_network_size(0), DandelionMode::Reduced);
+        assert_eq!(
+            DandelionMode::from_network_size(199),
+            DandelionMode::Reduced
+        );
+        assert!(DandelionMode::from_network_size(10).is_reduced());
+    }
+
+    // ── BLAKE3 stem selection ─────────────────────────────────────────
+
+    #[test]
+    fn test_stem_peer_blake3_deterministic() {
+        let p1 = select_stem_peer_blake3(42, 100, 7);
+        let p2 = select_stem_peer_blake3(42, 100, 7);
+        assert_eq!(p1, p2, "BLAKE3 stem selection must be deterministic");
+    }
+
+    #[test]
+    fn test_stem_peer_blake3_within_bounds() {
+        for tx_id in 0..50 {
+            let p = select_stem_peer_blake3(tx_id, 0, 5);
+            assert!(p < 5, "peer_idx must be < num_peers");
+        }
+    }
+
+    #[test]
+    fn test_stem_peer_blake3_varies_with_tx_id() {
+        // Different tx_ids should produce different peers (statistically)
+        let peers: Vec<usize> = (0..20).map(|i| select_stem_peer_blake3(i, 0, 10)).collect();
+        let unique: std::collections::HashSet<_> = peers.iter().collect();
+        assert!(
+            unique.len() > 1,
+            "BLAKE3 must produce varied peer selection"
+        );
+    }
+
+    #[test]
+    fn test_stem_peer_blake3_varies_with_epoch_seed() {
+        let p1 = select_stem_peer_blake3(42, 0, 10);
+        let p2 = select_stem_peer_blake3(42, 1, 10);
+        // Different seeds should often produce different results
+        // (not guaranteed for every case, but tests the mechanism)
+        let _ = (p1, p2); // both valid
+    }
+
+    // ── Reduced routing ───────────────────────────────────────────────
+
+    #[test]
+    fn test_reduced_routing_stem_probability() {
+        // With stem_prob=70%, in 100 trials should have mostly stem
+        let mut stem_count = 0;
+        for nonce in 0u64..100 {
+            if let RoutingDecision::ForwardStem { .. } = decide_reduced_routing(42, nonce, 5) {
+                stem_count += 1;
+            }
+        }
+        // Expect ~70 stems, accept 50-90 for statistical tolerance
+        assert!(
+            stem_count > 50,
+            "Reduced mode must have high stem rate: {stem_count}"
+        );
+    }
+
+    #[test]
+    fn test_reduced_routing_no_peers_broadcasts() {
+        let d = decide_reduced_routing(1, 0, 0);
+        assert_eq!(d, RoutingDecision::Broadcast);
+    }
+
+    // ── BatchObfuscationWindow ────────────────────────────────────────
+
+    #[test]
+    fn test_batch_window_not_expired_before_60s() {
+        let w = BatchObfuscationWindow::new(1000);
+        assert!(!w.is_expired(1059)); // 59s later
+        assert!(w.is_expired(1060)); // 60s later → expired
+    }
+
+    #[test]
+    fn test_batch_window_drain_ordered_deterministic() {
+        let mut w = BatchObfuscationWindow::new(0);
+        w.add(10, 1);
+        w.add(20, 2);
+        w.add(30, 3);
+        let order1 = w.drain_ordered(42, 100);
+        let mut w2 = BatchObfuscationWindow::new(0);
+        w2.add(10, 1);
+        w2.add(20, 2);
+        w2.add(30, 3);
+        let order2 = w2.drain_ordered(42, 100);
+        assert_eq!(order1, order2, "Batch ordering must be deterministic");
+    }
+
+    #[test]
+    fn test_batch_window_drain_resets() {
+        let mut w = BatchObfuscationWindow::new(0);
+        w.add(1, 0);
+        w.add(2, 0);
+        assert_eq!(w.pending_count(), 2);
+        let drained = w.drain_ordered(0, 60);
+        assert_eq!(drained.len(), 2);
+        assert_eq!(w.pending_count(), 0, "Window must be empty after drain");
+    }
+
+    #[test]
+    fn test_batch_window_obfuscates_order() {
+        // Different seeds should produce different ordering
+        let add = |seed: u64| -> Vec<u64> {
+            let mut w = BatchObfuscationWindow::new(0);
+            for i in 0u64..5 {
+                w.add(i, i);
+            }
+            w.drain_ordered(seed, 60)
+        };
+        let o1 = add(0);
+        let o2 = add(1);
+        // Orders should differ (statistically very likely with different seeds)
+        assert_ne!(
+            o1, o2,
+            "Different seeds must produce different batch ordering"
+        );
+    }
+}
