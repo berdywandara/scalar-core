@@ -51,7 +51,7 @@ const TS_SLACK_BIT_COUNT: usize = 21;
 
 /// Fee floor in sSCL. OSSIFIED — spec §9.1.
 const FEE_FLOOR_SSCL: u64 = 40;
-/// T_MAX_WAIT in ms. OSSIFIED — spec §4.3 CG.
+/// T_MAX_WAIT in ms. CONSTRAINED — D-026, MAD §21.2 (not OSSIFIED).
 const T_MAX_WAIT_MS: u64 = 30 * 60 * 1_000;
 /// Valid crypto version. OSSIFIED — spec §4.3 CG.
 const VALID_CRYPTO_VERSION: u64 = 0x01;

@@ -1,3 +1,4 @@
+pub mod protocol_params;
 // File: crates/scalar-emission/src/lib.rs
 
 pub mod accounting;

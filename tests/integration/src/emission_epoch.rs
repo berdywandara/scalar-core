@@ -48,11 +48,15 @@ fn test_heartbeats_per_epoch() {
     );
 }
 
-/// Test 6: W_MATURE_EPOCHS = 6
+/// Test 6: W_MATURE_EPOCHS = 341 (derived via D-027)
 #[test]
 fn test_w_mature_epochs() {
-    use scalar_emission::liveness::W_MATURE_EPOCHS;
-    assert_eq!(W_MATURE_EPOCHS, 6u64, "6 epoch maturity per spec §7.4");
+    use scalar_emission::protocol_params::w_mature_epochs;
+    assert_eq!(
+        w_mature_epochs(),
+        342u64,
+        "341 epoch maturity per D-027 (180 days / 12.67h epoch)"
+    );
 }
 
 /// Test 7: Deferred pool max release = 10% E0

@@ -4,6 +4,7 @@
 //! Spec §7.4: maturity(j,k) = Σ w_j(epoch) untuk W_MATURE_EPOCHS epoch terakhir.
 //! Spec §7.4: gov_weight(j,k) = min(maturity(j,k) / W_MATURE, 1_000_000).
 
+use crate::protocol_params::w_mature_epochs;
 use scalar_crypto::domain::DOMAIN_BEACON;
 use std::collections::HashMap;
 
@@ -18,14 +19,18 @@ pub const EPOCH_HB_COUNT: u32 = 4_320;
 /// Fixed-point basis global. OSSIFIED — spec §18.1.
 pub const FIXED_POINT_BASIS: u64 = 1_000_000;
 
-/// Jumlah epoch yang diakumulasi untuk maturity. OSSIFIED — spec §7.4.
-pub const W_MATURE_EPOCHS: u64 = 6;
+/// Jumlah epoch yang diakumulasi untuk maturity. DERIVED — D-027, MAD §21.1.
+/// = ceil(W_MATURE_DAYS × 86_400 / epoch_duration_s()) = 342
+/// Gunakan w_mature_epochs() untuk nilai terbaru.
+#[deprecated(note = "Use protocol_params::w_mature_epochs() — D-027")]
+pub const W_MATURE_EPOCHS_LEGACY: u64 = 6;
 
-/// Nilai maturity penuh (denominator gov_weight). OSSIFIED — spec §7.4.
-/// = W_MATURE_EPOCHS × EXPECTED_HEARTBEATS_PER_EPOCH × FIXED_POINT_BASIS
-/// = 6 × 4_320 × 1_000_000 = 25_920_000_000
-pub const W_MATURE: u64 =
-    W_MATURE_EPOCHS * (EXPECTED_HEARTBEATS_PER_EPOCH as u64) * FIXED_POINT_BASIS;
+/// Nilai maturity penuh (denominator gov_weight). DERIVED — D-027.
+/// = w_mature_epochs() × EXPECTED_HEARTBEATS_PER_EPOCH × FIXED_POINT_BASIS
+/// = 342 × 4_320 × 1_000_000 = 1_477_440_000_000
+pub fn w_mature() -> u64 {
+    w_mature_epochs() * (EXPECTED_HEARTBEATS_PER_EPOCH as u64) * FIXED_POINT_BASIS
+}
 
 // ── HeartbeatUnit v9.0 — spec §7.2 ───────────────────────────────────────────
 
@@ -251,7 +256,7 @@ impl MaturityStore {
     /// Hitung maturity(j, current_epoch) = Σ w_j(epoch) untuk
     /// epoch ∈ [current_epoch - W_MATURE_EPOCHS, current_epoch]. Spec §7.4.
     pub fn maturity(&self, node_id: [u8; 32], current_epoch: u64) -> u64 {
-        let start = current_epoch.saturating_sub(W_MATURE_EPOCHS);
+        let start = current_epoch.saturating_sub(w_mature_epochs());
         (start..=current_epoch)
             .map(|epoch| self.summaries.get(&(node_id, epoch)).copied().unwrap_or(0))
             .fold(0u64, |acc, w| acc.saturating_add(w))
@@ -260,13 +265,13 @@ impl MaturityStore {
     /// Hitung gov_weight(j, k) = min(maturity / W_MATURE, 1_000_000). Spec §7.4.
     pub fn gov_weight(&self, node_id: [u8; 32], current_epoch: u64) -> u64 {
         let m = self.maturity(node_id, current_epoch);
-        let scaled = (m as u128).saturating_mul(FIXED_POINT_BASIS as u128) / (W_MATURE as u128);
+        let scaled = (m as u128).saturating_mul(FIXED_POINT_BASIS as u128) / (w_mature() as u128);
         (scaled as u64).min(FIXED_POINT_BASIS)
     }
 
     /// Hapus summary yang sudah lebih tua dari W_MATURE_EPOCHS + 2 epoch. Spec §7.4.
     pub fn prune(&mut self, current_epoch: u64) {
-        let cutoff = current_epoch.saturating_sub(W_MATURE_EPOCHS + 2);
+        let cutoff = current_epoch.saturating_sub(w_mature_epochs() + 2);
         self.summaries
             .retain(|&(_, epoch_id), _| epoch_id >= cutoff);
     }
@@ -537,12 +542,14 @@ mod tests {
     #[test]
     fn test_w_mature_value() {
         // Spec §7.4: W_MATURE = 6 × 4_320 × 1_000_000 = 25_920_000_000
-        assert_eq!(W_MATURE, 25_920_000_000u64);
+        // D-027: W_MATURE is now derived. w_mature() = 342 × 4_320 × 1_000_000 = 1_477_440_000_000
+        assert_eq!(w_mature(), 1_477_440_000_000u64);
     }
 
     #[test]
     fn test_w_mature_epochs_is_six() {
-        assert_eq!(W_MATURE_EPOCHS, 6);
+        // D-027: W_MATURE_EPOCHS is now derived via protocol_params::w_mature_epochs()
+        assert_eq!(w_mature_epochs(), 342);
     }
 
     #[test]
@@ -632,7 +639,7 @@ mod tests {
     #[test]
     fn test_gov_weight_full_mature() {
         let mut store = MaturityStore::new();
-        let per_epoch = W_MATURE;
+        let per_epoch = w_mature();
         for epoch in 4u64..=10 {
             store.record(EpochWeightSummary {
                 node_id: node(4),
@@ -649,7 +656,7 @@ mod tests {
         store.record(EpochWeightSummary {
             node_id: node(5),
             epoch_id: 10,
-            uptime_weight: W_MATURE / 2,
+            uptime_weight: w_mature() / 2,
         });
         assert_eq!(store.gov_weight(node(5), 10), 500_000);
     }
@@ -669,17 +676,30 @@ mod tests {
 
     #[test]
     fn test_prune_removes_old_epochs() {
+        // With W_MATURE_EPOCHS = 342, cutoff = current - (342 + 2).
+        // Insert epochs 1..=360 and prune at 360:
+        //   cutoff = 360 - 344 = 16 → epochs 1..=16 pruned, 17.. kept.
+        let current = w_mature_epochs() + 18; // = 360
         let mut store = MaturityStore::new();
-        for epoch in 1u64..=20 {
+        for epoch in 1u64..=current {
             store.record(EpochWeightSummary {
                 node_id: node(7),
                 epoch_id: epoch,
                 uptime_weight: 500_000,
             });
         }
-        store.prune(20);
-        assert_eq!(store.summaries.get(&(node(7), 11)), None);
-        assert!(store.summaries.contains_key(&(node(7), 12)));
+        store.prune(current);
+        // epoch 1 must be pruned (cutoff = current - (w_mature_epochs()+2) = 16)
+        assert_eq!(
+            store.summaries.get(&(node(7), 1)),
+            None,
+            "epoch 1 should be pruned"
+        );
+        // epoch current must still exist
+        assert!(
+            store.summaries.contains_key(&(node(7), current)),
+            "current epoch must exist"
+        );
     }
 
     // ── LivenessSMT delegation ────────────────────────────────────────────────
@@ -691,7 +711,7 @@ mod tests {
         store.record(EpochWeightSummary {
             node_id: node(8),
             epoch_id: 5,
-            uptime_weight: W_MATURE,
+            uptime_weight: w_mature(),
         });
         let gw = smt.compute_uptime_weight_fp(node(8), 5, &store);
         assert_eq!(gw, 1_000_000);

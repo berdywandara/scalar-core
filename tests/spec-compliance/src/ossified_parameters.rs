@@ -79,7 +79,8 @@ fn compliance_heartbeats_per_epoch() {
 
 #[test]
 fn compliance_w_mature_epochs() {
-    assert_eq!(scalar_emission::liveness::W_MATURE_EPOCHS, 6u64);
+    // D-027: W_MATURE_EPOCHS is now derived via protocol_params::w_mature_epochs()
+    assert_eq!(scalar_emission::protocol_params::w_mature_epochs(), 342u64);
 }
 
 // ── §9 Fee Model ──────────────────────────────────────────────────────────────

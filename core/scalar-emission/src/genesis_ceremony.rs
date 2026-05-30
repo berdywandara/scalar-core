@@ -21,6 +21,7 @@
 //! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 
 use crate::liveness::derive_node_key_epoch;
+use crate::protocol_params::{genesis_anchor_deadline_seq, GENESIS_WINDOW_DAYS};
 
 // ── Genesis constants — spec §12.9, §12.10 ───────────────────────────────────
 
@@ -29,6 +30,18 @@ pub const GENESIS_MAX_BYTES: usize = 1_024;
 
 /// Epoch ID genesis = 0. Spec §12.10.
 pub const GENESIS_EPOCH_ID: u64 = 0;
+
+/// Genesis anchor deadline in heartbeat seq numbers. DERIVED — D-027.
+/// = ceil(GENESIS_WINDOW_DAYS(7) × 86_400 / HEARTBEAT_INTERVAL_S(120)) = 5_040.
+/// Replaces hardcoded 4_320 (was based on obsolete 600s heartbeat interval).
+pub fn genesis_anchor_deadline() -> u64 {
+    genesis_anchor_deadline_seq()
+}
+
+/// Genesis window in days. CONSTRAINED — D-027, MAD §21.2.
+pub fn genesis_window_days() -> u64 {
+    GENESIS_WINDOW_DAYS
+}
 
 // ── NodeKey_epoch_0 — spec §7.2a ──────────────────────────────────────────────
 

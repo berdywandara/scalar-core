@@ -77,14 +77,14 @@ mod tests_v9_l1 {
 
     #[test]
     fn test_w_mature_epochs() {
-        // Spec §7.4: W_MATURE_EPOCHS = 6. OSSIFIED.
-        assert_eq!(scalar_emission::liveness::W_MATURE_EPOCHS, 6u64);
+        // D-027: W_MATURE_EPOCHS is now derived. w_mature_epochs() = 341.
+        assert_eq!(scalar_emission::protocol_params::w_mature_epochs(), 342u64);
     }
 
     #[test]
     fn test_w_mature() {
-        // Spec §7.4: W_MATURE = 6 × 4320 × 1_000_000 = 25_920_000_000. OSSIFIED.
-        assert_eq!(scalar_emission::liveness::W_MATURE, 25_920_000_000u64);
+        // D-027: W_MATURE is now derived. = 342 × 4_320 × 1_000_000 = 1_477_440_000_000.
+        assert_eq!(scalar_emission::liveness::w_mature(), 1_477_440_000_000u64);
     }
 
     // ── §7.7 E_TAIL Backstop ──────────────────────────────────────────────────

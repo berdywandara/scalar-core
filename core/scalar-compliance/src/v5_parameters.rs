@@ -113,18 +113,21 @@ mod tests {
 
 #[cfg(test)]
 mod tests_compliance {
-    use scalar_emission::liveness::{W_MATURE, W_MATURE_EPOCHS};
+    use scalar_emission::liveness::w_mature;
+    use scalar_emission::protocol_params::w_mature_epochs;
 
     // ── §7.4 Maturity Constants ───────────────────────────────────────────
 
     #[test]
     fn test_w_mature_epochs_ossified() {
-        assert_eq!(W_MATURE_EPOCHS, 6u64);
+        // D-027: W_MATURE_EPOCHS derived = 342
+        assert_eq!(w_mature_epochs(), 342u64);
     }
 
     #[test]
     fn test_w_mature_value_ossified() {
-        assert_eq!(W_MATURE, 25_920_000_000u64);
+        // D-027: W_MATURE derived = 342 × 4_320 × 1_000_000
+        assert_eq!(w_mature(), 1_477_440_000_000u64);
     }
 
     // ── §9.2 Fee Distribution Constants v9.0 ─────────────────────────────
