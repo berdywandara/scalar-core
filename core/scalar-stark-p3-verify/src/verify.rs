@@ -135,6 +135,8 @@ mod tests {
             reward_amount_sscl: 1_000_000,
             node_auth_valid: true,
             mint_nullifier: [1u64, 2, 3, 4],
+            dep_amount_sscl: 0,
+            vest_lock_epochs: 0,
         }
     }
 
