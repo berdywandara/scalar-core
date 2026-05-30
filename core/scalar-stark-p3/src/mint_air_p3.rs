@@ -248,7 +248,7 @@ pub fn verify_mint_nullifier_p3(
 // ── MintLinearAir (MC1 + MC3 + MC4 + MC5) ────────────────────────────────────
 
 /// Trace width for MintLinearAir.
-pub const MINT_LINEAR_WIDTH: usize = 7;
+pub const MINT_LINEAR_WIDTH: usize = 9;  // extended for MC3-DEP + MC3-VEST
 
 // Column indices — OSSIFIED
 /// MC1: crypto_version (must equal MINT_CRYPTO_VERSION = 1).
@@ -269,6 +269,12 @@ pub const MINT_COL_REWARD_INV: usize = 5;
 /// Constraint: null0 == pv_null_0 (explicit binding, not just transcript).
 /// Proves nullifier is non-zero in-circuit: null0 * null_nz == null0. Spec §5.2 MC2.
 pub const MINT_COL_NULL0: usize = 6;
+/// MC3-DEP: is_dep flag (0 or 1). 1 = this claim deposited residual to DEP. MAD §20.2.
+/// Circuit flag — not a prover conditional. Both branches always evaluated in AIR.
+pub const MINT_COL_IS_DEP: usize = 7;
+/// MC3-VEST: is_vest flag (0 or 1). 1 = minted UTXO has vesting lock. MAD §20.2.
+/// Circuit flag — not a prover conditional. Both branches always evaluated in AIR.
+pub const MINT_COL_IS_VEST: usize = 8;
 
 /// Public values layout for MintLinearAir (11 elements):
 ///   [0]  crypto_version
@@ -276,7 +282,7 @@ pub const MINT_COL_NULL0: usize = 6;
 ///   [2]  reward_amount_sscl
 ///   [3]  node_auth_valid
 ///   [4..7] nullifier[0..4] from MC2 (binds the two sub-AIRs together)
-pub const MINT_LINEAR_PI_LEN: usize = 8;
+pub const MINT_LINEAR_PI_LEN: usize = 10; // extended: dep_amount + vest_lock
 
 /// MintLinearAir: constraint groups MC1, MC3, MC4, MC5. Spec §5.2.
 #[derive(Clone, Debug)]
@@ -365,6 +371,19 @@ where
         let _ = pv_null_1;
         let _ = pv_null_2;
         let _ = pv_null_3;
+
+        // MC3-DEP + MC3-VEST: circuit flags. MAD §20.2.
+        if local.len() > MINT_COL_IS_VEST && pv.len() > 9 {
+            let is_dep  = local[MINT_COL_IS_DEP];
+            let is_vest = local[MINT_COL_IS_VEST];
+            let pv_dep_amount = pv[8];
+            let pv_vest_lock  = pv[9];
+            let one = AB::Expr::ONE;
+            builder.assert_eq(is_dep.into() * (one.clone() - is_dep.into()), AB::Expr::ZERO);
+            builder.assert_eq(is_vest.into() * (one.clone() - is_vest.into()), AB::Expr::ZERO);
+            builder.assert_eq((one.clone() - is_dep.into()) * pv_dep_amount.into(), AB::Expr::ZERO);
+            builder.assert_eq((one - is_vest.into()) * pv_vest_lock.into(), AB::Expr::ZERO);
+        }
     }
 }
 
@@ -383,6 +402,10 @@ pub struct MintLinearPublicInputs {
     pub node_auth_valid: bool,
     /// MC2 link: mint nullifier from MintNullifierAir output. Spec §5.2 MC2.
     pub mint_nullifier: [u64; 4],
+    /// MC3-DEP: amount deposited to Deferred Emission Pool. 0 if no DEP. MAD §20.2.
+    pub dep_amount_sscl: u64,
+    /// MC3-VEST: vesting lock period in epochs. 0 if no vesting. MAD §20.2.
+    pub vest_lock_epochs: u64,
 }
 
 impl MintLinearPublicInputs {
@@ -451,6 +474,8 @@ pub fn build_mint_linear_pv(pi: &MintLinearPublicInputs) -> Vec<Goldilocks> {
     }
     // S_E is NOT a public value — embedded directly in eval() as AB::F::from_u64(MINT_S_E_SSCL).
     // This prevents prover from substituting a fake S_E. Spec §5.2 MC3.
+    pv.push(Goldilocks::new(pi.dep_amount_sscl));   // [8] MC3-DEP
+    pv.push(Goldilocks::new(pi.vest_lock_epochs));  // [9] MC3-VEST
     pv
 }
 
@@ -491,6 +516,8 @@ fn build_mint_linear_trace(pi: &MintLinearPublicInputs) -> RowMajorMatrix<Goldil
     let reward_inv_val = result as u64;
 
     // Single row, padded to 4 rows (Plonky3 minimum trace length).
+    let is_dep_val:  u64 = if pi.dep_amount_sscl  > 0 { 1 } else { 0 };
+    let is_vest_val: u64 = if pi.vest_lock_epochs > 0 { 1 } else { 0 };
     let row = [
         Goldilocks::new(pi.crypto_version as u64),  // col 0: MC1
         Goldilocks::new(headroom),                  // col 1: MC3 headroom
@@ -499,6 +526,8 @@ fn build_mint_linear_trace(pi: &MintLinearPublicInputs) -> RowMajorMatrix<Goldil
         Goldilocks::new(null_nz),                   // col 4: MC2 null_nz
         Goldilocks::new(reward_inv_val),            // col 5: MC4 reward_inv
         Goldilocks::new(pi.mint_nullifier[0]),      // col 6: MC2/P3 null0
+        Goldilocks::new(is_dep_val),                // col 7: MC3-DEP flag
+        Goldilocks::new(is_vest_val),               // col 8: MC3-VEST flag
     ];
 
     let num_rows = 4usize; // Plonky3 minimum
@@ -647,6 +676,8 @@ mod tests {
             reward_amount_sscl: 12_600_000_000_000,
             node_auth_valid: true,
             mint_nullifier: null_claim.mint_nullifier,
+            dep_amount_sscl: 0,  // MC3-DEP: no DEP deposit
+            vest_lock_epochs: 0, // MC3-VEST: no vesting
         }
     }
 
@@ -932,6 +963,8 @@ mod bench {
             reward_amount_sscl: 1_000_000,
             node_auth_valid: true,
             mint_nullifier: [1u64; 4],
+            dep_amount_sscl: 0,  // MC3-DEP: no DEP deposit
+            vest_lock_epochs: 0, // MC3-VEST: no vesting
         }
     }
 
