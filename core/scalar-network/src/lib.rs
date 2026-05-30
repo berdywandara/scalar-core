@@ -1,4 +1,5 @@
 pub mod anchor_rate_limit;
+pub mod mev_protection;
 // File: crates/scalar-network/src/lib.rs
 
 pub mod adaptive_mux;
