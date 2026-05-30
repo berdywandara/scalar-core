@@ -130,3 +130,35 @@ is ~3.8s per spec MTS benchmark (P3-R9, commit 5aa8be7). Transfer AIR alone = 1.
 | imt_path_gen_ms | **9.034** | B3.1 |
 | quorum_wan50_ms | **129** | B4-SIM |
 
+
+---
+
+## B1.1-FULL — Full BatchTransferProof (CA+CB+CC+CD/CE/CG)
+
+| Metric | Value | Status |
+|--------|-------|--------|
+| prove_median_ms | **7280** | ⚠️ 7.28s (Codespace 4vCPU) |
+| prove_p95_ms | **7379** | |
+| verify_median_ms | **20** | ✅ |
+| proof_ca_kb | 191 | |
+| proof_cb_kb | 283 | |
+| proof_cc_kb | 138 | |
+| proof_cdcecg_kb | 83 | |
+| **proof_total_kb** | **695** | ✅ <1MB budget |
+
+**Perbandingan hardware:**
+- Codespace 4vCPU: 7280ms
+- Dedicated EPYC (P3-R9): ~3800ms
+- Codespace ~1.9× lebih lambat dari dedicated
+
+**PARAMETER UPDATE — FINAL:**
+
+| Parameter | Lama | Baru | Basis |
+|-----------|------|------|-------|
+| MICROCOMMITMENT_TRIGGER_TX | 50 | **41** | floor(300/7.28) |
+| SUBEPOCH_DURATION_S (Codespace) | 1900 | **3640** (~61 min) | 7.28×5×100 |
+| SUBEPOCH_DURATION_S (dedicated EPYC) | 1900 | **1900** | 3.8×5×100 (P3-R9) |
+
+**Impact D-023/D-025:**
+- D-023: 41 tx per MicroCommitment batch (turun dari 50)
+- D-025: 695KB total proof — well within 1MB network budget

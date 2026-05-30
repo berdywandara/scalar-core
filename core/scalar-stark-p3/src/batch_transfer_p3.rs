@@ -147,6 +147,9 @@ pub enum BatchTransferError {
     )]
     ConservationViolated { witness_sum: u64, claimed_sum: u64 },
 
+    #[error("Internal/benchmark error: {0}")]
+    Other(String),
+
     #[error(
         "Nonmembership witness tree mismatch at index {index}: expected {expected}, \
              got {got}"
@@ -1298,4 +1301,206 @@ mod bench {
             "[P3-R9] Spec §15.6: all tiers (A/B/C) must prove without GPU — verified by CPU-only Codespace"
         );
     }
+}
+
+// ── Benchmark helper — pub untuk dipakai dari examples/ ──────────────────────
+
+/// Build valid TransferWitnesses + TransferPublicClaims untuk benchmarking.
+/// Menggunakan 2 input UTXO dengan nilai deterministik dari `seed`. Pub.
+pub fn build_bench_transfer_input(
+    seed: u64,
+) -> Result<(TransferWitnesses, TransferPublicClaims, [u64; 4]), BatchTransferError> {
+    use crate::membership_air_p3::{MembershipWitness, IMT_DEPTH};
+    use crate::nonmembership_air_p3::{
+        NonMembershipWitness, SparseTree, DOMAIN_SMT_ACTIVE_HI, DOMAIN_SMT_ACTIVE_LO,
+        DOMAIN_SMT_ARCHIVED_HI, DOMAIN_SMT_ARCHIVED_LO, SMT_DEPTH,
+    };
+    use crate::ownership_air_p3::{
+        poseidon2_hash, InputWitness, DOMAIN_COMMITMENT_FE, DOMAIN_NULL_FE,
+    };
+    use p3_goldilocks::Goldilocks;
+    use scalar_crypto::imt::IncrementalMerkleTree;
+
+    // ── Build 2 InputWitness ──────────────────────────────────────────────────
+    let make_witness = |s: u64| InputWitness {
+        secret: 0xDEAD_BEEF_0000_0000 | s,
+        value: 500_000_000 + s,
+        owner_pubkey_lo: 0xABCD_EF00 | (s & 0xFFFF_FFFF),
+        owner_pubkey_hi: 0x1234_5678,
+        salt: 0xCAFE_BABE_0000_0000 | s,
+        spending_key_lo: 0x1111_1111,
+        spending_key_hi: 0x2222_2222,
+    };
+    let ow = vec![make_witness(seed), make_witness(seed + 1)];
+
+    // ── Compute commitment bytes per witness ──────────────────────────────────
+    let commitment_bytes_of = |w: &InputWitness| -> [u8; 32] {
+        let input = [
+            Goldilocks::new(DOMAIN_COMMITMENT_FE),
+            Goldilocks::new(w.value),
+            Goldilocks::new(w.owner_pubkey_lo),
+            Goldilocks::new(w.owner_pubkey_hi),
+            Goldilocks::new(w.secret),
+            Goldilocks::new(w.salt),
+            Goldilocks::new(0),
+            Goldilocks::new(0),
+        ];
+        let h = poseidon2_hash(&input);
+        let mut out = [0u8; 32];
+        for (i, &v) in h.iter().enumerate() {
+            out[i * 8..(i + 1) * 8].copy_from_slice(&v.to_le_bytes());
+        }
+        out
+    };
+
+    let nullifier_bytes_of = |w: &InputWitness| -> [u8; 32] {
+        let input = [
+            Goldilocks::new(DOMAIN_NULL_FE),
+            Goldilocks::new(w.secret),
+            Goldilocks::new(w.spending_key_lo),
+            Goldilocks::new(w.spending_key_hi),
+            Goldilocks::new(0),
+            Goldilocks::new(0),
+            Goldilocks::new(0),
+            Goldilocks::new(0),
+        ];
+        let h = poseidon2_hash(&input);
+        let mut out = [0u8; 32];
+        for (i, &v) in h.iter().enumerate() {
+            out[i * 8..(i + 1) * 8].copy_from_slice(&v.to_le_bytes());
+        }
+        out
+    };
+
+    let commitments: Vec<[u8; 32]> = ow.iter().map(commitment_bytes_of).collect();
+
+    // ── Build IMT + membership witnesses ─────────────────────────────────────
+    let mut imt = IncrementalMerkleTree::new();
+    for c in &commitments {
+        imt.append(c)
+            .map_err(|e| BatchTransferError::Other(format!("{e:?}")))?;
+    }
+    let imt_root_bytes = imt.root();
+    let imt_root: [u64; 4] = core::array::from_fn(|i| {
+        u64::from_le_bytes(imt_root_bytes[i * 8..(i + 1) * 8].try_into().unwrap())
+    });
+
+    let mut membership: Vec<MembershipWitness> = Vec::with_capacity(ow.len());
+    for (idx, commitment) in commitments.iter().enumerate() {
+        let path = imt
+            .prove_membership(idx as u64)
+            .map_err(|e| BatchTransferError::Other(format!("{e:?}")))?;
+        let mut siblings = [[0u64; 4]; IMT_DEPTH];
+        for (i, sib) in path.siblings.iter().enumerate() {
+            for j in 0..4 {
+                siblings[i][j] = u64::from_le_bytes(sib[j * 8..(j + 1) * 8].try_into().unwrap());
+            }
+        }
+        membership.push(MembershipWitness {
+            commitment: *commitment,
+            leaf_index: idx as u64,
+            siblings,
+        });
+    }
+
+    // ── Build empty SMT non-membership witnesses ──────────────────────────────
+    let empty_smt_siblings = |dl: u64, dh: u64| -> [[u64; 4]; SMT_DEPTH] {
+        let mut cur = [0u64; 4];
+        let mut out = [[0u64; 4]; SMT_DEPTH];
+        for level in 0..SMT_DEPTH {
+            out[level] = cur;
+            let inp = [
+                Goldilocks::new(dl),
+                Goldilocks::new(dh),
+                Goldilocks::new(cur[0]),
+                Goldilocks::new(cur[1]),
+                Goldilocks::new(cur[2]),
+                Goldilocks::new(cur[3]),
+                Goldilocks::new(cur[0]),
+                Goldilocks::new(cur[1]),
+            ];
+            cur = poseidon2_hash(&inp);
+        }
+        out
+    };
+
+    let active_siblings = empty_smt_siblings(DOMAIN_SMT_ACTIVE_LO, DOMAIN_SMT_ACTIVE_HI);
+    let archived_siblings = empty_smt_siblings(DOMAIN_SMT_ARCHIVED_LO, DOMAIN_SMT_ARCHIVED_HI);
+
+    let empty_smt_root = |dl: u64, dh: u64| -> [u8; 32] {
+        let sibs = empty_smt_siblings(dl, dh);
+        let mut cur = sibs[SMT_DEPTH - 1];
+        let inp = [
+            Goldilocks::new(dl),
+            Goldilocks::new(dh),
+            Goldilocks::new(cur[0]),
+            Goldilocks::new(cur[1]),
+            Goldilocks::new(cur[2]),
+            Goldilocks::new(cur[3]),
+            Goldilocks::new(cur[0]),
+            Goldilocks::new(cur[1]),
+        ];
+        cur = poseidon2_hash(&inp);
+        let mut out = [0u8; 32];
+        for (i, &v) in cur.iter().enumerate() {
+            out[i * 8..(i + 1) * 8].copy_from_slice(&v.to_le_bytes());
+        }
+        out
+    };
+
+    let active_root = empty_smt_root(DOMAIN_SMT_ACTIVE_LO, DOMAIN_SMT_ACTIVE_HI);
+    let archived_root = empty_smt_root(DOMAIN_SMT_ARCHIVED_LO, DOMAIN_SMT_ARCHIVED_HI);
+
+    let nm_active: Vec<NonMembershipWitness> = ow
+        .iter()
+        .map(|w| NonMembershipWitness {
+            nullifier: nullifier_bytes_of(w),
+            siblings: active_siblings,
+            tree: SparseTree::Active,
+        })
+        .collect();
+
+    let nm_archived: Vec<NonMembershipWitness> = ow
+        .iter()
+        .map(|w| NonMembershipWitness {
+            nullifier: nullifier_bytes_of(w),
+            siblings: archived_siblings,
+            tree: SparseTree::Archived,
+        })
+        .collect();
+
+    let witnesses = TransferWitnesses {
+        ownership: ow,
+        membership,
+        nonmembership_active: nm_active,
+        nonmembership_archived: nm_archived,
+    };
+
+    // ── Derive public claims ──────────────────────────────────────────────────
+    use crate::transfer_public_inputs::{TransferPublicInputsP3, FEE_FLOOR_SSCL, T_MAX_WAIT_MS};
+    let fee = FEE_FLOOR_SSCL;
+    let sum_inputs: u64 = witnesses.ownership.iter().map(|w| w.value).sum();
+    let now_ms = 1_700_000_000_000u64;
+    let pi = TransferPublicInputsP3 {
+        fee_total_sscl: fee,
+        sum_inputs_sscl: sum_inputs,
+        sum_outputs_sscl: sum_inputs - fee,
+        crypto_version: 0x01,
+        entry_timestamp_ms: now_ms - T_MAX_WAIT_MS / 2,
+        current_timestamp_ms: now_ms,
+        utxo_set_root: active_root,
+        cb_membership_verified: true,
+        nullifier_active_root: active_root,
+        nullifier_archived_root: archived_root,
+        cc_nonmembership_verified: true,
+        output_nonzero: true,
+        single_utxo_source: true,
+        commitment_hash: [0u64; 4],
+        nullifier_hash: [0u64; 4],
+    };
+
+    let claims = derive_public_claims(&witnesses, pi, imt_root)
+        .map_err(|e| BatchTransferError::Other(format!("{e:?}")))?;
+
+    Ok((witnesses, claims, imt_root))
 }
