@@ -3,8 +3,8 @@
 //! Re-implements MintLinearAir constraints independently from
 //! scalar-stark-p3/mint_air_p3.rs. Written from spec §5.2.
 //!
-//! Trace width: 7 (OSSIFIED — must match MINT_LINEAR_WIDTH).
-//! Public values: 8 (version, total_minted, reward, auth, null[0..3]).
+//! Trace width: 9 (must match MINT_LINEAR_WIDTH — extended for MC3-DEP + MC3-VEST).
+//! Public values: 10 (version, total_minted, reward, auth, null[0..3], dep_amount, vest_lock).
 //!
 //! Constraints (written independently from spec §5.2):
 //!   MC1 — version == pv_version
@@ -13,7 +13,9 @@
 //!   MC4 — reward * reward_inv == 1 (reward > 0 via multiplicative inverse)
 //!   MC5 — auth == pv_auth (node authorization)
 //!   MC2 — null_nz == 1 (nullifier non-zero flag)
-//!   MC2 — null0 == pv_null_0 + null0 * null_nz == null0 (nullifier binding)
+//!   MC2   — null0 == pv_null_0 + null0 * null_nz == null0 (nullifier binding)
+//!   MC3-DEP  — is_dep  boolean flag; (1-is_dep)*dep_amount==0 (MAD §20.2)
+//!   MC3-VEST — is_vest boolean flag; (1-is_vest)*vest_lock==0 (MAD §20.2)
 
 use p3_air::{Air, AirBuilder, BaseAir, WindowAccess};
 use p3_field::PrimeCharacteristicRing;
@@ -21,11 +23,11 @@ use p3_goldilocks::Goldilocks;
 
 // ── OSSIFIED constants — re-stated from spec, not imported ───────────────────
 
-/// Trace width. OSSIFIED — must equal scalar-stark-p3::MINT_LINEAR_WIDTH = 7.
-pub const MINT_TRACE_WIDTH_V2: usize = 7;
+/// Trace width. Must equal scalar-stark-p3::MINT_LINEAR_WIDTH = 9 (post MC3-DEP/VEST ext).
+pub const MINT_TRACE_WIDTH_V2: usize = 9;
 
-/// Public values count. Must equal scalar-stark-p3::MINT_LINEAR_PI_LEN = 8.
-pub const MINT_PI_LEN_V2: usize = 8;
+/// Public values count. Must equal scalar-stark-p3::MINT_LINEAR_PI_LEN = 10.
+pub const MINT_PI_LEN_V2: usize = 10;
 
 /// S_E = 18_900_000 SCL in sSCL. OSSIFIED spec §3.2.
 const MINT_S_E_SSCL: u64 = 18_900_000 * 100_000_000;
@@ -37,7 +39,9 @@ const COL_REWARD: usize = 2;
 const COL_AUTH: usize = 3;
 const COL_NULL_NZ: usize = 4;
 const COL_REWARD_INV: usize = 5;
-const COL_NULL0: usize = 6;
+const COL_NULL0:   usize = 6;
+const COL_IS_DEP:  usize = 7; // MC3-DEP circuit flag. MAD §20.2.
+const COL_IS_VEST: usize = 8; // MC3-VEST circuit flag. MAD §20.2.
 
 // Public value indices
 const PV_VERSION: usize = 0;
@@ -46,6 +50,8 @@ const PV_REWARD: usize = 2;
 const PV_AUTH: usize = 3;
 const PV_NULL_0: usize = 4;
 // PV_NULL_1..3 = 5..7 bound via Fiat-Shamir transcript
+const PV_DEP_AMOUNT: usize = 8; // dep_amount_sscl. MC3-DEP. MAD §20.2.
+const PV_VEST_LOCK:  usize = 9; // vest_lock_epochs. MC3-VEST. MAD §20.2.
 
 /// Independent second implementation of Mint Linear AIR. Spec §15.3.
 /// Constraint logic written from spec §5.2, not copied from scalar-stark-p3.
@@ -123,5 +129,22 @@ where
         builder.assert_eq(null0, pv_null_0);
         let null0_times_nz: AB::Expr = null0.into() * null_nz.into();
         builder.assert_eq(null0_times_nz, null0);
+
+        // MC3-DEP + MC3-VEST: circuit flags. MAD §20.2.
+        // Independent implementation written from spec, not copied from primary.
+        if local.len() > COL_IS_VEST && pv.len() > PV_VEST_LOCK {
+            let is_dep  = local[COL_IS_DEP];
+            let is_vest = local[COL_IS_VEST];
+            let pv_dep  = pv[PV_DEP_AMOUNT];
+            let pv_vest = pv[PV_VEST_LOCK];
+            let one = AB::Expr::ONE;
+            // Boolean: flag ∈ {0,1}
+            builder.assert_eq(is_dep.into()  * (one.clone() - is_dep.into()),  AB::Expr::ZERO);
+            builder.assert_eq(is_vest.into() * (one.clone() - is_vest.into()), AB::Expr::ZERO);
+            // Consistency: dep_amount  == 0 when is_dep  == 0
+            builder.assert_eq((one.clone() - is_dep.into())  * pv_dep.into(),  AB::Expr::ZERO);
+            // Consistency: vest_lock   == 0 when is_vest == 0
+            builder.assert_eq((one        - is_vest.into()) * pv_vest.into(), AB::Expr::ZERO);
+        }
     }
 }
