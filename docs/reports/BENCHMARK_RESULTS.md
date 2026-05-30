@@ -191,3 +191,32 @@ Perlu konfirmasi ke tim arsitektur: apakah 50 proof/detik cukup untuk target thr
 | Typo MTS §20 "3.801ms→3.801s" | ⚠️ Spec-only | Tidak ada di codebase — perlu edit dokumen MTS eksternal |
 | B1.2-BATCH benchmark | ⏳ Pending | Jadwalkan setelah testnet infra siap |
 | Konfirmasi 50 proof/detik cukup | ⏳ Pending | Arsitektur perlu review |
+
+---
+
+## B1.2-BATCH — CB MembershipAir Batch Proving (D-023 Gate)
+
+| batch_size | prove_ms | per_tx_amortized_ms | gate |
+|-----------|---------|--------------------|----|
+| 1 | 1214 | 1214 | ❌ single-tx overhead |
+| 5 | 3770 | 754 | ✅ |
+| 10 | 1501 | 150 | ✅ |
+| 20 | 3138 | 156 | ✅ |
+| **41** | **4086** | **99** | **✅ <1.2s** |
+
+**PARAM-C CONFIRMED: MICROCOMMITMENT_TRIGGER_TX = 41 validated**
+- CB prove 41 tx = 4086ms (fits dalam 60s timeout ✅)
+- per_tx_amortized = 99ms << 1200ms threshold ✅
+
+**Strong batching effect:** single-tx = 1214ms, batch-41 = 99ms/tx (12× speedup)
+
+## D-023 FINAL DECISION UPDATE
+
+| Decision | Old | New |
+|----------|-----|-----|
+| D-023 MicroCommitment | CONDITIONAL GO (tunggu B1.2-BATCH) | **GO** |
+
+Kondisi B1.2-BATCH terpenuhi:
+- per_tx_amortized = 99ms < 1200ms ✅
+- total 41 tx fits dalam 60s timeout ✅
+- MICROCOMMITMENT_TRIGGER_TX = 41 dikonfirmasi
