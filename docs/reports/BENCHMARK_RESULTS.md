@@ -220,3 +220,34 @@ Kondisi B1.2-BATCH terpenuhi:
 - per_tx_amortized = 99ms < 1200ms ✅
 - total 41 tx fits dalam 60s timeout ✅
 - MICROCOMMITMENT_TRIGGER_TX = 41 dikonfirmasi
+
+---
+
+## SOUNDNESS ANALYSIS FINDING (dari SPECIALIST-2, 2026-05-31)
+
+**Status:** Eskalasi ke arsitektur team — menunggu D-028
+
+### Temuan
+STARKPack menggunakan **Scenario B** (independent union bound):
+- `aggregate_real_proofs` memverifikasi setiap proof secara terpisah
+- Tidak ada single RLC FRI instance yang menggabungkan N proofs
+
+### Implikasi
+- ε_final (Scenario B, g=20) ≈ 2^-117.68
+- Target MAD §17.1 (2^-120) **TIDAK TERPENUHI** — gap 2.3 bits
+
+### Opsi Fix
+| Opsi | Perubahan | ε_final | Status |
+|------|-----------|---------|--------|
+| B-1 | grinding g=20 → 23 | 2^-120.68 | ✅ PASS |
+| B-2 | FRI field 2^128 → 2^192 | 2^-181 | ✅ PASS |
+| A   | Ubah ke RLC batching | 2^-125.68 | ✅ PASS |
+
+### Constraint
+`FRI_PROOF_OF_WORK_BITS = 20` adalah **OSSIFIED** per MAD §21.1.
+Implementasi menunggu keputusan D-028 dari arsitektur team.
+
+### File Referensi (dari SPECIALIST-2)
+- `SOUNDNESS_PROOF.md` — derivasi matematis lengkap
+- `soundness_calculation.py` — script reproduksi kalkulasi
+- `PARAMETER_RECOMMENDATIONS.md` — opsi fix detail
