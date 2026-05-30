@@ -369,3 +369,106 @@ mod tests {
         assert_eq!(TIER_C_PREFIX, 0xFEu8);
     }
 }
+
+// ── NodeScore formula — MAD §21.1 ─────────────────────────────────────────────
+
+/// Compute raw NodeScore from fixed-point component inputs. MAD §21.1.
+///
+/// Formula:
+///   raw = (uptime_fp × NODESCORE_UPTIME_W
+///        + proof_rate_fp × NODESCORE_PROOF_W
+///        + age_fp × NODESCORE_AGE_W) / 1_000_000
+///
+/// All inputs: fixed-point in [0, 1_000_000].
+/// Output:     fixed-point in [0, 1_000_000] (before tier cap).
+/// Overflow:   impossible — max numerator = 3 × 1_000_000² < u128::MAX.
+pub fn compute_node_score(uptime_fp: u64, proof_rate_fp: u64, age_fp: u64) -> u64 {
+    let numer = (uptime_fp    as u128) * (NODESCORE_UPTIME_W as u128)
+              + (proof_rate_fp as u128) * (NODESCORE_PROOF_W  as u128)
+              + (age_fp        as u128) * (NODESCORE_AGE_W    as u128);
+    (numer / FIXED_POINT_BASIS as u128) as u64
+}
+
+// ── OSSIFIED test vectors — MAD §21.1, §22 ────────────────────────────────────
+//
+// These vectors are OSSIFIED: any change to compute_node_score that produces
+// a different output for these inputs is a protocol-breaking change requiring
+// governance + hard fork. Tests are canaries for accidental formula changes.
+
+/// OSSIFIED test vector: (uptime_fp, proof_rate_fp, age_fp) → expected_score.
+/// MAD §21.1, §22.
+pub const NODESCORE_TEST_VECTORS: &[(u64, u64, u64, u64)] = &[
+    // (uptime_fp, proof_rate_fp, age_fp, expected_score)
+    // Vector 1: all perfect → max score
+    (1_000_000, 1_000_000, 1_000_000, 1_000_000),
+    // Vector 2: all zero → zero score
+    (0, 0, 0, 0),
+    // Vector 3: uptime only → 500_000 (= 1_000_000 × 500_000 / 1_000_000)
+    (1_000_000, 0, 0, 500_000),
+    // Vector 4: proof only → 300_000 (= 1_000_000 × 300_000 / 1_000_000)
+    (0, 1_000_000, 0, 300_000),
+    // Vector 5: age only → 200_000 (= 1_000_000 × 200_000 / 1_000_000)
+    (0, 0, 1_000_000, 200_000),
+    // Vector 6: typical good node
+    // (700_000×500_000 + 800_000×300_000 + 600_000×200_000) / 1_000_000
+    // = (350_000_000_000 + 240_000_000_000 + 120_000_000_000) / 1_000_000 = 710_000
+    (700_000, 800_000, 600_000, 710_000),
+    // Vector 7: marginal node (just above NMT threshold after cap)
+    // (850_000×500_000 + 820_000×300_000 + 750_000×200_000) / 1_000_000
+    // = (425_000_000_000 + 246_000_000_000 + 150_000_000_000) / 1_000_000 = 821_000
+    (850_000, 820_000, 750_000, 821_000),
+    // Vector 8: half performance → half score
+    (500_000, 500_000, 500_000, 500_000),
+];
+
+#[cfg(test)]
+mod nodescore_formula_tests {
+    use super::*;
+
+    #[test]
+    fn test_nodescore_ossified_vectors() {
+        // MAD §22: OSSIFIED test vectors must pass before genesis.
+        // Any failure = formula change = hard fork required.
+        for &(uptime, proof, age, expected) in NODESCORE_TEST_VECTORS {
+            let actual = compute_node_score(uptime, proof, age);
+            assert_eq!(
+                actual, expected,
+                "OSSIFIED vector failed: compute_node_score({uptime}, {proof}, {age}) \
+                 = {actual}, expected {expected}. Formula change requires hard fork. MAD §21.1."
+            );
+        }
+    }
+
+    #[test]
+    fn test_nodescore_weights_sum_to_basis() {
+        // Invariant: weights sum == FIXED_POINT_BASIS. MAD §21.1.
+        assert_eq!(
+            NODESCORE_UPTIME_W + NODESCORE_PROOF_W + NODESCORE_AGE_W,
+            FIXED_POINT_BASIS
+        );
+    }
+
+    #[test]
+    fn test_nodescore_output_bounded() {
+        // compute_node_score must never exceed 1_000_000 for valid inputs.
+        assert!(compute_node_score(1_000_000, 1_000_000, 1_000_000) <= MAX_NODESCORE);
+        assert!(compute_node_score(0, 0, 0) <= MAX_NODESCORE);
+    }
+
+    #[test]
+    fn test_nodescore_tier_c_cap_applied() {
+        // Tier C: score capped at TIER_C_MAX_NODESCORE regardless of raw score. Spec §12.4.
+        let raw = compute_node_score(1_000_000, 1_000_000, 1_000_000);
+        let tier_c_id = [0xFEu8; 32];
+        let node = NodeScore::new(tier_c_id, raw);
+        assert_eq!(node.score(), TIER_C_MAX_NODESCORE,
+            "Tier C must be capped at {TIER_C_MAX_NODESCORE}");
+    }
+
+    #[test]
+    fn test_nodescore_no_overflow_u128() {
+        // Max numerator: 3 × 1_000_000 × 1_000_000 = 3 × 10^12 << u128::MAX. Safe.
+        let max = compute_node_score(1_000_000, 1_000_000, 1_000_000);
+        assert_eq!(max, 1_000_000);
+    }
+}
