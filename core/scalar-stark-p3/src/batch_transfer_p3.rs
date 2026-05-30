@@ -1407,8 +1407,8 @@ pub fn build_bench_transfer_input(
     let empty_smt_siblings = |dl: u64, dh: u64| -> [[u64; 4]; SMT_DEPTH] {
         let mut cur = [0u64; 4];
         let mut out = [[0u64; 4]; SMT_DEPTH];
-        for level in 0..SMT_DEPTH {
-            out[level] = cur;
+        for sibling in &mut out {
+            *sibling = cur;
             let inp = [
                 Goldilocks::new(dl),
                 Goldilocks::new(dh),
