@@ -3020,6 +3020,7 @@ dependencies = [
  "rand 0.8.6",
  "rand_core 0.10.1",
  "thiserror 1.0.69",
+ "x25519-dalek",
  "zeroize",
 ]
 
