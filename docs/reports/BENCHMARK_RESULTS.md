@@ -45,7 +45,7 @@ Jika batch > 33 tx/s needed: perlu optimasi Poseidon2 atau parallelisasi path ge
 
 **SLHDSA_VERIFY_MS used:** 1ms (B2.1 actual: 0.479ms)
 
-**PARAM-C (partial — awaiting B1.1 proof_time):**
+**PARAM-C (final — B1.1 proof_time=1.075s):**
 - MICROCOMMITMENT_TRIGGER_TX: 50
 - MICROCOMMITMENT_TRIGGER_TIMEOUT: max(3×quorum, 60) = 60s minimum
 
@@ -54,12 +54,15 @@ LOCAL quorum confirms intra-DC MicroCommitment feasible.
 
 ---
 
-## PENDING BENCHMARKS
+## ALL BENCHMARKS COMPLETE ✅
 
-| ID | Description | Blocker |
-|----|-------------|---------|
-| B1.1 | Transfer proof end-to-end | Harness needed |
-| B5-WAL | WAL checkpoint throughput | Harness needed |
+| ID | Description | Status |
+|----|-------------|--------|
+| B1.1 | Transfer proof prove+verify | ✅ prove=1075ms, verify=3ms, 77KB |
+| B2.1 | SLH-DSA sign/verify latency | ✅ sign=394ms, verify=0.479ms |
+| B3.1 | IMT depth-32 path generation | ✅ path_gen=9.034ms |
+| B4-SIM | Quorum formation simulation | ✅ WAN_50=129ms |
+| B5-WAL | WAL three-phase throughput | ✅ prepare=90ns, commit=326μs |
 
 ## PARAMETER UPDATES NEEDED
 
