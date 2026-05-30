@@ -14,11 +14,11 @@
 //!   4. Responder: X25519 DH + ML-KEM decapsulate → same combined secret.
 //!   5. Both derive session key from combined secret.
 
-use x25519_dalek::{EphemeralSecret, PublicKey as X25519PublicKey, StaticSecret};
-use zeroize::{Zeroize, ZeroizeOnDrop};
 use crate::ml_kem::{
     ml_kem_768_encapsulate, MlKem768Ciphertext, MlKem768KeyPair, MlKem768PublicKey,
 };
+use x25519_dalek::{EphemeralSecret, PublicKey as X25519PublicKey, StaticSecret};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Domain separator for hybrid KEM combining step. MAD §1.4.
 const HYBRID_KEM_DOMAIN: &[u8] = b"scalar_hybrid_kem";
@@ -114,25 +114,28 @@ pub fn hybrid_respond(
 /// Responder's long-term hybrid public keys. Send to initiator before exchange.
 pub struct HybridPublicKeys {
     pub x25519: X25519PublicKey,
-    pub mlkem:  MlKem768PublicKey,
+    pub mlkem: MlKem768PublicKey,
 }
 
 /// Responder's hybrid key pair for one or more sessions.
 pub struct HybridKeyPair {
     pub public_keys: HybridPublicKeys,
-    x25519_secret:   StaticSecret,
-    mlkem_keypair:   MlKem768KeyPair,
+    x25519_secret: StaticSecret,
+    mlkem_keypair: MlKem768KeyPair,
 }
 
 impl HybridKeyPair {
     /// Generate a new hybrid key pair.
     pub fn generate() -> Self {
         let x25519_secret = StaticSecret::random_from_rng(rand::thread_rng());
-        let x25519_pk     = X25519PublicKey::from(&x25519_secret);
-        let mlkem_kp      = MlKem768KeyPair::generate();
-        let mlkem_pk      = mlkem_kp.public_key.clone();
+        let x25519_pk = X25519PublicKey::from(&x25519_secret);
+        let mlkem_kp = MlKem768KeyPair::generate();
+        let mlkem_pk = mlkem_kp.public_key.clone();
         Self {
-            public_keys:   HybridPublicKeys { x25519: x25519_pk, mlkem: mlkem_pk },
+            public_keys: HybridPublicKeys {
+                x25519: x25519_pk,
+                mlkem: mlkem_pk,
+            },
             x25519_secret,
             mlkem_keypair: mlkem_kp,
         }
@@ -164,15 +167,10 @@ mod tests {
         // MAD §1.1: initiator and responder derive identical combined secret.
         let responder = HybridKeyPair::generate();
 
-        let init_out = hybrid_initiate(
-            &responder.public_keys.x25519,
-            &responder.public_keys.mlkem,
-        );
+        let init_out = hybrid_initiate(&responder.public_keys.x25519, &responder.public_keys.mlkem);
 
-        let resp_secret = responder.respond(
-            &init_out.x25519_public_key,
-            &init_out.mlkem_ciphertext,
-        );
+        let resp_secret =
+            responder.respond(&init_out.x25519_public_key, &init_out.mlkem_ciphertext);
 
         assert_eq!(
             init_out.shared_secret.as_bytes(),
@@ -185,8 +183,11 @@ mod tests {
     fn test_hybrid_kem_secret_nonzero() {
         let responder = HybridKeyPair::generate();
         let out = hybrid_initiate(&responder.public_keys.x25519, &responder.public_keys.mlkem);
-        assert_ne!(out.shared_secret.as_bytes(), &[0u8; 32],
-            "Hybrid KEM secret must not be all-zeros");
+        assert_ne!(
+            out.shared_secret.as_bytes(),
+            &[0u8; 32],
+            "Hybrid KEM secret must not be all-zeros"
+        );
     }
 
     #[test]
@@ -195,8 +196,11 @@ mod tests {
         let responder = HybridKeyPair::generate();
         let out1 = hybrid_initiate(&responder.public_keys.x25519, &responder.public_keys.mlkem);
         let out2 = hybrid_initiate(&responder.public_keys.x25519, &responder.public_keys.mlkem);
-        assert_ne!(out1.shared_secret.as_bytes(), out2.shared_secret.as_bytes(),
-            "Different sessions must produce different secrets");
+        assert_ne!(
+            out1.shared_secret.as_bytes(),
+            out2.shared_secret.as_bytes(),
+            "Different sessions must produce different secrets"
+        );
     }
 
     #[test]
@@ -205,15 +209,18 @@ mod tests {
         let responder1 = HybridKeyPair::generate();
         let responder2 = HybridKeyPair::generate();
 
-        let out = hybrid_initiate(&responder1.public_keys.x25519, &responder1.public_keys.mlkem);
-
-        let wrong_secret = responder2.respond(
-            &out.x25519_public_key,
-            &out.mlkem_ciphertext,
+        let out = hybrid_initiate(
+            &responder1.public_keys.x25519,
+            &responder1.public_keys.mlkem,
         );
 
-        assert_ne!(out.shared_secret.as_bytes(), wrong_secret.as_bytes(),
-            "Wrong responder must not recover initiator's secret");
+        let wrong_secret = responder2.respond(&out.x25519_public_key, &out.mlkem_ciphertext);
+
+        assert_ne!(
+            out.shared_secret.as_bytes(),
+            wrong_secret.as_bytes(),
+            "Wrong responder must not recover initiator's secret"
+        );
     }
 
     #[test]

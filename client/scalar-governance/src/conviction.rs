@@ -97,18 +97,18 @@ mod dual_impl_tests {
     // ── Table checkpoints (OSSIFIED) used for dual-impl comparison ───────────
 
     const CHECKPOINTS: &[(u32, u64)] = &[
-        (0,   0),
-        (1,   100_000),
-        (2,   190_000),
-        (3,   271_000),
-        (4,   344_000),
-        (5,   410_000),
-        (6,   469_000),
-        (7,   521_799),
-        (14,  771_361),
-        (22,  901_504),
-        (30,  957_584),
-        (60,  998_187),
+        (0, 0),
+        (1, 100_000),
+        (2, 190_000),
+        (3, 271_000),
+        (4, 344_000),
+        (5, 410_000),
+        (6, 469_000),
+        (7, 521_799),
+        (14, 771_361),
+        (22, 901_504),
+        (30, 957_584),
+        (60, 998_187),
         (365, 1_000_000),
     ];
 
@@ -165,7 +165,10 @@ mod dual_impl_tests {
                 assert!(
                     val >= last,
                     "Monotonicity violated: CF({})={} < interpolated CF({})={}.",
-                    t, val, t - 1, last
+                    t,
+                    val,
+                    t - 1,
+                    last
                 );
             }
             prev = val;
@@ -176,14 +179,26 @@ mod dual_impl_tests {
     #[test]
     fn test_conviction_boundary_values() {
         // Boundary: CF(0) = 0, CF(very_large) = 1_000_000. MAD §11.3.
-        assert_eq!(ConvictionTable::conviction_factor(0), 0,
-            "CF(0) must be 0 — no time lock = no conviction");
-        assert_eq!(ConvictionTable::conviction_factor(365), 1_000_000,
-            "CF(365) must be 1_000_000 — saturated conviction");
-        assert_eq!(ConvictionTable::conviction_factor(1000), 1_000_000,
-            "CF(1000) must be 1_000_000 — saturated conviction");
-        assert_eq!(ConvictionTable::conviction_factor(u32::MAX), 1_000_000,
-            "CF(u32::MAX) must be 1_000_000 — saturated conviction");
+        assert_eq!(
+            ConvictionTable::conviction_factor(0),
+            0,
+            "CF(0) must be 0 — no time lock = no conviction"
+        );
+        assert_eq!(
+            ConvictionTable::conviction_factor(365),
+            1_000_000,
+            "CF(365) must be 1_000_000 — saturated conviction"
+        );
+        assert_eq!(
+            ConvictionTable::conviction_factor(1000),
+            1_000_000,
+            "CF(1000) must be 1_000_000 — saturated conviction"
+        );
+        assert_eq!(
+            ConvictionTable::conviction_factor(u32::MAX),
+            1_000_000,
+            "CF(u32::MAX) must be 1_000_000 — saturated conviction"
+        );
     }
 
     #[test]
@@ -206,8 +221,12 @@ mod dual_impl_tests {
         // Interpolated values must stay within [0, 1_000_000]. MAD §11.3.
         for t in 0u32..=365 {
             let v = ConvictionTable::conviction_factor(t);
-            assert!(v <= 1_000_000,
-                "CF({}) = {} exceeds 1_000_000 — out of bounds.", t, v);
+            assert!(
+                v <= 1_000_000,
+                "CF({}) = {} exceeds 1_000_000 — out of bounds.",
+                t,
+                v
+            );
         }
     }
 

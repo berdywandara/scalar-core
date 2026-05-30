@@ -70,7 +70,12 @@ struct NodeEpochState {
     spam_anchor: bool,
 }
 impl NodeEpochState {
-    fn new() -> Self { Self { anchor_count: 0, spam_anchor: false } }
+    fn new() -> Self {
+        Self {
+            anchor_count: 0,
+            spam_anchor: false,
+        }
+    }
 }
 
 /// Per-node transmission state (persists across epochs). MAD §8.1 A-2.
@@ -79,7 +84,11 @@ struct NodeTxState {
     last_transmission_s: Option<u64>,
 }
 impl NodeTxState {
-    fn new() -> Self { Self { last_transmission_s: None } }
+    fn new() -> Self {
+        Self {
+            last_transmission_s: None,
+        }
+    }
 }
 
 // ── Priority queue entry ──────────────────────────────────────────────────────
@@ -145,7 +154,8 @@ impl PendingRegistrationPool {
 
     /// Drain all pending registrations for a given epoch (epoch transition).
     pub fn drain_epoch(&mut self, epoch_id: u64) -> Vec<[u8; 32]> {
-        let drained: Vec<_> = self.pending
+        let drained: Vec<_> = self
+            .pending
             .iter()
             .filter(|(_, &e)| e == epoch_id)
             .map(|(id, _)| *id)
@@ -208,7 +218,7 @@ impl AnchorRateLimiter {
     pub fn advance_epoch(&mut self, new_epoch: u64) {
         self.current_epoch = new_epoch;
         self.node_epoch.clear(); // epoch-scoped state reset
-        // node_tx NOT cleared — transmission rate limit persists
+                                 // node_tx NOT cleared — transmission rate limit persists
         self.anchor_queue.clear();
         // PENDING_REGISTRATION from previous epoch can be promoted to manifest
         // by the caller (outside scope of rate limiter).
@@ -220,19 +230,18 @@ impl AnchorRateLimiter {
     }
 
     /// Rule A-2 check: rate limit per node. Returns decision if rate-limited.
-    fn check_a2(
-        &mut self,
-        node_id_full: &[u8; 32],
-        now_s: u64,
-    ) -> Option<AnchorDecision> {
+    fn check_a2(&mut self, node_id_full: &[u8; 32], now_s: u64) -> Option<AnchorDecision> {
         // Epoch state (reset per epoch).
-        let es = self.node_epoch
+        let es = self
+            .node_epoch
             .entry(*node_id_full)
             .or_insert_with(NodeEpochState::new);
 
         // SPAM_ANCHOR: second offense → DROP for rest of epoch.
         if es.spam_anchor {
-            return Some(AnchorDecision::Drop { reason: DropReason::SpamAnchor });
+            return Some(AnchorDecision::Drop {
+                reason: DropReason::SpamAnchor,
+            });
         }
 
         // Epoch duplicate check FIRST (A-2: max 1 per epoch).
@@ -244,7 +253,8 @@ impl AnchorRateLimiter {
         }
 
         // Transmission rate limit (persists across epochs: max 1 per 3600s).
-        let tx = self.node_tx
+        let tx = self
+            .node_tx
             .entry(*node_id_full)
             .or_insert_with(NodeTxState::new);
         if let Some(last_tx) = tx.last_transmission_s {
@@ -272,7 +282,9 @@ impl AnchorRateLimiter {
                 self.anchor_queue.push_back(entry);
             } else {
                 // Tier A/B: insert before first Tier C entry.
-                let insert_pos = self.anchor_queue.iter()
+                let insert_pos = self
+                    .anchor_queue
+                    .iter()
                     .position(|e| e.is_tier_c())
                     .unwrap_or(self.anchor_queue.len());
                 self.anchor_queue.insert(insert_pos, entry);
@@ -282,22 +294,27 @@ impl AnchorRateLimiter {
             // Queue full: evict Tier C if possible.
             if entry.is_tier_c() {
                 // New entry is Tier C and queue full → DROP new Tier C entry.
-                AnchorDecision::Drop { reason: DropReason::TierCEvicted }
+                AnchorDecision::Drop {
+                    reason: DropReason::TierCEvicted,
+                }
             } else {
                 // New entry is Tier A/B: evict oldest Tier C if any.
-                let tier_c_pos = self.anchor_queue.iter()
-                    .rposition(|e| e.is_tier_c());
+                let tier_c_pos = self.anchor_queue.iter().rposition(|e| e.is_tier_c());
                 if let Some(pos) = tier_c_pos {
                     self.anchor_queue.remove(pos);
                     // Insert new Tier A/B entry.
-                    let insert_pos = self.anchor_queue.iter()
+                    let insert_pos = self
+                        .anchor_queue
+                        .iter()
                         .position(|e| e.is_tier_c())
                         .unwrap_or(self.anchor_queue.len());
                     self.anchor_queue.insert(insert_pos, entry);
                     AnchorDecision::Accept
                 } else {
                     // No Tier C to evict, queue still full → IGNORE.
-                    AnchorDecision::Ignore { reason: IgnoreReason::QueueFull }
+                    AnchorDecision::Ignore {
+                        reason: IgnoreReason::QueueFull,
+                    }
                 }
             }
         }
@@ -318,12 +335,16 @@ impl AnchorRateLimiter {
         // Rule A-1: check manifest membership.
         if !self.is_in_manifest(&node_id_full) {
             // New node: route to PENDING_REGISTRATION pool.
-            let added = self.pending_registration.add(node_id_full, self.current_epoch);
+            let added = self
+                .pending_registration
+                .add(node_id_full, self.current_epoch);
             if added {
                 return AnchorDecision::PendingRegistration;
             } else {
                 // Already pending or pool full.
-                return AnchorDecision::Ignore { reason: IgnoreReason::DuplicateThisEpoch };
+                return AnchorDecision::Ignore {
+                    reason: IgnoreReason::DuplicateThisEpoch,
+                };
             }
         }
 
@@ -364,9 +385,17 @@ impl AnchorRateLimiter {
 mod tests {
     use super::*;
 
-    fn node(b: u8) -> [u8; 32] { [b; 32] }
-    fn node_short(b: u8) -> [u8; 4] { [b; 4] }
-    fn tier_c_node(b: u8) -> [u8; 32] { let mut n = [b; 32]; n[0] = 0xFE; n }
+    fn node(b: u8) -> [u8; 32] {
+        [b; 32]
+    }
+    fn node_short(b: u8) -> [u8; 4] {
+        [b; 4]
+    }
+    fn tier_c_node(b: u8) -> [u8; 32] {
+        let mut n = [b; 32];
+        n[0] = 0xFE;
+        n
+    }
 
     fn limiter_with_manifest(nodes: Vec<[u8; 32]>) -> AnchorRateLimiter {
         let mut l = AnchorRateLimiter::new(1);
@@ -380,14 +409,20 @@ mod tests {
     fn test_a1_manifest_node_accepted() {
         let n = node(0x01);
         let mut l = limiter_with_manifest(vec![n]);
-        assert_eq!(l.process_anchor(n, node_short(0x01), 0), AnchorDecision::Accept);
+        assert_eq!(
+            l.process_anchor(n, node_short(0x01), 0),
+            AnchorDecision::Accept
+        );
     }
 
     #[test]
     fn test_a1_non_manifest_node_pending() {
         let n = node(0xFF);
         let mut l = limiter_with_manifest(vec![]);
-        assert_eq!(l.process_anchor(n, node_short(0xFF), 0), AnchorDecision::PendingRegistration);
+        assert_eq!(
+            l.process_anchor(n, node_short(0xFF), 0),
+            AnchorDecision::PendingRegistration
+        );
         assert_eq!(l.pending_count(), 1);
     }
 
@@ -399,7 +434,9 @@ mod tests {
         // Second attempt: already pending.
         assert_eq!(
             l.process_anchor(n, node_short(0xFF), 0),
-            AnchorDecision::Ignore { reason: IgnoreReason::DuplicateThisEpoch }
+            AnchorDecision::Ignore {
+                reason: IgnoreReason::DuplicateThisEpoch
+            }
         );
     }
 
@@ -408,17 +445,55 @@ mod tests {
         let mut l = limiter_with_manifest(vec![]);
         // Fill pool
         for i in 0..MAX_PENDING_REGISTRATION {
-            let n = [(i % 256) as u8, (i / 256) as u8, 0, 0, 0, 0, 0, 0,
-                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                      0, 0, 0, 0, 0, 0, 0, i as u8];
+            let n = [
+                (i % 256) as u8,
+                (i / 256) as u8,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                i as u8,
+            ];
             l.pending_registration.add(n, 1);
         }
         assert_eq!(l.pending_count(), MAX_PENDING_REGISTRATION);
         // Add one more: oldest is evicted.
         let new_node = [0xAAu8; 32];
         l.pending_registration.add(new_node, 1);
-        assert_eq!(l.pending_count(), MAX_PENDING_REGISTRATION, "Pool stays at max");
-        assert!(l.pending_registration.contains(&new_node), "New node is present");
+        assert_eq!(
+            l.pending_count(),
+            MAX_PENDING_REGISTRATION,
+            "Pool stays at max"
+        );
+        assert!(
+            l.pending_registration.contains(&new_node),
+            "New node is present"
+        );
     }
 
     // ── Rule A-2 ─────────────────────────────────────────────────────────────
@@ -431,7 +506,9 @@ mod tests {
         // Second anchor same epoch → IGNORE (first offense).
         assert_eq!(
             l.process_anchor(n, node_short(0x01), 1000),
-            AnchorDecision::Ignore { reason: IgnoreReason::DuplicateThisEpoch }
+            AnchorDecision::Ignore {
+                reason: IgnoreReason::DuplicateThisEpoch
+            }
         );
     }
 
@@ -439,12 +516,14 @@ mod tests {
     fn test_a2_third_anchor_spam_anchor_drop() {
         let n = node(0x01);
         let mut l = limiter_with_manifest(vec![n]);
-        l.process_anchor(n, node_short(0x01), 0);          // 1st: Accept
-        l.process_anchor(n, node_short(0x01), 1000);       // 2nd: Ignore (marks spam)
-        // 3rd: DROP — SPAM_ANCHOR.
+        l.process_anchor(n, node_short(0x01), 0); // 1st: Accept
+        l.process_anchor(n, node_short(0x01), 1000); // 2nd: Ignore (marks spam)
+                                                     // 3rd: DROP — SPAM_ANCHOR.
         assert_eq!(
             l.process_anchor(n, node_short(0x01), 2000),
-            AnchorDecision::Drop { reason: DropReason::SpamAnchor }
+            AnchorDecision::Drop {
+                reason: DropReason::SpamAnchor
+            }
         );
     }
 
@@ -462,12 +541,17 @@ mod tests {
         let too_soon = 1000 + ANCHOR_RATE_LIMIT_S - 1;
         assert_eq!(
             l.process_anchor(n, node_short(0x01), too_soon),
-            AnchorDecision::Ignore { reason: IgnoreReason::RateLimitTransmission }
+            AnchorDecision::Ignore {
+                reason: IgnoreReason::RateLimitTransmission
+            }
         );
 
         // After rate limit window.
         let ok_time = 1000 + ANCHOR_RATE_LIMIT_S;
-        assert_eq!(l.process_anchor(n, node_short(0x01), ok_time), AnchorDecision::Accept);
+        assert_eq!(
+            l.process_anchor(n, node_short(0x01), ok_time),
+            AnchorDecision::Accept
+        );
     }
 
     #[test]
@@ -494,11 +578,46 @@ mod tests {
         let mut l = AnchorRateLimiter::new(1);
         // Fill queue with Tier A nodes.
         for i in 0..MAX_ANCHOR_QUEUE_SIZE {
-            let n = [0xFD, (i % 256) as u8, (i / 256) as u8, 0, 0, 0, 0, 0,
-                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                      0, 0, 0, 0, 0, 0, 0, 0];
+            let n = [
+                0xFD,
+                (i % 256) as u8,
+                (i / 256) as u8,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            ];
             l.manifest_nodes.insert(n);
-            l.process_anchor(n, [0xFD, (i%256) as u8, (i/256) as u8, 0], i as u64 * 4000);
+            l.process_anchor(
+                n,
+                [0xFD, (i % 256) as u8, (i / 256) as u8, 0],
+                i as u64 * 4000,
+            );
         }
         assert_eq!(l.queue_len(), MAX_ANCHOR_QUEUE_SIZE);
 
@@ -506,8 +625,14 @@ mod tests {
         let tier_c = tier_c_node(0x01);
         l.manifest_nodes.insert(tier_c);
         assert_eq!(
-            l.process_anchor(tier_c, node_short(0x01), MAX_ANCHOR_QUEUE_SIZE as u64 * 4000),
-            AnchorDecision::Drop { reason: DropReason::TierCEvicted }
+            l.process_anchor(
+                tier_c,
+                node_short(0x01),
+                MAX_ANCHOR_QUEUE_SIZE as u64 * 4000
+            ),
+            AnchorDecision::Drop {
+                reason: DropReason::TierCEvicted
+            }
         );
     }
 
@@ -525,7 +650,10 @@ mod tests {
 
         // Tier A should be dequeued before Tier C.
         let first = l.dequeue().unwrap();
-        assert_eq!(first.node_id_full, tier_a, "Tier A should be ahead of Tier C");
+        assert_eq!(
+            first.node_id_full, tier_a,
+            "Tier A should be ahead of Tier C"
+        );
         let second = l.dequeue().unwrap();
         assert_eq!(second.node_id_full, tier_c, "Tier C is last");
     }
@@ -540,7 +668,11 @@ mod tests {
             n[1] = (i % 256) as u8;
             n[2] = (i / 256) as u8;
             l.manifest_nodes.insert(n);
-            l.process_anchor(n, [0xFE, (i%256) as u8, (i/256) as u8, 0], i as u64 * 4000);
+            l.process_anchor(
+                n,
+                [0xFE, (i % 256) as u8, (i / 256) as u8, 0],
+                i as u64 * 4000,
+            );
         }
         assert_eq!(l.queue_len(), MAX_ANCHOR_QUEUE_SIZE);
 
@@ -548,7 +680,11 @@ mod tests {
         let tier_a = node(0x01);
         l.manifest_nodes.insert(tier_a);
         assert_eq!(
-            l.process_anchor(tier_a, node_short(0x01), MAX_ANCHOR_QUEUE_SIZE as u64 * 4000),
+            l.process_anchor(
+                tier_a,
+                node_short(0x01),
+                MAX_ANCHOR_QUEUE_SIZE as u64 * 4000
+            ),
             AnchorDecision::Accept
         );
         assert_eq!(l.queue_len(), MAX_ANCHOR_QUEUE_SIZE, "Queue stays at max");

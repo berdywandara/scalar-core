@@ -51,7 +51,10 @@ pub const T_MAX_WAIT_EFFECTIVE_MS: u64 = T_MAX_WAIT_MS - 2 * NMT_DRIFT_BOUND_MS;
 pub const VALID_CRYPTO_VERSION: u8 = 0x01;
 
 // Compile-time sanity: effective window must be positive and less than full window. D-026.
-const _: () = assert!(T_MAX_WAIT_EFFECTIVE_MS > 0, "T_MAX_WAIT_EFFECTIVE_MS must be > 0");
+const _: () = assert!(
+    T_MAX_WAIT_EFFECTIVE_MS > 0,
+    "T_MAX_WAIT_EFFECTIVE_MS must be > 0"
+);
 const _: () = assert!(
     T_MAX_WAIT_EFFECTIVE_MS < T_MAX_WAIT_MS,
     "T_MAX_WAIT_EFFECTIVE_MS must be < T_MAX_WAIT_MS"

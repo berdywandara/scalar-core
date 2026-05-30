@@ -130,13 +130,11 @@ impl CheckpointWal {
                 // Idempotent: same prepare, same key version — no-op.
                 WalPhase::Prepared => Ok(WalResult::AlreadyInState),
                 // Terminal states: cannot re-prepare a committed/aborted checkpoint.
-                WalPhase::Committed | WalPhase::Aborted => {
-                    Err(WalError::InvalidTransition {
-                        checkpoint_id,
-                        from: existing.phase.clone(),
-                        to: WalPhase::Prepared,
-                    })
-                }
+                WalPhase::Committed | WalPhase::Aborted => Err(WalError::InvalidTransition {
+                    checkpoint_id,
+                    from: existing.phase.clone(),
+                    to: WalPhase::Prepared,
+                }),
             };
         }
 
@@ -193,11 +191,7 @@ impl CheckpointWal {
     /// Idempotent: calling ABORT on an already-ABORTED checkpoint is a no-op.
     /// Requires PREPARE to have been called first.
     /// Error: COMMIT → ABORT transition is invalid.
-    pub fn abort(
-        &mut self,
-        checkpoint_id: u64,
-        now_ms: u64,
-    ) -> Result<WalResult, WalError> {
+    pub fn abort(&mut self, checkpoint_id: u64, now_ms: u64) -> Result<WalResult, WalError> {
         let entry = self
             .entries
             .get_mut(&checkpoint_id)
@@ -353,14 +347,20 @@ mod tests {
     fn test_commit_without_prepare_fails() {
         let mut w = wal();
         let err = w.commit(99, vec![], NOW).unwrap_err();
-        assert!(matches!(err, WalError::MissingPrepare { checkpoint_id: 99 }));
+        assert!(matches!(
+            err,
+            WalError::MissingPrepare { checkpoint_id: 99 }
+        ));
     }
 
     #[test]
     fn test_abort_without_prepare_fails() {
         let mut w = wal();
         let err = w.abort(99, NOW).unwrap_err();
-        assert!(matches!(err, WalError::MissingPrepare { checkpoint_id: 99 }));
+        assert!(matches!(
+            err,
+            WalError::MissingPrepare { checkpoint_id: 99 }
+        ));
     }
 
     #[test]

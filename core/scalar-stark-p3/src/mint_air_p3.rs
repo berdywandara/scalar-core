@@ -248,7 +248,7 @@ pub fn verify_mint_nullifier_p3(
 // ── MintLinearAir (MC1 + MC3 + MC4 + MC5) ────────────────────────────────────
 
 /// Trace width for MintLinearAir.
-pub const MINT_LINEAR_WIDTH: usize = 9;  // extended for MC3-DEP + MC3-VEST
+pub const MINT_LINEAR_WIDTH: usize = 9; // extended for MC3-DEP + MC3-VEST
 
 // Column indices — OSSIFIED
 /// MC1: crypto_version (must equal MINT_CRYPTO_VERSION = 1).
@@ -374,14 +374,23 @@ where
 
         // MC3-DEP + MC3-VEST: circuit flags. MAD §20.2.
         if local.len() > MINT_COL_IS_VEST && pv.len() > 9 {
-            let is_dep  = local[MINT_COL_IS_DEP];
+            let is_dep = local[MINT_COL_IS_DEP];
             let is_vest = local[MINT_COL_IS_VEST];
             let pv_dep_amount = pv[8];
-            let pv_vest_lock  = pv[9];
+            let pv_vest_lock = pv[9];
             let one = AB::Expr::ONE;
-            builder.assert_eq(is_dep.into() * (one.clone() - is_dep.into()), AB::Expr::ZERO);
-            builder.assert_eq(is_vest.into() * (one.clone() - is_vest.into()), AB::Expr::ZERO);
-            builder.assert_eq((one.clone() - is_dep.into()) * pv_dep_amount.into(), AB::Expr::ZERO);
+            builder.assert_eq(
+                is_dep.into() * (one.clone() - is_dep.into()),
+                AB::Expr::ZERO,
+            );
+            builder.assert_eq(
+                is_vest.into() * (one.clone() - is_vest.into()),
+                AB::Expr::ZERO,
+            );
+            builder.assert_eq(
+                (one.clone() - is_dep.into()) * pv_dep_amount.into(),
+                AB::Expr::ZERO,
+            );
             builder.assert_eq((one - is_vest.into()) * pv_vest_lock.into(), AB::Expr::ZERO);
         }
     }
@@ -474,8 +483,8 @@ pub fn build_mint_linear_pv(pi: &MintLinearPublicInputs) -> Vec<Goldilocks> {
     }
     // S_E is NOT a public value — embedded directly in eval() as AB::F::from_u64(MINT_S_E_SSCL).
     // This prevents prover from substituting a fake S_E. Spec §5.2 MC3.
-    pv.push(Goldilocks::new(pi.dep_amount_sscl));   // [8] MC3-DEP
-    pv.push(Goldilocks::new(pi.vest_lock_epochs));  // [9] MC3-VEST
+    pv.push(Goldilocks::new(pi.dep_amount_sscl)); // [8] MC3-DEP
+    pv.push(Goldilocks::new(pi.vest_lock_epochs)); // [9] MC3-VEST
     pv
 }
 
@@ -516,7 +525,7 @@ fn build_mint_linear_trace(pi: &MintLinearPublicInputs) -> RowMajorMatrix<Goldil
     let reward_inv_val = result as u64;
 
     // Single row, padded to 4 rows (Plonky3 minimum trace length).
-    let is_dep_val:  u64 = if pi.dep_amount_sscl  > 0 { 1 } else { 0 };
+    let is_dep_val: u64 = if pi.dep_amount_sscl > 0 { 1 } else { 0 };
     let is_vest_val: u64 = if pi.vest_lock_epochs > 0 { 1 } else { 0 };
     let row = [
         Goldilocks::new(pi.crypto_version as u64),  // col 0: MC1

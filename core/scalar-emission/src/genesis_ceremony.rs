@@ -384,23 +384,23 @@ use scalar_crypto::domain::DOMAIN_GENESIS_BOOTSTRAP;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenesisParams {
     /// S_MAX in sSCL. OSSIFIED — spec §3.2.
-    pub s_max_sscl:         u64,
+    pub s_max_sscl: u64,
     /// S_E (emission pool) in sSCL. OSSIFIED.
-    pub s_e_sscl:           u64,
+    pub s_e_sscl: u64,
     /// S_R (reserve) in sSCL. OSSIFIED.
-    pub s_r_sscl:           u64,
+    pub s_r_sscl: u64,
     /// FRI blowup. OSSIFIED.
-    pub fri_blowup:         u8,
+    pub fri_blowup: u8,
     /// FRI queries. OSSIFIED.
-    pub fri_queries:        u8,
+    pub fri_queries: u8,
     /// FRI grinding bits. OSSIFIED.
-    pub fri_grinding:       u8,
+    pub fri_grinding: u8,
     /// Crypto suite version. OSSIFIED.
-    pub crypto_version:     u8,
+    pub crypto_version: u8,
     /// Genesis timestamp (Unix seconds).
-    pub genesis_timestamp:  u64,
+    pub genesis_timestamp: u64,
     /// Genesis version string (UTF-8, max 32 bytes).
-    pub genesis_version:    [u8; 32],
+    pub genesis_version: [u8; 32],
 }
 
 impl GenesisParams {
@@ -410,13 +410,13 @@ impl GenesisParams {
         let ver = b"scalar-genesis-1.0";
         genesis_version[..ver.len()].copy_from_slice(ver);
         Self {
-            s_max_sscl:        2_100_000_000_000_000,
-            s_e_sscl:          1_890_000_000_000_000,
-            s_r_sscl:            210_000_000_000_000,
-            fri_blowup:        8,
-            fri_queries:       84,
-            fri_grinding:      20,
-            crypto_version:    0x01,
+            s_max_sscl: 2_100_000_000_000_000,
+            s_e_sscl: 1_890_000_000_000_000,
+            s_r_sscl: 210_000_000_000_000,
+            fri_blowup: 8,
+            fri_queries: 84,
+            fri_grinding: 20,
+            crypto_version: 0x01,
             genesis_timestamp,
             genesis_version,
         }
@@ -520,15 +520,15 @@ pub fn compute_genesis_commitment_root(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenesisObject {
     /// From Phase 0. MAD §3.1.
-    pub genesis_params_hash:     [u8; 32],
+    pub genesis_params_hash: [u8; 32],
     /// From Phase 1. MAD §3.1.
     pub genesis_commitment_root: [u8; 32],
     /// Participant pubkeys (sorted ascending). MAD §3.1.
-    pub participant_pubkeys:     Vec<[u8; 64]>,
+    pub participant_pubkeys: Vec<[u8; 64]>,
     /// Initial UTXO set root (typically IMT empty root). MAD §3.1.
-    pub initial_utxo_set_root:   [u8; 32],
+    pub initial_utxo_set_root: [u8; 32],
     /// Genesis timestamp (Unix seconds).
-    pub timestamp:               u64,
+    pub timestamp: u64,
 }
 
 impl GenesisObject {
@@ -572,10 +572,7 @@ pub enum GvpResult {
 }
 
 /// GVP-1: genesis_params_hash matches params. MAD §3.1.
-pub fn gvp1_params_hash(
-    genesis_params_hash: &[u8; 32],
-    params: &GenesisParams,
-) -> GvpResult {
+pub fn gvp1_params_hash(genesis_params_hash: &[u8; 32], params: &GenesisParams) -> GvpResult {
     let computed = compute_genesis_params_hash(params);
     if &computed == genesis_params_hash {
         GvpResult::Pass
@@ -622,10 +619,7 @@ pub fn gvp3_object_consistency(object: &GenesisObject) -> GvpResult {
 }
 
 /// GVP-4: genesis_hash matches genesis_object. MAD §3.1.
-pub fn gvp4_genesis_hash(
-    expected_genesis_hash: &[u8; 32],
-    object: &GenesisObject,
-) -> GvpResult {
+pub fn gvp4_genesis_hash(expected_genesis_hash: &[u8; 32], object: &GenesisObject) -> GvpResult {
     let computed = finalize_genesis(object);
     if &computed == expected_genesis_hash {
         GvpResult::Pass
@@ -708,8 +702,8 @@ mod two_phase_tests {
     fn test_phase0_canonical_params_ossified_values() {
         let p = make_params();
         assert_eq!(p.s_max_sscl, 2_100_000_000_000_000);
-        assert_eq!(p.s_e_sscl,   1_890_000_000_000_000);
-        assert_eq!(p.s_r_sscl,     210_000_000_000_000);
+        assert_eq!(p.s_e_sscl, 1_890_000_000_000_000);
+        assert_eq!(p.s_r_sscl, 210_000_000_000_000);
         assert_eq!(p.fri_blowup, 8);
         assert_eq!(p.fri_queries, 84);
         assert_eq!(p.fri_grinding, 20);
@@ -736,7 +730,10 @@ mod two_phase_tests {
         let hash = [0x11u8; 32];
         let r1 = register_participant(&pk, &hash, &make_nonce(0x01));
         let r2 = register_participant(&pk, &hash, &make_nonce(0x02));
-        assert_ne!(r1.commitment, r2.commitment, "Different nonces → different commitments");
+        assert_ne!(
+            r1.commitment, r2.commitment,
+            "Different nonces → different commitments"
+        );
     }
 
     #[test]
@@ -762,7 +759,10 @@ mod two_phase_tests {
         let regs_ba = vec![regs_ab[1].clone(), regs_ab[0].clone()];
         let root_ab = compute_genesis_commitment_root(&params_hash, regs_ab);
         let root_ba = compute_genesis_commitment_root(&params_hash, regs_ba);
-        assert_eq!(root_ab, root_ba, "Commitment root must be order-independent (sorted)");
+        assert_eq!(
+            root_ab, root_ba,
+            "Commitment root must be order-independent (sorted)"
+        );
     }
 
     // ── Phase 2 ───────────────────────────────────────────────────────────────
@@ -770,11 +770,11 @@ mod two_phase_tests {
     #[test]
     fn test_phase2_genesis_hash_deterministic() {
         let obj = GenesisObject {
-            genesis_params_hash:     [0x11u8; 32],
+            genesis_params_hash: [0x11u8; 32],
             genesis_commitment_root: [0x22u8; 32],
-            participant_pubkeys:     vec![make_pubkey(0x01)],
-            initial_utxo_set_root:   [0x33u8; 32],
-            timestamp:               1_700_000_000,
+            participant_pubkeys: vec![make_pubkey(0x01)],
+            initial_utxo_set_root: [0x33u8; 32],
+            timestamp: 1_700_000_000,
         };
         let h1 = finalize_genesis(&obj);
         let h2 = finalize_genesis(&obj);
@@ -784,11 +784,11 @@ mod two_phase_tests {
     #[test]
     fn test_phase2_genesis_hash_nonzero() {
         let obj = GenesisObject {
-            genesis_params_hash:     [0x11u8; 32],
+            genesis_params_hash: [0x11u8; 32],
             genesis_commitment_root: [0x22u8; 32],
-            participant_pubkeys:     vec![make_pubkey(0x01)],
-            initial_utxo_set_root:   [0x33u8; 32],
-            timestamp:               1_700_000_000,
+            participant_pubkeys: vec![make_pubkey(0x01)],
+            initial_utxo_set_root: [0x33u8; 32],
+            timestamp: 1_700_000_000,
         };
         let h = finalize_genesis(&obj);
         assert_ne!(h, [0u8; 32]);
@@ -807,17 +807,25 @@ mod two_phase_tests {
     fn test_gvp1_fail_wrong_hash() {
         let params = make_params();
         let wrong = [0xFFu8; 32];
-        assert!(matches!(gvp1_params_hash(&wrong, &params), GvpResult::Fail(_)));
+        assert!(matches!(
+            gvp1_params_hash(&wrong, &params),
+            GvpResult::Fail(_)
+        ));
     }
 
     #[test]
     fn test_gvp2_pass() {
         let params_hash = [0xAAu8; 32];
-        let regs = vec![
-            register_participant(&make_pubkey(0x01), &params_hash, &make_nonce(0x01)),
-        ];
+        let regs = vec![register_participant(
+            &make_pubkey(0x01),
+            &params_hash,
+            &make_nonce(0x01),
+        )];
         let root = compute_genesis_commitment_root(&params_hash, regs.clone());
-        assert_eq!(gvp2_commitment_root(&root, &params_hash, regs), GvpResult::Pass);
+        assert_eq!(
+            gvp2_commitment_root(&root, &params_hash, regs),
+            GvpResult::Pass
+        );
     }
 
     #[test]
@@ -825,11 +833,11 @@ mod two_phase_tests {
         let mut pubkeys = vec![make_pubkey(0x01), make_pubkey(0x02)];
         pubkeys.sort();
         let obj = GenesisObject {
-            genesis_params_hash:     [0x11u8; 32],
+            genesis_params_hash: [0x11u8; 32],
             genesis_commitment_root: [0x22u8; 32],
-            participant_pubkeys:     pubkeys,
-            initial_utxo_set_root:   [0x33u8; 32],
-            timestamp:               1_700_000_000,
+            participant_pubkeys: pubkeys,
+            initial_utxo_set_root: [0x33u8; 32],
+            timestamp: 1_700_000_000,
         };
         assert_eq!(gvp3_object_consistency(&obj), GvpResult::Pass);
     }
@@ -837,12 +845,12 @@ mod two_phase_tests {
     #[test]
     fn test_gvp3_fail_unsorted_pubkeys() {
         let obj = GenesisObject {
-            genesis_params_hash:     [0x11u8; 32],
+            genesis_params_hash: [0x11u8; 32],
             genesis_commitment_root: [0x22u8; 32],
             // Intentionally unsorted
-            participant_pubkeys:     vec![make_pubkey(0x02), make_pubkey(0x01)],
-            initial_utxo_set_root:   [0x33u8; 32],
-            timestamp:               1_700_000_000,
+            participant_pubkeys: vec![make_pubkey(0x02), make_pubkey(0x01)],
+            initial_utxo_set_root: [0x33u8; 32],
+            timestamp: 1_700_000_000,
         };
         assert!(matches!(gvp3_object_consistency(&obj), GvpResult::Fail(_)));
     }
@@ -850,11 +858,11 @@ mod two_phase_tests {
     #[test]
     fn test_gvp4_pass() {
         let obj = GenesisObject {
-            genesis_params_hash:     [0x11u8; 32],
+            genesis_params_hash: [0x11u8; 32],
             genesis_commitment_root: [0x22u8; 32],
-            participant_pubkeys:     vec![make_pubkey(0x01)],
-            initial_utxo_set_root:   [0x33u8; 32],
-            timestamp:               1_700_000_000,
+            participant_pubkeys: vec![make_pubkey(0x01)],
+            initial_utxo_set_root: [0x33u8; 32],
+            timestamp: 1_700_000_000,
         };
         let hash = finalize_genesis(&obj);
         assert_eq!(gvp4_genesis_hash(&hash, &obj), GvpResult::Pass);
@@ -877,18 +885,21 @@ mod two_phase_tests {
         let mut pubkeys = vec![make_pubkey(0x01), make_pubkey(0x02)];
         pubkeys.sort();
         let obj = GenesisObject {
-            genesis_params_hash:     params_hash,
+            genesis_params_hash: params_hash,
             genesis_commitment_root: commitment_root,
-            participant_pubkeys:     pubkeys,
-            initial_utxo_set_root:   [0xFFu8; 32],
-            timestamp:               1_700_000_000,
+            participant_pubkeys: pubkeys,
+            initial_utxo_set_root: [0xFFu8; 32],
+            timestamp: 1_700_000_000,
         };
         let genesis_hash = finalize_genesis(&obj);
 
         let result = run_all_gvp(
-            &params_hash, &params,
-            &commitment_root, regs,
-            &genesis_hash, &obj,
+            &params_hash,
+            &params,
+            &commitment_root,
+            regs,
+            &genesis_hash,
+            &obj,
         );
         assert_eq!(result, GvpResult::Pass, "Full GVP-1..4 must pass");
     }

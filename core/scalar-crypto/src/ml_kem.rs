@@ -13,21 +13,19 @@
 //! INVARIANT: encapsulate + decapsulate with matching keys produce identical secret.
 
 use pqcrypto_kyber::kyber768;
-use pqcrypto_traits::kem::{
-    Ciphertext as _, PublicKey as _, SharedSecret as _,
-};
+use pqcrypto_traits::kem::{Ciphertext as _, PublicKey as _, SharedSecret as _};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 // ── Key size constants ────────────────────────────────────────────────────────
 
 /// ML-KEM-768 public key size in bytes.
-pub const ML_KEM_768_PK_BYTES:  usize = 1184;
+pub const ML_KEM_768_PK_BYTES: usize = 1184;
 /// ML-KEM-768 secret key size in bytes.
-pub const ML_KEM_768_SK_BYTES:  usize = 2400;
+pub const ML_KEM_768_SK_BYTES: usize = 2400;
 /// ML-KEM-768 ciphertext size in bytes.
-pub const ML_KEM_768_CT_BYTES:  usize = 1088;
+pub const ML_KEM_768_CT_BYTES: usize = 1088;
 /// ML-KEM-768 shared secret size in bytes.
-pub const ML_KEM_768_SS_BYTES:  usize = 32;
+pub const ML_KEM_768_SS_BYTES: usize = 32;
 
 // ── Public key ────────────────────────────────────────────────────────────────
 
@@ -40,7 +38,9 @@ pub struct MlKem768PublicKey {
 impl MlKem768PublicKey {
     /// Deserialize from bytes.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        kyber768::PublicKey::from_bytes(bytes).ok().map(|inner| Self { inner })
+        kyber768::PublicKey::from_bytes(bytes)
+            .ok()
+            .map(|inner| Self { inner })
     }
 
     /// Serialize to bytes.
@@ -86,7 +86,9 @@ pub struct MlKem768Ciphertext {
 impl MlKem768Ciphertext {
     /// Deserialize from bytes.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        kyber768::Ciphertext::from_bytes(bytes).ok().map(|inner| Self { inner })
+        kyber768::Ciphertext::from_bytes(bytes)
+            .ok()
+            .map(|inner| Self { inner })
     }
 
     /// Serialize to bytes.
@@ -115,7 +117,7 @@ impl MlKem768SharedSecret {
 /// ML-KEM-768 key pair. Generate once, use for one exchange session. MAD §1.1.
 pub struct MlKem768KeyPair {
     pub public_key: MlKem768PublicKey,
-    secret_key:     MlKem768SecretKey,
+    secret_key: MlKem768SecretKey,
 }
 
 impl MlKem768KeyPair {
@@ -173,7 +175,8 @@ mod tests {
         let (ss_init, ct) = ml_kem_768_encapsulate(&keypair.public_key);
         let ss_resp = keypair.decapsulate(&ct);
         assert_eq!(
-            ss_init.as_bytes(), ss_resp.as_bytes(),
+            ss_init.as_bytes(),
+            ss_resp.as_bytes(),
             "ML-KEM-768: initiator and responder must derive identical shared secret"
         );
     }
@@ -183,8 +186,11 @@ mod tests {
         // Shared secret must not be all zeros — zero = mock, not real KEM.
         let kp = MlKem768KeyPair::generate();
         let (ss, _ct) = ml_kem_768_encapsulate(&kp.public_key);
-        assert_ne!(ss.as_bytes(), &[0u8; 32],
-            "ML-KEM-768 shared secret must be non-zero (real KEM output)");
+        assert_ne!(
+            ss.as_bytes(),
+            &[0u8; 32],
+            "ML-KEM-768 shared secret must be non-zero (real KEM output)"
+        );
     }
 
     #[test]
@@ -193,8 +199,11 @@ mod tests {
         let kp = MlKem768KeyPair::generate();
         let (ss1, _) = ml_kem_768_encapsulate(&kp.public_key);
         let (ss2, _) = ml_kem_768_encapsulate(&kp.public_key);
-        assert_ne!(ss1.as_bytes(), ss2.as_bytes(),
-            "ML-KEM-768: different encapsulations must produce different secrets");
+        assert_ne!(
+            ss1.as_bytes(),
+            ss2.as_bytes(),
+            "ML-KEM-768: different encapsulations must produce different secrets"
+        );
     }
 
     #[test]
@@ -225,15 +234,18 @@ mod tests {
         let kp2 = MlKem768KeyPair::generate();
         let (ss_init, ct) = ml_kem_768_encapsulate(&kp1.public_key);
         let ss_wrong = kp2.decapsulate(&ct); // wrong key
-        assert_ne!(ss_init.as_bytes(), ss_wrong.as_bytes(),
-            "ML-KEM-768: wrong key must not recover initiator's shared secret");
+        assert_ne!(
+            ss_init.as_bytes(),
+            ss_wrong.as_bytes(),
+            "ML-KEM-768: wrong key must not recover initiator's shared secret"
+        );
     }
 
     #[test]
     fn test_key_size_constants() {
-        assert_eq!(ML_KEM_768_PK_BYTES,  1184);
-        assert_eq!(ML_KEM_768_SK_BYTES,  2400);
-        assert_eq!(ML_KEM_768_CT_BYTES,  1088);
-        assert_eq!(ML_KEM_768_SS_BYTES,  32);
+        assert_eq!(ML_KEM_768_PK_BYTES, 1184);
+        assert_eq!(ML_KEM_768_SK_BYTES, 2400);
+        assert_eq!(ML_KEM_768_CT_BYTES, 1088);
+        assert_eq!(ML_KEM_768_SS_BYTES, 32);
     }
 }

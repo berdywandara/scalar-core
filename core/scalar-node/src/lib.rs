@@ -1,8 +1,8 @@
-pub mod wal;
 pub mod api;
 pub mod gossip;
 pub mod state_machine;
 pub mod sybil;
+pub mod wal;
 
 // Mengekspos struktur agar bisa dipanggil oleh binari utama
 pub use gossip::ScalarGossipMessage;

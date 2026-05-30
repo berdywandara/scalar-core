@@ -7,15 +7,18 @@
 
 use scalar_stark_p3::transfer_air_p3::{prove_transfer_p3, verify_transfer_p3};
 use scalar_stark_p3::transfer_public_inputs::{
-    FEE_FLOOR_SSCL, T_MAX_WAIT_MS, TransferPublicInputsP3,
+    TransferPublicInputsP3, FEE_FLOOR_SSCL, T_MAX_WAIT_MS,
 };
 use std::time::Instant;
 
-const RUNS: usize  = 10;
+const RUNS: usize = 10;
 const WARMUP: usize = 2;
 
-fn median(mut v: Vec<u64>) -> u64 { v.sort_unstable(); v[v.len() / 2] }
-fn p95(mut v: Vec<u64>)    -> u64 {
+fn median(mut v: Vec<u64>) -> u64 {
+    v.sort_unstable();
+    v[v.len() / 2]
+}
+fn p95(mut v: Vec<u64>) -> u64 {
     v.sort_unstable();
     v[((v.len() as f64 * 0.95) as usize).min(v.len() - 1)]
 }
@@ -26,28 +29,31 @@ fn make_pi(fee_extra: u64) -> TransferPublicInputsP3 {
     let sum_inputs = 1_000_000_000 + fee;
     let now_ms = 1_700_000_000_000u64;
     TransferPublicInputsP3 {
-        fee_total_sscl:          fee,
-        sum_inputs_sscl:         sum_inputs,
-        sum_outputs_sscl:        sum_inputs - fee,
-        crypto_version:          0x01,
-        entry_timestamp_ms:      now_ms - T_MAX_WAIT_MS / 2,
-        current_timestamp_ms:    now_ms,
-        utxo_set_root:           [0x42u8; 32],
-        cb_membership_verified:  true,
-        nullifier_active_root:   [0x11u8; 32],
+        fee_total_sscl: fee,
+        sum_inputs_sscl: sum_inputs,
+        sum_outputs_sscl: sum_inputs - fee,
+        crypto_version: 0x01,
+        entry_timestamp_ms: now_ms - T_MAX_WAIT_MS / 2,
+        current_timestamp_ms: now_ms,
+        utxo_set_root: [0x42u8; 32],
+        cb_membership_verified: true,
+        nullifier_active_root: [0x11u8; 32],
         nullifier_archived_root: [0x22u8; 32],
         cc_nonmembership_verified: true,
-        output_nonzero:          true,
-        single_utxo_source:      true,
-        commitment_hash:         [0u64; 4],
-        nullifier_hash:          [0u64; 4],
+        output_nonzero: true,
+        single_utxo_source: true,
+        commitment_hash: [0u64; 4],
+        nullifier_hash: [0u64; 4],
     }
 }
 
 fn main() {
     println!("B1.1: Transfer Proof Prove+Verify Latency");
     println!("Runs    : {} (+{} warmup)", RUNS, WARMUP);
-    println!("Cores   : {}", std::thread::available_parallelism().map_or(0, |n| n.get()));
+    println!(
+        "Cores   : {}",
+        std::thread::available_parallelism().map_or(0, |n| n.get())
+    );
     println!();
 
     let pi = make_pi(0);
@@ -79,11 +85,11 @@ fn main() {
         verify_ms.push(t.elapsed().as_millis() as u64);
     }
 
-    let prove_med  = median(prove_ms.clone());
-    let prove_p95  = p95(prove_ms);
+    let prove_med = median(prove_ms.clone());
+    let prove_p95 = p95(prove_ms);
     let verify_med = median(verify_ms.clone());
     let verify_p95 = p95(verify_ms);
-    let proof_kb   = last_proof.len() / 1024;
+    let proof_kb = last_proof.len() / 1024;
 
     println!();
     println!("=== B1.1 RESULTS ===");
@@ -95,18 +101,30 @@ fn main() {
     println!();
 
     // PARAM-C recalc with real proof_time
-    let timeout_s   = 300u64;
-    let prove_s     = prove_med as f64 / 1000.0;
-    let max_tx      = (timeout_s as f64 / prove_s).floor() as u64;
-    let trigger_tx  = max_tx.min(50);
+    let timeout_s = 300u64;
+    let prove_s = prove_med as f64 / 1000.0;
+    let max_tx = (timeout_s as f64 / prove_s).floor() as u64;
+    let trigger_tx = max_tx.min(50);
 
     println!("=== PARAM-C (with real proof_time) ===");
     println!("proof_time_s              : {:.3}", prove_s);
     println!("max_tx_in_300s            : {}", max_tx);
-    println!("MICROCOMMITMENT_TRIGGER_TX: {} (min(max_tx, 50))", trigger_tx);
+    println!(
+        "MICROCOMMITMENT_TRIGGER_TX: {} (min(max_tx, 50))",
+        trigger_tx
+    );
     println!();
     println!("=== IMPACT ===");
-    println!("D-023: prove_median={}ms — primary MicroCommitment sizing parameter.", prove_med);
-    println!("D-024: verify_median={}ms — aggregator verification overhead.", verify_med);
-    println!("D-025: proof_size={}KB — network propagation budget.", proof_kb);
+    println!(
+        "D-023: prove_median={}ms — primary MicroCommitment sizing parameter.",
+        prove_med
+    );
+    println!(
+        "D-024: verify_median={}ms — aggregator verification overhead.",
+        verify_med
+    );
+    println!(
+        "D-025: proof_size={}KB — network propagation budget.",
+        proof_kb
+    );
 }

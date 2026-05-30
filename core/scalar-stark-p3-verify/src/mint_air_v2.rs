@@ -39,8 +39,8 @@ const COL_REWARD: usize = 2;
 const COL_AUTH: usize = 3;
 const COL_NULL_NZ: usize = 4;
 const COL_REWARD_INV: usize = 5;
-const COL_NULL0:   usize = 6;
-const COL_IS_DEP:  usize = 7; // MC3-DEP circuit flag. MAD §20.2.
+const COL_NULL0: usize = 6;
+const COL_IS_DEP: usize = 7; // MC3-DEP circuit flag. MAD §20.2.
 const COL_IS_VEST: usize = 8; // MC3-VEST circuit flag. MAD §20.2.
 
 // Public value indices
@@ -51,7 +51,7 @@ const PV_AUTH: usize = 3;
 const PV_NULL_0: usize = 4;
 // PV_NULL_1..3 = 5..7 bound via Fiat-Shamir transcript
 const PV_DEP_AMOUNT: usize = 8; // dep_amount_sscl. MC3-DEP. MAD §20.2.
-const PV_VEST_LOCK:  usize = 9; // vest_lock_epochs. MC3-VEST. MAD §20.2.
+const PV_VEST_LOCK: usize = 9; // vest_lock_epochs. MC3-VEST. MAD §20.2.
 
 /// Independent second implementation of Mint Linear AIR. Spec §15.3.
 /// Constraint logic written from spec §5.2, not copied from scalar-stark-p3.
@@ -133,18 +133,27 @@ where
         // MC3-DEP + MC3-VEST: circuit flags. MAD §20.2.
         // Independent implementation written from spec, not copied from primary.
         if local.len() > COL_IS_VEST && pv.len() > PV_VEST_LOCK {
-            let is_dep  = local[COL_IS_DEP];
+            let is_dep = local[COL_IS_DEP];
             let is_vest = local[COL_IS_VEST];
-            let pv_dep  = pv[PV_DEP_AMOUNT];
+            let pv_dep = pv[PV_DEP_AMOUNT];
             let pv_vest = pv[PV_VEST_LOCK];
             let one = AB::Expr::ONE;
             // Boolean: flag ∈ {0,1}
-            builder.assert_eq(is_dep.into()  * (one.clone() - is_dep.into()),  AB::Expr::ZERO);
-            builder.assert_eq(is_vest.into() * (one.clone() - is_vest.into()), AB::Expr::ZERO);
+            builder.assert_eq(
+                is_dep.into() * (one.clone() - is_dep.into()),
+                AB::Expr::ZERO,
+            );
+            builder.assert_eq(
+                is_vest.into() * (one.clone() - is_vest.into()),
+                AB::Expr::ZERO,
+            );
             // Consistency: dep_amount  == 0 when is_dep  == 0
-            builder.assert_eq((one.clone() - is_dep.into())  * pv_dep.into(),  AB::Expr::ZERO);
+            builder.assert_eq(
+                (one.clone() - is_dep.into()) * pv_dep.into(),
+                AB::Expr::ZERO,
+            );
             // Consistency: vest_lock   == 0 when is_vest == 0
-            builder.assert_eq((one        - is_vest.into()) * pv_vest.into(), AB::Expr::ZERO);
+            builder.assert_eq((one - is_vest.into()) * pv_vest.into(), AB::Expr::ZERO);
         }
     }
 }

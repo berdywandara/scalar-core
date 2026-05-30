@@ -50,8 +50,6 @@ const _: () = assert!(
     "NodeScore weights must sum to 1_000_000 (MAD §21.1)"
 );
 
-
-
 // ── Tier detection — spec §10.1 ───────────────────────────────────────────────
 
 /// Deteksi apakah node adalah Tier C berdasarkan prefix node_id_full. Spec §10.1.
@@ -383,9 +381,9 @@ mod tests {
 /// Output:     fixed-point in [0, 1_000_000] (before tier cap).
 /// Overflow:   impossible — max numerator = 3 × 1_000_000² < u128::MAX.
 pub fn compute_node_score(uptime_fp: u64, proof_rate_fp: u64, age_fp: u64) -> u64 {
-    let numer = (uptime_fp    as u128) * (NODESCORE_UPTIME_W as u128)
-              + (proof_rate_fp as u128) * (NODESCORE_PROOF_W  as u128)
-              + (age_fp        as u128) * (NODESCORE_AGE_W    as u128);
+    let numer = (uptime_fp as u128) * (NODESCORE_UPTIME_W as u128)
+        + (proof_rate_fp as u128) * (NODESCORE_PROOF_W as u128)
+        + (age_fp as u128) * (NODESCORE_AGE_W as u128);
     (numer / FIXED_POINT_BASIS as u128) as u64
 }
 
@@ -461,8 +459,11 @@ mod nodescore_formula_tests {
         let raw = compute_node_score(1_000_000, 1_000_000, 1_000_000);
         let tier_c_id = [0xFEu8; 32];
         let node = NodeScore::new(tier_c_id, raw);
-        assert_eq!(node.score(), TIER_C_MAX_NODESCORE,
-            "Tier C must be capped at {TIER_C_MAX_NODESCORE}");
+        assert_eq!(
+            node.score(),
+            TIER_C_MAX_NODESCORE,
+            "Tier C must be capped at {TIER_C_MAX_NODESCORE}"
+        );
     }
 
     #[test]

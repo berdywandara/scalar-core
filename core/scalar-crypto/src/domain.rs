@@ -415,4 +415,3 @@ mod tests {
 // its presence in the canonical registry so domain.rs remains the
 // single source of truth ("Secured by Analysis"). No byte value
 // changed — utxo_set_root on-chain is unaffected.
-
