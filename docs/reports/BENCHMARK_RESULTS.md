@@ -66,3 +66,64 @@ LOCAL quorum confirms intra-DC MicroCommitment feasible.
 After B1.1:
 - Update `proof_time` in PARAM-C calculation
 - Re-run quorum_sim with actual proof_time for MICROCOMMITMENT_TRIGGER_TX
+
+---
+
+## B1.1 — Transfer Proof Prove+Verify (CD/CE/CG sub-AIR)
+
+| Metric | Value | Status |
+|--------|-------|--------|
+| prove_median_ms | **1075** | ⚠️ ~1.1s per proof |
+| prove_p95_ms | **1091** | |
+| verify_median_ms | **3** | ✅ fast |
+| verify_p95_ms | **3** | |
+| proof_size_kb | **77** | ✅ reasonable |
+
+**PARAM-C (final, real proof_time):**
+- proof_time_s: 1.075
+- max_tx_in_300s: 279
+- **MICROCOMMITMENT_TRIGGER_TX: 50** (min(279, 50))
+- **MICROCOMMITMENT_TRIGGER_TIMEOUT: 60s** (max(3×129ms, 60s) = 60s minimum)
+
+**Impact:**
+- D-023: 1075ms prove — MicroCommitment batch of 50 tx ≈ 53.75s proving (feasible in 60s timeout)
+- D-024: 3ms verify — aggregator can verify 100 proofs/s
+- D-025: 77KB proof — well within 1MB network budget
+
+**Note:** This measures CD/CE/CG sub-AIR only. Full BatchTransferProof (CA+CB+CC+CD/CE/CG)
+is ~3.8s per spec MTS benchmark (P3-R9, commit 5aa8be7). Transfer AIR alone = 1.075s.
+
+---
+
+## B5-WAL — WAL Three-Phase Commit Throughput
+
+| Metric | Value | Status |
+|--------|-------|--------|
+| prepare_median_ns | **90** | ✅ negligible |
+| commit_median_ns | **325,597** (~326μs) | ✅ acceptable* |
+| lookup_median_ns | **140** | ✅ negligible |
+| idempotency_ok | **true** | ✅ ADR-SEC-002 |
+| committed_count | **10,000** | ✅ |
+
+*commit 326μs because it copies 689KB proof bytes. In production: store path/hash only.
+
+**Impact:**
+- WAL overhead is negligible vs proof generation (1075ms prove >> 326μs WAL commit)
+- is_committed guard at 140ns is zero-cost for proof gating
+- Idempotency verified for 1000 re-commit operations
+
+---
+
+## PARAMETER SUMMARY (D-023/D-024/D-025)
+
+| Parameter | Value | Source |
+|-----------|-------|--------|
+| MICROCOMMITMENT_TRIGGER_TX | **50** | B1.1 + B4-SIM |
+| MICROCOMMITMENT_TRIGGER_TIMEOUT_S | **60** | B4-SIM quorum×3 |
+| slhdsa_verify_ms (actual) | **0.479** | B2.1 |
+| transfer_prove_ms | **1075** | B1.1 |
+| transfer_verify_ms | **3** | B1.1 |
+| proof_size_kb | **77** | B1.1 |
+| imt_path_gen_ms | **9.034** | B3.1 |
+| quorum_wan50_ms | **129** | B4-SIM |
+
