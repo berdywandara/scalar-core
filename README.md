@@ -421,10 +421,11 @@ Scalar Network protocol was conceived and designed by **Berdy Wandara** (Origina
 
 | Document | Location |
 |---|---|
-| Protocol Specification | [`SCALAR-PROTOCOL.md`](./SCALAR-PROTOCOL.md) |
-| Technical Reference | [`SCALAR-TECHNICAL.md`](./SCALAR-TECHNICAL.md) |
-| Security Analysis | [`SCALAR-SECURITY.md`](./SCALAR-SECURITY.md) |
+| Protocol Specification | [`docs/spec/SCALAR-PROTOCOL.md`](./docs/spec/SCALAR-PROTOCOL.md) |
+| Technical Reference | [`docs/spec/SCALAR-TECHNICAL.md`](./docs/spec/SCALAR-TECHNICAL.md) |
+| Security Analysis | [`docs/spec/SCALAR-SECURITY.md`](./docs/spec/SCALAR-SECURITY.md) |
 | Benchmark Results | [`docs/reports/BENCHMARK_RESULTS.md`](./docs/reports/BENCHMARK_RESULTS.md) |
+| Implementation Status | [`docs/reports/IMPLEMENTATION_STATUS.md`](./docs/reports/IMPLEMENTATION_STATUS.md) |
 | Regulatory Framework | [`docs/REGULATORY_FRAMEWORK.md`](./docs/REGULATORY_FRAMEWORK.md) |
 | Test Vectors | [`docs/testing/TEST_VECTORS.md`](./docs/testing/TEST_VECTORS.md) |
 | Architecture Diagrams | [`docs/architecture/ARCHITECTURE_DIAGRAMS.md`](./docs/architecture/ARCHITECTURE_DIAGRAMS.md) |
