@@ -272,3 +272,22 @@ Implementasi menunggu keputusan D-028 dari arsitektur team.
 **Grinding time 9.3× lebih lambat** karena Codespace 4vCPU.
 Re-bench wajib di dedicated EPYC setelah testnet deployment.
 Referensi: D-028 RISIKO-2, parallel grinding strategy jika perlu.
+
+---
+
+## D-025 — Optimistic Finality Formal Verification (SPECIALIST-1)
+
+**Verdict: GO** — Semua 7 property PASS via TLA+ model checking.
+
+| Property | Type | Result |
+|----------|------|--------|
+| TypeOK | Invariant | ✅ PASS |
+| NullifierUniqueness | Safety | ✅ PASS |
+| OptimisticSafety | Safety | ✅ PASS |
+| FinalizationOrder | Safety | ✅ PASS |
+| NullifierSetConsistency | Safety | ✅ PASS |
+| NoOptimisticDoubleFinalize | Safety | ✅ PASS |
+| EventualResolution | Liveness | ✅ PASS |
+
+Files: `verification/d025-optimistic-finality/`
+Pre-deployment checklist: 6 items (see VERIFICATION_REPORT.md)
