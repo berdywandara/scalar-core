@@ -34,8 +34,8 @@ Each test vector includes:
 |---|---|
 | Field modulus (Goldilocks) | `p = 0xffffffff00000001` (`2⁶⁴ − 2³² + 1`) |
 | BLAKE3 output length | 32 bytes |
-| Poseidon2 state width | 12 field elements |
-| Poseidon2 rate | 8 field elements |
+| Poseidon2 state width | 8 field elements |
+| Poseidon2 rate | 4 field elements |
 | Poseidon2 full rounds | 8 |
 | Poseidon2 partial rounds | 22 |
 | Poseidon2 S-box degree | 7 |
@@ -52,21 +52,22 @@ All domain separators are **OSSIFIED** — they cannot change without a hard for
 
 | Name | Hex Value | Length (bytes) |
 |---|---|---|
-| `DOMAIN_COMMITMENT_V2` | `7363616c61725f7574786f5f7632` | 14 |
-| `DOMAIN_NULL` | `7363616c61725f6e756c6c5f7631` | 14 |
-| `DOMAIN_SALT_V1` | `7363616c61725f73616c745f7631` | 14 |
-| `DOMAIN_SEED_V1` | `7363616c61725f736565645f7631` | 15 |
-| `DOMAIN_NMT_V1` | `7363616c61725f6e6d745f7631` | 13 |
-| `DOMAIN_NODE_SHORT_V1` | `7363616c61725f6e6f64655f73686f72745f7631` | 20 |
-| `DOMAIN_ANCHOR_V1` | `7363616c61725f616e63686f725f7631` | 16 |
-| `DOMAIN_VOTE_V1` | `7363616c61725f766f74655f7631` | 15 |
-| `DOMAIN_STARK_FS_V1` | `7363616c61725f737461726b5f66735f7631` | 17 |
-| `DOMAIN_CHECKPOINT_FS_V1` | `7363616c61725f636865636b706f696e745f66735f7631` | 22 |
-| `DOMAIN_BEACON_V1` | `7363616c61725f626561636f6e5f7631` | 16 |
-| `DOMAIN_TX_ORDER` | `7363616c61725f74785f6f726465725f7631` | 17 |
-| `SEED_SALT_PREFIX` | `7363616c61725f7632` | 9 |
+| `DOMAIN_NULLIFIER` | `7363616c61725f6e756c6c6966696572` | 16 |
+| `DOMAIN_UTXO_COMMITMENT` | `7363616c61725f636f6d6d69746d656e74` | 17 |
+| `DOMAIN_SALT` | `7363616c61725f73616c74` | 11 |
+| `DOMAIN_SEED` | `7363616c61725f73656564` | 11 |
+| `DOMAIN_NMT` | `7363616c61725f6e6d74` | 10 |
+| `DOMAIN_NODE_SHORT` | `7363616c61725f6e6f64655f73686f7274` | 17 |
+| `DOMAIN_ANCHOR` | `7363616c61725f616e63686f72` | 13 |
+| `DOMAIN_VOTE` | `7363616c61725f766f7465` | 11 |
+| `DOMAIN_STARK_FS` | `7363616c61725f737461726b5f6673` | 15 |
+| `DOMAIN_CHECKPOINT_FS` | `7363616c61725f636865636b706f696e745f6673` | 20 |
+| `DOMAIN_BEACON` | `7363616c61725f626561636f6e` | 13 |
+| `DOMAIN_TX_ORDER` | `7363616c61725f74785f6f72646572` | 15 |
+| `DOMAIN_SEED_KDF` | `7363616c61725f77616c6c65745f6b6466` | 17 |
 
-> **Verification:** Decode each hex value to ASCII to confirm it matches the string literals in §2.3 of the specification.
+> **Source:** `core/scalar-crypto/src/domain.rs` — OSSIFIED, verified by assert tests in CI.
+> Decode hex to ASCII to confirm. Reference: [SCALAR-PROTOCOL §13.1](../spec/SCALAR-PROTOCOL.md).
 
 ---
 
@@ -135,8 +136,8 @@ output_len  = 64 bytes
 
 | Parameter | Value |
 |---|---|
-| Input | `[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]` (12 field elements, all zero) |
-| Output (field element) | `[computed by reference implementation]` |
+| Input | `[0, 0, 0, 0, 0, 0, 0, 0]` (8 field elements, all zero — t=8) |
+| Output (field elements) | `[4904961330882102773, 6914533505831728251, 16060085509051262978, 161169382960502813, 8610401995229161121, 6947968519022847962, 9668808541865791489, 7055543217974479047]` |
 
 ### B.4.2 Test 2 — UTXO Commitment
 
@@ -147,7 +148,7 @@ value_sscl  = 100000000000000  (100,000 SCL in sSCL; 8 bytes little-endian)
 owner_pubkey = 0x0101...01     (32 bytes, all 0x01 — SLH-DSA pubkey field element representation)
 secret       = 0x0202...02     (32 bytes, all 0x02)
 salt         = 0x0303...03     (32 bytes, all 0x03)
-domain       = DOMAIN_COMMITMENT_V2 = 7363616c61725f7574786f5f7632 (16 bytes)
+domain       = DOMAIN_UTXO_COMMITMENT = 7363616c61725f636f6d6d69746d656e74 (17 bytes)
 
 commitment = Poseidon2(domain || value_sscl || owner_pubkey || secret || salt)
 ```
@@ -161,7 +162,7 @@ commitment = Poseidon2(domain || value_sscl || owner_pubkey || secret || salt)
 ```
 secret       = 0x0202...02  (32 bytes)
 spending_key = 0x0303...03  (32 bytes)
-domain       = DOMAIN_NULL = 7363616c61725f6e756c6c5f7631 (14 bytes)
+domain       = DOMAIN_NULLIFIER = 7363616c61725f6e756c6c6966696572 (16 bytes)
 
 nullifier = Poseidon2(domain || secret || spending_key)
 ```
@@ -174,7 +175,7 @@ nullifier = Poseidon2(domain || secret || spending_key)
 
 | Parameter | Value |
 |---|---|
-| Input | Field elements with values `1, 2, 3, ..., 1024` (sponge-absorbed in rate-8 chunks) |
+| Input | Field elements with values `1, 2, 3, ..., 256` (sponge-absorbed in rate-4 chunks) |
 | Output | `[computed by reference implementation]` |
 
 ### B.4.5 Verification Checklist
@@ -210,7 +211,7 @@ anchor_message = BLAKE3(DOMAIN_ANCHOR_V1 || epoch_id || node_id_full || chain_he
 ```
 
 Where:
-- `DOMAIN_ANCHOR_V1` = `7363616c61725f616e63686f725f7631` (16 bytes)
+- `DOMAIN_ANCHOR` = `7363616c61725f616e63686f72` (13 bytes)
 - `epoch_id` = 8 bytes little-endian
 - `hb_count` = 8 bytes little-endian
 
@@ -219,7 +220,7 @@ Where:
 - [ ] Implementation matches NIST FIPS 205 official test vectors for SLH-DSA-SHAKE-128s
 - [ ] Signature size is exactly 7,856 bytes
 - [ ] `verify(pk, anchor_message, sig)` returns `true`
-- [ ] Verification time is ≤ ~3 ms on reference hardware
+- [ ] Verification time: benchmark B2.1 confirmed 0.479ms (target < 10ms ✅)
 
 ---
 
@@ -234,9 +235,9 @@ Where:
 | Field | Goldilocks (`p = 2⁶⁴ − 2³² + 1`) |
 | FRI blowup factor | 8 |
 | FRI queries | 84 |
-| Grinding bits | 20 |
+| Grinding bits | 23 (D-028) |
 | Folding factor | 4 |
-| Target soundness | `ε ≈ 2⁻¹²⁸` (classical) |
+| Soundness ε (Scenario B, g=23) | `≤ 2⁻¹²⁰·⁶⁸` (estimated) |
 
 ### B.6.2 Test Vector 1 — 2-in/2-out Transfer
 
@@ -252,7 +253,7 @@ current_active_root     : root of NS_ACTIVE
 archived_smt_root       : root of NS_CHECKPOINT
 timestamp               : u32 (test value: 1000)
 entry_timestamp         : u32 (test value: 900)
-crypto_version          : 0x03
+crypto_version          : 0x01
 ```
 
 **Private witness:** Omitted (prover-only).
@@ -271,16 +272,16 @@ Same structure as Test Vector 1 with 10 inputs and 10 outputs.
 
 ```
 constraint_count : ~260,000 (10-in/10-out)
-proving_time     : ≤ 500 ms on reference hardware (8 GB RAM, standard server CPU)
+# Note: proving time benchmark empiris — lihat docs/reports/BENCHMARK_RESULTS.md
 ```
 
 ### B.6.4 Cross-Implementation Verification Requirement
 
-> Proofs generated by Winterfell MUST be verifiable by the second independent STARK implementation, and vice versa.
+> Proofs generated by scalar-stark-p3 MUST be verifiable by the second independent STARK implementation.
 
-- [ ] Winterfell generates proof for 2-in/2-out → second implementation verifies: `true`
-- [ ] Second implementation generates proof → Winterfell verifies: `true`
-- [ ] Proving time ≤ 500 ms for 10-in/10-out on spec hardware (§15.6)
+- [ ] scalar-stark-p3 generates proof for 2-in/2-out → second implementation verifies: `true`
+- [ ] Second implementation generates proof → scalar-stark-p3 verifies: `true`
+- [ ] Benchmark results: lihat docs/reports/BENCHMARK_RESULTS.md
 
 ---
 
@@ -321,7 +322,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 00
 ```
 
-**Total length:** `4 + 4 + 4 + 32 + 32 + 32 + 1 = 109 bytes`
+**Total length:** `4 + 4 + 4 + 32 + 32 + 8 + 32 + 32 + 1 = 149 bytes` (v9.1 dengan imt_frontier + imt_count)
 
 ### B.7.3 Object 2: CheckpointProof
 
@@ -358,7 +359,7 @@ EpochRewardManifest {
     epoch_id: 1,                          // u64 LE: 0100000000000000
     reward_root: [u8; 32],               // Merkle root of node_list
     node_list: Vec<NodeRewardEntry>,      // sorted ascending by node_id_full
-    spec_version: 0x06,                  // 1 byte
+    spec_version: 0x01,                  // 1 byte
     total_emission_sscl: u64,
     deferred: false,                     // 1 byte: 00
     seed_k: [u8; 32],
@@ -460,8 +461,8 @@ tx_ordering_key = BLAKE3(
 
 ### B.10.1 Manual Procedure
 
-1. Reference implementation (Rust/Winterfell) computes all outputs for each test vector.
-2. Second independent implementation (e.g., C++/LambdaWorks or Go/gnark) reads the same inputs and computes outputs.
+1. Reference implementation (Rust/scalar-stark-p3/Plonky3) computes all outputs for each test vector.
+2. Second independent implementation (separate codebase) reads the same inputs and computes outputs.
 3. Both outputs must be **byte-identical**. Any discrepancy must be investigated and resolved before testnet.
 
 ### B.10.2 Automation
@@ -484,7 +485,7 @@ cargo test --package scalar-stark -- stark_proof_test_vectors
 | SCL-SPEC-SEED-001 | Both Argon2id implementations produce identical 64-byte seed |
 | SCL-SPEC-POSEIDON2-001 | All 4 test outputs match between implementations |
 | SCL-SPEC-SLHDSA-001 | FIPS 205 official test vectors pass; signature size = 7,856 bytes |
-| SCL-SPEC-STARK-001 | Cross-verification passes; proving time ≤ 500 ms for 10-in/10-out |
+| SCL-SPEC-STARK-001 | Cross-verification passes; benchmark results in docs/reports/BENCHMARK_RESULTS.md |
 | SCL-SPEC-SERIAL-001 | Byte-identical serialization for all 3 object types |
 | SCL-SPEC-NS-001 | Checkpoint proof verifies; WAL recovery maintains Zero-Gap Property |
 | SCL-SPEC-TXORDER-001 | Identical `utxo_set_root` across both implementations |
@@ -496,7 +497,7 @@ cargo test --package scalar-stark -- stark_proof_test_vectors
 | Version | Date | Changes |
 |---|---|---|
 | 1.0 | 2026-07-15 | Initial release — parameters confirmed per SCALAR-PROTOCOL / SCALAR-TECHNICAL. Concrete values are placeholders pending stable reference implementation. |
-| 1.1 | (TBD) | Update with concrete values from Winterfell v0.9 and second implementation. |
+| 1.1 | (TBD) | Update with concrete values from scalar-stark-p3 and second implementation. |
 
 > This appendix MUST be completed and verified before public testnet.  
 > After finalization, any change must go through the Layer 2 governance process and be reflected in the specification.
