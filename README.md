@@ -74,18 +74,18 @@ Bitcoin and Ethereum rely on elliptic curve cryptography. A sufficiently powerfu
 
 All hash contexts use unique domain separators to prevent cross-context collisions.
 
-| Context | Domain Separator | Length |
-|---|---|---|
-| Nullifier circuit | `scalar_null_v1` | 14 bytes |
-| UTXO commitment | `scalar_utxo_v2` | 16 bytes |
-| Salt derivation | `scalar_salt_v1` | 14 bytes |
-| Seed KDF | `scalar_v2` (prefix) | 9 bytes |
-| Anchor signature | `scalar_anchor_v1` | 16 bytes |
-| STARK FS transcript | `scalar_stark_fs_v1` | 17 bytes |
-| Checkpoint FS | `scalar_checkpoint_fs_v1` | 22 bytes |
-| TX ordering | `scalar_tx_order_v1` | 18 bytes |
+| Context | Domain Separator |
+|---|---|
+| Sub-epoch hash | `scalar_subepoch` (15 bytes) |
+| STARKPack Fiat-Shamir | `scalar_subepoch_fs` (18 bytes) |
+| STARKPack batch | `scalar_stark_batch` (18 bytes) |
+| UTXO set (CB constraint) | `scalar_utxo_set` (15 bytes) |
+| IMT leaf | `scalar_imt_leaf` (15 bytes) |
+| IMT node | `scalar_imt_node` (15 bytes) |
+| Anchor signature | `scalar_anchor` (13 bytes) |
+| Wallet KDF | `scalar_wallet_kdf` (17 bytes) |
 
-Full table in §2.3 of the specification.
+Complete list of 25 OSSIFIED domain separators: [SCALAR-PROTOCOL §13.1](docs/spec/SCALAR-PROTOCOL.md)
 
 ---
 
@@ -165,12 +165,12 @@ scalar-audit (read-only; no private key access)
 | Field | Goldilocks (`p = 2⁶⁴ − 2³² + 1`) |
 | FRI blowup factor | 8 |
 | FRI queries | 84 |
-| Grinding bits | 20 |
+| Grinding bits | 23 (D-028) |
 | Folding factor | 4 |
-| Soundness (classical) | ε ≈ 2⁻¹²⁸ |
+| Soundness ε (Scenario B, g=23) | ≤ 2⁻¹²⁰·⁶⁸ |
 | Constraints (2-in/2-out) | ~52,088 |
 | Constraints (10-in/10-out) | ~260,000 |
-| Target proving time | 500 ms ± 10 ms |
+| Proving time (Codespace 4vCPU) | ~7.3s full proof; ~1.1s sub-AIR |
 
 ---
 
@@ -190,9 +190,10 @@ E_TAIL = 1,000 SCL/epoch
 
 ### Epoch Structure
 
-- **1 Epoch** = 4,320 heartbeats × 600 seconds ≈ **30 days**
-- Epoch boundaries are determined by `seq_num` (Rule T-1), **not by wall-clock time**
-- Each node sends one heartbeat per 300 seconds minimum
+- **1 Epoch** = 45,600 seconds (~12.67 hours) = 24 sub-epochs
+- **1 Sub-Epoch** = 1,900 seconds (~31.7 minutes) — UTXO finality unit
+- Heartbeat interval: 120 seconds target, 300 seconds minimum (Rule T-4)
+- Epoch boundaries determined by `seq_num` (Rule T-1), **not wall-clock time**
 
 ### Uptime Weight
 
@@ -254,7 +255,7 @@ Fungibility guarantee: two UTXOs of the same denomination are cryptographically 
 ```rust
 node_id_full = Argon2id(
     input       = UTF8(mnemonic),
-    salt        = b"scalar_nodeid_v1" || genesis_hash,
+    salt        = b"scalar_nodeid" || genesis_hash,
     memory      = 4 GB,   // Tier A/B
     iterations  = 3600,
     parallelism = 1,
@@ -268,8 +269,8 @@ node_id_short = BLAKE3(b"scalar_node_short_v1" || node_id_full)[0..4]
 ## Governance
 
 - **Voting identity:** `node_id_full` — no SCL stake required
-- **Eligibility:** maturity ≥ 6 epochs (180 days) of active participation
-- **Conviction factor:** smooth curve from 50,000 fp (day 1) to 1,000,000 fp (day 365); no cliff
+- **Eligibility:** maturity ≥ 342 epochs (180 days) of active participation
+- **Conviction factor:** smooth curve τ=60 days: day-1=16,529 fp → day-30=393,469 fp → day-365=997,772 fp; no cliff
 
 ```
 GP(i,t) = min(
@@ -304,35 +305,43 @@ Tier C:   GOV_MAX_FP = 200,000
 
 ```
 scalar-core/
-├── crates/
-│   ├── scalar-crypto/        # Poseidon2, SLH-DSA, BLAKE3, Argon2id
-│   ├── scalar-nullifier/     # 2-layer NullifierSet (NS_ACTIVE + NS_CHECKPOINT)
-│   ├── scalar-stark-p3/      # Transfer Circuit (CA–CG) + Mint (MC1–MC5) — Plonky3
-│   ├── scalar-network/       # P2P networking, Dandelion++, State Beacon
-│   ├── scalar-consensus/     # Epoch manifest, DMM, UTXO ordering
-│   ├── scalar-emission/      # PoU emission formula, Deferred Pool
-│   ├── scalar-node/          # Node binary, state machine, RPC
-│   ├── scalar-wallet-core/   # Key derivation, coin selection, tx builder
-│   ├── scalar-audit/         # Read-only audit crate (no private key access)
-│   ├── scalar-governance/    # Node-backed governance, conviction voting
-│   └── scalar-sdk/           # Client-utility layer (public API only)
+├── core/                         # Protocol crates
+│   ├── scalar-crypto/            # Poseidon2, SLH-DSA, BLAKE3, Argon2id
+│   ├── scalar-nullifier/         # 2-layer NullifierSet
+│   ├── scalar-stark-p3/          # Transfer Circuit (CA-CG) + Mint (MC1-MC5)
+│   ├── scalar-stark-p3-verify/   # Independent verifier
+│   ├── scalar-network/           # P2P networking, Dandelion++
+│   ├── scalar-consensus/         # Epoch manifest, DMM, UTXO ordering
+│   ├── scalar-emission/          # PoU emission formula, Deferred Pool
+│   ├── scalar-fees/              # Fee model
+│   ├── scalar-node/              # Node binary, state machine, RPC
+│   └── scalar-compliance/        # Compliance hooks
+├── client/                       # Client crates
+│   ├── scalar-wallet-core/       # Key derivation, coin selection, tx builder
+│   ├── scalar-audit/             # Read-only audit
+│   ├── scalar-governance/        # Node-backed governance
+│   ├── scalar-sdk/               # Client-utility layer
+│   └── scalar-ffi/               # FFI bindings
 ├── docs/
-│   ├── REGULATORY_FRAMEWORK.md   # Appendix A
-│   ├── TEST_VECTORS.md           # Appendix B — cryptographic test vectors
-│   └── ARCHITECTURE_DIAGRAMS.md  # Appendix D — protocol flow diagrams
+│   ├── spec/                     # Canonical specification
+│   │   ├── SCALAR-PROTOCOL.md
+│   │   ├── SCALAR-TECHNICAL.md
+│   │   └── SCALAR-SECURITY.md
+│   ├── reports/                  # Benchmark & status reports
+│   ├── architecture/
+│   ├── testing/
+│   └── verification/
+├── verification/                 # TLA+ formal specs
+│   └── d025-optimistic-finality/
+├── scripts/                      # Operational scripts
+│   ├── testnet.sh
+│   └── run_benchmarks.sh
 ├── tools/
-│   ├── genesis-tool/         # Generate genesis object
-│   └── circuit-bench/        # Benchmark proof generation
-├── apps/
-│   └── mobile/               # Flutter cross-platform wallet
-├── .github/
-│   └── workflows/            # CI pipelines
-├── AUTHORS.md
-├── CONTRIBUTING.md
-├── LICENSE-MIT
-├── LICENSE-APACHE
-├── SECURITY.md
-└── Cargo.toml
+│   ├── genesis-tool/
+│   └── circuit-bench/
+├── apps/mobile/
+├── fuzz/
+└── tests/
 ```
 
 ---
@@ -376,9 +385,11 @@ curl http://localhost:7777/node_state  # state: BOOTSTRAPPING→SYNCING→ACTIVE
 
 **Pre-mainnet requirements (mandatory):**
 - [x] Plonky3 migration complete (P3-R1..R9) — scalar-stark-p3
-- [ ] Second independent implementation (spec §15.3) — required before mainnet
-- [ ] Two independent Argon2id implementations — byte-identical test vectors
-- [ ] Formal verification of CC invariant (TLA+ or Coq)
+- [x] D-025 Optimistic Finality — TLA+ formal verification: GO (all 7 properties PASS)
+- [x] D-028 FRI grinding 20→23 — soundness ε≤2^-120.68 confirmed
+- [x] Formal invariants INV-SUPPLY/NULLIFIER/EPOCH/REWARD/GOVERNANCE
+- [ ] Formal soundness proof STARKPack Scenario B (ADR-SEC-023)
+- [ ] Second independent STARK verifier (spec §15.3) — required before mainnet
 - [ ] Two independent security audits of circuits and protocol
 - [ ] All test vectors in `docs/testing/TEST_VECTORS.md` verified by both implementations
 
