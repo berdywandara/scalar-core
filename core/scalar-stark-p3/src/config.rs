@@ -206,6 +206,22 @@ mod tests {
     }
 
     #[test]
+    fn test_fri_grinding_bits_d028() {
+        // D-028: g=23 required for soundness ε≤2^-120 under Scenario B.
+        // STARKPack uses independent union bound (not RLC batching).
+        // g=20 → ε≈2^-117.68 (FAIL). g=23 → ε≈2^-120.68 (PASS).
+        assert_eq!(
+            FRI_PROOF_OF_WORK_BITS, 23,
+            "FRI grinding changed without D-level decision — D-028 requires g=23"
+        );
+        // Verify it's strictly above minimum needed for Scenario B
+        assert!(
+            FRI_PROOF_OF_WORK_BITS >= 23,
+            "g<23 breaks 2^-120 soundness target"
+        );
+    }
+
+    #[test]
     fn test_poseidon2_params_ossified() {
         // Spec D-008: t=8, R_F=8, R_P=22. OSSIFIED.
         // Verified via p3-goldilocks default_goldilocks_poseidon2_8() constants.
