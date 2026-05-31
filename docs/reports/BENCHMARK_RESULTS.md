@@ -291,3 +291,48 @@ Referensi: D-028 RISIKO-2, parallel grinding strategy jika perlu.
 
 Files: `verification/d025-optimistic-finality/`
 Pre-deployment checklist: 6 items (see VERIFICATION_REPORT.md)
+
+---
+
+## D-026 — T_MAX_WAIT Constraint Update
+
+**Keputusan:** T_MAX_WAIT diubah dari 86_400s (24 jam) → **1_800s (30 menit)**
+
+| Parameter | Lama | Baru | Tipe |
+|-----------|------|------|------|
+| T_MAX_WAIT | 86_400s | **1_800s** | CONSTRAINED |
+
+**Justifikasi:** Anti-censorship window 24 jam tidak kompatibel dengan
+sub-epoch duration 1_900s (~32 menit). T_MAX_WAIT harus < sub-epoch duration
+agar CG timestamp constraint tidak selalu reject transaksi valid.
+Formula: T_MAX_WAIT < SUBEPOCH_PROVING_DURATION_S.
+1_800s < 1_900s ✅
+
+---
+
+## D-027 — Semantic Parameters (Derived from Benchmark)
+
+**Keputusan:** Semua parameter waktu di-derive ulang dari benchmark empiris.
+Basis: HEARTBEAT_INTERVAL_S=120 (D-024 GO, SLH-DSA verify=0.479ms confirmed).
+
+| Parameter | Lama | Baru | Tipe | Derivasi |
+|-----------|------|------|------|----------|
+| HEARTBEAT_INTERVAL_S | 600s | **120s** | CONSTRAINED | D-024 GO |
+| SUBEPOCH_PROVING_DURATION_S | 108_000s | **1_900s** | CONSTRAINED | 180×120−1700 buffer |
+| W_MATURE_EPOCHS | 6 | **342** | OSSIFIED | ceil(180 hari × 86400 / (4320×120)) |
+| W_MATURE_DAYS | — | **180** | OSSIFIED (baru) | canonical reference |
+| GENESIS_WINDOW_DAYS | — | **7** | CONSTRAINED (baru) | desain genesis ceremony |
+| GENESIS_ANCHOR_DEADLINE_SEQ | 4320 | **5_040** | CONSTRAINED | 7 hari × 86400 / 120 |
+| EPOCH_DURATION_S | 2_592_000s (30 hari) | **45_600s (~12.67 jam)** | derived | 4320×120 |
+| SUBEPOCH_COUNT_PER_EPOCH | 24 | **24** | unchanged | tetap 24 sub-epoch/epoch |
+
+**Cascade effects:**
+- Epoch 30 hari → ~12.67 jam: governance cycle lebih cepat ✅
+- Sub-epoch 30 jam → ~31.7 menit: UTXO finality 720× lebih cepat ✅
+- W_MATURE_EPOCHS 6→342: semantik tidak berubah (tetap 180 hari) ✅
+- GENESIS_ANCHOR_DEADLINE_SEQ 4320→5040: genesis window tetap 7 hari ✅
+
+**Parameter di codebase:**
+- `core/scalar-emission/src/protocol_params.rs` — semua konstanta D-027
+- `core/scalar-stark-p3/src/lib.rs` — FRI_PROOF_OF_WORK_BITS=23 (D-028)
+
