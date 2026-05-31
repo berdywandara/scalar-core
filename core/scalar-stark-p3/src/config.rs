@@ -98,10 +98,10 @@ pub fn build_val_mmcs() -> ValMmcs {
 
 /// Build the OSSIFIED ScalarStarkConfig.
 ///
-/// FRI params: blowup=8, queries=84, grinding=20. OSSIFIED — spec §4.4.
+/// FRI params: blowup=8, queries=84, grinding=23. OSSIFIED — spec §4.4, D-028.
 /// Hash: Poseidon2 t=8. OSSIFIED — spec §2.1, D-008.
 ///
-/// grinding=20 split: commit_proof_of_work_bits=20, query_proof_of_work_bits=0.
+/// grinding=23 split: commit_proof_of_work_bits=23, query_proof_of_work_bits=0. D-028.
 /// This matches the soundness security target of spec §4.4.
 pub fn build_scalar_config() -> ScalarStarkConfig {
     let val_mmcs = build_val_mmcs();
@@ -112,7 +112,7 @@ pub fn build_scalar_config() -> ScalarStarkConfig {
         log_final_poly_len: 0,
         max_log_arity: 4,             // folding factor 4. OSSIFIED spec §4.4.
         num_queries: FRI_NUM_QUERIES, // 84 queries. OSSIFIED.
-        commit_proof_of_work_bits: FRI_PROOF_OF_WORK_BITS, // 20 bits grinding. OSSIFIED.
+        commit_proof_of_work_bits: FRI_PROOF_OF_WORK_BITS, // 23 bits grinding. OSSIFIED (D-028).
         query_proof_of_work_bits: 0,
         mmcs: challenge_mmcs,
     };
@@ -201,7 +201,8 @@ mod tests {
         // Spec §4.4: FRI blowup=8, queries=84, grinding=20. OSSIFIED.
         assert_eq!(FRI_LOG_BLOWUP, 3, "log_blowup must be 3 (blowup=8)");
         assert_eq!(FRI_NUM_QUERIES, 84);
-        assert_eq!(FRI_PROOF_OF_WORK_BITS, 20);
+        // D-028: grinding changed 20→23 (Scenario B union bound correction)
+        assert_eq!(FRI_PROOF_OF_WORK_BITS, 23);
     }
 
     #[test]

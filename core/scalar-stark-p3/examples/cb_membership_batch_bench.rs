@@ -39,7 +39,7 @@ fn build_witnesses(n: usize) -> (Vec<MembershipWitness>, MembershipPublicClaim, 
     let mut leaf_commitments = Vec::with_capacity(n);
     let mut leaf_indices = Vec::with_capacity(n);
 
-    for idx in 0..n {
+    for (idx, &leaf) in leaves.iter().enumerate().take(n) {
         let path = imt.prove_membership(idx as u64).unwrap();
         let mut siblings = [[0u64; 4]; IMT_DEPTH];
         for (i, sib) in path.siblings.iter().enumerate() {
@@ -48,11 +48,11 @@ fn build_witnesses(n: usize) -> (Vec<MembershipWitness>, MembershipPublicClaim, 
             });
         }
         witnesses.push(MembershipWitness {
-            commitment: leaves[idx],
+            commitment: leaf,
             leaf_index: idx as u64,
             siblings,
         });
-        leaf_commitments.push(leaves[idx]);
+        leaf_commitments.push(leaf);
         leaf_indices.push(idx as u64);
     }
 
@@ -98,8 +98,8 @@ fn main() {
     println!();
 
     println!(
-        "{:<12} {:>12} {:>12} {:>12} {:>14} {}",
-        "batch_size", "prove_ms", "verify_ms", "proof_kb", "per_tx_ms", "gate"
+        "{:<12} {:>12} {:>12} {:>12} {:>14} gate",
+        "batch_size", "prove_ms", "verify_ms", "proof_kb", "per_tx_ms"
     );
     println!("{}", "-".repeat(70));
 

@@ -251,3 +251,24 @@ Implementasi menunggu keputusan D-028 dari arsitektur team.
 - `SOUNDNESS_PROOF.md` — derivasi matematis lengkap
 - `soundness_calculation.py` — script reproduksi kalkulasi
 - `PARAMETER_RECOMMENDATIONS.md` — opsi fix detail
+
+---
+
+## D-028 — FRI Grinding g=20 → g=23 Impact
+
+**Sebelum D-028 (g=20):** batch=41 → prove=4,086ms, per_tx=99ms
+**Setelah D-028 (g=23):** batch=41 → prove=37,856ms, per_tx=923ms
+
+| batch | prove_ms (g=23) | per_tx_ms | gate |
+|-------|----------------|-----------|------|
+| 1 | 20,055 | 20,055 | ❌ single-tx |
+| 5 | 19,741 | 3,948 | ❌ |
+| 10 | 22,733 | 2,273 | ❌ |
+| 20 | 45,207 | 2,260 | ❌ |
+| **41** | **37,856** | **923** | **✅** |
+
+**MICROCOMMITMENT_TRIGGER_TX=41 masih validated ✅** (923ms < 1.2s, fits 60s)
+
+**Grinding time 9.3× lebih lambat** karena Codespace 4vCPU.
+Re-bench wajib di dedicated EPYC setelah testnet deployment.
+Referensi: D-028 RISIKO-2, parallel grinding strategy jika perlu.

@@ -37,4 +37,9 @@ pub const FRI_LOG_BLOWUP: usize = 3; // 2^3 = 8
 pub const FRI_NUM_QUERIES: usize = 84;
 
 /// FRI grinding bits. OSSIFIED — spec §4.4.
-pub const FRI_PROOF_OF_WORK_BITS: usize = 20;
+/// FRI grinding parameter. OSSIFIED — changed 20→23 via D-028.
+/// STARKPack uses Scenario B (independent union bound, not RLC).
+/// g=20 yields ε≈2^-117.68 (below 2^-120 target by 2.32 bits).
+/// g=23 yields ε≈2^-120.68 (meets target with 0.68 bit margin).
+/// Formal proof requirement per ADR-SEC-023 still applies.
+pub const FRI_PROOF_OF_WORK_BITS: usize = 23;
