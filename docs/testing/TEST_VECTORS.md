@@ -1,11 +1,11 @@
 # Appendix B — Test Vectors and Cryptographic Reference
 
-**Document:** `SCALAR_SPEC_APPENDIX_B_v11.1-FINAL`  
-**Specification:** `Scalar_Master_Technical_Spec_v11.1-FINAL` (2026-07-15)  
+**Document:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY`  
+**Specification:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY` (2026-07-15)  
 **Status:** Final — mandatory verification by two independent implementations before mainnet
 
 > All test vectors MUST be verified by at least two independent implementations  
-> (e.g., Winterfell-Rust and one additional reference implementation) before mainnet launch.
+> (e.g., scalar-stark-p3 Rust/Plonky3 dan satu reference implementation independen) before mainnet launch.
 
 ---
 
@@ -495,7 +495,7 @@ cargo test --package scalar-stark -- stark_proof_test_vectors
 
 | Version | Date | Changes |
 |---|---|---|
-| 1.0 | 2026-07-15 | Initial release for v11.1-FINAL. Concrete values are placeholders pending stable reference implementation. |
+| 1.0 | 2026-07-15 | Initial release — parameters confirmed per SCALAR-PROTOCOL / SCALAR-TECHNICAL. Concrete values are placeholders pending stable reference implementation. |
 | 1.1 | (TBD) | Update with concrete values from Winterfell v0.9 and second implementation. |
 
 > This appendix MUST be completed and verified before public testnet.  
@@ -503,4 +503,4 @@ cargo test --package scalar-stark -- stark_proof_test_vectors
 
 ---
 
-*Aligned with Scalar_Master_Technical_Spec_v11.1-FINAL — 2026-07-15*
+*Aligned with SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY — 2026-07-15*

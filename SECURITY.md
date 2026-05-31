@@ -1,6 +1,6 @@
 # Security Policy — Scalar Network
 
-**Specification version:** `Scalar_Master_Technical_Spec_v11.1-FINAL` (2026-07-15)  
+**Specification version:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY` (2026-07-15)  
 **Repository:** `github.com/berdywandara/scalar-core`
 
 ---
@@ -9,7 +9,7 @@
 
 This policy covers security vulnerabilities in:
 
-- All crates under `crates/` (scalar-crypto, scalar-nullifier, scalar-stark, scalar-network, scalar-consensus, scalar-emission, scalar-node, scalar-wallet-core, scalar-audit, scalar-governance, scalar-sdk)
+- All crates under `core/` (scalar-crypto, scalar-nullifier, scalar-emission, scalar-stark-p3, scalar-network, scalar-node, scalar-consensus, scalar-wallet-core, scalar-audit, scalar-sdk)
 - Protocol specification deviations that would allow double-spend, supply cap bypass, or de-anonymization
 - Cryptographic primitive misuse or implementation errors
 - Network-layer attacks (eclipse, Sybil, DoS against NMT peers)
@@ -20,9 +20,9 @@ This policy covers security vulnerabilities in:
 
 | Version | Supported |
 |---|---|
-| v11.1-FINAL (SPEC_VERSION 0x06) | ✅ Active |
-| v11.0 (SPEC_VERSION 0x05) | ⚠️ Transition only (4-epoch window) |
-| < v11.0 | ❌ Not supported |
+| current (SPEC_VERSION 0x01) | ✅ Active |
+| N/A | ⚠️ Transition only (4-epoch window) |
+| < 0x01 | ❌ Not supported |
 
 ---
 
@@ -154,4 +154,4 @@ A formal bug bounty program will be announced prior to public testnet. Until the
 Primary: GitHub Security Advisories (preferred)  
 Secondary: Open a **private** discussion in the repository's Security tab
 
-*This policy is effective as of 2026-07-15 and applies to all versions from v11.1-FINAL onward.*
+*This policy is effective as of 2026-07-15 and applies to all versions from SCALAR-PROTOCOL onward.*

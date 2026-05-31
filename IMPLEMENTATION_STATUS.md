@@ -1,6 +1,6 @@
 # SCALAR IMPLEMENTATION STATUS
 **Updated:** 2026-05-31
-**HEAD:** $(git rev-parse --short HEAD)
+**HEAD:** 12ccb33
 
 ---
 

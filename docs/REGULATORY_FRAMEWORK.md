@@ -1,10 +1,10 @@
 # Appendix A — Regulatory Framework
 
-**Document:** `SCALAR_SPEC_APPENDIX_A`  
-**Specification:** `Scalar_Master_Technical_Spec_v11.1-FINAL` (2026-07-15)  
+**Document:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY`  
+**Specification:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY` (2026-07-15)  
 **Status:** Final — Part of the canonical specification
 
-> This document is an integral part of the Scalar Master Technical Specification v11.1-FINAL.  
+> This document is an integral part of the Scalar Network protocol documentation (SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY).  
 > None of its provisions modify the core protocol, zero-knowledge circuits, or fundamental privacy guarantees of Scalar.
 
 ---
@@ -194,4 +194,4 @@ No provision of this appendix will ever:
 
 ---
 
-*Aligned with Scalar_Master_Technical_Spec_v11.1-FINAL — 2026-07-15*
+*Aligned with SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY — 2026-07-15*

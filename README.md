@@ -8,7 +8,7 @@
 Scalar Network is a **post-quantum, privacy-by-default digital cash system** that operates without a blockchain. Every transaction is proven valid by a zero-knowledge STARK proof; double-spend prevention is enforced by a two-layer Sparse Merkle Tree NullifierSet. Mathematical certainty replaces social agreement.
 
 **Conceived and designed by [Berdy Wandara](https://github.com/berdywandara).**  
-**Specification:** `Scalar_Master_Technical_Spec_v11.1-FINAL` — 2026-07-15
+**Specification:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY` — 2026-07-15
 
 ---
 
@@ -370,7 +370,7 @@ curl http://localhost:7777/node_state  # state: BOOTSTRAPPING→SYNCING→ACTIVE
 | Phase 2 | Network layer, multi-transport, gossip | ✅ Complete |
 | Phase 3 | NullifierSet 2-layer + WAL checkpoint | ✅ Complete |
 | Phase 4 | Wallet architecture, key management | ✅ Complete |
-| Phase 5 | Spec v11.1-FINAL integration & gap resolution | ✅ Complete |
+| Phase 5 | Protocol documentation consolidated (SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY) | ✅ Complete |
 | Phase 6 | Test vectors, formal verification, testnet | 🔄 In Progress |
 | Phase 7 | Mainnet launch | ⏳ Pending |
 
@@ -421,9 +421,12 @@ Scalar Network protocol was conceived and designed by **Berdy Wandara** (Origina
 
 | Document | Location |
 |---|---|
-| Master Technical Specification v11.1-FINAL | `docs/` (canonical spec) |
-| Regulatory Framework (Appendix A) | [`docs/REGULATORY_FRAMEWORK.md`](./docs/REGULATORY_FRAMEWORK.md) |
-| Test Vectors & Cryptographic Reference (Appendix B) | [`docs/testing/TEST_VECTORS.md`](./docs/testing/TEST_VECTORS.md) |
-| Architecture Diagrams & Protocol Flows (Appendix D) | [`docs/architecture/ARCHITECTURE_DIAGRAMS.md`](./docs/architecture/ARCHITECTURE_DIAGRAMS.md) |
+| Protocol Specification | [`SCALAR-PROTOCOL.md`](./SCALAR-PROTOCOL.md) |
+| Technical Reference | [`SCALAR-TECHNICAL.md`](./SCALAR-TECHNICAL.md) |
+| Security Analysis | [`SCALAR-SECURITY.md`](./SCALAR-SECURITY.md) |
+| Benchmark Results | [`docs/reports/BENCHMARK_RESULTS.md`](./docs/reports/BENCHMARK_RESULTS.md) |
+| Regulatory Framework | [`docs/REGULATORY_FRAMEWORK.md`](./docs/REGULATORY_FRAMEWORK.md) |
+| Test Vectors | [`docs/testing/TEST_VECTORS.md`](./docs/testing/TEST_VECTORS.md) |
+| Architecture Diagrams | [`docs/architecture/ARCHITECTURE_DIAGRAMS.md`](./docs/architecture/ARCHITECTURE_DIAGRAMS.md) |
 | Security Policy | [`SECURITY.md`](./SECURITY.md) |
 | Contributing Guide | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |

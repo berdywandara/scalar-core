@@ -3,7 +3,7 @@
 Thank you for your interest in contributing to Scalar Network.  
 This guide explains how contributions are structured and what we expect.
 
-**Specification authority:** `Scalar_Master_Technical_Spec_v11.1-FINAL` (2026-07-15).  
+**Specification authority:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY` (2026-07-15).  
 If there is any conflict between this guide and the specification, the specification takes precedence.
 
 ---
@@ -234,4 +234,4 @@ Spec: §6.3
 
 ---
 
-*Last updated: 2026-07-15 — aligned with Scalar_Master_Technical_Spec_v11.1-FINAL*
+*Last updated: 2026-07-15 — aligned with SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY*

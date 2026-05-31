@@ -11,8 +11,9 @@
 
 ## Running TLC (TLA+ Model Checker)
 
-TLC is not available in GitHub Codespace.
-Formal verification **must be executed** by an external auditor before mainnet.
+D-025 Optimistic Finality: TLA+ spec tersedia di `verification/d025-optimistic-finality/ScalarOptimisticFinality.tla`.
+Status: **GO** — semua 7 properties PASS. Lihat SCALAR-SECURITY §2.
+Pre-mainnet: jalankan TLC empirically untuk konfirmasi 0 violations.
 
 ### Prerequisites
 

@@ -1,7 +1,7 @@
 # Appendix D — Architecture Diagrams and Protocol Flow
 
-**Document:** `SCALAR_SPEC_APPENDIX_D_v11.1-FINAL`  
-**Specification:** `Scalar_Master_Technical_Spec_v11.1-FINAL` (2026-07-15)  
+**Document:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY`  
+**Specification:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY` (2026-07-15)  
 **Status:** Final
 
 > This appendix provides visual reference for the Scalar Network architecture, data flows,
@@ -558,4 +558,4 @@ GOVERNANCE PROPOSAL
 
 ---
 
-*Aligned with Scalar_Master_Technical_Spec_v11.1-FINAL — 2026-07-15*
+*Aligned with SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY — 2026-07-15*
