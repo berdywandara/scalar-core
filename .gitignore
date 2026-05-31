@@ -8,3 +8,6 @@ genesis_hash.txt
 genesis.bin
 founder_pk.hex
 check_output.txt
+
+# Proof artifacts (generated, not tracked)
+proofs/
