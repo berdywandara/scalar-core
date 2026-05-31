@@ -1,8 +1,7 @@
 # Appendix A — Regulatory Framework
 
-**Document:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY`  
-**Specification:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY` (2026-07-15)  
-**Status:** Final — Part of the canonical specification
+**Status:** Final — Part of the canonical specification  
+**Reference:** [SCALAR-PROTOCOL](../spec/SCALAR-PROTOCOL.md) / [SCALAR-TECHNICAL](../spec/SCALAR-TECHNICAL.md) / [SCALAR-SECURITY](../spec/SCALAR-SECURITY.md)
 
 > This document is an integral part of the Scalar Network protocol documentation (SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY).  
 > None of its provisions modify the core protocol, zero-knowledge circuits, or fundamental privacy guarantees of Scalar.
@@ -108,8 +107,8 @@ A user may share their `ViewKey` with a trusted auditor. The auditor can then:
 The auditor **cannot** see the user's outgoing transactions or any other user's data.
 
 ```
-ViewKey = BLAKE3(AccountKey_i || "view")
-// Derived in wallet — see §13.1
+ViewKey = BLAKE3(b"scalar_view" || AccountKey_i)
+// Derived in wallet — see SCALAR-PROTOCOL §10.1
 ```
 
 ### A.4.3 Transaction Risk & Compliance Module (TRCM)
@@ -159,7 +158,7 @@ The **Issuer Registry** is stored off-chain (SDK configuration), managed by appl
 
 ## A.6 Anti-Backdoor Statement
 
-There is **no "master key," "admin key," or equivalent mechanism** in Scalar. All OSSIFIED parameters (see §17.1 of the specification) can only be modified through a hard fork requiring strong majority consensus. The protocol provides no capability to:
+There is **no "master key," "admin key," or equivalent mechanism** in Scalar. All OSSIFIED parameters (see [SCALAR-PROTOCOL §13.1](../spec/SCALAR-PROTOCOL.md)) can only be modified through a hard fork requiring strong majority consensus. The protocol provides no capability to:
 
 - Issue SCL beyond the emission formula
 - Reverse or cancel any confirmed transaction

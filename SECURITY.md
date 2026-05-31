@@ -21,7 +21,6 @@ This policy covers security vulnerabilities in:
 | Version | Supported |
 |---|---|
 | current (SPEC_VERSION 0x01) | ✅ Active |
-| N/A | ⚠️ Transition only (4-epoch window) |
 | < 0x01 | ❌ Not supported |
 
 ---
@@ -45,7 +44,7 @@ Title: [Short description of the vulnerability]
 
 Affected component: [crate name / protocol section]
 Specification reference: [e.g., §4.3 CC, §6.3 checkpoint, §8.2 DMM]
-CRYPTO_VERSION: [0x03 if applicable]
+CRYPTO_VERSION: [0x01 if applicable]
 
 Description:
 [Clear explanation of the vulnerability]
@@ -114,11 +113,12 @@ Reports requesting these capabilities will not be treated as vulnerabilities.
 
 The following verifications are **required before mainnet** and are relevant context for any security report:
 
-- [ ] Two independent STARK implementations (Winterfell + second) — proofs must be mutually verifiable
-- [ ] Two independent Argon2id constant-time implementations — byte-identical test vectors (SCL-SPEC-SEED-001)
-- [ ] Formal verification of CC dual non-membership invariant (TLA+ or Coq) — §15.4
-- [ ] Formal verification of Deferred Emission Pool invariant — §15.5
-- [ ] Proving time benchmark ≤ 500 ms for 10-in/10-out — §15.6
+- [x] D-025 Optimistic Finality — TLA+ formal verification: GO (all 7 properties PASS)
+- [x] D-028 FRI grinding 20→23 — soundness ε≤2^-120.68 (Scenario B)
+- [x] Formal invariants INV-SUPPLY/NULLIFIER/EPOCH/REWARD/GOVERNANCE
+- [ ] Formal soundness proof STARKPack Scenario B + g=23 + N=256 (ADR-SEC-023)
+- [ ] Second independent STARK verifier from separate codebase (SCALAR-TECHNICAL §8)
+- [ ] Two independent Argon2id constant-time implementations — byte-identical test vectors
 - [ ] Two independent firm security audits of circuits and protocol
 
 If you discover that any of these requirements are violated in the current implementation, please report it.
@@ -135,10 +135,10 @@ The following parameters **cannot change without a protocol-level hard fork**. A
 | `S_E` | 18,900,000 SCL |
 | FRI blowup factor | 8 |
 | FRI queries | 84 |
-| Grinding bits | 20 |
-| `CRYPTO_VERSION_CURRENT` | `0x03` |
-| `SPEC_VERSION_MANIFEST` | `0x06` |
-| All domain separators | See §2.3 of spec |
+| Grinding bits | 23 (D-028) |
+| `CRYPTO_VERSION_CURRENT` | `0x01` |
+| `SPEC_VERSION_MANIFEST` | `0x01` |
+| All domain separators | See [SCALAR-PROTOCOL §13.1](docs/spec/SCALAR-PROTOCOL.md) |
 | UTXO denominations D1–D17 | 1 sSCL → 10¹⁶ sSCL |
 
 ---

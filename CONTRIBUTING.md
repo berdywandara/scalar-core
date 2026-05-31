@@ -71,11 +71,11 @@ cargo clippy --workspace -- -D warnings
 
 ## Contribution Types
 
-### Protocol Crates (`scalar-crypto`, `scalar-nullifier`, `scalar-stark`, `scalar-consensus`, `scalar-emission`)
+### Protocol Crates (`scalar-crypto`, `scalar-nullifier`, `scalar-stark-p3`, `scalar-consensus`, `scalar-emission`)
 
 Highest bar. Any change here must:
 - Be fully traceable to a section of the specification
-- Include test vectors from `docs/TEST_VECTORS.md` or add new ones
+- Include test vectors from `docs/testing/TEST_VECTORS.md` or add new ones
 - Be reviewed by at least two maintainers
 - Not alter any OSSIFIED parameter
 
@@ -143,10 +143,10 @@ pub fn commitment(v: u64, pk: &[u8]) -> [u8; 32] {
 These rules are non-negotiable:
 
 1. **Poseidon2 is for in-circuit only.** BLAKE3 for all out-of-circuit operations. Never swap them.
-2. **Domain separators are OSSIFIED.** Never modify, abbreviate, or reuse a domain separator for a different context. See §2.3.
+2. **Domain separators are OSSIFIED.** Never modify, abbreviate, or reuse a domain separator for a different context. See [SCALAR-PROTOCOL §13.1](docs/spec/SCALAR-PROTOCOL.md).
 3. **Argon2id implementations must be constant-time.** Execution time variance must be < ±1%. See §13.2.
 4. **SLH-DSA signature verification** must use NIST FIPS 205 test vectors for regression.
-5. **STARK parameters** (FRI blowup=8, queries=84, grinding=20, folding=4) must not be changed. Any change requires a governance fork.
+5. **STARK parameters** (FRI blowup=8, queries=84, grinding=23, folding=4) must not be changed. Any change requires a governance fork (D-028: grinding changed 20→23).
 6. **UTXO ordering** must use `tx_ordering_key = BLAKE3(DOMAIN_TX_ORDER ‖ tx_hash ‖ epoch_id)`. No alternative ordering is permitted. See §8.5.
 7. **All integer serialization** is little-endian in wire format, big-endian in documentation. See §8.3 (S3).
 8. **NullifierSet checkpoint** must use WAL with atomic commit. Zero-Gap Property must be maintained. See §6.3.
@@ -165,7 +165,7 @@ These rules are non-negotiable:
 | Wallet key derivation | SCL-SPEC-SEED-001 test vector (two independent implementations must match) |
 | Governance | Tier C governance power cap (200,000 fp) enforced |
 
-For new cryptographic test vectors, add entries to `docs/TEST_VECTORS.md` following the existing format (section B.3–B.8).
+For new cryptographic test vectors, add entries to `docs/testing/TEST_VECTORS.md` following the existing format.
 
 ---
 
@@ -178,11 +178,11 @@ S_MAX, S_E, S_R                  — supply caps
 E₀, E_TAIL                       — emission constants
 FRI blowup factor = 8
 FRI queries = 84
-Grinding bits = 20
+Grinding bits = 23  (D-028)
 Folding factor = 4
-CRYPTO_VERSION_CURRENT = 0x03
-SPEC_VERSION_MANIFEST = 0x06
-All domain separator byte strings  — see §2.3
+CRYPTO_VERSION_CURRENT = 0x01
+SPEC_VERSION_MANIFEST = 0x01
+All domain separator byte strings  — see SCALAR-PROTOCOL §13.1
 UTXO denominations D1–D17
 Argon2id wallet parameters (64 MB / 3 / 1)
 ```

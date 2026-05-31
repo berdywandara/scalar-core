@@ -1,8 +1,7 @@
 # Appendix D — Architecture Diagrams and Protocol Flow
 
-**Document:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY`  
-**Specification:** `SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY` (2026-07-15)  
-**Status:** Final
+**Status:** Final  
+**Reference:** [SCALAR-PROTOCOL](../spec/SCALAR-PROTOCOL.md) / [SCALAR-TECHNICAL](../spec/SCALAR-TECHNICAL.md) / [SCALAR-SECURITY](../spec/SCALAR-SECURITY.md)
 
 > This appendix provides visual reference for the Scalar Network architecture, data flows,
 > and protocol sequences. All diagrams are derived from the canonical specification.
@@ -31,7 +30,7 @@
 ║  └───────────────────────────────┬────────────────────────────────────────┘  ║
 ║                                  │                                           ║
 ║  ┌────────────────┬──────────────▼──────────────┬───────────────────────┐   ║
-║  │  scalar-stark  │  scalar-nullifier            │  scalar-emission      │   ║
+║  │  scalar-stark-p3│  scalar-nullifier            │  scalar-emission      │   ║
 ║  │  Transfer Ckt  │  NS_ACTIVE (SMT depth-32)    │  PoU formula          │   ║
 ║  │  CA–CG         │  NS_CHECKPOINT (STARK proof) │  Deferred Pool        │   ║
 ║  │  Mint Ckt      │  WAL checkpoint              │  Security Fund        │   ║
@@ -65,7 +64,7 @@
             │              │
             └──────┬───────┘
                    │
-             scalar-stark
+             scalar-stark-p3
                    │
              scalar-network
                    │
@@ -78,7 +77,7 @@
     (public API)        (read-only)
 
 scalar-wallet-core ─── scalar-crypto
-scalar-governance  ─── scalar-crypto, scalar-stark
+scalar-governance  ─── scalar-crypto, scalar-stark-p3
 scalar-ffi         ─── scalar-wallet-core (UniFFI bindings)
 ```
 
@@ -114,7 +113,7 @@ WALLET (local)                    NETWORK                    ALL NODES
      │    NodeKey, tx_message)       │                           │
      │                               │                           │
      │  4. BROADCAST ──────────────► │                           │
-     │                           Dandelion++ stem (90%)         │
+     │                           Dandelion++ stem (70%)         │
      │                           delay: 100–5000 ms/hop         │
      │                               │                           │
      │                           Fluff: gossipsub ──────────────►
@@ -177,7 +176,7 @@ WALLET (local)                    NETWORK                    ALL NODES
 │  │   Out-circuit: SLH-DSA_verify(pk, tx_message, sig)          │  │
 │  ├──────────────────────────────────────────────────────────────┤  │
 │  │ CG — Protocol Compliance                                     │  │
-│  │   crypto_version == CRYPTO_VERSION_CURRENT (0x03)           │  │
+│  │   crypto_version == CRYPTO_VERSION_CURRENT (0x01)           │  │
 │  │   entry_timestamp ≤ current_timestamp − T_MAX_WAIT          │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                                                                     │
@@ -195,17 +194,17 @@ EPOCH k STARTS
       ▼
 ┌─────────────────────────────────────────────┐
 │  HEARTBEAT COLLECTION PHASE                 │
-│  Every node sends 1 HB per ≥300 s           │
-│  Regular: 109 bytes  │  Anchor: +extension  │
+│  Heartbeat: target 120 s, min 300 s          │
+│  Regular: 148 bytes  │  Anchor: +extension  │
 │  MAC = BLAKE3(NodeKey_epoch ‖ fields...)    │
 └──────────────────────┬──────────────────────┘
-                       │  (at epoch boundary: seq_num = k×4320)
+                       │  (at epoch boundary: seq_num = k×380)
                        ▼
 ┌─────────────────────────────────────────────┐
 │  AGGREGATOR SELECTION  (deterministic)      │
-│  seed_k = BLAKE3(DOMAIN_SEED_V1 ‖          │
+│  seed_k = BLAKE3(b"scalar_seed" ‖          │
 │            committed_manifest_hash(k-1))   │
-│  score_i = BLAKE3("scalar_score_v1" ‖      │
+│  score_i = BLAKE3(b"scalar_subepoch_score" ‖      │
 │             node_id_full_i ‖ seed_k)       │
 │  aggregator = argmin(score_i)              │
 │  validator_pool = next 10 lowest scores    │
@@ -334,11 +333,11 @@ seed (64 bytes)
     │                                   [plausible deniability wallet]
     │
     └─► node_id_full = Argon2id(mnemonic,
-                          salt = b"scalar_nodeid_v1" ‖ genesis_hash,
+                          salt = b"scalar_nodeid" ‖ genesis_hash,
                           memory = 4 GB, iter = 3600, out = 32 bytes)
                           [Tier A/B — anti-Sybil cost embedded in computation]
 
-        node_id_short = BLAKE3(DOMAIN_NODE_SHORT_V1 ‖ node_id_full)[0..4]
+        node_id_short = BLAKE3(b"scalar_node_short" ‖ node_id_full)[0..4]
                           [used in regular gossip heartbeats]
 ```
 
@@ -375,7 +374,7 @@ ROUTING RULE: message size > 44 bytes → Tier A
               message size ≤ 44 bytes → Tier B eligible
 
 DANDELION++ (Tier A privacy):
-    ┌─ Stem phase (90% prob) ─────────────────────────────────┐
+    ┌─ Stem phase (70% prob, DANDELION_REDUCED_STEM_PROB) ────┐
     │  Forward to single peer; random delay 100–5000 ms/hop   │
     │  Encryption: ChaCha20-Poly1305                          │
     │  Small network (<200 nodes): batch obfuscation mode     │
@@ -387,7 +386,7 @@ DANDELION++ (Tier A privacy):
 NMT PEER SELECTION:
     24 slots total:
     ├── 23 deterministic: lowest nmt_rank from committed_manifest(k-1)
-    │     nmt_rank(id) = BLAKE3(DOMAIN_NMT_V1 ‖ id ‖ seed_k)
+    │     nmt_rank(id) = BLAKE3(b"scalar_nmt" ‖ id ‖ seed_k)
     │     eligibility: NodeScore > 800,000
     │     diversity: max 3/24-subnet, 5/ASN, 4/region
     └──  1 random: ChaCha20(seed = BLAKE3(seed_k ‖ "nmt_random"))
@@ -402,7 +401,7 @@ NMT PEER SELECTION:
 ```
 EPOCH k
   │
-  ├── [Each node sends heartbeats: 4,320 per epoch × 600 s = ~30 days]
+  ├── [Each node sends heartbeats: 380 per epoch × 120 s = ~12.67 hours]
   │
   ├── UPTIME WEIGHT COMPUTATION
   │   w_i(k) = (700,000 × uptime_ratio_fp
@@ -492,15 +491,15 @@ NODE RECOVERY PROTOCOL:
 ```
 GOVERNANCE PROPOSAL
          │
-         ├── Proposer: node_id_full with maturity ≥ 6 epochs
+         ├── Proposer: node_id_full with maturity ≥ 342 epochs (180 days)
          │
          ▼
 ┌─────────────────────────────────────────────────────────┐
 │  GOVERNANCE POWER COMPUTATION                           │
 │                                                         │
 │  conviction_factor(t_days):                             │
-│    day 1   →  50,000 fp                                │
-│    day 30  → 957,000 fp                                │
+│    day 1   →  16,529 fp                                │
+│    day 30  → 393,469 fp                                │
 │    day 365 → 1,000,000 fp (maximum)                    │
 │    (smooth curve, no cliff)                            │
 │                                                         │
@@ -544,17 +543,17 @@ GOVERNANCE PROPOSAL
 
 | Attack Vector | Mitigation | Specification |
 |---|---|---|
-| Double-spend | CC dual non-membership (NS_ACTIVE + NS_CHECKPOINT) | §4.3 CC, §6 |
-| Supply inflation | MC3 cap check + AccountingState invariant | §5.2 MC3, §15.1 |
-| Aggregator manipulation | Deterministic seed from committed_manifest_hash | §8.1 |
-| DMM manipulation | DMM requires verified committed_manifest(k-1) | §8.2 |
-| UTXO ordering attack | tx_ordering_key fully deterministic from BLAKE3 | §8.5 |
-| Eclipse attack | NMT 23 deterministic + 1 random + DHT random probing | §12.3, §12.6 |
-| Sybil (governance) | Tier C capped at 200,000 fp; maturity = 6 epochs | §11.2 |
-| Sybil (NMT) | NodeScore cap 600,000 < threshold 800,000 for Tier C | §10.1, §12.4 |
-| Quantum adversary | No elliptic curves; all primitives hash-based | §2.1, §18 |
-| STARK soundness | 2⁻¹²⁸ classical; ossified parameters; two implementations | §4.4, §15.3 |
-| Consensus liveness | DMM always produces valid manifest if any synced node exists | §8.2, §15.2 |
+| Double-spend | CC dual non-membership (NS_ACTIVE + NS_CHECKPOINT) | SCALAR-TECHNICAL §2.5 |
+| Supply inflation | MC3 cap check + AccountingState invariant | SCALAR-TECHNICAL §3 |
+| Aggregator manipulation | Deterministic seed from committed_manifest_hash | SCALAR-PROTOCOL §4.3 |
+| DMM manipulation | DMM requires verified committed_manifest(k-1) | SCALAR-PROTOCOL §4.3 |
+| UTXO ordering attack | tx_ordering_key fully deterministic from BLAKE3 | SCALAR-TECHNICAL §2 |
+| Eclipse attack | NMT 23 deterministic + 1 random + DHT random probing | SCALAR-PROTOCOL §11.3 |
+| Sybil (governance) | Tier C capped at 200,000 fp; maturity = 342 epochs | SCALAR-PROTOCOL §9 |
+| Sybil (NMT) | NodeScore cap 600,000 < threshold 800,000 for Tier C | SCALAR-PROTOCOL §3.1 |
+| Quantum adversary | No elliptic curves; all primitives hash-based | SCALAR-SECURITY §4 |
+| STARK soundness | 2⁻¹²⁰·⁶⁸ (Scenario B, g=23); formal proof pending | SCALAR-SECURITY §1 |
+| Consensus liveness | DMM always produces valid manifest if any synced node exists | SCALAR-PROTOCOL §4.3 |
 
 ---
 
