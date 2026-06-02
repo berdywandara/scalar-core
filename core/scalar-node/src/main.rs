@@ -163,7 +163,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 5. Main event loop
     let mut hb_counter: u32 = 0;
-    let mut current_epoch: u64 = 0;
     loop {
         tokio::select! {
             // Handle P2P events
@@ -236,7 +235,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     // Epoch boundary = last sub-epoch (23)
                     if local_sub == 23 {
-                        current_epoch = epoch_id as u64;
+                        let current_epoch = epoch_id as u64;
                         println!("[EPOCH] ==============================");
                         println!("[EPOCH] === EPOCH {} BOUNDARY ===", current_epoch);
                         println!("[EPOCH] ==============================");
