@@ -17,3 +17,6 @@ proofs/
 **/*.pyc
 **/*.pyo
 testnet-logs/
+
+# WAL data (runtime)
+testnet-wal/

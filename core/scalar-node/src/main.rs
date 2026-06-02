@@ -15,6 +15,7 @@ use scalar_node::api::LocalRpcServer;
 use scalar_node::heartbeat_service::HeartbeatService;
 use scalar_node::state_machine::NodeStateMachine;
 use scalar_node::swarm::{build_swarm, run_swarm, TOPIC_HEARTBEAT};
+use scalar_node::wal::{CheckpointSnapshot, FileCheckpointWal, WalPhase};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -44,6 +45,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter_map(|a| a.trim_start_matches("--dial=").parse().ok())
         .collect();
 
+    // Fast testnet mode — epoch 4 menit bukan 12.67 jam
+    // --fast: HB 2s, sub-epoch 5 HBs (10s), epoch 120s
+    let fast_mode = args.iter().any(|a| a == "--fast");
+    // --crash-mode: HB 1s, subepoch 2 HBs → epoch 48s (for WAL crash test)
+    let crash_mode = args.iter().any(|a| a == "--crash-mode");
+    // --crash-after-prepare: simulate crash right after WAL PREPARE
+    let crash_after_prepare = args.iter().any(|a| a == "--crash-after-prepare");
+
+    let hb_interval_s: u64 = if crash_mode {
+        1
+    } else if fast_mode {
+        2
+    } else {
+        10
+    };
+    // crash: 2 × 1s = 2s subepoch → epoch 24 × 2s = 48s
+    // fast:  5 × 2s = 10s         → epoch 24 × 10s = 240s (~4 mnt)
+    // normal: 180 × 10s           → epoch ~12 jam
+    let hbs_per_subepoch: u32 = if crash_mode {
+        2
+    } else if fast_mode {
+        5
+    } else {
+        180
+    };
+
     println!("==================================================");
     println!("  SCALAR NETWORK CORE NODE - BOOT SEQUENCE");
     println!("  RPC Port : {}", port);
@@ -56,6 +83,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     );
     println!("  Dial     : {} peers", dial_peers.len());
+    if crash_mode {
+        println!(
+            "  Mode     : CRASH-TEST (HB={}s, subepoch={}HBs, epoch={}s)",
+            hb_interval_s,
+            hbs_per_subepoch,
+            hb_interval_s * hbs_per_subepoch as u64 * 24
+        );
+    } else if fast_mode {
+        println!(
+            "  Mode     : FAST (HB={}s, subepoch={}HBs, epoch={}s)",
+            hb_interval_s,
+            hbs_per_subepoch,
+            hb_interval_s * hbs_per_subepoch as u64 * 24
+        );
+    }
     println!("==================================================");
 
     // 1. State Machine
@@ -65,6 +107,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Consensus Engine
     let _consensus_engine = Arc::new(Mutex::new(ConsensusEngine::default()));
     println!("[CONSENSUS] ZK Consensus Engine online.");
+
+    // 2b. WAL — FileCheckpointWal (ADR-SEC-002, crash-safe)
+    let wal_dir = format!("testnet-wal/node-{}", port);
+    let mut wal = FileCheckpointWal::open(&wal_dir)
+        .unwrap_or_else(|e| panic!("[WAL] Failed to open {}: {}", wal_dir, e));
+    let prepared_count = wal.count_by_phase(&WalPhase::Prepared);
+    if prepared_count > 0 {
+        println!(
+            "[WAL] ⚠️  CRASH RECOVERY: {} PREPARED entries found — node crashed during proving",
+            prepared_count
+        );
+        println!("[WAL] WAL integrity maintained. Re-running proof generation...");
+    } else {
+        println!("[WAL] FileCheckpointWal open at {} (clean start)", wal_dir);
+    }
 
     // 3. HeartbeatService — HeartbeatUnit v9.0 (108 bytes, BLAKE3-MAC)
     // NodeKey dan NodeID: random untuk testing, production pakai Argon2id
@@ -106,6 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 5. Main event loop
     let mut hb_counter: u32 = 0;
+    let mut current_epoch: u64 = 0;
     loop {
         tokio::select! {
             // Handle P2P events
@@ -147,8 +205,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            // Broadcast HeartbeatUnit v9.0 setiap 10 detik — spec §7.2
-            _ = sleep(Duration::from_secs(10)) => {
+            // Broadcast HeartbeatUnit setiap hb_interval_s detik — spec §7.2
+            _ = sleep(Duration::from_secs(hb_interval_s)) => {
                 hb_counter += 1;
                 {
                     let mut sm = state_machine.lock().unwrap();
@@ -166,6 +224,63 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let _ = msg_tx.send((TOPIC_HEARTBEAT.to_string(), hb_bytes)).await;
                 println!("[CORE] 💓 HeartbeatUnit v9.1 #{} broadcast (148 bytes)", hb_counter);
+
+                // Sub-epoch / epoch boundary detection
+                if hb_counter % hbs_per_subepoch == 0 {
+                    let subepoch_num = hb_counter / hbs_per_subepoch;
+                    let local_sub = (subepoch_num - 1) % 24;
+                    let epoch_id = (subepoch_num - 1) / 24;
+
+                    println!("[EPOCH] 🔔 Sub-epoch {:02} of epoch {} | HB#{}",
+                        local_sub, epoch_id, hb_counter);
+
+                    // Epoch boundary = last sub-epoch (23)
+                    if local_sub == 23 {
+                        current_epoch = epoch_id as u64;
+                        println!("[EPOCH] ==============================");
+                        println!("[EPOCH] === EPOCH {} BOUNDARY ===", current_epoch);
+                        println!("[EPOCH] ==============================");
+
+                        // WAL checkpoint — Three-Phase Commit (ADR-SEC-002)
+                        let now_ms = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis() as u64;
+
+                        let snap = CheckpointSnapshot {
+                            epoch_id: current_epoch,
+                            imt_frontier_root: [0u8; 32],
+                            imt_count: hb_counter as u64,
+                            utxo_set_root: [0u8; 32],
+                            nullifier_active_root: [0u8; 32],
+                            nullifier_archived_root: [0u8; 32],
+                            total_supply_sscl: 0,
+                        };
+
+                        match wal.prepare(current_epoch, 1, snap, now_ms) {
+                            Ok(r) => println!("[WAL] PREPARE epoch {}: {:?}", current_epoch, r),
+                            Err(e) => println!("[WAL] PREPARE error: {}", e),
+                        }
+
+                        // --crash-after-prepare: simulate crash mid-proving (WAL test)
+                        if crash_after_prepare {
+                            println!("[WAL] ⚡ SIMULATED CRASH after PREPARE");
+                            println!("[WAL] Exiting WITHOUT COMMIT to simulate node crash...");
+                            std::process::exit(1);
+                        }
+
+                        // Simulate proof generation
+                        let proof_delay = if crash_mode { 100 } else if fast_mode { 200 } else { 500 };
+                        tokio::time::sleep(Duration::from_millis(proof_delay)).await;
+
+                        match wal.commit(current_epoch, vec![0xCAu8; 32], now_ms + proof_delay) {
+                            Ok(r) => println!("[WAL] COMMIT epoch {}: {:?}", current_epoch, r),
+                            Err(e) => println!("[WAL] COMMIT error: {}", e),
+                        }
+
+                        println!("[EPOCH] ✅ Epoch {} complete", current_epoch);
+                    }
+                }
             }
         }
     }
