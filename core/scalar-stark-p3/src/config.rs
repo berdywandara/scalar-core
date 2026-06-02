@@ -215,10 +215,12 @@ mod tests {
             "FRI grinding changed without D-level decision — D-028 requires g=23"
         );
         // Verify it's strictly above minimum needed for Scenario B
-        assert!(
-            FRI_PROOF_OF_WORK_BITS >= 23,
-            "g<23 breaks 2^-120 soundness target"
-        );
+        const {
+            assert!(
+                FRI_PROOF_OF_WORK_BITS >= 23,
+                "g<23 breaks 2^-120 soundness target"
+            )
+        };
     }
 
     #[test]
