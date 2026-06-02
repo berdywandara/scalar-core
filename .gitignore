@@ -16,3 +16,4 @@ proofs/
 **/__pycache__/
 **/*.pyc
 **/*.pyo
+testnet-logs/
