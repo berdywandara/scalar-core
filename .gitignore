@@ -20,3 +20,4 @@ testnet-logs/
 
 # WAL data (runtime)
 testnet-wal/
+testnet-wal/
