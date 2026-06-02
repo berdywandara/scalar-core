@@ -11,3 +11,8 @@ check_output.txt
 
 # Proof artifacts (generated, not tracked)
 proofs/
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo

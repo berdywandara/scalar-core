@@ -260,6 +260,7 @@ mod tests {
 
     // Compile-time assertion: ZK_NUM_RANDOM_CODEWORDS >= 1 (MAD §2.1 D-E1).
     // Stronger than a runtime test — build fails if violated.
+    #[allow(clippy::assertions_on_constants)]
     const _: () = assert!(
         ZK_NUM_RANDOM_CODEWORDS >= 1,
         "ZK blinding requires at least 1 random codeword"
