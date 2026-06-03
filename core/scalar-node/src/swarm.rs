@@ -146,13 +146,23 @@ pub async fn run_swarm(
     swarm.listen_on(listen_addr.clone())?;
     println!("[P2P] Listen: {}", listen_addr);
 
+    // Simpan bootstrap peers untuk auto-reconnect
+    let bootstrap_peers = dial_peers.clone();
     for peer_addr in dial_peers {
         println!("[P2P] Dialing: {}", peer_addr);
         let _ = swarm.dial(peer_addr);
     }
-
+    // Auto-reconnect: retry bootstrap peers setiap 30 detik
+    let mut reconnect_tick = tokio::time::interval(Duration::from_secs(30));
+    reconnect_tick.tick().await; // skip tick pertama
     loop {
         tokio::select! {
+            _ = reconnect_tick.tick() => {
+                // Re-dial bootstrap peers yang terputus — spec §12.3 Tier 3
+                for peer_addr in &bootstrap_peers {
+                    let _ = swarm.dial(peer_addr.clone());
+                }
+            }
             event = swarm.select_next_some() => {
                 match event {
                     SwarmEvent::NewListenAddr { address, .. } => {
