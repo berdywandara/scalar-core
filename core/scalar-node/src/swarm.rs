@@ -48,8 +48,19 @@ pub enum NodeSwarmEvent {
 
 // ── build_swarm ───────────────────────────────────────────────────────────────
 
-pub fn build_swarm() -> anyhow::Result<libp2p::Swarm<ScalarNodeBehaviour>> {
-    let local_key = identity::Keypair::generate_ed25519();
+pub fn build_swarm(keypair_path: &str) -> anyhow::Result<libp2p::Swarm<ScalarNodeBehaviour>> {
+    // Persistent keypair — stable PeerID across restarts
+    let local_key = if std::path::Path::new(keypair_path).exists() {
+        let bytes = std::fs::read(keypair_path)?;
+        identity::Keypair::from_protobuf_encoding(&bytes)?
+    } else {
+        let key = identity::Keypair::generate_ed25519();
+        if let Some(parent) = std::path::Path::new(keypair_path).parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(keypair_path, key.to_protobuf_encoding()?)?;
+        key
+    };
     let local_peer_id = PeerId::from(local_key.public());
     println!("[P2P] Local PeerID: {}", local_peer_id);
 
@@ -146,6 +157,11 @@ pub async fn run_swarm(
                 match event {
                     SwarmEvent::NewListenAddr { address, .. } => {
                         println!("[P2P] ✅ Listening: {}", address);
+                        // Print full multiaddr untuk bootstrap config
+                        let peer_id = swarm.local_peer_id();
+                        if !address.to_string().contains("127.0.0.1") {
+                            println!("[P2P] 🔗 Bootstrap addr: {}/p2p/{}", address, peer_id);
+                        }
                     }
                     SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                         println!("[P2P] ✅ Connected: {}", peer_id);

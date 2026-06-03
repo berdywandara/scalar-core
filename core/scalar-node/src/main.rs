@@ -142,7 +142,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // 4. P2P Swarm — spec §12.1
-    let swarm = build_swarm()?;
+    let keypair_path = format!("testnet-wal/node-{}/keypair.bin", port);
+    let swarm = build_swarm(&keypair_path)?;
     let listen_addr: libp2p::Multiaddr = format!("/ip4/0.0.0.0/tcp/{}", p2p_port).parse()?;
 
     // Channel: swarm → node logic (inbound events)
