@@ -1,30 +1,29 @@
 # Phase 3 — External Testnet Report
 
-**Date:** 2026-06-03
-**Status:** ✅ PASS
+**Date:** 2026-06-03  
+**Status:** ✅ PASS — 7-node quorum 5/7
 
-## Nodes
+## Node Registry
 
-| Node | Location | IP | PeerID |
-|------|----------|----|--------|
-| Oracle VM-1 | UK London AD-2 | 132.145.39.75 | 12D3KooWQHTh5GuGyG7M2UnikxegxztqRPBVNKb83EzKpCDhF9rU |
-| Oracle VM-2 | UK London AD-3 | 132.226.130.138 | 12D3KooWBbUH137REy5W8RLTQ4UWpqh5mwUETeqJmV3wtnafWPGJ |
-| Codespace | GitHub (Codespace) | dynamic | 12D3KooWAMZ5XKZ8z8ejWaf6UrmmuszZ7i9MxhjWDkBv1P2CrYrH |
+| Node | Location | Port | NodeID |
+|------|----------|------|--------|
+| Node-1 | VPS-1 | :17777 | 5da931cf |
+| Node-2 | VPS-2 | :17777 | 5da931cf |
+| Node-3 | Codespace | :17779 | 10da95c9 |
+| Node-4 | Codespace | :17780 | 66b7b22a |
+| Node-5 | Codespace | :17781 | fe588e08 |
+| Node-6 | Codespace | :17782 | e34275e9 |
+| Node-7 | Codespace | :17783 | 4fd142c4 |
 
-## Results
+## Test Results
 
 | Test | Result |
 |------|--------|
-| Cross-machine P2P connection | ✅ PASS |
-| HB exchange verified (ACCEPT) | ✅ PASS |
+| 7-node P2P mesh | ✅ PASS |
+| Cross-machine HB exchange | ✅ PASS |
+| Gossipsub propagation (relay) | ✅ PASS |
 | Persistent PeerID across restart | ✅ PASS |
-| Auto-reconnect after restart (30s) | ✅ PASS |
+| Auto-reconnect 30s | ✅ PASS |
 | SeqNum reset on disconnect | ✅ PASS |
-| Node survives SSH disconnect (screen) | ✅ PASS |
-
-## Fixes Implemented
-
-- feat: persistent keypair (d66de3e)
-- fix: allow seq=1 as valid restart (d5c0749)
-- fix: reset peer seq on disconnect (bf9bee3)
-- feat: auto-reconnect bootstrap peers 30s (dc34649)
+| Node survival SSH disconnect | ✅ PASS |
+| Quorum 5/7 reachable | ✅ PASS |
