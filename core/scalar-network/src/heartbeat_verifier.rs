@@ -124,16 +124,22 @@ impl HeartbeatVerifier {
 
         // ── Step 2: seq_num monotonic — spec §7.2b ────────────────────────────
         // seq_num HARUS > last_seq_num[node_id] (strictly monotonic).
+        // Exception: seq_num=1 adalah restart valid (downtime event, spec T-5).
         let last_seq = self
             .node_states
             .get(&hb.node_id)
             .map(|s| s.last_seq_num)
             .unwrap_or(0);
-        if hb.seq_num <= last_seq {
+        let is_restart = hb.seq_num == 1 && last_seq > 0;
+        if hb.seq_num <= last_seq && !is_restart {
             return Err(VerificationError::SeqNumNotMonotonic {
                 received: hb.seq_num,
                 last: last_seq,
             });
+        }
+        // Pada restart: reset state peer sehingga prev_hash chain fresh.
+        if is_restart {
+            self.node_states.remove(&hb.node_id);
         }
 
         // ── Step 3: prev_hash check — spec §7.2b ─────────────────────────────
