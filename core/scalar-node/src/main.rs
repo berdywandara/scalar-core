@@ -164,6 +164,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 5. Main event loop
     let mut hb_counter: u32 = 0;
+    // PeerID → node_id_short mapping untuk reset seq saat disconnect
+    let mut peer_to_node_id: std::collections::HashMap<libp2p::PeerId, [u8; 4]> =
+        std::collections::HashMap::new();
     loop {
         tokio::select! {
             // Handle P2P events
@@ -175,6 +178,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     NodeSwarmEvent::PeerDisconnected(peer) => {
                         println!("[CORE] ❌ Peer disconnected: {}", peer);
+                        // Reset seq tracking agar HB dari peer yang restart diterima
+                        if let Some(node_id) = peer_to_node_id.remove(&peer) {
+                            let mut svc = hb_service.lock().unwrap();
+                            svc.reset_peer_seq(&node_id);
+                            println!("[HB] 🔄 Seq reset for peer {}", hex::encode(node_id));
+                        }
                     }
                     NodeSwarmEvent::HeartbeatReceived { from, data } => {
                         println!("[CORE] 💓 HB from {} ({} bytes)", from, data.len());
@@ -187,8 +196,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 &[0x42u8; 32], 0
                             );
                             let mut svc = hb_service.lock().unwrap();
-                            if svc.verify_peer_heartbeat(&data, nmt, &peer_nke) {
+                            if let Some(node_id) = svc.verify_peer_heartbeat_with_id(&data, nmt, &peer_nke) {
                                 println!("[CORE] ✅ HB verified from {}", from);
+                                peer_to_node_id.insert(from, node_id);
                             } else {
                                 println!("[CORE] ❌ HB rejected from {}", from);
                             }

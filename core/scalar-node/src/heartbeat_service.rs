@@ -206,6 +206,31 @@ impl HeartbeatService {
 
     /// Compute NMT sederhana dari timestamp lokal. Spec §12.3a.
     /// Production: gunakan median dari 8 peer timestamps.
+    /// Verifikasi HB dan return node_id jika berhasil — untuk PeerID mapping.
+    pub fn verify_peer_heartbeat_with_id(
+        &mut self,
+        data: &[u8],
+        nmt: u32,
+        peer_nke: &[u8; 32],
+    ) -> Option<[u8; 4]> {
+        if data.len() != 148 {
+            return None;
+        }
+        let arr: &[u8; 148] = data.try_into().ok()?;
+        let hb = HeartbeatUnit::from_bytes(arr);
+        let node_id = hb.node_id;
+        if self.verify_peer_heartbeat(data, nmt, peer_nke) {
+            Some(node_id)
+        } else {
+            None
+        }
+    }
+
+    /// Reset seq tracking saat peer disconnect — spec T-5 restart handling.
+    pub fn reset_peer_seq(&mut self, node_id: &[u8; 4]) {
+        self.verifier.reset_peer(node_id);
+    }
+
     pub fn local_nmt() -> u32 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)

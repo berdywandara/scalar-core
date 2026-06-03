@@ -215,6 +215,11 @@ impl HeartbeatVerifier {
     }
 
     /// Ambil last_seq_num untuk node. Spec §7.2b Step 2.
+    /// Reset seq tracking untuk peer — dipanggil saat peer disconnect/restart.
+    pub fn reset_peer(&mut self, node_id: &[u8; 4]) {
+        self.node_states.remove(node_id);
+    }
+
     pub fn last_seq_num(&self, node_id: &[u8; 4]) -> u32 {
         self.node_states
             .get(node_id)
