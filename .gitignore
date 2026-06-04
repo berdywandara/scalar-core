@@ -1,24 +1,27 @@
+# Build artifacts
 /target/
 **/*.rs.bk
-Cargo.lock
-genesis.bin
+
+# NOTE: Cargo.lock SENGAJA di-track (binary project — P4 determinism)
+# JANGAN tambahkan Cargo.lock di sini
+
+# Genesis ceremony files (generated, berisi keys)
 founder_sk.bin
 founder_pk.bin
-genesis_hash.txt
-genesis.bin
 founder_pk.hex
+genesis.bin
+genesis_hash.txt
 check_output.txt
 
-# Proof artifacts (generated, not tracked)
+# Runtime data (bukan source code)
+testnet-wal/
+testnet-logs/
+testnet.pids
+
+# Proof artifacts (generated)
 proofs/
 
 # Python cache
 **/__pycache__/
 **/*.pyc
 **/*.pyo
-testnet-logs/
-
-# WAL data (runtime)
-testnet-wal/
-testnet-wal/
-testnet.pids
