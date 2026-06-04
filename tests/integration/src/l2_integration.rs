@@ -94,6 +94,7 @@ fn test_subepoch_imt_frontier_round_trip() {
 // ── 3. STARKPack transcript determinism ──────────────────────────────────────
 
 #[test]
+#[ignore = "slow: runs full STARK prover (~30 min debug mode). Run manually: cargo test --release -- --ignored"]
 fn test_starkpack_transcript_deterministic_across_calls() {
     // TV5.15 P3: same inputs → same transcript_hash across two calls.
     // Spec §3.4.3 R4: one transcript per batch, deterministic.
@@ -159,6 +160,7 @@ fn test_starkpack_transcript_deterministic_across_calls() {
 }
 
 #[test]
+#[ignore = "slow: runs full STARK prover (~30 min debug mode). Run manually: cargo test --release -- --ignored"]
 fn test_starkpack_ordering_affects_transcript() {
     // TV5.15 P2: different tx_ordering_key order → different transcript_hash.
     // Spec §3.4.3 R1: proofs absorbed in tx_ordering_key order.

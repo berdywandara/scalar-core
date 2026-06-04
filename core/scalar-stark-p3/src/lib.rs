@@ -43,3 +43,27 @@ pub const FRI_NUM_QUERIES: usize = 84;
 /// g=23 yields ε≈2^-120.68 (meets target with 0.68 bit margin).
 /// Formal proof requirement per ADR-SEC-023 still applies.
 pub const FRI_PROOF_OF_WORK_BITS: usize = 23;
+
+// ── Compile-time OSSIFIED enforcement ──────────────────────────────────────
+// Aktif di SEMUA build profile (debug, release, test).
+// Perubahan nilai apapun → compile error.
+// Perubahan hanya via COMMIT 75% governance + formal soundness re-proof.
+// Ref: SCALAR-PROTOCOL §13.1, SCALAR-SECURITY §3.4 RISK-02, D-028
+const _: () = {
+    assert!(
+        FRI_LOG_BLOWUP == 3,
+        "OSSIFIED: FRI_LOG_BLOWUP must be 3 (blowup=8). Requires COMMIT 75% + re-proof."
+    );
+    assert!(
+        FRI_NUM_QUERIES == 84,
+        "OSSIFIED: FRI_NUM_QUERIES must be 84. Requires COMMIT 75% + re-proof."
+    );
+    assert!(
+        FRI_PROOF_OF_WORK_BITS == 23,
+        "OSSIFIED: FRI_PROOF_OF_WORK_BITS must be 23 (D-028). Requires COMMIT 75% + re-proof."
+    );
+    assert!(
+        GOLDILOCKS_PRIME == 0xFFFF_FFFF_0000_0001,
+        "OSSIFIED: Goldilocks prime must not change. Requires COMMIT 75% governance."
+    );
+};

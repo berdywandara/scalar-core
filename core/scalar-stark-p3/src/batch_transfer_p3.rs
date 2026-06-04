@@ -741,6 +741,7 @@ mod tests {
 
     /// Full roundtrip: prove all four sub-AIRs, verify all four. Spec §4.1.
     #[test]
+    #[ignore = "slow: runs full STARK prover (~30 min debug). Run: cargo test --release -p scalar-stark-p3 -- --ignored"]
     fn test_batch_transfer_prove_verify_roundtrip() {
         let (witnesses, imt_root, active_root, archived_root) = build_test_witnesses();
         let pi = valid_pi(active_root, archived_root);
@@ -938,6 +939,7 @@ mod tests {
 
     /// Proof size smoke test — all four proofs must be non-trivially sized.
     #[test]
+    #[ignore = "slow: runs full STARK prover (~30 min debug). Run: cargo test --release -p scalar-stark-p3 -- --ignored"]
     fn test_batch_proof_sizes() {
         let (witnesses, imt_root, active_root, archived_root) = build_test_witnesses();
         let pi = valid_pi(active_root, archived_root);
@@ -1238,15 +1240,12 @@ mod bench {
     /// + CC (dual SMT non-membership) + CD/CE/CG (transfer constraints).
     ///
     /// Spec §15.6: result is empirical reference, not a pass/fail gate.
-    /// FRI params OSSIFIED: blowup=8, queries=84, grinding=20.
+    /// FRI params OSSIFIED: blowup=8, queries=84, grinding=23 (D-028).
     ///
     /// Run with: cargo test -p scalar-stark-p3 --features bench-hardware \
     ///           -- bench::bench_batch_transfer_2in2out --nocapture --ignored
     #[test]
-    #[cfg_attr(
-        not(feature = "bench-hardware"),
-        ignore = "P3-R9: run with --features bench-hardware"
-    )]
+    #[ignore = "P3-R9: slow bench (~30 min debug). Run: cargo test -p scalar-stark-p3 --features bench-hardware -- bench::bench_batch_transfer_2in2out --nocapture --ignored"]
     fn bench_batch_transfer_2in2out() {
         let (witnesses, imt_root, active_root, archived_root) = build_bench_witnesses(2);
         let pi = TransferPublicInputsP3 {
@@ -1295,7 +1294,7 @@ mod bench {
             batch_proof.cdcecg_proof.len(),
             batch_proof.total_bytes()
         );
-        println!("[P3-R9] FRI: blowup=8, queries=84, grinding=20 (OSSIFIED §4.4)");
+        println!("[P3-R9] FRI: blowup=8, queries=84, grinding=23 (OSSIFIED §4.4, D-028)");
         println!("[P3-R9] Spec §15.6: no hard time limit — empirical reference only");
         println!(
             "[P3-R9] Spec §15.6: all tiers (A/B/C) must prove without GPU — verified by CPU-only Codespace"

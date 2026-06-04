@@ -130,7 +130,7 @@ impl HeartbeatVerifier {
             .get(&hb.node_id)
             .map(|s| s.last_seq_num)
             .unwrap_or(0);
-        let is_restart = hb.seq_num == 1 && last_seq > 0;
+        let is_restart = hb.seq_num == 1 && last_seq > 1; // Restart valid hanya jika node sebelumnya sudah melewati seq>1. Replay seq=1 (last_seq=1) bukan restart — spec T-5.
         if hb.seq_num <= last_seq && !is_restart {
             return Err(VerificationError::SeqNumNotMonotonic {
                 received: hb.seq_num,
