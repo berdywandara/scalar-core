@@ -24,6 +24,19 @@ use tokio::time::{sleep, Duration};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
 
+    // ── Subcommand: keygen ─────────────────────────────────────────────────
+    // scalar-node keygen [--keystore=<path>] [--genesis-hash=<hex>]
+    // SCALAR-TECHNICAL §10.5
+    if args.len() > 1 && args[1] == "keygen" {
+        // run_keygen is synchronous (CPU-bound), call directly.
+        // Blocking the tokio thread is fine — we exit after completion.
+        if let Err(e) = scalar_node::keystore::run_keygen(&args) {
+            eprintln!("❌ keygen error: {e}");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
     // RPC port — default 7777
     let port: u16 = args
         .iter()
@@ -124,13 +137,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 3. HeartbeatService — HeartbeatUnit v9.0 (108 bytes, BLAKE3-MAC)
-    // NodeKey dan NodeID: random untuk testing, production pakai Argon2id
-    let full_node_id = {
+    // NodeKey dan NodeID: dari keystore (--keystore=<path>) atau placeholder testnet
+    // SCALAR-TECHNICAL §10.5
+    let keystore_path: Option<String> = args
+        .iter()
+        .find(|a| a.starts_with("--keystore="))
+        .map(|a| a.trim_start_matches("--keystore=").to_string());
+
+    let (full_node_id, node_key) = if let Some(ref ks_path) = keystore_path {
+        let passphrase = rpassword::prompt_password("Enter keystore passphrase: ")
+            .unwrap_or_else(|_| String::new());
+        match scalar_node::keystore::NodeKeystoreV1::decrypt_from_file(
+            ks_path,
+            passphrase.as_bytes(),
+        ) {
+            Ok(ks) => {
+                println!(
+                    "[NODE] ✅ Keystore loaded. NodeID: {}",
+                    hex::encode(&ks.node_id_full[..8])
+                );
+                (ks.node_id_full, ks.node_key)
+            }
+            Err(e) => {
+                eprintln!("[NODE] ❌ Failed to decrypt keystore: {e}");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        eprintln!("[NODE] ⚠️  No --keystore specified. Using placeholder NodeID (testnet only).");
         let mut id = [0u8; 32];
         id[0..2].copy_from_slice(&port.to_le_bytes());
-        id
+        (id, [0x42u8; 32])
     };
-    let node_key = [0x42u8; 32]; // placeholder — production: dari seed derivation §13.1
     let hb_service = Arc::new(Mutex::new(HeartbeatService::new(full_node_id, node_key)));
     println!("[HB] HeartbeatService v9.1 online (148 bytes, BLAKE3-MAC).");
 
