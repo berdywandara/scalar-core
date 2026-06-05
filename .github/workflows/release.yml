@@ -1,0 +1,140 @@
+# scalar-core Release Pipeline — SCALAR-REPO §8.2
+# Triggered on version tags: git tag v0.1.0 && git push origin v0.1.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── Build binary per platform ────────────────────────────────────
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: scalar-node-linux-x86_64
+
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: scalar-node-linux-aarch64
+            cross: true
+
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact: scalar-node-macos-x86_64
+
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact: scalar-node-macos-apple-silicon
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      # Install cross-compilation tool untuk ARM64 Linux
+      - name: Install cross (ARM64 Linux only)
+        if: matrix.cross == true
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      # Build native targets
+      - name: Build (native)
+        if: matrix.cross != true
+        run: cargo build --release --target ${{ matrix.target }} -p scalar-node
+
+      # Build cross-compiled targets
+      - name: Build (cross)
+        if: matrix.cross == true
+        run: cross build --release --target ${{ matrix.target }} -p scalar-node
+
+      # Rename binary dengan platform suffix
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          BIN="target/${{ matrix.target }}/release/scalar-node"
+          cp "$BIN" "${{ matrix.artifact }}"
+          echo "Artifact: ${{ matrix.artifact }}"
+          ls -lh "${{ matrix.artifact }}"
+
+      # Upload artifact per platform
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error
+
+  # ── Create GitHub Release ─────────────────────────────────────────
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: List artifacts
+        run: find artifacts/ -type f | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Scalar Node ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: artifacts/**/*
+          body: |
+            ## Scalar Node ${{ github.ref_name }}
+
+            ### Binary Downloads
+            | Platform | File |
+            |----------|------|
+            | Linux x86_64 | `scalar-node-linux-x86_64` |
+            | Linux ARM64 (Oracle A1, Raspberry Pi) | `scalar-node-linux-aarch64` |
+            | macOS Intel | `scalar-node-macos-x86_64` |
+            | macOS Apple Silicon | `scalar-node-macos-apple-silicon` |
+
+            ### Quick Start
+```bash
+            chmod +x scalar-node-linux-x86_64
+            ./scalar-node-linux-x86_64 --port 7777 --p2p-port 17777
+```
+
+            ### Verifikasi
+```bash
+            # Pastikan binary tidak dimodifikasi
+            sha256sum scalar-node-*
+```
+
+            ### Referensi
+            - [SCALAR-PROTOCOL](docs/SCALAR-PROTOCOL.docx)
+            - [SCALAR-TECHNICAL](docs/SCALAR-TECHNICAL.docx)
