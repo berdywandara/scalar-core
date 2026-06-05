@@ -90,18 +90,15 @@ else
     --genesis-hash="$(cat genesis_hash.txt)"
 fi
 
-# ── Step 6: Passphrase file untuk systemd ────────────────────────
+# ── Step 6: Passphrase file for systemd ─────────────────────────────────────
 echo "[6/7] Setting up passphrase file..."
 if [ ! -f "$PASSPHRASE_FILE" ]; then
   echo "  Enter the same passphrase used during keygen:"
-  read -rsp "  Passphrase: " PASSPHRASE
-  echo
-  echo "$PASSPHRASE" | sudo tee "$PASSPHRASE_FILE" > /dev/null
-  sudo chmod 600 "$PASSPHRASE_FILE"
-  sudo chown "$(whoami):$(whoami)" "$PASSPHRASE_FILE"
-  echo "  Passphrase file: $PASSPHRASE_FILE (chmod 600)"
+  sudo bash -c "read -rsp '  Passphrase: ' p && echo && printf '%s' \"\$p\" > \"$PASSPHRASE_FILE\" && chmod 600 \"$PASSPHRASE_FILE\" && chown $(whoami):$(whoami) \"$PASSPHRASE_FILE\""
+  echo "  Passphrase file created: $PASSPHRASE_FILE (chmod 600)"
 else
   echo "  Passphrase file already exists."
+fi
 fi
 
 # ── Step 7: Systemd service ───────────────────────────────────────

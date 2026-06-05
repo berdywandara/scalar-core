@@ -202,7 +202,6 @@ pub fn derive_node_key(
     Ok(node_key)
 }
 
-
 // ── Mnemonic Generation & Validation — SCALAR-TECHNICAL §10.5.1 ──────────────
 
 /// Generate Scalar mnemonic: "scalar" + 11 random words from BIP-39 English wordlist.
@@ -231,13 +230,14 @@ pub fn validate_mnemonic(mnemonic: &str) -> Result<(), KeystoreError> {
 
     let words: Vec<&str> = mnemonic.split_whitespace().collect();
     if words.len() != 12 {
-        return Err(KeystoreError::InvalidMnemonic(
-            format!("Must be 12 words, got {}", words.len())
-        ));
+        return Err(KeystoreError::InvalidMnemonic(format!(
+            "Must be 12 words, got {}",
+            words.len()
+        )));
     }
     if words[0] != "scalar" {
         return Err(KeystoreError::InvalidMnemonic(
-            "First word must be 'scalar'".to_string()
+            "First word must be 'scalar'".to_string(),
         ));
     }
 
@@ -245,9 +245,11 @@ pub fn validate_mnemonic(mnemonic: &str) -> Result<(), KeystoreError> {
     let wordset: HashSet<&str> = wordlist.iter().copied().collect();
     for (i, word) in words[1..].iter().enumerate() {
         if !wordset.contains(*word) {
-            return Err(KeystoreError::InvalidMnemonic(
-                format!("Word #{} '{}' not found in BIP-39 wordlist", i + 2, word)
-            ));
+            return Err(KeystoreError::InvalidMnemonic(format!(
+                "Word #{} '{}' not found in BIP-39 wordlist",
+                i + 2,
+                word
+            )));
         }
     }
     Ok(())
@@ -331,8 +333,7 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Validate mnemonic format and wordlist
-    validate_mnemonic(&mnemonic_trimmed)
-        .map_err(|e| format!("{e}"))?;
+    validate_mnemonic(&mnemonic_trimmed).map_err(|e| format!("{e}"))?;
 
     let mnemonic_bytes = mnemonic_trimmed.as_bytes().to_vec();
 
@@ -433,14 +434,14 @@ impl From<NodeIdError> for KeystoreError {
 impl core::fmt::Display for KeystoreError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidParams       => write!(f, "Invalid Argon2id params"),
-            Self::EncryptionFailed    => write!(f, "Keystore encryption failed"),
-            Self::DecryptionFailed    => write!(f, "Keystore decryption failed — wrong passphrase?"),
-            Self::InvalidFormat       => write!(f, "Invalid keystore format"),
+            Self::InvalidParams => write!(f, "Invalid Argon2id params"),
+            Self::EncryptionFailed => write!(f, "Keystore encryption failed"),
+            Self::DecryptionFailed => write!(f, "Keystore decryption failed — wrong passphrase?"),
+            Self::InvalidFormat => write!(f, "Invalid keystore format"),
             Self::UnsupportedVersion(v) => write!(f, "Unsupported keystore version: {v:#04x}"),
-            Self::IoError(e)          => write!(f, "I/O error: {e}"),
-            Self::NodeIdError(e)      => write!(f, "NodeID error: {e}"),
-            Self::InvalidMnemonic(e)  => write!(f, "Invalid mnemonic: {e}"),
+            Self::IoError(e) => write!(f, "I/O error: {e}"),
+            Self::NodeIdError(e) => write!(f, "NodeID error: {e}"),
+            Self::InvalidMnemonic(e) => write!(f, "Invalid mnemonic: {e}"),
         }
     }
 }
