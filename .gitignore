@@ -25,3 +25,6 @@ proofs/
 **/__pycache__/
 **/*.pyc
 **/*.pyo
+
+# Mobile wallet — dikerjakan dari awal di scalar-wallet-mobile repo
+apps/
