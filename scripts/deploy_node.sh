@@ -82,10 +82,10 @@ if [ -f "$KEYSTORE_FILE" ]; then
   echo "  Skipping keygen. Delete $KEYSTORE_FILE to regenerate."
 else
   echo ""
-  echo "  PERHATIAN: Siapkan mnemonic 12 kata (pertama: 'scalar')"
-  echo "  Mnemonic akan diminta secara tersembunyi."
+  echo "  NOTICE: Prepare a 12-word mnemonic (first word: 'scalar')"
+  echo "  Mnemonic will be prompted securely (hidden input)."
   echo ""
-  ./target/release/scalar-node keygen \
+  ./target/release/scalar-node keygen --generate \
     --keystore="$KEYSTORE_FILE" \
     --genesis-hash="$(cat genesis_hash.txt)"
 fi
@@ -93,7 +93,7 @@ fi
 # ── Step 6: Passphrase file untuk systemd ────────────────────────
 echo "[6/7] Setting up passphrase file..."
 if [ ! -f "$PASSPHRASE_FILE" ]; then
-  echo "  Masukkan passphrase yang sama seperti saat keygen:"
+  echo "  Enter the same passphrase used during keygen:"
   read -rsp "  Passphrase: " PASSPHRASE
   echo
   echo "$PASSPHRASE" | sudo tee "$PASSPHRASE_FILE" > /dev/null

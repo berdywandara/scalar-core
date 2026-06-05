@@ -3,11 +3,11 @@
 //! Format: version(1) || kdf_salt(16) || xchacha20_nonce(24) || ciphertext(80)
 //! Total : 121 bytes
 //!
-//! Mnemonic TIDAK PERNAH disimpan. Hanya derived operational keys:
+//! Mnemonic is NEVER stored. Only derived operational keys:
 //!   node_id_full : Argon2id(mnemonic, b"scalar_nodeid"||genesis_hash, Tier A/C)
 //!   node_key     : BLAKE3 derivation chain (SCALAR-PROTOCOL §11.1)
 //!
-//! Passphrase KDF : Argon2id(passphrase, kdf_salt, 64MB, 3, 1) → 32-byte key
+//! Passphrase KDF : Argon2id(passphrase, kdf_salt, 64MB, 3, 1) -> 32-byte key
 //! Encryption     : XChaCha20-Poly1305(kdf_key, nonce, node_id_full || node_key)
 
 use argon2::{Algorithm, Argon2, Params, Version};
@@ -43,16 +43,16 @@ const WALLET_OUTPUT_LEN: usize = 64;
 // ── NodeKeystoreV1 ────────────────────────────────────────────────────────────
 
 /// Decrypted node operational keys.
-/// Mnemonic tidak pernah disimpan di sini. SCALAR-TECHNICAL §10.5.
+/// Mnemonic is never stored here. SCALAR-TECHNICAL §10.5.
 pub struct NodeKeystoreV1 {
-    /// NodeID from Argon2id Tier A. SCALAR-TECHNICAL §10.5.
+    /// NodeID derived from Argon2id Tier A. SCALAR-TECHNICAL §10.5.
     pub node_id_full: [u8; 32],
     /// NodeKey from BLAKE3 derivation chain. SCALAR-PROTOCOL §11.1.
     pub node_key: [u8; 32],
 }
 
 impl NodeKeystoreV1 {
-    /// Encrypt dan tulis keystore ke file.
+    /// Encrypt and write keystore to file.
     pub fn encrypt_to_file(&self, path: &str, passphrase: &[u8]) -> Result<(), KeystoreError> {
         let mut kdf_salt = [0u8; KDF_SALT_LEN];
         let mut nonce_bytes = [0u8; NONCE_LEN];
@@ -84,7 +84,7 @@ impl NodeKeystoreV1 {
         std::fs::write(path, &file_data).map_err(|e| KeystoreError::IoError(e.to_string()))
     }
 
-    /// Baca dan decrypt keystore dari file.
+    /// Read and decrypt keystore from file.
     pub fn decrypt_from_file(path: &str, passphrase: &[u8]) -> Result<Self, KeystoreError> {
         let file_data = std::fs::read(path).map_err(|e| KeystoreError::IoError(e.to_string()))?;
 
@@ -132,7 +132,7 @@ impl NodeKeystoreV1 {
 
 // ── Key Derivation ────────────────────────────────────────────────────────────
 
-/// Passphrase → 32-byte encryption key via Argon2id.
+/// Derive 32-byte encryption key from passphrase via Argon2id.
 /// SCALAR-TECHNICAL §10.5: 64MB, 3 iter, parallelism 1.
 fn passphrase_kdf(passphrase: &[u8], salt: &[u8; KDF_SALT_LEN]) -> Result<[u8; 32], KeystoreError> {
     let params = Params::new(PASS_MEMORY_KIB, PASS_TIME, PASS_PARALLELISM, Some(32))
@@ -145,7 +145,7 @@ fn passphrase_kdf(passphrase: &[u8], salt: &[u8; KDF_SALT_LEN]) -> Result<[u8; 3
     Ok(key)
 }
 
-/// Derive NodeKey dari mnemonic + genesis_hash via wallet key chain.
+/// Derive NodeKey from mnemonic + genesis_hash via wallet key chain.
 ///
 /// SCALAR-PROTOCOL §11.1:
 ///   seed       = Argon2id(mnemonic, DOMAIN_SEED_KDF||genesis_hash, 64MB, 3, 1) → 64B
@@ -196,20 +196,71 @@ pub fn derive_node_key(
         *h.finalize().as_bytes()
     };
 
-    // Zero intermediates
+    // Zero intermediates from memory
     seed.iter_mut().for_each(|b| *b = 0);
 
     Ok(node_key)
 }
 
+
+// ── Mnemonic Generation & Validation — SCALAR-TECHNICAL §10.5.1 ──────────────
+
+/// Generate Scalar mnemonic: "scalar" + 11 random words from BIP-39 English wordlist.
+/// Uses OsRng (CSPRNG) for 121-bit effective entropy. SCALAR-PROTOCOL §11.1.
+pub fn generate_mnemonic() -> String {
+    use bip39::Language;
+    use rand::Rng;
+
+    let wordlist = Language::English.word_list();
+    let mut rng = OsRng;
+    let mut words = vec!["scalar".to_string()];
+    for _ in 0..11 {
+        let idx: usize = rng.gen_range(0..2048);
+        words.push(wordlist[idx].to_string());
+    }
+    words.join(" ")
+}
+
+/// Validate Scalar mnemonic:
+///   - Must be 12 words
+///   - First word must be "scalar"
+///   - Words 2-12 must exist in BIP-39 English wordlist
+pub fn validate_mnemonic(mnemonic: &str) -> Result<(), KeystoreError> {
+    use bip39::Language;
+    use std::collections::HashSet;
+
+    let words: Vec<&str> = mnemonic.split_whitespace().collect();
+    if words.len() != 12 {
+        return Err(KeystoreError::InvalidMnemonic(
+            format!("Must be 12 words, got {}", words.len())
+        ));
+    }
+    if words[0] != "scalar" {
+        return Err(KeystoreError::InvalidMnemonic(
+            "First word must be 'scalar'".to_string()
+        ));
+    }
+
+    let wordlist = Language::English.word_list();
+    let wordset: HashSet<&str> = wordlist.iter().copied().collect();
+    for (i, word) in words[1..].iter().enumerate() {
+        if !wordset.contains(*word) {
+            return Err(KeystoreError::InvalidMnemonic(
+                format!("Word #{} '{}' not found in BIP-39 wordlist", i + 2, word)
+            ));
+        }
+    }
+    Ok(())
+}
+
 // ── run_keygen ────────────────────────────────────────────────────────────────
 
-/// `scalar-node keygen` — SCALAR-TECHNICAL §10.5 Workflow Langkah 1.
+/// `scalar-node keygen` — SCALAR-TECHNICAL §10.5 Operator Workflow Step 1.
 ///
-/// Usage: scalar-node keygen [--keystore=<path>] [--genesis-hash=<hex>]
+/// Usage: scalar-node keygen [--generate] [--keystore=<path>] [--genesis-hash=<hex>]
 pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     println!("=== SCALAR NODE KEYGEN — SCALAR-TECHNICAL §10.5 ===");
-    println!("Mnemonic digunakan sekali. Tidak pernah disimpan di keystore.");
+    println!("Mnemonic is used once. Never stored in keystore.");
     println!();
 
     // Parse --keystore path
@@ -234,7 +285,7 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|_| "genesis-hash harus 32 bytes (64 hex chars)")?
     } else {
         let hex_str = std::fs::read_to_string("genesis_hash.txt")
-            .map_err(|_| "genesis_hash.txt tidak ditemukan. Gunakan --genesis-hash=<hex>")?;
+            .map_err(|_| "genesis_hash.txt not found. Use --genesis-hash=<hex>")?;
         let bytes = hex::decode(hex_str.trim())?;
         bytes
             .try_into()
@@ -242,52 +293,84 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     };
     println!("[1/5] Genesis hash : {}", hex::encode(&genesis_hash[..8]));
 
-    // Read mnemonic (hidden input)
-    println!("[2/5] Masukkan mnemonic (12 kata, kata pertama harus 'scalar'):");
-    let mnemonic_str = rpassword::prompt_password("  Mnemonic: ")?;
-    let mnemonic_trimmed = mnemonic_str.trim().to_string();
+    // Read or generate mnemonic.
+    // --generate: system creates random mnemonic (REQUIRED for new nodes)
+    // without flag: user inputs mnemonic from cold storage (restore/recovery)
+    let use_generate = args.iter().any(|a| a == "--generate");
 
-    if !mnemonic_trimmed.starts_with("scalar") {
-        return Err("Mnemonic harus dimulai dengan 'scalar' — SCALAR-PROTOCOL §11.1".into());
-    }
+    let mnemonic_trimmed = if use_generate {
+        let mnemonic = generate_mnemonic();
+        println!("[2/5] Mnemonic generated (CSPRNG, 121-bit entropy):");
+        println!();
+        println!("  ╔══════════════════════════════════════════════════════╗");
+        for (i, word) in mnemonic.split_whitespace().enumerate() {
+            println!("  ║  {:2}. {:<20}                         ║", i + 1, word);
+        }
+        println!("  ╚══════════════════════════════════════════════════════╝");
+        println!();
+        println!("  ⚠️  WRITE DOWN NOW IN COLD STORAGE (hardware wallet / paper)");
+        println!("  ⚠️  Mnemonic CANNOT be recovered if lost.");
+        println!();
+        println!("  Press ENTER after mnemonic has been safely recorded...");
+        let mut buf = String::new();
+        std::io::stdin().read_line(&mut buf).ok();
+
+        // Verifikasi: user ketik ulang kata ke-4 sebagai konfirmasi
+        let word4 = mnemonic.split_whitespace().nth(3).unwrap_or("").to_string();
+        let confirm = rpassword::prompt_password("  Re-enter word #4 to confirm: ")?;
+        if confirm.trim() != word4 {
+            return Err("Word #4 confirmation failed. Re-run keygen with --generate.".into());
+        }
+        println!("  ✅ Confirmation correct.");
+        mnemonic
+    } else {
+        println!("[2/5] Enter mnemonic from cold storage (12 words, first: 'scalar'):");
+        println!("  Use --generate to create a NEW mnemonic.");
+        let s = rpassword::prompt_password("  Mnemonic: ")?;
+        s.trim().to_string()
+    };
+
+    // Validate mnemonic format and wordlist
+    validate_mnemonic(&mnemonic_trimmed)
+        .map_err(|e| format!("{e}"))?;
+
     let mnemonic_bytes = mnemonic_trimmed.as_bytes().to_vec();
 
     // Derive NodeID
     let mode_label = if cfg!(feature = "production") {
-        "Tier A (4GB, 3600 iter) — estimasi ~60 menit"
+        "Tier A (4GB, 3600 iter) — estimated ~60 min"
     } else {
         "Tier C (16MB, 100 iter) — dev/testnet"
     };
     println!("[3/5] Deriving NodeID ({mode_label})...");
     let node_id = ProductionNodeId::derive_with_feature_flag(&mnemonic_bytes, &genesis_hash)
-        .map_err(|e| format!("NodeID derivation gagal: {e}"))?;
+        .map_err(|e| format!("NodeID derivation failed: {e}"))?;
     println!("[3/5] NodeID : {}", hex::encode(node_id.node_id_full));
 
     // Derive NodeKey
     println!("[4/5] Deriving NodeKey (wallet Argon2id 64MB + BLAKE3 chain)...");
     let node_key = derive_node_key(&mnemonic_bytes, &genesis_hash)
-        .map_err(|e| format!("NodeKey derivation gagal: {e}"))?;
-    println!("[4/5] NodeKey derived (tidak ditampilkan).");
+        .map_err(|e| format!("NodeKey derivation failed: {e}"))?;
+    println!("[4/5] NodeKey derived (not displayed for security).");
 
     // Zero mnemonic from memory
-    drop(mnemonic_str);
     drop(mnemonic_trimmed);
 
     // Read and confirm passphrase
-    println!("[5/5] Masukkan passphrase untuk enkripsi keystore:");
+    println!("[5/5] Enter passphrase to encrypt keystore:");
     let passphrase1 = rpassword::prompt_password("  Passphrase       : ")?;
-    let passphrase2 = rpassword::prompt_password("  Konfirmasi       : ")?;
+    let passphrase2 = rpassword::prompt_password("  Confirm          : ")?;
     if passphrase1 != passphrase2 {
-        return Err("Passphrase tidak cocok.".into());
+        return Err("Passphrases do not match.".into());
     }
     if passphrase1.len() < 8 {
-        return Err("Passphrase minimal 8 karakter.".into());
+        return Err("Passphrase must be at least 8 characters.".into());
     }
 
-    // Create directory if needed
+    // Create keystore directory if needed
     if let Some(parent) = std::path::Path::new(&keystore_path).parent() {
         std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Gagal buat direktori keystore: {e}"))?;
+            .map_err(|e| format!("Failed to create keystore directory: {e}"))?;
     }
 
     // Encrypt and save
@@ -297,7 +380,7 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     };
     ks.encrypt_to_file(&keystore_path, passphrase1.as_bytes())?;
 
-    // Set permission 600 (Unix)
+    // Set file permission 600 (Unix only)
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -306,7 +389,7 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!();
-    println!("=== KEYGEN SELESAI ===");
+    println!("=== KEYGEN COMPLETE ===");
     println!("Keystore : {keystore_path}");
     println!("NodeID   : {}", hex::encode(node_id.node_id_full));
     println!(
@@ -318,10 +401,10 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         }
     );
     println!();
-    println!("⚠️  Backup mnemonic di cold storage sekarang!");
-    println!("   Keystore tidak bisa di-recover tanpa mnemonic.");
+    println!("⚠️  Backup mnemonic to cold storage now!");
+    println!("   Keystore cannot be recovered without the mnemonic.");
     println!();
-    println!("Jalankan node:");
+    println!("Run node with:");
     println!("  scalar-node run --keystore={keystore_path}");
 
     Ok(())
@@ -338,6 +421,7 @@ pub enum KeystoreError {
     UnsupportedVersion(u8),
     IoError(String),
     NodeIdError(NodeIdError),
+    InvalidMnemonic(String),
 }
 
 impl From<NodeIdError> for KeystoreError {
@@ -349,13 +433,14 @@ impl From<NodeIdError> for KeystoreError {
 impl core::fmt::Display for KeystoreError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidParams => write!(f, "Argon2id params tidak valid"),
-            Self::EncryptionFailed => write!(f, "Enkripsi keystore gagal"),
-            Self::DecryptionFailed => write!(f, "Dekripsi keystore gagal — passphrase salah?"),
-            Self::InvalidFormat => write!(f, "Format keystore tidak valid"),
-            Self::UnsupportedVersion(v) => write!(f, "Versi keystore tidak didukung: {v:#04x}"),
-            Self::IoError(e) => write!(f, "I/O error: {e}"),
-            Self::NodeIdError(e) => write!(f, "NodeID error: {e}"),
+            Self::InvalidParams       => write!(f, "Invalid Argon2id params"),
+            Self::EncryptionFailed    => write!(f, "Keystore encryption failed"),
+            Self::DecryptionFailed    => write!(f, "Keystore decryption failed — wrong passphrase?"),
+            Self::InvalidFormat       => write!(f, "Invalid keystore format"),
+            Self::UnsupportedVersion(v) => write!(f, "Unsupported keystore version: {v:#04x}"),
+            Self::IoError(e)          => write!(f, "I/O error: {e}"),
+            Self::NodeIdError(e)      => write!(f, "NodeID error: {e}"),
+            Self::InvalidMnemonic(e)  => write!(f, "Invalid mnemonic: {e}"),
         }
     }
 }

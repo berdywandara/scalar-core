@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     // ── Subcommand: keygen ─────────────────────────────────────────────────
-    // scalar-node keygen [--keystore=<path>] [--genesis-hash=<hex>]
+    // scalar-node keygen [--generate] [--keystore=<path>] [--genesis-hash=<hex>]
     // SCALAR-TECHNICAL §10.5
     if args.len() > 1 && args[1] == "keygen" {
         // run_keygen is synchronous (CPU-bound), call directly.
@@ -137,7 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 3. HeartbeatService — HeartbeatUnit v9.0 (108 bytes, BLAKE3-MAC)
-    // NodeKey dan NodeID: dari keystore (--keystore=<path>) atau placeholder testnet
+    // NodeKey and NodeID: from keystore (--keystore=<path>) or testnet placeholder.
     // SCALAR-TECHNICAL §10.5
     let keystore_path: Option<String> = args
         .iter()
@@ -145,8 +145,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|a| a.trim_start_matches("--keystore=").to_string());
 
     // Passphrase source: --passphrase-file=<path> (non-interactive, VPS/systemd)
-    // atau interactive prompt (default)
-    // CATATAN: --passphrase-file hanya untuk testnet/dev. Mainnet: systemd credential.
+    // or interactive prompt (default).
+    // NOTE: --passphrase-file is for testnet/dev only. Production: use systemd credential.
     let passphrase_file: Option<String> = args
         .iter()
         .find(|a| a.starts_with("--passphrase-file="))
