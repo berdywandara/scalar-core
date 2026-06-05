@@ -144,9 +144,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .find(|a| a.starts_with("--keystore="))
         .map(|a| a.trim_start_matches("--keystore=").to_string());
 
+    // Passphrase source: --passphrase-file=<path> (non-interactive, VPS/systemd)
+    // atau interactive prompt (default)
+    // CATATAN: --passphrase-file hanya untuk testnet/dev. Mainnet: systemd credential.
+    let passphrase_file: Option<String> = args
+        .iter()
+        .find(|a| a.starts_with("--passphrase-file="))
+        .map(|a| a.trim_start_matches("--passphrase-file=").to_string());
+
     let (full_node_id, node_key) = if let Some(ref ks_path) = keystore_path {
-        let passphrase = rpassword::prompt_password("Enter keystore passphrase: ")
-            .unwrap_or_else(|_| String::new());
+        let passphrase = if let Some(ref pf) = passphrase_file {
+            std::fs::read_to_string(pf)
+                .map(|s| s.trim().to_string())
+                .unwrap_or_else(|e| {
+                    eprintln!("[NODE] ❌ Cannot read passphrase file: {e}");
+                    std::process::exit(1);
+                })
+        } else {
+            rpassword::prompt_password("Enter keystore passphrase: ")
+                .unwrap_or_else(|_| String::new())
+        };
         match scalar_node::keystore::NodeKeystoreV1::decrypt_from_file(
             ks_path,
             passphrase.as_bytes(),
