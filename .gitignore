@@ -9,8 +9,6 @@
 founder_sk.bin
 founder_pk.bin
 founder_pk.hex
-genesis.bin
-genesis_hash.txt
 check_output.txt
 
 # Runtime data (bukan source code)
