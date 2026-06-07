@@ -1,184 +1,47 @@
-//! NodeID Production — Argon2id Anti-Sybil — Spec §10.2, Gap G-2
+//! NodeID Derivation — BLAKE3 — SCALAR-PROTOCOL §3.1, SCALAR-TECHNICAL §10.5
 //!
-//! PR-V12-012 FIX: node_key placeholder [0x42;32] diganti dengan
-//! production NodeID dari Argon2id sesuai spec §10.2.
+//! node_id_full = BLAKE3(b"scalar_nodeid" || mnemonic || genesis_hash)
 //!
-//! Spec §10.2:
-//!   node_id_full = Argon2id(
-//!     input  = mnemonic,
-//!     salt   = b"scalar_nodeid" || genesis_hash,
-//!     memory = 4 GB (production) / 16 MB (dev),
-//!     time   = 3_600 iter (production) / 100 iter (dev),
-//!     output = 32 bytes
-//!   )
+//! Domain separator b"scalar_nodeid" (13 bytes) is OSSIFIED — SCALAR-PROTOCOL §2.3.
+//! Identical derivation for all nodes. No tier distinction.
+//! Derivation time: < 1 ms on any hardware.
 //!
-//! Tier C (§10.1): Argon2id 16 MB / 100 iter (sama dengan dev mode).
-//! Tier A/B: Argon2id 4 GB / 3_600 iter (production mode).
-//!
-//! Compile-time error jika build mainnet tanpa --features production.
-//! (Spec §10.2: "Compile-time error if build mainnet without --features production")
+//! Argon2id is retained ONLY in keystore.rs for:
+//!   Passphrase KDF : Argon2id(passphrase, salt, 64 MB, 3 iter) — keystore file protection
+//!   Wallet seed KDF: Argon2id(mnemonic, DOMAIN_SEED_KDF||genesis, 64 MB, 3 iter) — §11.1
 
-use argon2::{Algorithm, Argon2, Params, Version};
+use scalar_crypto::domain::DOMAIN_NODEID;
 
-// ── Constants — spec §10.2 ────────────────────────────────────────────────────
+// ── Constants — SCALAR-PROTOCOL §2.3, §3.1 ───────────────────────────────────
 
-/// Salt prefix untuk NodeID derivation. OSSIFIED — spec §10.2.
-// NODE_ID_SALT_PREFIX = DOMAIN_NODEID (b"scalar_nodeid") — spec §2.3 OSSIFIED.
+/// NodeID domain separator. OSSIFIED — SCALAR-PROTOCOL §2.3.
+/// b"scalar_nodeid" — identical for all nodes, no per-tier variant.
 pub use scalar_crypto::domain::DOMAIN_NODEID as NODE_ID_SALT_PREFIX;
 
-/// Salt prefix length. Spec §10.2.
-pub const NODE_ID_SALT_PREFIX_LEN: usize = 13;
+/// Length of NODE_ID_SALT_PREFIX in bytes. Spec §2.3.
+pub const NODE_ID_SALT_PREFIX_LEN: usize = 13; // b"scalar_nodeid"
 
-/// Argon2id memory cost production (Tier A/B): 4 GB dalam KiB. OSSIFIED — spec §10.2.
-pub const ARGON2_NODE_MEMORY_PRODUCTION_KIB: u32 = 4 * 1024 * 1024;
-
-/// Argon2id time cost production (Tier A/B): 3_600 iterasi. OSSIFIED — spec §10.2.
-pub const ARGON2_NODE_TIME_PRODUCTION: u32 = 3_600;
-
-/// Argon2id memory cost Tier C / dev: 16 MB dalam KiB. Spec §10.1.
-pub const ARGON2_NODE_MEMORY_TIER_C_KIB: u32 = 16 * 1024;
-
-/// Argon2id time cost Tier C / dev: 100 iterasi. Spec §10.1.
-pub const ARGON2_NODE_TIME_TIER_C: u32 = 100;
-
-/// Parallelism Argon2id NodeID. Spec §10.2.
-pub const ARGON2_NODE_PARALLELISM: u32 = 1;
-
-/// Output length NodeID. Spec §10.2.
+/// NodeID output length in bytes. SCALAR-PROTOCOL §3.1.
 pub const NODE_ID_OUTPUT_LEN: usize = 32;
 
-/// Tier C node_id prefix byte. Spec §10.1.
-pub const TIER_C_NODE_PREFIX: u8 = 0xFE;
+// ── derive_node_id — SCALAR-PROTOCOL §3.1 ────────────────────────────────────
 
-// ── NodeIdDerivationMode — tier selection ─────────────────────────────────────
-
-/// Mode derivasi NodeID. Spec §10.1, §10.2.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NodeIdDerivationMode {
-    /// Tier A/B production: 4 GB / 3_600 iter. Spec §10.2.
-    /// Aktif dengan --features production.
-    Production,
-    /// Tier C / dev: 16 MB / 100 iter. Spec §10.1.
-    /// Default mode untuk dev dan Tier C.
-    TierCOrDev,
-}
-
-impl NodeIdDerivationMode {
-    pub fn memory_kib(&self) -> u32 {
-        match self {
-            Self::Production => ARGON2_NODE_MEMORY_PRODUCTION_KIB,
-            Self::TierCOrDev => ARGON2_NODE_MEMORY_TIER_C_KIB,
-        }
-    }
-
-    pub fn time_cost(&self) -> u32 {
-        match self {
-            Self::Production => ARGON2_NODE_TIME_PRODUCTION,
-            Self::TierCOrDev => ARGON2_NODE_TIME_TIER_C,
-        }
-    }
-}
-
-// ── ProductionNodeId — spec §10.2 ─────────────────────────────────────────────
-
-/// Production NodeID yang diturunkan dari Argon2id. Spec §10.2.
-#[derive(Clone, Debug)]
-pub struct ProductionNodeId {
-    /// Full 32-byte NodeID. Spec §10.2.
-    pub node_id_full: [u8; 32],
-    /// Mode derivasi yang digunakan.
-    pub mode: NodeIdDerivationMode,
-}
-
-impl ProductionNodeId {
-    /// Derive NodeID dari mnemonic dan genesis_hash. Spec §10.2.
-    ///
-    /// `mnemonic`: kata-kata mnemonic sebagai bytes (UTF-8).
-    /// `genesis_hash`: 32-byte genesis hash.
-    /// `mode`: Production (4GB) atau TierCOrDev (16MB).
-    ///
-    /// salt = b"scalar_nodeid" || genesis_hash
-    pub fn derive(
-        mnemonic: &[u8],
-        genesis_hash: &[u8; 32],
-        mode: NodeIdDerivationMode,
-    ) -> Result<Self, NodeIdError> {
-        // Buat salt: b"scalar_nodeid" || genesis_hash
-        let mut salt = Vec::with_capacity(NODE_ID_SALT_PREFIX_LEN + 32);
-        salt.extend_from_slice(NODE_ID_SALT_PREFIX);
-        salt.extend_from_slice(genesis_hash);
-
-        // Argon2id params sesuai mode
-        let params = Params::new(
-            mode.memory_kib(),
-            mode.time_cost(),
-            ARGON2_NODE_PARALLELISM,
-            Some(NODE_ID_OUTPUT_LEN),
-        )
-        .map_err(|_| NodeIdError::InvalidParams)?;
-
-        let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-        let mut output = [0u8; NODE_ID_OUTPUT_LEN];
-        argon2
-            .hash_password_into(mnemonic, &salt, &mut output)
-            .map_err(|_| NodeIdError::DerivationFailed)?;
-
-        // Validasi: output tidak boleh semua zero
-        if output == [0u8; 32] {
-            return Err(NodeIdError::ZeroOutput);
-        }
-
-        Ok(Self {
-            node_id_full: output,
-            mode,
-        })
-    }
-
-    /// Cek apakah ini node Tier C (prefix 0xFE). Spec §10.1.
-    pub fn is_tier_c(&self) -> bool {
-        self.node_id_full[0] == TIER_C_NODE_PREFIX
-    }
-
-    /// Derive node_id_full menggunakan mode yang sesuai dengan feature flag.
-    ///
-    /// Production build (--features production) → Production mode.
-    /// Dev build → TierCOrDev mode.
-    pub fn derive_with_feature_flag(
-        mnemonic: &[u8],
-        genesis_hash: &[u8; 32],
-    ) -> Result<Self, NodeIdError> {
-        #[cfg(feature = "production")]
-        let mode = NodeIdDerivationMode::Production;
-
-        #[cfg(not(feature = "production"))]
-        let mode = NodeIdDerivationMode::TierCOrDev;
-
-        Self::derive(mnemonic, genesis_hash, mode)
-    }
-}
-
-// ── Error ─────────────────────────────────────────────────────────────────────
-
-/// Error derivasi NodeID. Spec §10.2.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NodeIdError {
-    /// Params Argon2id tidak valid.
-    InvalidParams,
-    /// Derivasi gagal.
-    DerivationFailed,
-    /// Output adalah zero — tidak valid.
-    ZeroOutput,
-}
-
-impl core::fmt::Display for NodeIdError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::InvalidParams => write!(f, "Argon2id params tidak valid — spec §10.2"),
-            Self::DerivationFailed => write!(f, "Argon2id derivasi gagal — spec §10.2"),
-            Self::ZeroOutput => write!(f, "NodeID output adalah zero — tidak valid"),
-        }
-    }
+/// Derive NodeID from mnemonic and genesis_hash using BLAKE3.
+///
+/// SCALAR-PROTOCOL §3.1, SCALAR-TECHNICAL §10.5:
+///   node_id_full = BLAKE3(b"scalar_nodeid" || mnemonic || genesis_hash)
+///
+/// Properties:
+///   - Domain separator b"scalar_nodeid" is OSSIFIED — SCALAR-PROTOCOL §2.3
+///   - Identical derivation for all nodes (no tier distinction)
+///   - Deterministic: same inputs always produce the same output
+///   - Derivation time: < 1 ms on any hardware
+pub fn derive_node_id(mnemonic: &str, genesis_hash: &[u8; 32]) -> [u8; 32] {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(DOMAIN_NODEID);
+    hasher.update(mnemonic.as_bytes());
+    hasher.update(genesis_hash);
+    hasher.finalize().into()
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -187,179 +50,102 @@ impl core::fmt::Display for NodeIdError {
 mod tests {
     use super::*;
 
-    const TEST_GENESIS: [u8; 32] = [0x42u8; 32];
-    const TEST_MNEMONIC: &[u8] = b"scalar test mnemonic twelve words here for node id derivation";
+    const TEST_GENESIS_ZERO: [u8; 32] = [0x00u8; 32];
+    const TEST_GENESIS_PATTERN: [u8; 32] = [0x42u8; 32];
 
-    // ── test_nodeid_argon2id_production (dev mode) ────────────────────────────
+    // 24-word mnemonic: "scalar" + 23 BIP-39 words — spec §3.1.
+    const TEST_MNEMONIC_24: &str = "scalar abandon ability able about above absent \
+        absorb abstract absurd abuse access accident account accuse achieve acid \
+        acoustic acquire across act action actor actual";
 
-    #[test]
-    #[ignore = "slow: Argon2id 16MB, run manually with -- --ignored"]
-    fn test_nodeid_argon2id_not_placeholder() {
-        // NodeID tidak lagi placeholder [0x42;32]. Spec §10.2, Gap G-2.
-        let result = ProductionNodeId::derive(
-            TEST_MNEMONIC,
-            &TEST_GENESIS,
-            NodeIdDerivationMode::TierCOrDev,
-        );
-        assert!(result.is_ok(), "Derivasi harus berhasil: {:?}", result);
-        let node_id = result.unwrap();
-        // NodeID TIDAK boleh sama dengan placeholder [0x42;32]
-        assert_ne!(
-            node_id.node_id_full, [0x42u8; 32],
-            "NodeID tidak boleh sama dengan placeholder"
-        );
-        // NodeID tidak boleh zero
-        assert_ne!(node_id.node_id_full, [0u8; 32], "NodeID tidak boleh zero");
-    }
-
-    // ── test_nodeid_tier_c_argon2id_params ───────────────────────────────────
+    // ── test_domain_separator_ossified ───────────────────────────────────────
 
     #[test]
-    fn test_nodeid_tier_c_argon2id_params() {
-        // Tier C pakai 16MB/100iter. Spec §10.1.
-        let mode = NodeIdDerivationMode::TierCOrDev;
-        assert_eq!(
-            mode.memory_kib(),
-            ARGON2_NODE_MEMORY_TIER_C_KIB,
-            "Tier C harus pakai 16 MB"
-        );
-        assert_eq!(
-            mode.time_cost(),
-            ARGON2_NODE_TIME_TIER_C,
-            "Tier C harus pakai 100 iterasi"
-        );
-        assert_eq!(ARGON2_NODE_MEMORY_TIER_C_KIB, 16 * 1024);
-        assert_eq!(ARGON2_NODE_TIME_TIER_C, 100);
-    }
-
-    // ── test_nodeid_tier_a_argon2id_params ───────────────────────────────────
-
-    #[test]
-    fn test_nodeid_tier_a_argon2id_params() {
-        // Tier A/B pakai 4GB/3600iter. Spec §10.2.
-        let mode = NodeIdDerivationMode::Production;
-        assert_eq!(
-            mode.memory_kib(),
-            ARGON2_NODE_MEMORY_PRODUCTION_KIB,
-            "Tier A/B harus pakai 4 GB"
-        );
-        assert_eq!(
-            mode.time_cost(),
-            ARGON2_NODE_TIME_PRODUCTION,
-            "Tier A/B harus pakai 3_600 iterasi"
-        );
-        assert_eq!(ARGON2_NODE_MEMORY_PRODUCTION_KIB, 4 * 1024 * 1024);
-        assert_eq!(ARGON2_NODE_TIME_PRODUCTION, 3_600);
-    }
-
-    // ── test_salt_format ──────────────────────────────────────────────────────
-
-    #[test]
-    fn test_salt_format_prefix() {
-        // salt = b"scalar_nodeid" || genesis_hash. Spec §10.2.
+    fn test_domain_separator_ossified() {
+        // b"scalar_nodeid" is OSSIFIED — SCALAR-PROTOCOL §2.3.
+        assert_eq!(DOMAIN_NODEID, b"scalar_nodeid");
         assert_eq!(NODE_ID_SALT_PREFIX, b"scalar_nodeid");
         assert_eq!(NODE_ID_SALT_PREFIX_LEN, 13usize);
-        assert_eq!(NODE_ID_SALT_PREFIX.len(), NODE_ID_SALT_PREFIX_LEN);
+        assert_eq!(DOMAIN_NODEID.len(), NODE_ID_SALT_PREFIX_LEN);
     }
 
-    // ── test_deterministic_same_input ────────────────────────────────────────
+    // ── test_derive_node_id_not_zero ─────────────────────────────────────────
 
     #[test]
-    #[ignore = "slow: Argon2id 16MB x2, run manually with -- --ignored"]
-    fn test_nodeid_deterministic_same_input() {
-        // Argon2id dengan salt deterministik (bukan OsRng) → output sama.
-        // Spec §10.2: NodeID harus reproducible dari mnemonic + genesis_hash.
-        let r1 = ProductionNodeId::derive(
-            TEST_MNEMONIC,
-            &TEST_GENESIS,
-            NodeIdDerivationMode::TierCOrDev,
-        )
-        .unwrap();
-        let r2 = ProductionNodeId::derive(
-            TEST_MNEMONIC,
-            &TEST_GENESIS,
-            NodeIdDerivationMode::TierCOrDev,
-        )
-        .unwrap();
-        assert_eq!(
-            r1.node_id_full, r2.node_id_full,
-            "NodeID harus deterministik untuk input yang sama"
-        );
+    fn test_derive_node_id_not_zero() {
+        // Output must not be all-zero. SCALAR-PROTOCOL §3.1.
+        let id = derive_node_id(TEST_MNEMONIC_24, &TEST_GENESIS_PATTERN);
+        assert_ne!(id, [0u8; 32], "NodeID must not be zero");
     }
 
-    // ── test_different_mnemonic_different_id ─────────────────────────────────
+    // ── test_derive_node_id_output_length ────────────────────────────────────
 
     #[test]
-    #[ignore = "slow: Argon2id 16MB, run manually with -- --ignored"]
-    fn test_different_mnemonic_different_id() {
-        // Mnemonic berbeda → NodeID berbeda. Spec §10.2.
-        let id1 = ProductionNodeId::derive(
-            b"mnemonic_node_alpha",
-            &TEST_GENESIS,
-            NodeIdDerivationMode::TierCOrDev,
-        )
-        .unwrap();
-        let id2 = ProductionNodeId::derive(
-            b"mnemonic_node_beta",
-            &TEST_GENESIS,
-            NodeIdDerivationMode::TierCOrDev,
-        )
-        .unwrap();
-        assert_ne!(
-            id1.node_id_full, id2.node_id_full,
-            "Mnemonic berbeda harus menghasilkan NodeID berbeda"
-        );
-    }
-
-    // ── test_different_genesis_different_id ──────────────────────────────────
-
-    #[test]
-    #[ignore = "slow: Argon2id 16MB, run manually with -- --ignored"]
-    fn test_different_genesis_different_id() {
-        // genesis_hash berbeda → NodeID berbeda. Spec §10.2.
-        let genesis_a = [0x01u8; 32];
-        let genesis_b = [0x02u8; 32];
-        let id1 =
-            ProductionNodeId::derive(TEST_MNEMONIC, &genesis_a, NodeIdDerivationMode::TierCOrDev)
-                .unwrap();
-        let id2 =
-            ProductionNodeId::derive(TEST_MNEMONIC, &genesis_b, NodeIdDerivationMode::TierCOrDev)
-                .unwrap();
-        assert_ne!(
-            id1.node_id_full, id2.node_id_full,
-            "genesis_hash berbeda harus menghasilkan NodeID berbeda"
-        );
-    }
-
-    // ── test_feature_flag_mode ────────────────────────────────────────────────
-
-    #[test]
-    #[cfg(not(feature = "production"))]
-    fn test_dev_mode_uses_tier_c_params() {
-        // Dev mode (tidak ada --features production) → TierCOrDev. Spec §10.2.
-        let result = ProductionNodeId::derive_with_feature_flag(TEST_MNEMONIC, &TEST_GENESIS);
-        assert!(result.is_ok());
-        let node = result.unwrap();
-        assert_eq!(
-            node.mode,
-            NodeIdDerivationMode::TierCOrDev,
-            "Dev mode harus pakai TierCOrDev params"
-        );
-    }
-
-    // ── test_output_length ────────────────────────────────────────────────────
-
-    #[test]
-    #[ignore = "slow: Argon2id 16MB, run manually with -- --ignored"]
-    fn test_nodeid_output_length_32() {
-        // Output = 32 bytes. Spec §10.2.
-        let result = ProductionNodeId::derive(
-            TEST_MNEMONIC,
-            &TEST_GENESIS,
-            NodeIdDerivationMode::TierCOrDev,
-        )
-        .unwrap();
-        assert_eq!(result.node_id_full.len(), NODE_ID_OUTPUT_LEN);
+    fn test_derive_node_id_output_length() {
+        // Output must be exactly 32 bytes. SCALAR-PROTOCOL §3.1.
+        let id = derive_node_id(TEST_MNEMONIC_24, &TEST_GENESIS_PATTERN);
+        assert_eq!(id.len(), NODE_ID_OUTPUT_LEN);
         assert_eq!(NODE_ID_OUTPUT_LEN, 32);
+    }
+
+    // ── test_derive_node_id_deterministic ────────────────────────────────────
+
+    #[test]
+    fn test_derive_node_id_deterministic() {
+        // Same inputs → identical output. SCALAR-PROTOCOL §3.1.
+        let id1 = derive_node_id(TEST_MNEMONIC_24, &TEST_GENESIS_PATTERN);
+        let id2 = derive_node_id(TEST_MNEMONIC_24, &TEST_GENESIS_PATTERN);
+        assert_eq!(
+            id1, id2,
+            "NodeID must be deterministic for identical inputs"
+        );
+    }
+
+    // ── test_derive_node_id_different_mnemonic ───────────────────────────────
+
+    #[test]
+    fn test_derive_node_id_different_mnemonic() {
+        // Different mnemonic → different NodeID. SCALAR-PROTOCOL §3.1.
+        let mnemonic_b = "scalar zoo zebra yellow xray wolf vote usual trust sure \
+            sugar strong storm stick state space speak solve sleep skill \
+            sister simple since silver";
+        let id1 = derive_node_id(TEST_MNEMONIC_24, &TEST_GENESIS_PATTERN);
+        let id2 = derive_node_id(mnemonic_b, &TEST_GENESIS_PATTERN);
+        assert_ne!(id1, id2, "Different mnemonics must yield different NodeIDs");
+    }
+
+    // ── test_derive_node_id_different_genesis ────────────────────────────────
+
+    #[test]
+    fn test_derive_node_id_different_genesis() {
+        // Different genesis_hash → different NodeID. SCALAR-PROTOCOL §3.1.
+        let id1 = derive_node_id(TEST_MNEMONIC_24, &[0x01u8; 32]);
+        let id2 = derive_node_id(TEST_MNEMONIC_24, &[0x02u8; 32]);
+        assert_ne!(
+            id1, id2,
+            "Different genesis_hash must yield different NodeIDs"
+        );
+    }
+
+    // ── test_derive_node_id_test_vector ──────────────────────────────────────
+
+    #[test]
+    fn test_derive_node_id_test_vector() {
+        // TEST VECTOR 1 (spec change doc §8):
+        //   mnemonic     = TEST_MNEMONIC_24
+        //   genesis_hash = [0x00; 32]
+        //   expected     = BLAKE3(b"scalar_nodeid" || mnemonic_utf8 || [0x00; 32])
+        // Reference computed inline for cross-platform verification.
+        let id = derive_node_id(TEST_MNEMONIC_24, &TEST_GENESIS_ZERO);
+        let mut h = blake3::Hasher::new();
+        h.update(b"scalar_nodeid");
+        h.update(TEST_MNEMONIC_24.as_bytes());
+        h.update(&TEST_GENESIS_ZERO);
+        let expected: [u8; 32] = h.finalize().into();
+        assert_eq!(id, expected, "BLAKE3 NodeID test vector mismatch");
+        assert_ne!(
+            id, TEST_GENESIS_ZERO,
+            "NodeID must differ from genesis bytes"
+        );
     }
 }

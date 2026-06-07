@@ -737,30 +737,24 @@ mod tests_v12_p2p_gaps {
         assert_ne!(*nke.unwrap(), [0u8; 32], "Tidak boleh zero");
     }
 
-    // ── G-12: NodeID production Argon2id (Gap G-2) ───────────────────────────
+    // ── G-12: NodeID BLAKE3 derivation — SCALAR-PROTOCOL §3.1 ─────────────────
 
     #[test]
-    #[ignore = "slow: Argon2id 16MB, run manually with -- --ignored"]
-    fn compliance_nodeid_argon2id_not_placeholder() {
-        // NodeID bukan placeholder [0x42;32]. Spec §10.2, Gap G-2.
-        use scalar_node::node_id::{
-            NodeIdDerivationMode, ProductionNodeId, ARGON2_NODE_MEMORY_TIER_C_KIB,
-            ARGON2_NODE_TIME_TIER_C, NODE_ID_SALT_PREFIX,
-        };
-        // Salt prefix ossified
-        // Spec §2.3, §10.2: NODE_ID_SALT_PREFIX = b"scalar_nodeid" (13 byte). OSSIFIED.
+    fn compliance_nodeid_blake3_deterministic() {
+        // NodeID uses BLAKE3 (not Argon2id). SCALAR-PROTOCOL §3.1, SCALAR-TECHNICAL §10.5.
+        use scalar_node::node_id::{derive_node_id, NODE_ID_SALT_PREFIX, NODE_ID_SALT_PREFIX_LEN};
+        // Domain separator must be OSSIFIED value. SCALAR-PROTOCOL §2.3.
         assert_eq!(NODE_ID_SALT_PREFIX, b"scalar_nodeid");
-        // Tier C params
-        assert_eq!(ARGON2_NODE_MEMORY_TIER_C_KIB, 16 * 1024);
-        assert_eq!(ARGON2_NODE_TIME_TIER_C, 100);
-        // NodeID tidak sama dengan placeholder
-        let result = ProductionNodeId::derive(
-            b"compliance_test_mnemonic",
-            &[0x42u8; 32],
-            NodeIdDerivationMode::TierCOrDev,
+        assert_eq!(NODE_ID_SALT_PREFIX_LEN, 13usize);
+        // Derivation is deterministic and non-zero.
+        let id = derive_node_id("compliance_test_mnemonic", &[0x42u8; 32]);
+        assert_ne!(
+            id, [0x42u8; 32],
+            "NodeID must differ from genesis test pattern"
         );
-        assert!(result.is_ok());
-        assert_ne!(result.unwrap().node_id_full, [0x42u8; 32]);
+        assert_ne!(id, [0u8; 32], "NodeID must not be zero");
+        let id2 = derive_node_id("compliance_test_mnemonic", &[0x42u8; 32]);
+        assert_eq!(id, id2, "NodeID must be deterministic");
     }
 
     // ── G-13: NMT dari peer timestamps (Gap G-3) ─────────────────────────────

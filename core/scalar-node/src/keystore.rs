@@ -4,7 +4,7 @@
 //! Total : 121 bytes
 //!
 //! Mnemonic is NEVER stored. Only derived operational keys:
-//!   node_id_full : Argon2id(mnemonic, b"scalar_nodeid"||genesis_hash, Tier A/C)
+//!   node_id_full : BLAKE3(b"scalar_nodeid" || mnemonic || genesis_hash)
 //!   node_key     : BLAKE3 derivation chain (SCALAR-PROTOCOL §11.1)
 //!
 //! Passphrase KDF : Argon2id(passphrase, kdf_salt, 64MB, 3, 1) -> 32-byte key
@@ -17,7 +17,7 @@ use chacha20poly1305::{
 };
 use rand::{rngs::OsRng, RngCore};
 
-use crate::node_id::{NodeIdError, ProductionNodeId};
+use crate::node_id::derive_node_id;
 use scalar_crypto::domain::DOMAIN_SEED_KDF;
 
 // ── Constants — SCALAR-TECHNICAL §10.5 ───────────────────────────────────────
@@ -45,7 +45,7 @@ const WALLET_OUTPUT_LEN: usize = 64;
 /// Decrypted node operational keys.
 /// Mnemonic is never stored here. SCALAR-TECHNICAL §10.5.
 pub struct NodeKeystoreV1 {
-    /// NodeID derived from Argon2id Tier A. SCALAR-TECHNICAL §10.5.
+    /// NodeID: BLAKE3(b"scalar_nodeid" || mnemonic || genesis_hash). SCALAR-TECHNICAL §10.5.
     pub node_id_full: [u8; 32],
     /// NodeKey from BLAKE3 derivation chain. SCALAR-PROTOCOL §11.1.
     pub node_key: [u8; 32],
@@ -204,8 +204,8 @@ pub fn derive_node_key(
 
 // ── Mnemonic Generation & Validation — SCALAR-TECHNICAL §10.5.1 ──────────────
 
-/// Generate Scalar mnemonic: "scalar" + 11 random words from BIP-39 English wordlist.
-/// Uses OsRng (CSPRNG) for 121-bit effective entropy. SCALAR-PROTOCOL §11.1.
+/// Generate Scalar mnemonic: "scalar" + 23 random words from BIP-39 English wordlist.
+/// Uses OsRng (CSPRNG) for 253-bit effective entropy (23 × 11 bits). SCALAR-PROTOCOL §3.1.
 pub fn generate_mnemonic() -> String {
     use bip39::Language;
     use rand::Rng;
@@ -213,7 +213,7 @@ pub fn generate_mnemonic() -> String {
     let wordlist = Language::English.word_list();
     let mut rng = OsRng;
     let mut words = vec!["scalar".to_string()];
-    for _ in 0..11 {
+    for _ in 0..23 {
         let idx: usize = rng.gen_range(0..2048);
         words.push(wordlist[idx].to_string());
     }
@@ -221,17 +221,17 @@ pub fn generate_mnemonic() -> String {
 }
 
 /// Validate Scalar mnemonic:
-///   - Must be 12 words
+///   - Must be 24 words (SCALAR-PROTOCOL §3.1)
 ///   - First word must be "scalar"
-///   - Words 2-12 must exist in BIP-39 English wordlist
+///   - Words 2-24 must exist in BIP-39 English wordlist
 pub fn validate_mnemonic(mnemonic: &str) -> Result<(), KeystoreError> {
     use bip39::Language;
     use std::collections::HashSet;
 
     let words: Vec<&str> = mnemonic.split_whitespace().collect();
-    if words.len() != 12 {
+    if words.len() != 24 {
         return Err(KeystoreError::InvalidMnemonic(format!(
-            "Must be 12 words, got {}",
+            "Must be 24 words, got {}",
             words.len()
         )));
     }
@@ -302,7 +302,7 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
     let mnemonic_trimmed = if use_generate {
         let mnemonic = generate_mnemonic();
-        println!("[2/5] Mnemonic generated (CSPRNG, 121-bit entropy):");
+        println!("[2/5] Mnemonic generated (CSPRNG, 253-bit entropy, 24 words):");
         println!();
         println!("  ╔══════════════════════════════════════════════════════╗");
         for (i, word) in mnemonic.split_whitespace().enumerate() {
@@ -317,16 +317,27 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         let mut buf = String::new();
         std::io::stdin().read_line(&mut buf).ok();
 
-        // Verifikasi: user ketik ulang kata ke-4 sebagai konfirmasi
-        let word4 = mnemonic.split_whitespace().nth(3).unwrap_or("").to_string();
-        let confirm = rpassword::prompt_password("  Re-enter word #4 to confirm: ")?;
-        if confirm.trim() != word4 {
-            return Err("Word #4 confirmation failed. Re-run keygen with --generate.".into());
+        // Verify backup: user re-enters words #7, #14, #21. SCALAR-TECHNICAL §10.5.
+        let words_vec: Vec<&str> = mnemonic.split_whitespace().collect();
+        let w7 = words_vec.get(6).copied().unwrap_or("").to_string();
+        let w14 = words_vec.get(13).copied().unwrap_or("").to_string();
+        let w21 = words_vec.get(20).copied().unwrap_or("").to_string();
+        let c7 = rpassword::prompt_password("  Re-enter word #7  to confirm: ")?;
+        if c7.trim() != w7 {
+            return Err("Word #7 confirmation failed. Re-run keygen with --generate.".into());
         }
-        println!("  ✅ Confirmation correct.");
+        let c14 = rpassword::prompt_password("  Re-enter word #14 to confirm: ")?;
+        if c14.trim() != w14 {
+            return Err("Word #14 confirmation failed. Re-run keygen with --generate.".into());
+        }
+        let c21 = rpassword::prompt_password("  Re-enter word #21 to confirm: ")?;
+        if c21.trim() != w21 {
+            return Err("Word #21 confirmation failed. Re-run keygen with --generate.".into());
+        }
+        println!("  ✅ All three confirmations correct.");
         mnemonic
     } else {
-        println!("[2/5] Enter mnemonic from cold storage (12 words, first: 'scalar'):");
+        println!("[2/5] Enter mnemonic from cold storage (24 words, first: 'scalar'):");
         println!("  Use --generate to create a NEW mnemonic.");
         let s = rpassword::prompt_password("  Mnemonic: ")?;
         s.trim().to_string()
@@ -337,16 +348,10 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
     let mnemonic_bytes = mnemonic_trimmed.as_bytes().to_vec();
 
-    // Derive NodeID
-    let mode_label = if cfg!(feature = "production") {
-        "Tier A (4GB, 3600 iter) — estimated ~60 min"
-    } else {
-        "Tier C (16MB, 100 iter) — dev/testnet"
-    };
-    println!("[3/5] Deriving NodeID ({mode_label})...");
-    let node_id = ProductionNodeId::derive_with_feature_flag(&mnemonic_bytes, &genesis_hash)
-        .map_err(|e| format!("NodeID derivation failed: {e}"))?;
-    println!("[3/5] NodeID : {}", hex::encode(node_id.node_id_full));
+    // Derive NodeID — BLAKE3(b"scalar_nodeid" || mnemonic || genesis_hash). SCALAR-PROTOCOL §3.1.
+    println!("[3/5] Deriving NodeID (BLAKE3 — < 1 ms)...");
+    let node_id_full = derive_node_id(&mnemonic_trimmed, &genesis_hash);
+    println!("[3/5] NodeID : {}", hex::encode(node_id_full));
 
     // Derive NodeKey
     println!("[4/5] Deriving NodeKey (wallet Argon2id 64MB + BLAKE3 chain)...");
@@ -376,7 +381,7 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
     // Encrypt and save
     let ks = NodeKeystoreV1 {
-        node_id_full: node_id.node_id_full,
+        node_id_full,
         node_key,
     };
     ks.encrypt_to_file(&keystore_path, passphrase1.as_bytes())?;
@@ -392,15 +397,7 @@ pub fn run_keygen(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     println!();
     println!("=== KEYGEN COMPLETE ===");
     println!("Keystore : {keystore_path}");
-    println!("NodeID   : {}", hex::encode(node_id.node_id_full));
-    println!(
-        "Tier     : {}",
-        if cfg!(feature = "production") {
-            "A (mainnet)"
-        } else {
-            "C (dev/testnet)"
-        }
-    );
+    println!("NodeID   : {}", hex::encode(node_id_full));
     println!();
     println!("⚠️  Backup mnemonic to cold storage now!");
     println!("   Keystore cannot be recovered without the mnemonic.");
@@ -421,14 +418,7 @@ pub enum KeystoreError {
     InvalidFormat,
     UnsupportedVersion(u8),
     IoError(String),
-    NodeIdError(NodeIdError),
     InvalidMnemonic(String),
-}
-
-impl From<NodeIdError> for KeystoreError {
-    fn from(e: NodeIdError) -> Self {
-        Self::NodeIdError(e)
-    }
 }
 
 impl core::fmt::Display for KeystoreError {
@@ -440,7 +430,6 @@ impl core::fmt::Display for KeystoreError {
             Self::InvalidFormat => write!(f, "Invalid keystore format"),
             Self::UnsupportedVersion(v) => write!(f, "Unsupported keystore version: {v:#04x}"),
             Self::IoError(e) => write!(f, "I/O error: {e}"),
-            Self::NodeIdError(e) => write!(f, "NodeID error: {e}"),
             Self::InvalidMnemonic(e) => write!(f, "Invalid mnemonic: {e}"),
         }
     }
