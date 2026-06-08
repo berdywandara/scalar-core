@@ -595,14 +595,24 @@ mod tests {
             n[1] = (i % 256) as u8;
             n[2] = (i / 256) as u8;
             l.manifest_nodes.insert(n);
-            l.process_anchor(n, [0x01, (i % 256) as u8, (i / 256) as u8, 0], i as u64 * 4000);
+            l.process_anchor(
+                n,
+                [0x01, (i % 256) as u8, (i / 256) as u8, 0],
+                i as u64 * 4000,
+            );
         }
         assert_eq!(l.queue_len(), MAX_ANCHOR_QUEUE_SIZE);
 
         // Queue full → any new entry is ignored regardless of node identity. MAD §8.1 A-3.
         assert_eq!(
-            l.process_anchor(node_b, node_short(0x02), MAX_ANCHOR_QUEUE_SIZE as u64 * 4000),
-            AnchorDecision::Ignore { reason: IgnoreReason::QueueFull }
+            l.process_anchor(
+                node_b,
+                node_short(0x02),
+                MAX_ANCHOR_QUEUE_SIZE as u64 * 4000
+            ),
+            AnchorDecision::Ignore {
+                reason: IgnoreReason::QueueFull
+            }
         );
     }
     #[test]
