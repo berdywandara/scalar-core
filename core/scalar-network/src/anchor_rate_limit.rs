@@ -7,8 +7,8 @@
 //!      Max 1 AnchorExt transmission per ANCHOR_RATE_LIMIT_S (3600s).
 //!      First offense: IGNORE. Second offense: SPAM_ANCHOR (DROP selama epoch).
 //!
-//! A-3: Priority queue: Tier C (prefix 0xFE) = LOW priority.
-//!      Queue penuh (> MAX_ANCHOR_QUEUE_SIZE) → Tier C di-DROP dulu.
+//! A-3: Queue capacity limit (FIFO). Max MAX_ANCHOR_QUEUE_SIZE entries.
+//!      Queue penuh → DROP new entry.
 
 use std::collections::{HashMap, VecDeque};
 
@@ -22,9 +22,6 @@ pub const ANCHOR_RATE_LIMIT_S: u64 = 3_600;
 
 /// Maximum pending registrations per epoch (Rule A-1). MAD §8.1.
 pub const MAX_PENDING_REGISTRATION: usize = 1_000;
-
-/// Tier C node prefix. Spec §2.1.
-const TIER_C_PREFIX: u8 = 0xFE;
 
 // ── Anchor processing result ──────────────────────────────────────────────────
 
@@ -47,7 +44,7 @@ pub enum IgnoreReason {
     DuplicateThisEpoch,
     /// Transmission too recent — within ANCHOR_RATE_LIMIT_S (A-2).
     RateLimitTransmission,
-    /// Queue full, Tier A/B anchor dropped to protect queue (A-3).
+    /// Queue at capacity — new entry not accepted (A-3).
     QueueFull,
 }
 
@@ -55,8 +52,6 @@ pub enum IgnoreReason {
 pub enum DropReason {
     /// SPAM_ANCHOR: second offense in same epoch (A-2).
     SpamAnchor,
-    /// Queue full, Tier C anchor (lowest priority) evicted (A-3).
-    TierCEvicted,
     /// PENDING_REGISTRATION pool full, FIFO evict oldest (A-1).
     PendingPoolFull,
 }
@@ -98,19 +93,12 @@ impl NodeTxState {
 pub struct AnchorQueueEntry {
     /// Node short ID (4 bytes). Spec §7.2.
     pub node_id_short: [u8; 4],
-    /// Full node ID (32 bytes) — used for Tier C detection.
+    /// Full node ID (32 bytes).
     pub node_id_full: [u8; 32],
     /// Anchor received timestamp (Unix seconds).
     pub received_at_s: u64,
     /// Epoch ID.
     pub epoch_id: u64,
-}
-
-impl AnchorQueueEntry {
-    /// Is this node Tier C (prefix 0xFE)? MAD §8.1 A-3, Spec §2.1.
-    pub fn is_tier_c(&self) -> bool {
-        self.node_id_full[0] == TIER_C_PREFIX
-    }
 }
 
 // ── PENDING_REGISTRATION pool ─────────────────────────────────────────────────
@@ -273,49 +261,16 @@ impl AnchorRateLimiter {
         None
     }
 
-    /// Rule A-3 check: priority queue management.
-    /// Returns None if accepted to queue, Some(Drop) if Tier C evicted.
+    /// Rule A-3 check: queue capacity management (FIFO). MAD §8.1 A-3.
     fn check_a3(&mut self, entry: AnchorQueueEntry) -> AnchorDecision {
         if self.anchor_queue.len() < MAX_ANCHOR_QUEUE_SIZE {
-            // Queue has space: insert by priority (Tier C at back).
-            if entry.is_tier_c() {
-                self.anchor_queue.push_back(entry);
-            } else {
-                // Tier A/B: insert before first Tier C entry.
-                let insert_pos = self
-                    .anchor_queue
-                    .iter()
-                    .position(|e| e.is_tier_c())
-                    .unwrap_or(self.anchor_queue.len());
-                self.anchor_queue.insert(insert_pos, entry);
-            }
+            // Queue has space: add entry (FIFO). MAD §8.1 A-3.
+            self.anchor_queue.push_back(entry);
             AnchorDecision::Accept
         } else {
-            // Queue full: evict Tier C if possible.
-            if entry.is_tier_c() {
-                // New entry is Tier C and queue full → DROP new Tier C entry.
-                AnchorDecision::Drop {
-                    reason: DropReason::TierCEvicted,
-                }
-            } else {
-                // New entry is Tier A/B: evict oldest Tier C if any.
-                let tier_c_pos = self.anchor_queue.iter().rposition(|e| e.is_tier_c());
-                if let Some(pos) = tier_c_pos {
-                    self.anchor_queue.remove(pos);
-                    // Insert new Tier A/B entry.
-                    let insert_pos = self
-                        .anchor_queue
-                        .iter()
-                        .position(|e| e.is_tier_c())
-                        .unwrap_or(self.anchor_queue.len());
-                    self.anchor_queue.insert(insert_pos, entry);
-                    AnchorDecision::Accept
-                } else {
-                    // No Tier C to evict, queue still full → IGNORE.
-                    AnchorDecision::Ignore {
-                        reason: IgnoreReason::QueueFull,
-                    }
-                }
+            // Queue at capacity → ignore new entry. MAD §8.1 A-3.
+            AnchorDecision::Ignore {
+                reason: IgnoreReason::QueueFull,
             }
         }
     }
@@ -390,11 +345,6 @@ mod tests {
     }
     fn node_short(b: u8) -> [u8; 4] {
         [b; 4]
-    }
-    fn tier_c_node(b: u8) -> [u8; 32] {
-        let mut n = [b; 32];
-        n[0] = 0xFE;
-        n
     }
 
     fn limiter_with_manifest(nodes: Vec<[u8; 32]>) -> AnchorRateLimiter {
@@ -574,124 +524,87 @@ mod tests {
     // ── Rule A-3 ─────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_a3_tier_c_dropped_when_queue_full() {
+    fn test_a3_queue_full_ignores_new_entry() {
+        // Queue at capacity → new entry is ignored (FIFO). MAD §8.1 A-3.
         let mut l = AnchorRateLimiter::new(1);
-        // Fill queue with Tier A nodes.
-        for i in 0..MAX_ANCHOR_QUEUE_SIZE {
-            let n = [
-                0xFD,
-                (i % 256) as u8,
-                (i / 256) as u8,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-            ];
-            l.manifest_nodes.insert(n);
-            l.process_anchor(
-                n,
-                [0xFD, (i % 256) as u8, (i / 256) as u8, 0],
-                i as u64 * 4000,
-            );
-        }
-        assert_eq!(l.queue_len(), MAX_ANCHOR_QUEUE_SIZE);
-
-        // New Tier C anchor when queue full → DROP.
-        let tier_c = tier_c_node(0x01);
-        l.manifest_nodes.insert(tier_c);
-        assert_eq!(
-            l.process_anchor(
-                tier_c,
-                node_short(0x01),
-                MAX_ANCHOR_QUEUE_SIZE as u64 * 4000
-            ),
-            AnchorDecision::Drop {
-                reason: DropReason::TierCEvicted
-            }
-        );
-    }
-
-    #[test]
-    fn test_a3_tier_c_lower_priority_than_tier_a() {
-        let tier_a = node(0x01); // Tier A
-        let tier_c = tier_c_node(0x02); // Tier C (0xFE prefix)
-
-        let mut l = limiter_with_manifest(vec![tier_a, tier_c]);
-
-        // Add Tier C first.
-        l.process_anchor(tier_c, node_short(0x02), 0);
-        // Add Tier A.
-        l.process_anchor(tier_a, node_short(0x01), 4000);
-
-        // Tier A should be dequeued before Tier C.
-        let first = l.dequeue().unwrap();
-        assert_eq!(
-            first.node_id_full, tier_a,
-            "Tier A should be ahead of Tier C"
-        );
-        let second = l.dequeue().unwrap();
-        assert_eq!(second.node_id_full, tier_c, "Tier C is last");
-    }
-
-    #[test]
-    fn test_a3_tier_a_evicts_tier_c_when_queue_full() {
-        let mut l = AnchorRateLimiter::new(1);
-        // Fill queue entirely with Tier C nodes.
         for i in 0..MAX_ANCHOR_QUEUE_SIZE {
             let mut n = [0u8; 32];
-            n[0] = 0xFE;
+            n[0] = 0x01;
             n[1] = (i % 256) as u8;
             n[2] = (i / 256) as u8;
             l.manifest_nodes.insert(n);
             l.process_anchor(
                 n,
-                [0xFE, (i % 256) as u8, (i / 256) as u8, 0],
+                [0x01, (i % 256) as u8, (i / 256) as u8, 0],
                 i as u64 * 4000,
             );
         }
         assert_eq!(l.queue_len(), MAX_ANCHOR_QUEUE_SIZE);
 
-        // Tier A anchor when queue full of Tier C → evict oldest Tier C, accept.
-        let tier_a = node(0x01);
-        l.manifest_nodes.insert(tier_a);
+        // Any new anchor when queue full → IGNORE.
+        let new_node = node(0xAA);
+        l.manifest_nodes.insert(new_node);
         assert_eq!(
             l.process_anchor(
-                tier_a,
-                node_short(0x01),
+                new_node,
+                node_short(0xAA),
                 MAX_ANCHOR_QUEUE_SIZE as u64 * 4000
             ),
-            AnchorDecision::Accept
+            AnchorDecision::Ignore {
+                reason: IgnoreReason::QueueFull
+            }
         );
-        assert_eq!(l.queue_len(), MAX_ANCHOR_QUEUE_SIZE, "Queue stays at max");
     }
 
-    // ── Constants ─────────────────────────────────────────────────────────────
+    #[test]
+    fn test_a3_fifo_insertion_order() {
+        // A-3 FIFO: entries are dequeued in insertion order. MAD §8.1 A-3.
+        let node_a = node(0x01);
+        let node_b = node(0x02);
 
+        let mut l = limiter_with_manifest(vec![node_a, node_b]);
+
+        // Insert in order A → B.
+        l.process_anchor(node_a, node_short(0x01), 0);
+        l.process_anchor(node_b, node_short(0x02), 4000);
+
+        // Dequeue in FIFO order: A first, then B.
+        let first = l.dequeue().unwrap();
+        assert_eq!(
+            first.node_id_full, node_a,
+            "First inserted should be first dequeued"
+        );
+        let second = l.dequeue().unwrap();
+        assert_eq!(
+            second.node_id_full, node_b,
+            "Second inserted should be second dequeued"
+        );
+    }
+
+    #[test]
+    fn test_a3_tier_a_evicts_tier_c_when_queue_full() {
+        // After removing Tier C priority: queue full → all entries ignored (FIFO). MAD §8.1 A-3.
+        let node_a = node(0x01);
+        let node_b = node(0x02);
+        let mut l = limiter_with_manifest(vec![node_a, node_b]);
+
+        // Fill queue to capacity with node_a entries across epochs
+        for i in 0..MAX_ANCHOR_QUEUE_SIZE {
+            let mut n = [0u8; 32];
+            n[0] = 0x01;
+            n[1] = (i % 256) as u8;
+            n[2] = (i / 256) as u8;
+            l.manifest_nodes.insert(n);
+            l.process_anchor(n, [0x01, (i % 256) as u8, (i / 256) as u8, 0], i as u64 * 4000);
+        }
+        assert_eq!(l.queue_len(), MAX_ANCHOR_QUEUE_SIZE);
+
+        // Queue full → any new entry is ignored regardless of node identity. MAD §8.1 A-3.
+        assert_eq!(
+            l.process_anchor(node_b, node_short(0x02), MAX_ANCHOR_QUEUE_SIZE as u64 * 4000),
+            AnchorDecision::Ignore { reason: IgnoreReason::QueueFull }
+        );
+    }
     #[test]
     fn test_anchor_constants() {
         assert_eq!(MAX_ANCHOR_QUEUE_SIZE, 500);

@@ -5,9 +5,8 @@
 //!   - 1 slot acak: ChaCha20 dengan seed BLAKE3(seed_k || "nmt_random")
 //!
 //! Syarat eligibilitas NMT peer:
-//!   - NodeScore > NMT_SCORE_THRESHOLD (800_000) — spec §12.4, T-3
+//!   - NodeScore > NMT_SCORE_THRESHOLD (800_000) — SCALAR-PROTOCOL §12.4, T-3
 //!   - Diversitas: maks 3 per /24 subnet, 5 per ASN, 4 per region
-//!   - Tier C otomatis tidak eligible (score maks 600_000 < 800_000)
 //!
 //! Eclipse defense meningkat signifikan dengan skema 23+1:
 //!   - 23 deterministik: attacker harus manipulasi manifest k-1
@@ -16,7 +15,7 @@
 //! Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 //! No floating point — semua arithmetic integer.
 
-use crate::node_score::{is_tier_c, NMT_SCORE_THRESHOLD};
+use crate::node_score::NMT_SCORE_THRESHOLD;
 use blake3::Hasher;
 use rand::RngCore;
 use rand_chacha::rand_core::SeedableRng;
@@ -62,10 +61,8 @@ pub struct NmtNodeCandidate {
 impl NmtNodeCandidate {
     /// Cek apakah node eligible sebagai NMT peer. Spec §12.3, T-3.
     pub fn is_eligible(&self) -> bool {
-        // NodeScore harus > NMT_SCORE_THRESHOLD (800_000)
+        // NodeScore harus strictly > NMT_SCORE_THRESHOLD (800_000). SCALAR-PROTOCOL §12.4, T-3.
         self.node_score > NMT_SCORE_THRESHOLD
-            // Tier C otomatis tidak eligible
-            && !is_tier_c(&self.node_id_full)
     }
 }
 
@@ -262,7 +259,7 @@ mod tests {
 
     fn make_candidate(seed: u8, score: u64, region: u8) -> NmtNodeCandidate {
         let mut node_id = [seed; 32];
-        node_id[0] = if score > 0 { 0x01 } else { 0xFE }; // 0xFE = Tier C
+        node_id[0] = 0x01; // ensure non-zero prefix
         NmtNodeCandidate {
             node_id_full: node_id,
             node_score: score,
@@ -272,12 +269,12 @@ mod tests {
         }
     }
 
-    fn make_tier_c_candidate(seed: u8) -> NmtNodeCandidate {
+    fn make_low_score_candidate(seed: u8) -> NmtNodeCandidate {
         let mut node_id = [seed; 32];
-        node_id[0] = 0xFE; // Tier C
+        node_id[0] = 0x01;
         NmtNodeCandidate {
             node_id_full: node_id,
-            node_score: 1_000_000, // raw max, tapi is_tier_c → not eligible
+            node_score: 700_000, // below NMT_SCORE_THRESHOLD → not eligible
             subnet24: [seed, 0, 0, 0],
             asn: [0, 0, 0, 0],
             region: 0,
@@ -292,7 +289,7 @@ mod tests {
         (0..n)
             .map(|i| {
                 let seed = (i % 256) as u8;
-                // Gunakan node_id yang lebih beragam untuk menghindari prefix 0xFE
+                // Gunakan node_id yang beragam untuk diversitas
                 let mut node_id = [0u8; 32];
                 node_id[0] = 0x01;
                 node_id[1] = (i / 256) as u8;
@@ -358,23 +355,26 @@ mod tests {
         );
     }
 
-    // ── test_nmt_tier_c_excluded ──────────────────────────────────────────────
+    // ── test_nmt_low_score_excluded ───────────────────────────────────────────
 
     #[test]
     fn test_nmt_tier_c_excluded() {
-        // Tier C tidak muncul di 24 slot. Spec §12.3, §10.1.
+        // Node dengan NodeScore <= 800_000 tidak muncul di NMT 24 slot.
+        // SCALAR-PROTOCOL §12.3, §12.4.
         let mut candidates = make_large_pool(30);
-        // Tambahkan beberapa Tier C nodes
-        candidates.push(make_tier_c_candidate(0xA1));
-        candidates.push(make_tier_c_candidate(0xA2));
+        // Tambahkan beberapa low-score nodes
+        let low1 = make_low_score_candidate(0xA1);
+        let low2 = make_low_score_candidate(0xA2);
+        candidates.push(low1.clone());
+        candidates.push(low2.clone());
 
         let result = select_nmt_peers_hybrid(&candidates, &seed_k());
         let all_peers = result.all_peers();
 
         for peer_id in &all_peers {
             assert!(
-                !is_tier_c(peer_id),
-                "Tier C tidak boleh ada dalam NMT peer list — spec §12.3"
+                *peer_id != low1.node_id_full && *peer_id != low2.node_id_full,
+                "Low-score node tidak boleh ada dalam NMT peer list — SCALAR-PROTOCOL §12.3"
             );
         }
     }

@@ -81,16 +81,9 @@ pub enum ForkState {
 #[derive(Debug, Clone)]
 pub struct NodeSignal {
     pub signal_type: SignalType,
-    /// Governance power setelah cap Tier C. Spec §11.2, §10.1.
-    /// TIER_C_MAX_GOV_POWER = 200_000 fp untuk Tier C nodes.
+    /// Governance power setelah gov_max_fp(node_score_prev_epoch). SCALAR-PROTOCOL §11.2.
     pub governance_power_fp: u64,
 }
-
-/// Maximum governance power untuk Tier C. OSSIFIED — spec §10.1, §17.
-pub const TIER_C_MAX_GOV_POWER: u64 = 200_000;
-
-/// Prefix byte untuk Tier C node_id. OSSIFIED — spec §10.1.
-pub const TIER_C_PREFIX: u8 = 0xFE;
 
 #[derive(Debug, Clone)]
 pub struct ForkProposal {
@@ -168,17 +161,13 @@ impl ForkProposal {
         if !msg.verify_sig() {
             return Err(ForkError::InvalidSignature);
         }
-        // Temuan #11: cap governance power untuk Tier C. Spec §10.1, §11.2.
-        let capped_gp = if msg.node_id[0] == TIER_C_PREFIX {
-            governance_power_fp.min(TIER_C_MAX_GOV_POWER)
-        } else {
-            governance_power_fp
-        };
+        // Governance power pre-capped by caller via gov_max_fp(node_score_prev_epoch).
+        // SCALAR-PROTOCOL §11.2.
         self.signals.insert(
             msg.node_id,
             NodeSignal {
                 signal_type: msg.signal_type,
-                governance_power_fp: capped_gp,
+                governance_power_fp,
             },
         );
         Ok(())
@@ -529,18 +518,16 @@ mod tests {
         assert_eq!(err, ForkError::InvalidSignature);
     }
 
-    // ── Finding #11: Tier C governance power cap ──────────────────────────────
+    // ── Governance power pre-capped by caller — SCALAR-PROTOCOL §11.2 ───────
 
     #[test]
-    fn test_tier_c_governance_power_capped() {
-        // Tier C node (prefix 0xFE) governance power capped at 200_000. Spec §10.1.
+    fn test_governance_power_accepted_as_passed() {
+        // add_signal accepts governance_power_fp as-is.
+        // Caller applies gov_max_fp(node_score_prev_epoch) before calling.
+        // SCALAR-PROTOCOL §11.2.
         let kp = shared_keypair();
-        let mut tier_c_msg = ForkSignalMessage {
-            node_id: {
-                let mut id = [0u8; 32];
-                id[0] = TIER_C_PREFIX; // 0xFE
-                id
-            },
+        let mut msg = ForkSignalMessage {
+            node_id: [0x01u8; 32],
             epoch_id: 10,
             fork_hash: fork_hash(1),
             signal_type: SignalType::Commit,
@@ -548,18 +535,22 @@ mod tests {
             signature: vec![],
             public_key: kp.public.clone(),
         };
-        let vote_msg = tier_c_msg.vote_message();
-        tier_c_msg.signature = scalar_crypto::sphincs::sign_message(&vote_msg, &kp.secret).unwrap();
+        let vote_msg = msg.vote_message();
+        msg.signature = scalar_crypto::sphincs::sign_message(&vote_msg, &kp.secret).unwrap();
 
         let mut p = make_proposal(1, ForkType::Normal, 1_000_000);
-        // Pass 1_000_000 gp but Tier C should be capped at 200_000
-        p.add_signal(&tier_c_msg, 1_000_000).unwrap();
+        // Caller pre-applied gov_max_fp(low_score) = 200_000
+        p.add_signal(&msg, 200_000).unwrap();
+        let signal = p.signals.get(&msg.node_id).unwrap();
+        assert_eq!(signal.governance_power_fp, 200_000);
 
-        let signal = p.signals.get(&tier_c_msg.node_id).unwrap();
-        assert_eq!(
-            signal.governance_power_fp, TIER_C_MAX_GOV_POWER,
-            "Tier C governance power must be capped at {}",
-            TIER_C_MAX_GOV_POWER
-        );
+        // Caller pre-applied gov_max_fp(high_score) = 1_000_000
+        let mut msg2 = msg.clone();
+        msg2.node_id = [0x02u8; 32];
+        let vote_msg2 = msg2.vote_message();
+        msg2.signature = scalar_crypto::sphincs::sign_message(&vote_msg2, &kp.secret).unwrap();
+        p.add_signal(&msg2, 1_000_000).unwrap();
+        let signal2 = p.signals.get(&msg2.node_id).unwrap();
+        assert_eq!(signal2.governance_power_fp, 1_000_000);
     }
 }

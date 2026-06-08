@@ -250,50 +250,46 @@ mod tests_v12_utxo {
     }
 }
 
-// ── Tier C compliance tests — spec §10.1, §12.4 ──────────────────────────────
+// ── NodeScore compliance tests — SCALAR-PROTOCOL §12.4 ──────────────────────
 
 #[cfg(test)]
 mod tests_v12_tier_c {
     #[test]
     fn compliance_test_tier_c_max_nodescore() {
-        // TIER_C_MAX_NODESCORE = 600_000. OSSIFIED — spec §10.1, §12.4, §17.
-        assert_eq!(scalar_network::node_score::TIER_C_MAX_NODESCORE, 600_000u64);
+        // NMT_SCORE_THRESHOLD = 800_000. OSSIFIED — SCALAR-PROTOCOL §12.4.
+        assert_eq!(scalar_network::node_score::NMT_SCORE_THRESHOLD, 800_000u64);
     }
 
     #[test]
     fn compliance_test_tier_c_nmt_ineligible() {
-        // Tier C node tidak eligible NMT. Spec §12.4.
+        // NodeScore <= 800_000 → tidak eligible NMT. SCALAR-PROTOCOL §12.4.
         use scalar_network::node_score::NodeScore;
-        let mut id = [0u8; 32];
-        id[0] = 0xFE; // Tier C prefix
-        let node = NodeScore::new(id, 1_000_000); // raw max
-        assert!(!node.is_nmt_eligible(), "Tier C tidak boleh eligible NMT");
+        let node = NodeScore::new([0x01u8; 32], 800_000); // exactly at threshold
+        assert!(
+            !node.is_nmt_eligible(),
+            "Score = threshold NOT eligible (strictly >)"
+        );
     }
 
     #[test]
     fn compliance_test_tier_c_prefix_is_0xfe() {
-        // TIER_C_PREFIX = 0xFE. Spec §10.1.
-        assert_eq!(scalar_network::node_score::TIER_C_PREFIX, 0xFEu8);
+        // MAX_NODESCORE = 1_000_000. OSSIFIED — SCALAR-PROTOCOL §12.4.
+        assert_eq!(scalar_network::node_score::MAX_NODESCORE, 1_000_000u64);
     }
 
     #[test]
     fn compliance_test_tier_c_below_nmt_threshold() {
-        // TIER_C_MAX_NODESCORE < NMT_SCORE_THRESHOLD — invariant. Spec §10.1.
-        const {
-            assert!(
-                scalar_network::node_score::TIER_C_MAX_NODESCORE
-                    < scalar_network::node_score::NMT_SCORE_THRESHOLD
-            )
-        };
+        // NodeScore > 800_000 → eligible NMT. SCALAR-PROTOCOL §12.4.
+        use scalar_network::node_score::NodeScore;
+        let node = NodeScore::new([0x01u8; 32], 800_001);
+        assert!(node.is_nmt_eligible(), "Score > threshold IS eligible");
     }
 
     #[test]
     fn compliance_test_tier_a_full_score() {
-        // Tier A/B bisa mencapai 1_000_000. Spec §10.1.
+        // Any node dapat mencapai score 1_000_000. SCALAR-PROTOCOL §12.4.
         use scalar_network::node_score::NodeScore;
-        let mut id = [0u8; 32];
-        id[0] = 0x01; // Tier A
-        let node = NodeScore::new(id, 1_000_000);
+        let node = NodeScore::new([0x01u8; 32], 1_000_000);
         assert_eq!(node.score(), 1_000_000);
     }
 }
@@ -326,9 +322,8 @@ mod tests_v12_nmt_hybrid {
 
     #[test]
     fn compliance_nmt_tier_c_excluded() {
-        // Tier C tidak muncul di NMT. Spec §12.3.
+        // Low-score node tidak muncul di NMT. SCALAR-PROTOCOL §12.3.
         use scalar_network::nmt_hybrid::{select_nmt_peers_hybrid, NmtNodeCandidate};
-        use scalar_network::node_score::is_tier_c;
 
         let mut candidates: Vec<NmtNodeCandidate> = (1u8..=30)
             .map(|i| {
@@ -345,12 +340,12 @@ mod tests_v12_nmt_hybrid {
             })
             .collect();
 
-        // Tambahkan Tier C
-        let mut tier_c_id = [0u8; 32];
-        tier_c_id[0] = 0xFE;
+        // Tambahkan low-score node (below NMT_SCORE_THRESHOLD)
+        let mut low_id = [0xAAu8; 32];
+        low_id[0] = 0x01;
         candidates.push(NmtNodeCandidate {
-            node_id_full: tier_c_id,
-            node_score: 1_000_000,
+            node_id_full: low_id,
+            node_score: 700_000, // below 800_000
             subnet24: [0xFF, 0, 0, 0],
             asn: [0, 0, 0, 0],
             region: 0,
@@ -358,60 +353,55 @@ mod tests_v12_nmt_hybrid {
 
         let result = select_nmt_peers_hybrid(&candidates, &[0x42u8; 32]);
         for peer in result.all_peers() {
-            assert!(!is_tier_c(&peer), "Tier C tidak boleh ada di NMT");
+            assert!(
+                peer != low_id,
+                "Low-score node tidak boleh ada di NMT — SCALAR-PROTOCOL §12.3"
+            );
         }
     }
 }
 
-// ── Tier C Governance Power compliance tests — spec §11.2, §17 ───────────────
+// ── Governance Power compliance tests — SCALAR-PROTOCOL §11.2 ────────────────
 
 #[cfg(test)]
 mod tests_v12_governance {
     #[test]
     fn compliance_test_tier_c_gov_power_cap_200k() {
-        // TIER_C_MAX_GOV_POWER = 200_000 fp. OSSIFIED — spec §11.2, §17.
+        // NODESCORE_GP_LOW_CAP = 200_000 fp. OSSIFIED — SCALAR-PROTOCOL §11.2.
         assert_eq!(
-            scalar_governance::governance_power_v12::TIER_C_MAX_GOV_POWER,
+            scalar_governance::governance_power_v12::NODESCORE_GP_LOW_CAP,
             200_000u64
         );
     }
 
     #[test]
     fn compliance_test_tier_c_gov_power_enforced() {
-        // Tier C GP dibatasi 200_000. Spec §11.2.
-        let mut id = [0u8; 32];
-        id[0] = 0xFE;
+        // NodeScore < 800_000 → GP cap 200_000. SCALAR-PROTOCOL §11.2.
         let gp = scalar_governance::governance_power_v12::compute_governance_power_v12(
-            &id, 1_000_000, 1_000_000,
+            700_000, 1_000_000, 1_000_000,
         );
-        assert_eq!(gp, 200_000u64, "Tier C harus dibatasi 200_000 fp");
+        assert_eq!(gp, 200_000u64, "Low NodeScore GP cap = 200_000 fp");
     }
 
     #[test]
     fn compliance_test_tier_a_full_gov_power() {
-        // Tier A GP bisa mencapai 1_000_000. Spec §11.2.
-        let mut id = [0u8; 32];
-        id[0] = 0x01;
+        // NodeScore >= 800_000 → GP bisa mencapai 1_000_000. SCALAR-PROTOCOL §11.2.
         let gp = scalar_governance::governance_power_v12::compute_governance_power_v12(
-            &id, 1_000_000, 1_000_000,
+            900_000, 1_000_000, 1_000_000,
         );
         assert_eq!(gp, 1_000_000u64);
     }
 
     #[test]
     fn compliance_test_gov_power_formula() {
-        // GP(i,t) = min(BaseGP, GOV_MAX_FP_FOR_TIER). Spec §11.2.
-        let mut id_c = [0u8; 32];
-        id_c[0] = 0xFE;
-        let mut id_a = [0u8; 32];
-        id_a[0] = 0x01;
-
+        // GP(i,t) = min(BaseGP, gov_max_fp(node_score)). SCALAR-PROTOCOL §11.2.
         use scalar_governance::governance_power_v12::compute_governance_power_v12;
-        // BaseGP = 600_000, cap_c = 200_000, cap_a = 1_000_000
-        let gp_c = compute_governance_power_v12(&id_c, 600_000, 1_000_000);
-        let gp_a = compute_governance_power_v12(&id_a, 600_000, 1_000_000);
-        assert_eq!(gp_c, 200_000); // min(600_000, 200_000)
-        assert_eq!(gp_a, 600_000); // min(600_000, 1_000_000)
+        // Low score: BaseGP = 600_000, cap = 200_000 → GP = 200_000
+        let gp_low = compute_governance_power_v12(700_000, 600_000, 1_000_000);
+        // High score: BaseGP = 600_000, cap = 1_000_000 → GP = 600_000
+        let gp_high = compute_governance_power_v12(900_000, 600_000, 1_000_000);
+        assert_eq!(gp_low, 200_000); // min(600_000, 200_000)
+        assert_eq!(gp_high, 600_000); // min(600_000, 1_000_000)
     }
 }
 
@@ -475,18 +465,16 @@ mod tests_v12_suite_v4 {
 
     #[test]
     fn compliance_tier_c_gov_cap() {
-        // Governance power cap Tier C = 200_000. Spec §XXI, §11.2.
+        // Governance power cap NodeScore-based = 200_000 jika score rendah. SCALAR-PROTOCOL §11.2.
         use scalar_governance::governance_power_v12::{
-            compute_governance_power_v12, TIER_C_MAX_GOV_POWER,
+            compute_governance_power_v12, NODESCORE_GP_LOW_CAP,
         };
-        let mut id = [0u8; 32];
-        id[0] = 0xFE;
-        let gp = compute_governance_power_v12(&id, 1_000_000, 1_000_000);
+        let gp = compute_governance_power_v12(700_000, 1_000_000, 1_000_000);
         assert_eq!(
-            gp, TIER_C_MAX_GOV_POWER,
-            "Tier C governance power cap = 200_000 fp — compliance §XXI"
+            gp, NODESCORE_GP_LOW_CAP,
+            "Low NodeScore governance power cap = 200_000 fp — compliance §XXI"
         );
-        assert_eq!(TIER_C_MAX_GOV_POWER, 200_000u64);
+        assert_eq!(NODESCORE_GP_LOW_CAP, 200_000u64);
     }
 
     // ── §XXI: test DMM secure bootstrapping ──────────────────────────────────
@@ -664,12 +652,15 @@ mod tests_v12_suite_v4 {
     #[test]
     fn compliance_all_new_params_v11_1_final() {
         // Verifikasi semua parameter baru v11.1-FINAL sekaligus. Spec §XVII.
-        // TIER_C_MAX_NODESCORE
-        assert_eq!(scalar_network::node_score::TIER_C_MAX_NODESCORE, 600_000u64);
-        // TIER_C_MAX_GOV_POWER
+        // NODESCORE_GP_LOW_CAP (replaces TIER_C_MAX_GOV_POWER)
         assert_eq!(
-            scalar_governance::governance_power_v12::TIER_C_MAX_GOV_POWER,
+            scalar_governance::governance_power_v12::NODESCORE_GP_LOW_CAP,
             200_000u64
+        );
+        // NODESCORE_HIGH_THRESHOLD
+        assert_eq!(
+            scalar_governance::governance_power_v12::NODESCORE_HIGH_THRESHOLD,
+            800_000u32
         );
         // NMT_PEER_COUNT_V12
         assert_eq!(scalar_network::nmt_hybrid::NMT_PEER_COUNT_V12, 24usize);
