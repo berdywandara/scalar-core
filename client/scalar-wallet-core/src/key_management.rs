@@ -21,11 +21,6 @@ fn blake3_derive(key: &[u8; 32], domain: &[u8]) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Helper fungsi spesifik untuk derivasi GovernanceID
-fn blake3_derive_concat(key: &[u8; 32], domain: &[u8]) -> [u8; 32] {
-    blake3_derive(key, domain)
-}
-
 /// Derive seluruh key chain dari account_key
 pub fn derive_all_keys(account_key: &[u8; 32]) -> WalletKeys {
     // Chain eksisting v3.0 (TIDAK BERUBAH)
@@ -33,9 +28,11 @@ pub fn derive_all_keys(account_key: &[u8; 32]) -> WalletKeys {
     let view_key = blake3_derive(account_key, b"view");
     let node_key = blake3_derive(account_key, b"node");
 
-    // GovernanceID: BLAKE3(ViewKey || "governance_scalar_v1")
-    // BARU di v5.0 — derived dari ViewKey yang sudah ada
-    let governance_id = blake3_derive_concat(&view_key, b"governance_scalar_v1");
+    // GovernanceID_pub = SLH-DSA-SHAKE-128s pub dari BLAKE3(AccountKey || "governance").
+    // Spec §11.1/§13.1 (OSSIFIED). Field tetap [u8; 32] = GovernanceID_pub.
+    let gov_seed = blake3_derive(account_key, b"governance");
+    let governance_id =
+        scalar_crypto::governance_key::governance_keypair_from_seed(&gov_seed).public;
 
     WalletKeys {
         spend_key,
@@ -86,6 +83,20 @@ mod tests_key_derivation {
         let keys1 = derive_wallet_from_mnemonic(mnemonic);
         let keys2 = derive_wallet_from_mnemonic(mnemonic);
         assert_eq!(keys1.governance_id, keys2.governance_id);
+    }
+
+    #[test]
+    fn test_governance_id_is_slhdsa_pub_from_account() {
+        // §11.1: GovernanceID_pub = SLH-DSA keygen dari BLAKE3(AccountKey || "governance").
+        let account_key = derive_account_key_from_mnemonic("scalar test mnemonic words here...");
+        let keys = derive_all_keys(&account_key);
+        let gov_seed = blake3_derive(&account_key, b"governance");
+        let expected =
+            scalar_crypto::governance_key::governance_keypair_from_seed(&gov_seed).public;
+        assert_eq!(
+            keys.governance_id, expected,
+            "governance_id harus = GovernanceID_pub"
+        );
     }
 
     #[test]

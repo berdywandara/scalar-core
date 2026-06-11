@@ -16,7 +16,7 @@
 //!   ViewKey      = BLAKE3(AccountKey || "view")
 //!   NodeKey      = BLAKE3(AccountKey || "node")
 //!   DuressKey    = BLAKE3(AccountKey || "duress" || index_le64)
-//!   GovernanceID = BLAKE3(ViewKey || "governance_scalar_v1")
+//!   GovernanceID_pub = SLH-DSA-SHAKE-128s pub of BLAKE3(AccountKey || "governance")
 //!
 //! OSSIFIED (SCL-SPEC-SEED-001 §8.1):
 //! - KDF: Argon2id (RFC 9106)
@@ -74,7 +74,7 @@ pub const NODE_KEY_DOMAIN: &[u8] = b"node";
 pub const DURESS_KEY_DOMAIN: &[u8] = b"duress";
 
 /// Domain separator GovernanceID. OSSIFIED — §13.1.
-pub const GOVERNANCE_ID_DOMAIN: &[u8] = b"governance_scalar_v1";
+pub const GOVERNANCE_ID_DOMAIN: &[u8] = b"governance";
 
 // ── Error ─────────────────────────────────────────────────────────────────────
 
@@ -221,12 +221,26 @@ pub fn derive_duress_key(account_key: &[u8; 32], index: u64) -> [u8; 32] {
     *hasher.finalize().as_bytes()
 }
 
-/// Derive GovernanceID dari ViewKey. §13.1.
-pub fn derive_governance_id(view_key: &[u8; 32]) -> [u8; 32] {
+/// GovernanceID_seed = BLAKE3(AccountKey ‖ "governance"). Spec §11.1/§13.1 (OSSIFIED).
+fn derive_governance_seed(account_key: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Hasher::new();
-    hasher.update(view_key);
+    hasher.update(account_key);
     hasher.update(GOVERNANCE_ID_DOMAIN);
     *hasher.finalize().as_bytes()
+}
+
+/// Derive GovernanceID keypair (pub + cold secret) dari AccountKey. Spec §11.1 (OSSIFIED).
+pub fn derive_governance_keypair(
+    account_key: &[u8; 32],
+) -> scalar_crypto::governance_key::GovernanceKeypair {
+    let gov_seed = derive_governance_seed(account_key);
+    scalar_crypto::governance_key::governance_keypair_from_seed(&gov_seed)
+}
+
+/// Derive GovernanceID_pub dari AccountKey. Spec §11.1/§13.1 (OSSIFIED).
+/// GovernanceID_pub = SLH-DSA-SHAKE-128s public key (bukan hash); stabil saat SpendKey dirotasi.
+pub fn derive_governance_id(account_key: &[u8; 32]) -> [u8; 32] {
+    derive_governance_keypair(account_key).public
 }
 
 #[cfg(test)]
@@ -411,15 +425,15 @@ mod tests {
     }
 
     #[test]
-    fn test_governance_id_from_view_not_spend() {
-        // §13.1: GovernanceID dari ViewKey, bukan SpendKey.
+    fn test_governance_id_from_account_stable() {
+        // §11.1: GovernanceID dari AccountKey; stabil saat SpendKey dirotasi (account_key tetap).
         let m = derive_seed("scalar integration test", &TEST_GENESIS).unwrap();
         let account = derive_account_key(&m.master_key, 0);
-        let view = derive_view_key(&account);
-        let spend = derive_spend_key(&account);
-        let gov_from_view = derive_governance_id(&view);
-        let gov_from_spend = derive_governance_id(&spend);
-        assert_ne!(gov_from_view, gov_from_spend);
+        let gov1 = derive_governance_id(&account);
+        let gov2 = derive_governance_id(&account);
+        assert_eq!(gov1, gov2, "deterministik dari AccountKey yang sama");
+        assert_ne!(gov1, derive_spend_key(&account));
+        assert_ne!(gov1, derive_view_key(&account));
     }
 
     // ── test vector — SCL-SPEC-SEED-001 §6.3 ─────────────────────────────────
