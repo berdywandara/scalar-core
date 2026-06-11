@@ -15,6 +15,7 @@ use blake3::Hasher;
 use fips205::slh_dsa_shake_128s::{try_keygen_with_rng, PK_LEN, SK_LEN};
 use fips205::traits::SerDes;
 use rand_core_06::{CryptoRng, Error, RngCore};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// OSSIFIED context string — Zero-Versioning Policy: NO version suffix.
 pub const GOVERNANCE_KEYGEN_CONTEXT: &str = "scalar.governance.slhdsa-shake-128s.keygen";
@@ -69,13 +70,38 @@ fn kg_randomness(gov_seed: &[u8; 32]) -> [u8; 48] {
     out
 }
 
-/// GovernanceID keypair as raw bytes (keeps fips205 types internal to this module).
-#[derive(Clone)]
+/// GovernanceID secret key (cold). Zeroized on drop; intentionally NOT `Clone`
+/// so a high-value cold key cannot be copied freely in memory. For signing,
+/// borrow via `as_bytes()` or move the wrapper (move semantics).
+pub struct GovernanceSecret([u8; GOVERNANCE_SEC_LEN]);
+
+impl GovernanceSecret {
+    /// Borrow the raw secret-key bytes (e.g. for signing). Does not copy them out.
+    pub fn as_bytes(&self) -> &[u8; GOVERNANCE_SEC_LEN] {
+        &self.0
+    }
+}
+
+// Manual Zeroize / ZeroizeOnDrop (avoids relying on the derive-macro feature).
+impl Zeroize for GovernanceSecret {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+impl Drop for GovernanceSecret {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
+impl ZeroizeOnDrop for GovernanceSecret {}
+
+/// GovernanceID keypair. `public` is GovernanceID_pub (C1-BIND); `secret` is a
+/// zeroize-on-drop wrapper. NOT `Clone` — borrow `&keypair.secret` or move it.
 pub struct GovernanceKeypair {
     /// SLH-DSA public key — GovernanceID_pub, bound by C1-BIND.
     pub public: [u8; GOVERNANCE_PUB_LEN],
-    /// SLH-DSA secret key (cold).
-    pub secret: [u8; GOVERNANCE_SEC_LEN],
+    /// SLH-DSA secret key (cold), zeroized on drop.
+    pub secret: GovernanceSecret,
 }
 
 /// Derive the GovernanceID SLH-DSA keypair from GovernanceID_seed.
@@ -89,7 +115,7 @@ pub fn governance_keypair_from_seed(gov_seed: &[u8; 32]) -> GovernanceKeypair {
         .expect("fips205 keygen from a full fixed buffer is infallible");
     GovernanceKeypair {
         public: pk.into_bytes(),
-        secret: sk.into_bytes(),
+        secret: GovernanceSecret(sk.into_bytes()),
     }
 }
 
@@ -126,7 +152,7 @@ mod tests {
         let a = governance_keypair_from_seed(&KAT_SEED);
         let b = governance_keypair_from_seed(&KAT_SEED);
         assert_eq!(a.public, b.public);
-        assert_eq!(a.secret, b.secret);
+        assert_eq!(a.secret.as_bytes(), b.secret.as_bytes());
     }
 
     #[test]
