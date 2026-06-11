@@ -2,14 +2,14 @@
 //!
 //! Spec (OSSIFIED): SCALAR-PROTOCOL §11.1, §13.1; SCALAR-SECURITY §5.3 (KAT).
 //!
-//!   GovernanceID_seed = BLAKE3(AccountKey || "governance")        [wallet chain, G-09b]
+//!   GovernanceID_seed = BLAKE3(AccountKey || "governance")
 //!   kg_randomness     = BLAKE3-XOF[derive_key](context, GovernanceID_seed)[0..48]
 //!   SK.seed = kg[0..16] ; SK.prf = kg[16..32] ; PK.seed = kg[32..48]
 //!   (GovernanceID_pub, _priv) = SLH-DSA-SHAKE-128s.KeyGen(SK.seed, SK.prf, PK.seed)
 //!
 //! Draw order SK.seed -> SK.prf -> PK.seed verified against fips205 v0.4.1 source.
-//! Construction is implementation-independent; fips205 is the reference impl.
-//! Sign/verify helpers are added with vote wiring in G-09c.
+//! Single source of truth for the full AccountKey -> GovernanceID keypair derivation.
+//! Sign/verify helpers and C1-BIND wiring are tracked separately (G-24).
 
 use blake3::Hasher;
 use fips205::slh_dsa_shake_128s::{try_keygen_with_rng, PK_LEN, SK_LEN};
@@ -19,6 +19,9 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// OSSIFIED context string — Zero-Versioning Policy: NO version suffix.
 pub const GOVERNANCE_KEYGEN_CONTEXT: &str = "scalar.governance.slhdsa-shake-128s.keygen";
+/// OSSIFIED domain separator for GovernanceID_seed = BLAKE3(AccountKey || "governance").
+/// Spec: SCALAR-PROTOCOL §11.1/§13.1.
+pub const GOVERNANCE_SEED_DOMAIN: &[u8] = b"governance";
 /// SLH-DSA-SHAKE-128s public-key length (GovernanceID_pub). FIPS 205.
 pub const GOVERNANCE_PUB_LEN: usize = 32;
 /// SLH-DSA-SHAKE-128s secret-key length. FIPS 205.
@@ -119,6 +122,20 @@ pub fn governance_keypair_from_seed(gov_seed: &[u8; 32]) -> GovernanceKeypair {
     }
 }
 
+/// GovernanceID_seed = BLAKE3(AccountKey || "governance"). Spec §11.1 (OSSIFIED).
+fn governance_seed_from_account_key(account_key: &[u8; 32]) -> [u8; 32] {
+    let mut h = Hasher::new();
+    h.update(account_key);
+    h.update(GOVERNANCE_SEED_DOMAIN);
+    *h.finalize().as_bytes()
+}
+
+/// Derive the GovernanceID keypair directly from AccountKey — the full OSSIFIED
+/// construction and single source of truth. Spec §11.1/§13.1.
+pub fn governance_keypair_from_account_key(account_key: &[u8; 32]) -> GovernanceKeypair {
+    governance_keypair_from_seed(&governance_seed_from_account_key(account_key))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,6 +159,11 @@ mod tests {
     }
 
     #[test]
+    fn test_governance_seed_domain_ossified() {
+        assert_eq!(GOVERNANCE_SEED_DOMAIN, b"governance");
+    }
+
+    #[test]
     fn test_governance_keypair_kat() {
         let kp = governance_keypair_from_seed(&KAT_SEED);
         assert_eq!(kp.public, KAT_PUB, "GovernanceID_pub KAT mismatch");
@@ -160,5 +182,19 @@ mod tests {
         let a = governance_keypair_from_seed(&[0x42u8; 32]);
         let b = governance_keypair_from_seed(&[0x43u8; 32]);
         assert_ne!(a.public, b.public);
+    }
+
+    #[test]
+    fn test_from_account_key_matches_two_step() {
+        // from_account_key == BLAKE3(account_key || "governance") then from_seed.
+        let ak = [0x07u8; 32];
+        let direct = governance_keypair_from_account_key(&ak);
+        let mut h = Hasher::new();
+        h.update(&ak);
+        h.update(GOVERNANCE_SEED_DOMAIN);
+        let seed = *h.finalize().as_bytes();
+        let two_step = governance_keypair_from_seed(&seed);
+        assert_eq!(direct.public, two_step.public);
+        assert_eq!(direct.secret.as_bytes(), two_step.secret.as_bytes());
     }
 }
