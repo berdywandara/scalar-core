@@ -399,6 +399,7 @@ mod tests {
             salt: 0xCAFE_BABE_0000_0000 | seed,
             spending_key_lo: 0x1111_1111,
             spending_key_hi: 0x2222_2222,
+            birth_epoch: 100, // C5 test witness birth_epoch
         }
     }
 
@@ -800,6 +801,7 @@ mod bench {
             salt: 0xCAFE_BABE_0000_0000 | seed,
             spending_key_lo: 0x1111_1111,
             spending_key_hi: 0x2222_2222,
+            birth_epoch: 100, // C5 test witness birth_epoch
         }
     }
 

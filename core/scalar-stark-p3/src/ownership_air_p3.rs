@@ -1,9 +1,9 @@
 //! CA — Ownership Proof AIR over Plonky3. P3-R4c.
 //!
 //! Proves CA constraint group (spec §4.3):
-//!   N[i]          = Poseidon2(DOMAIN_NULL       || secret[i] || spending_key)
+//!   N[i]          = Poseidon2(DOMAIN_NULL       || secret[i] || spending_key || birth_epoch[i])
 //!   commitment[i] = Poseidon2(DOMAIN_COMMITMENT || value[i]  || owner_pubkey[i]
-//!                                               || secret[i] || salt[i])
+//!                                               || secret[i] || salt[i] || birth_epoch[i])
 //!
 //! Architecture: reuses ScalarPoseidon2Air (p3-poseidon2-air) for in-circuit
 //! Poseidon2 evaluation. Each input requires 2 Poseidon2 calls (nullifier + commitment),
@@ -15,7 +15,8 @@
 //!     input[1] = secret[i]
 //!     input[2] = spending_key_lo
 //!     input[3] = spending_key_hi
-//!     input[4..7] = 0-padding
+//!     input[4] = birth_epoch[i]   (C5)
+//!     input[5..7] = 0-padding
 //!   Rows N_INPUTS..2*N_INPUTS-1 : commitment computation
 //!     input[0] = DOMAIN_COMMITMENT_FE
 //!     input[1] = value[i]
@@ -23,7 +24,8 @@
 //!     input[3] = owner_pubkey_hi[i]
 //!     input[4] = secret[i]
 //!     input[5] = salt[i]
-//!     input[6..7] = 0-padding
+//!     input[6] = birth_epoch[i]   (C5)
+//!     input[7] = 0-padding
 //!
 //! Public inputs (committed to Fiat-Shamir transcript):
 //!   For each input i:
@@ -212,6 +214,11 @@ pub struct InputWitness {
     /// spending_key — shared across all inputs. Spec §4.2.
     pub spending_key_lo: u64,
     pub spending_key_hi: u64,
+    /// birth_epoch[i] — UTXO birth epoch. C5 (OSSIFIED): MUST be bound into BOTH
+    /// commitment and nullifier preimage, authenticated by CB membership over the
+    /// birth_epoch-bound commitment. Spec: SCALAR-PROTOCOL §6 (C5),
+    /// SCALAR-TECHNICAL §3.1, SCALAR-SECURITY §2.2 INV-ROUTING.
+    pub birth_epoch: u64,
 }
 
 /// Public claim for CA verification: expected nullifier and commitment hashes.
@@ -247,7 +254,8 @@ fn nullifier_input(w: &InputWitness) -> [Goldilocks; P2_WIDTH] {
         Goldilocks::new(w.secret),
         Goldilocks::new(w.spending_key_lo),
         Goldilocks::new(w.spending_key_hi),
-        Goldilocks::new(0),
+        // C5: birth_epoch bound into nullifier preimage (slot 4). [SCALAR-PROTOCOL §6]
+        Goldilocks::new(w.birth_epoch),
         Goldilocks::new(0),
         Goldilocks::new(0),
         Goldilocks::new(0),
@@ -268,7 +276,8 @@ fn commitment_input(w: &InputWitness) -> [Goldilocks; P2_WIDTH] {
         Goldilocks::new(w.owner_pubkey_hi),
         Goldilocks::new(w.secret),
         Goldilocks::new(w.salt),
-        Goldilocks::new(0),
+        // C5: birth_epoch bound into commitment preimage (slot 6). [SCALAR-PROTOCOL §6]
+        Goldilocks::new(w.birth_epoch),
         Goldilocks::new(0),
     ]
 }
@@ -427,6 +436,7 @@ mod tests {
                 salt: 0xCAFE_BABE_0000_0001,
                 spending_key_lo: 0x1111_1111,
                 spending_key_hi: 0x2222_2222,
+                birth_epoch: 100, // C5 test witness birth_epoch
             },
             InputWitness {
                 secret: 0xDEAD_BEEF_0000_0002,
@@ -436,6 +446,7 @@ mod tests {
                 salt: 0xCAFE_BABE_0000_0002,
                 spending_key_lo: 0x1111_1111,
                 spending_key_hi: 0x2222_2222,
+                birth_epoch: 100, // C5 test witness birth_epoch
             },
         ]
     }
@@ -560,5 +571,21 @@ mod tests {
             result.is_err(),
             "proof with wrong witness vs correct claims must be rejected"
         );
+    }
+
+    #[test]
+    fn test_birth_epoch_binds_nullifier_and_commitment() {
+        // C5 (INV-ROUTING): birth_epoch MUST affect BOTH nullifier and commitment.
+        // If flipping birth_epoch left either hash unchanged, nullifier routing
+        // could be forged and double-spend reintroduced (SCALAR-PROTOCOL §6).
+        let w = two_input_witnesses();
+        let n1 = compute_expected_nullifier(&w[0]);
+        let c1 = compute_expected_commitment(&w[0]);
+        let mut w2 = w[0].clone();
+        w2.birth_epoch ^= 1;
+        let n2 = compute_expected_nullifier(&w2);
+        let c2 = compute_expected_commitment(&w2);
+        assert_ne!(n1, n2, "birth_epoch must bind nullifier (C5 routing)");
+        assert_ne!(c1, c2, "birth_epoch must bind commitment (C5)");
     }
 }

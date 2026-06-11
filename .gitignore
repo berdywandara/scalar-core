@@ -26,3 +26,6 @@ proofs/
 
 # Mobile wallet — dikerjakan dari awal di scalar-wallet-mobile repo
 apps/
+
+# never commit script backups
+*.bak.*
