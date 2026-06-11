@@ -18,6 +18,7 @@ pub mod channel;
 pub mod crypto_agility;
 pub mod domain;
 pub mod encryption;
+pub mod governance_key;
 pub mod hybrid_hash;
 pub mod hybrid_kem;
 pub mod imt;

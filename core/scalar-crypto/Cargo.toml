@@ -19,3 +19,5 @@ rand_core = "0.10.1"
 zeroize = { version = "1.8.2", features = ["derive"] }
 pqcrypto-kyber = "0.8.1"
 x25519-dalek    = { version = "2", features = ["static_secrets"] }
+fips205 = { version = "0.4.1", default-features = false, features = ["slh_dsa_shake_128s", "default-rng"] }
+rand_core_06 = { version = "0.6.4", package = "rand_core" }
