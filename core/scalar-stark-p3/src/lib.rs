@@ -14,6 +14,7 @@
 //!   P3-R9: Empirical benchmark — proving time on spec hardware
 
 pub mod batch_transfer_p3;
+pub mod cg_arith;
 pub mod config;
 pub mod membership_air_p3;
 pub mod mint_air_p3;
