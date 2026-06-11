@@ -7,4 +7,5 @@ license.workspace = true
 
 [dependencies]
 blake3 = "1.8.4"
+scalar-crypto = { version = "0.1.0", path = "../../core/scalar-crypto" }
 zeroize = { version = "1.8", features = ["zeroize_derive"] }

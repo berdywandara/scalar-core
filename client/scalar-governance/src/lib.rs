@@ -72,24 +72,23 @@ mod tests {
     #[test]
     fn test_governance_id_stable_across_rotation() {
         let account_key = [1u8; 32];
-        let view_key = derive_view_key(&account_key);
-        let gov_id_1 = derive_governance_id(&view_key);
-        let gov_id_2 = derive_governance_id(&view_key);
+        let gov_id_1 = derive_governance_id(&account_key);
+        let gov_id_2 = derive_governance_id(&account_key);
 
         assert_eq!(
             gov_id_1, gov_id_2,
             "GovernanceID harus stabil saat SpendKey dirotasi"
         );
-        assert!(verify_governance_id_stability(&view_key));
+        assert!(verify_governance_id_stability(&account_key));
     }
 
     #[test]
     fn test_governance_id_different_per_account() {
-        let view_key_1 = [1u8; 32];
-        let view_key_2 = [2u8; 32];
+        let account_key_1 = [1u8; 32];
+        let account_key_2 = [2u8; 32];
 
-        let gov_id_1 = derive_governance_id(&view_key_1);
-        let gov_id_2 = derive_governance_id(&view_key_2);
+        let gov_id_1 = derive_governance_id(&account_key_1);
+        let gov_id_2 = derive_governance_id(&account_key_2);
 
         assert_ne!(
             gov_id_1, gov_id_2,

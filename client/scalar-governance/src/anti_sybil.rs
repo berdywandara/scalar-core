@@ -4,7 +4,7 @@
 //!   Rule 1: 1 SpendKey = 1 GovernanceID (tidak bisa beli lebih)
 //!   Rule 2: GOVERNANCE_MIN_STAKE_SSCL = 100,000 sSCL minimum stake
 //!   Rule 3: GP = uptime_weight × conviction_factor (bukan SCL balance)
-//!   Rule 4: GovernanceID dari ViewKey — stabil meski SpendKey dirotasi
+//!   Rule 4: GovernanceID dari AccountKey (SLH-DSA pub) — stabil meski SpendKey dirotasi
 //!
 //! GP Formula v9.0 — spec §11.2:
 //!   GP(i) = uptime_weight_fp(i) × conviction_factor(days_held)
@@ -17,7 +17,7 @@
 //!
 //! Anti-Sybil properties:
 //!   - GP tidak bisa dibeli dengan SCL — hanya dari uptime + waktu
-//!   - 1 ViewKey = 1 GovernanceID → tidak bisa multiply identity
+//!   - 1 AccountKey = 1 GovernanceID → tidak bisa multiply identity
 //!   - Min stake GOVERNANCE_MIN_STAKE_SSCL mencegah spam proposal
 
 // ── Ossified constants — spec §11.8 ──────────────────────────────────────────
@@ -66,7 +66,7 @@ pub enum AntiSybilResult {
 
 /// Validasi satu participant governance. Spec §11.8.
 ///
-/// `governance_id`: dari derive_governance_id(view_key)
+/// `governance_id`: dari derive_governance_id(account_key)
 /// `stake_sscl`: saldo SCL participant dalam sSCL
 /// `uptime_weight_fp`: dari MaturityStore
 /// `conviction_factor_fp`: dari ConvictionTable
