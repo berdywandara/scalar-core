@@ -109,8 +109,8 @@ fn test_starkpack_transcript_deterministic_across_calls() {
             sum_inputs_sscl: 1_000_000_040 + fee_extra,
             sum_outputs_sscl: 1_000_000_000,
             crypto_version: 0x01,
-            entry_timestamp_ms: 1_000_000_000,
-            current_timestamp_ms: 1_000_060_000,
+            current_subepoch_id: 1_000,
+            target_subepoch_id: 1_000,
             utxo_set_root: [0x42u8; 32],
             cb_membership_verified: true,
             nullifier_active_root: [0xAAu8; 32],
@@ -175,8 +175,8 @@ fn test_starkpack_ordering_affects_transcript() {
             sum_inputs_sscl: 1_000_000_040 + fee_extra,
             sum_outputs_sscl: 1_000_000_000,
             crypto_version: 0x01,
-            entry_timestamp_ms: 1_000_000_000,
-            current_timestamp_ms: 1_000_060_000,
+            current_subepoch_id: 1_000,
+            target_subepoch_id: 1_000,
             utxo_set_root: [0x42u8; 32],
             cb_membership_verified: true,
             nullifier_active_root: [0xAAu8; 32],
@@ -275,8 +275,8 @@ fn test_transfer_circuit_epoch_smt_default() {
         commitment_hash: [0u64; 4], // A-R9: placeholder
         nullifier_hash: [0u64; 4],  // A-R9: placeholder
         crypto_version: 0x01,
-        entry_timestamp_ms: 1_000_000_000,
-        current_timestamp_ms: 1_000_001_000,
+        current_subepoch_id: 1_000,
+        target_subepoch_id: 1_000,
     };
 
     assert!(pi.validate_imt_inputs(), "EpochSMT always valid");
@@ -301,8 +301,8 @@ fn test_transfer_circuit_subepoch_imt_source() {
         commitment_hash: [0u64; 4], // A-R9: placeholder
         nullifier_hash: [0u64; 4],  // A-R9: placeholder
         crypto_version: 0x01,
-        entry_timestamp_ms: 1_000_000_000,
-        current_timestamp_ms: 1_000_001_000,
+        current_subepoch_id: 1_000,
+        target_subepoch_id: 1_000,
     };
 
     assert!(pi.validate_imt_inputs(), "valid inputs");
@@ -326,8 +326,8 @@ fn test_transfer_circuit_invalid_imt_inputs() {
         commitment_hash: [0u64; 4], // A-R9: placeholder
         nullifier_hash: [0u64; 4],  // A-R9: placeholder
         crypto_version: 0x01,
-        entry_timestamp_ms: 1_000_000_000,
-        current_timestamp_ms: 1_000_001_000,
+        current_subepoch_id: 1_000,
+        target_subepoch_id: 1_000,
     };
     // validate_imt_inputs always true in current impl (FASE B: full IMT source tracking)
     assert!(pi.validate_imt_inputs());
