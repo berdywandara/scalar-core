@@ -10,8 +10,8 @@
 //!   CD — Fee floor: fee >= 40 sSCL (spec §9.1)
 //!   CE — Output non-zero (spec §4.3 CE)
 //!   CG — Crypto version valid (spec §4.3 CG)
-//!   CG — Timestamp freshness / anti-stale (D-026, spec §4.3 CG)
-//!        Anti-censorship is handled by Shadow Pool §4.4, NOT by CG.
+//!   CG-ARITH — Sequential sub-epoch validity (SCALAR-TECHNICAL §2.9, B=40)
+//!        Wall-clock amputated; validity decided purely by sub-epoch sequence.
 //!   CB — Membership verified flag (out-of-circuit commitment binding)
 //!   CC — Non-membership verified flag (out-of-circuit commitment binding)
 //!   INV-4.6 — Single UTXO source (spec §3.1.3)
@@ -22,25 +22,22 @@
 //!   This AIR handles the linear/boolean constraints that are cheap in a
 //!   single AIR; Poseidon2 constraints are in poseidon2_p3.rs (P3-R3).
 //!
-//! Trace layout (1 row per transfer, degree-1/2 constraints):
+//! Trace layout (1 row per transfer, degree-1/2 constraints; width 112):
 //!   Col 0:  fee_total_sscl
 //!   Col 1:  sum_inputs_sscl
 //!   Col 2:  sum_outputs_sscl
 //!   Col 3:  crypto_version
-//!   Col 4:  entry_timestamp_ms_lo
-//!   Col 5:  entry_timestamp_ms_hi
-//!   Col 6:  current_timestamp_ms_lo
-//!   Col 7:  current_timestamp_ms_hi
-//!   Col 8:  cb_membership_verified   (0 or 1)
-//!   Col 9:  cc_nonmembership_verified (0 or 1)
-//!   Col 10: output_nonzero           (0 or 1)
-//!   Col 11: single_utxo_source       (0 or 1)
-//!   Col 12..19: A-R9 cross-binding hashes
-//!   Col 20: fee_above_floor (aux)    [A-R11]
-//!   Col 21: ts_delta (aux)           [A-R11]
-//!   Col 22: ts_slack (aux)           [A-R11]
-//!   Col 23..74: fee bit decomposition (52 bits) [A-R11]
-//!   Col 75..95: ts_slack bit decomposition (21 bits) [A-R11]
+//!   Col 4:  current_subepoch_id      (CG-ARITH)
+//!   Col 5:  target_subepoch_id       (CG-ARITH witness)
+//!   Col 6:  cg_validity              (CG-ARITH, current - target, in {0,1})
+//!   Col 7:  cb_membership_verified   (0 or 1)
+//!   Col 8:  cc_nonmembership_verified (0 or 1)
+//!   Col 9:  output_nonzero           (0 or 1)
+//!   Col 10: single_utxo_source       (0 or 1)
+//!   Col 11..18: A-R9 cross-binding hashes
+//!   Col 19: fee_above_floor (aux)    [A-R11]
+//!   Col 20..71: fee bit decomposition (52 bits) [A-R11]
+//!   Col 72..111: target_subepoch_id bit decomposition (40 bits, B=40) [CG-ARITH]
 //!
 //! Spec: §4.3 CD/CE/CG, §9.1, INV-4.6, D-009, D-012.
 

@@ -6,24 +6,23 @@
 //! Spec §4.2: Public inputs for Transfer Circuit CA-CG.
 //! Field: Goldilocks (p = 2^64 - 2^32 + 1). OSSIFIED — spec §4.4.
 //!
-//! Public input layout (indices, OSSIFIED):
+//! Public input layout (indices, OSSIFIED — SCALAR-TECHNICAL §2.2/§2.9):
 //!   [0]     fee_total_sscl          (CD)
 //!   [1]     sum_inputs_sscl         (CD)
 //!   [2]     sum_outputs_sscl        (CD)
 //!   [3]     crypto_version          (CG)
-//!   [4]     entry_timestamp_ms_lo   (CG) — lower 32 bits
-//!   [5]     entry_timestamp_ms_hi   (CG) — upper 32 bits
-//!   [6]     current_timestamp_ms_lo (CG)
-//!   [7]     current_timestamp_ms_hi (CG)
-//!   [8..15] utxo_set_root           (CB) — 8x u32 LE chunks as field elements
-//!   [16]    cb_membership_verified  (CB) — 0 or 1
-//!   [17..24] nullifier_active_root  (CC) — 8x u32 LE chunks
-//!   [25..32] nullifier_archived_root(CC) — 8x u32 LE chunks
-//!   [33]    cc_nonmembership_verified (CC) — 0 or 1
-//!   [34]    output_nonzero          (CE) — 0 or 1
-//!   [35]    single_utxo_source      (INV-4.6) — 0 or 1
-//!   [36..39] commitment_hash        (A-R9 CB binding) — BLAKE3(all commitments)[0..4] as u64 LE
-//!   [40..43] nullifier_hash         (A-R9 CC binding) — BLAKE3(all nullifiers)[0..4] as u64 LE
+//!   [4]     current_subepoch_id     (CG-ARITH) — consensus-bound sub-epoch sequence
+//!   [5..12] utxo_set_root           (CB) — 8x u32 LE chunks as field elements
+//!   [13]    cb_membership_verified  (CB) — 0 or 1
+//!   [14..21] nullifier_active_root  (CC) — 8x u32 LE chunks
+//!   [22..29] nullifier_archived_root(CC) — 8x u32 LE chunks
+//!   [30]    cc_nonmembership_verified (CC) — 0 or 1
+//!   [31]    output_nonzero          (CE) — 0 or 1
+//!   [32]    single_utxo_source      (INV-4.6) — 0 or 1
+//!   [33..36] commitment_hash        (A-R9 CB binding) — BLAKE3(all commitments)[0..4] as u64 LE
+//!   [37..40] nullifier_hash         (A-R9 CC binding) — BLAKE3(all nullifiers)[0..4] as u64 LE
+//!
+//! target_subepoch_id is a PRIVATE WITNESS (user-signed), NOT in public inputs.
 
 use blake3::Hasher;
 use p3_field::PrimeField64;
