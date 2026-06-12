@@ -13,12 +13,10 @@
 //!   sebelum signature disebarkan ke jaringan.
 
 use crate::CryptoError;
-use pqcrypto_traits::sign::{DetachedSignature as _, PublicKey as _, SecretKey as _};
 
-// SLH-DSA-SHAKE-128s — OSSIFIED spec §2.1
-use pqcrypto_sphincsplus::sphincsshake128ssimple::{
-    detached_sign, keypair, verify_detached_signature, DetachedSignature, PublicKey, SecretKey,
-};
+// SLH-DSA-SHAKE-128s — OSSIFIED spec §2.1 (NIST FIPS 205 via fips205 crate).
+use fips205::slh_dsa_shake_128s;
+use fips205::traits::{SerDes, Signer, Verifier};
 
 /// Ukuran public key SLH-DSA-SHAKE-128s: 32 bytes. OSSIFIED — spec §2.1.
 pub const SPHINCS_PK_BYTES: usize = 32;
@@ -35,10 +33,11 @@ pub struct ScalarKeyPair {
 
 /// Generate pasangan kunci SLH-DSA-SHAKE-128s baru. Spec §2.1.
 pub fn generate_keypair() -> Result<ScalarKeyPair, CryptoError> {
-    let (pk, sk) = keypair();
+    // fips205 try_keygen() uses OsRng (default-rng feature). Fallible on RNG error.
+    let (pk, sk) = slh_dsa_shake_128s::try_keygen().map_err(|_| CryptoError::SigningFailed)?;
     Ok(ScalarKeyPair {
-        public: pk.as_bytes().to_vec(),
-        secret: sk.as_bytes().to_vec(),
+        public: pk.into_bytes().to_vec(),
+        secret: sk.into_bytes().to_vec(),
     })
 }
 
@@ -49,18 +48,23 @@ pub fn generate_keypair() -> Result<ScalarKeyPair, CryptoError> {
 /// return Err(CryptoError::SignatureVerificationFailed).
 /// Ini memastikan signature yang disebarkan ke jaringan selalu valid.
 pub fn sign_message(message: &[u8], secret_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
-    let sk = SecretKey::from_bytes(secret_key).map_err(|_| CryptoError::InvalidKey)?;
+    let sk_arr: [u8; SPHINCS_SK_BYTES] =
+        secret_key.try_into().map_err(|_| CryptoError::InvalidKey)?;
+    let sk = slh_dsa_shake_128s::PrivateKey::try_from_bytes(&sk_arr)
+        .map_err(|_| CryptoError::InvalidKey)?;
 
-    let sig = detached_sign(message, &sk);
-    let sig_bytes = sig.as_bytes().to_vec();
+    // Deterministic signing (hedged = false), empty context. Faithful to the prior
+    // SPHINCS+ "simple" determinism; signature format/interop unchanged (FIPS 205).
+    let sig = sk
+        .try_sign(message, &[], false)
+        .map_err(|_| CryptoError::SigningFailed)?;
+    let sig_bytes = sig.to_vec();
 
     // Post-sign verify — spec §2.4 fault detection.
-    let sig_check =
-        DetachedSignature::from_bytes(&sig_bytes).map_err(|_| CryptoError::SigningFailed)?;
     let pk_bytes = public_key_from_secret(secret_key)?;
-    let pk = PublicKey::from_bytes(&pk_bytes).map_err(|_| CryptoError::InvalidKey)?;
-    verify_detached_signature(&sig_check, message, &pk)
-        .map_err(|_| CryptoError::SignatureVerificationFailed)?;
+    if !verify_signature(message, &sig_bytes, &pk_bytes)? {
+        return Err(CryptoError::SignatureVerificationFailed);
+    }
 
     Ok(sig_bytes)
 }
@@ -71,18 +75,19 @@ pub fn verify_signature(
     signature: &[u8],
     public_key: &[u8],
 ) -> Result<bool, CryptoError> {
-    let pk = match PublicKey::from_bytes(public_key) {
+    let pk_arr: [u8; SPHINCS_PK_BYTES] = match public_key.try_into() {
+        Ok(a) => a,
+        Err(_) => return Ok(false),
+    };
+    let pk = match slh_dsa_shake_128s::PublicKey::try_from_bytes(&pk_arr) {
         Ok(k) => k,
         Err(_) => return Ok(false),
     };
-    let sig = match DetachedSignature::from_bytes(signature) {
-        Ok(s) => s,
+    let sig_arr: [u8; SPHINCS_SIG_BYTES] = match signature.try_into() {
+        Ok(a) => a,
         Err(_) => return Ok(false),
     };
-    match verify_detached_signature(&sig, message, &pk) {
-        Ok(_) => Ok(true),
-        Err(_) => Ok(false),
-    }
+    Ok(pk.verify(message, &sig_arr, &[]))
 }
 
 /// Ekstrak public key dari secret key SLH-DSA-SHAKE-128s.
@@ -90,12 +95,13 @@ pub fn verify_signature(
 /// SLH-DSA-SHAKE-128s: SK = 64 bytes, PK = 32 bytes (last 32 bytes of SK).
 /// Spec §2.1.
 pub fn public_key_from_secret(secret_key: &[u8]) -> Result<Vec<u8>, CryptoError> {
-    let pk_len = pqcrypto_sphincsplus::sphincsshake128ssimple::public_key_bytes();
+    // SLH-DSA-SHAKE-128s SK layout (FIPS 205): [SK.seed||SK.prf||PK.seed||PK.root].
+    // PublicKey = PK.seed||PK.root = last 32 bytes of the 64-byte SK.
     let sk_len = secret_key.len();
-    if sk_len < pk_len {
+    if sk_len < SPHINCS_PK_BYTES {
         return Err(CryptoError::InvalidKey);
     }
-    Ok(secret_key[sk_len - pk_len..].to_vec())
+    Ok(secret_key[sk_len - SPHINCS_PK_BYTES..].to_vec())
 }
 
 #[cfg(test)]
