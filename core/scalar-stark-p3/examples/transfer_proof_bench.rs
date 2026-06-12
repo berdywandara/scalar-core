@@ -6,9 +6,7 @@
 //     2>&1 | tee -a benchmark_raw_$(date +%Y%m%d).txt
 
 use scalar_stark_p3::transfer_air_p3::{prove_transfer_p3, verify_transfer_p3};
-use scalar_stark_p3::transfer_public_inputs::{
-    TransferPublicInputsP3, FEE_FLOOR_SSCL, T_MAX_WAIT_MS,
-};
+use scalar_stark_p3::transfer_public_inputs::{TransferPublicInputsP3, FEE_FLOOR_SSCL};
 use std::time::Instant;
 
 const RUNS: usize = 10;
@@ -27,14 +25,13 @@ fn p95(mut v: Vec<u64>) -> u64 {
 fn make_pi(fee_extra: u64) -> TransferPublicInputsP3 {
     let fee = FEE_FLOOR_SSCL + fee_extra;
     let sum_inputs = 1_000_000_000 + fee;
-    let now_ms = 1_700_000_000_000u64;
     TransferPublicInputsP3 {
         fee_total_sscl: fee,
         sum_inputs_sscl: sum_inputs,
         sum_outputs_sscl: sum_inputs - fee,
         crypto_version: 0x01,
-        entry_timestamp_ms: now_ms - T_MAX_WAIT_MS / 2,
-        current_timestamp_ms: now_ms,
+        current_subepoch_id: 1_000,
+        target_subepoch_id: 1_000,
         utxo_set_root: [0x42u8; 32],
         cb_membership_verified: true,
         nullifier_active_root: [0x11u8; 32],

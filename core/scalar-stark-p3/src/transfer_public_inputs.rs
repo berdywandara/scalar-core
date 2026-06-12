@@ -30,39 +30,13 @@ use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
 
 /// Total number of public input field elements for Transfer Circuit. OSSIFIED.
-pub const TRANSFER_PI_LEN: usize = 44; // +8: commitment_hash[4] + nullifier_hash[4] (A-R9)
+pub const TRANSFER_PI_LEN: usize = 41; // G-07b: timestamps[4] -> current_subepoch_id[1]
 
-/// T_MAX_WAIT = 30 minutes in ms. CONSTRAINED — D-026, MAD §21.2.
-/// Anti-stale / freshness constraint (NOT anti-censorship — see Shadow Pool §4.4).
-/// Can be changed via COMMIT 75% governance. Max governance-adjustable value
-/// without circuit change: 2_097_151 ms (21-bit capacity). D-026.
-pub const T_MAX_WAIT_MS: u64 = 30 * 60 * 1_000; // 1_800_000 ms
-
-/// NMT drift bound. CONSTRAINED — MAD §12.
-/// Maximum clock drift between honest NMT nodes: ±300 seconds.
-pub const NMT_DRIFT_BOUND_MS: u64 = 300 * 1_000; // 300_000 ms
-
-/// Effective T_MAX_WAIT after NMT drift compensation. CONSTRAINED — D-026.
-/// = T_MAX_WAIT_MS - 2 × NMT_DRIFT_BOUND_MS = 1_800_000 - 600_000 = 1_200_000 ms (20 min).
-/// A tx submitted at t=0 is guaranteed valid if entry_timestamp ≥ current_ts - T_MAX_WAIT_EFFECTIVE_MS.
-pub const T_MAX_WAIT_EFFECTIVE_MS: u64 = T_MAX_WAIT_MS - 2 * NMT_DRIFT_BOUND_MS; // 1_200_000 ms
+// Wall-clock T_MAX_WAIT constants removed in G-07b. Validity is now sequential
+// over sub-epoch ids (CG-ARITH) — see crate::cg_arith. SCALAR-TECHNICAL §2.9.
 
 /// Valid crypto versions. OSSIFIED — spec §4.3 CG.
 pub const VALID_CRYPTO_VERSION: u8 = 0x01;
-
-// Compile-time sanity: effective window must be positive and less than full window. D-026.
-const _: () = assert!(
-    T_MAX_WAIT_EFFECTIVE_MS > 0,
-    "T_MAX_WAIT_EFFECTIVE_MS must be > 0"
-);
-const _: () = assert!(
-    T_MAX_WAIT_EFFECTIVE_MS < T_MAX_WAIT_MS,
-    "T_MAX_WAIT_EFFECTIVE_MS must be < T_MAX_WAIT_MS"
-);
-const _: () = assert!(
-    T_MAX_WAIT_MS <= 2_097_151,
-    "T_MAX_WAIT_MS exceeds 21-bit circuit capacity — circuit upgrade required (D-026)"
-);
 
 /// Fee floor in sSCL. OSSIFIED — spec §9.1.
 pub const FEE_FLOOR_SSCL: u64 = 40;
@@ -81,10 +55,11 @@ pub struct TransferPublicInputsP3 {
     pub sum_outputs_sscl: u64,
     /// CG: crypto version. Spec §4.2.
     pub crypto_version: u8,
-    /// CG: entry timestamp (ms). Spec §4.2.
-    pub entry_timestamp_ms: u64,
-    /// CG: current timestamp (ms). Spec §4.2.
-    pub current_timestamp_ms: u64,
+    /// CG: current sub-epoch id (PI[4], consensus-bound). SCALAR-TECHNICAL §2.9.
+    pub current_subepoch_id: u64,
+    /// CG: target sub-epoch id — PRIVATE WITNESS (user-signed), NOT serialized to
+    /// public_values; used only to build the CG-ARITH trace. SCALAR-TECHNICAL §2.9.
+    pub target_subepoch_id: u64,
     /// CB: UTXO set root (snapshot epoch k-1). Spec §4.2, §8.5.
     pub utxo_set_root: [u8; 32],
     /// CB: membership verified out-of-circuit. Spec §4.3 CB.
@@ -123,11 +98,9 @@ impl TransferPublicInputsP3 {
         // [3] CG: crypto version
         v.push(Goldilocks::new(self.crypto_version as u64));
 
-        // [4..7] CG: timestamps (split into lo/hi u32 to fit Goldilocks)
-        v.push(Goldilocks::new(self.entry_timestamp_ms & 0xFFFF_FFFF));
-        v.push(Goldilocks::new(self.entry_timestamp_ms >> 32));
-        v.push(Goldilocks::new(self.current_timestamp_ms & 0xFFFF_FFFF));
-        v.push(Goldilocks::new(self.current_timestamp_ms >> 32));
+        // [4] CG: current_subepoch_id (consensus-bound). target_subepoch_id is a
+        // private witness and is NOT serialized into public_values.
+        v.push(Goldilocks::new(self.current_subepoch_id));
 
         // [8..15] CB: utxo_set_root as 8 x u32 LE chunks
         push_bytes32(&mut v, &self.utxo_set_root);
@@ -170,34 +143,32 @@ impl TransferPublicInputsP3 {
             return None;
         }
 
-        let entry_ts = v[4].as_canonical_u64() | (v[5].as_canonical_u64() << 32);
-        let current_ts = v[6].as_canonical_u64() | (v[7].as_canonical_u64() << 32);
-
         Some(Self {
             fee_total_sscl: v[0].as_canonical_u64(),
             sum_inputs_sscl: v[1].as_canonical_u64(),
             sum_outputs_sscl: v[2].as_canonical_u64(),
             crypto_version: v[3].as_canonical_u64() as u8,
-            entry_timestamp_ms: entry_ts,
-            current_timestamp_ms: current_ts,
-            utxo_set_root: read_bytes32(&v[8..16]),
-            cb_membership_verified: v[16].as_canonical_u64() != 0,
-            nullifier_active_root: read_bytes32(&v[17..25]),
-            nullifier_archived_root: read_bytes32(&v[25..33]),
-            cc_nonmembership_verified: v[33].as_canonical_u64() != 0,
-            output_nonzero: v[34].as_canonical_u64() != 0,
-            single_utxo_source: v[35].as_canonical_u64() != 0,
+            current_subepoch_id: v[4].as_canonical_u64(),
+            // target_subepoch_id is a private witness, absent from public values.
+            target_subepoch_id: 0,
+            utxo_set_root: read_bytes32(&v[5..13]),
+            cb_membership_verified: v[13].as_canonical_u64() != 0,
+            nullifier_active_root: read_bytes32(&v[14..22]),
+            nullifier_archived_root: read_bytes32(&v[22..30]),
+            cc_nonmembership_verified: v[30].as_canonical_u64() != 0,
+            output_nonzero: v[31].as_canonical_u64() != 0,
+            single_utxo_source: v[32].as_canonical_u64() != 0,
             commitment_hash: [
+                v[33].as_canonical_u64(),
+                v[34].as_canonical_u64(),
+                v[35].as_canonical_u64(),
                 v[36].as_canonical_u64(),
+            ],
+            nullifier_hash: [
                 v[37].as_canonical_u64(),
                 v[38].as_canonical_u64(),
                 v[39].as_canonical_u64(),
-            ],
-            nullifier_hash: [
                 v[40].as_canonical_u64(),
-                v[41].as_canonical_u64(),
-                v[42].as_canonical_u64(),
-                v[43].as_canonical_u64(),
             ],
         })
     }
@@ -238,12 +209,10 @@ pub fn check_cg_version(pi: &TransferPublicInputsP3) -> bool {
     pi.crypto_version == VALID_CRYPTO_VERSION
 }
 
-/// CG: transaction within T_MAX_WAIT window. Spec §4.3 CG.
-pub fn check_cg_timestamp(pi: &TransferPublicInputsP3) -> bool {
-    if pi.current_timestamp_ms < pi.entry_timestamp_ms {
-        return false;
-    }
-    (pi.current_timestamp_ms - pi.entry_timestamp_ms) <= T_MAX_WAIT_MS
+/// CG-ARITH: sequential sub-epoch validity. current >= target AND validity <= 1.
+/// Off-circuit pre-flight; the AIR enforces the same relation. SCALAR-TECHNICAL §2.9.
+pub fn check_cg_validity(pi: &TransferPublicInputsP3) -> bool {
+    crate::cg_arith::cg_validity(pi.current_subepoch_id, pi.target_subepoch_id).is_some()
 }
 
 /// CE: output commitment non-zero. Spec §4.3 CE.
@@ -279,7 +248,7 @@ pub fn check_all_constraints(pi: &TransferPublicInputsP3) -> Result<(), usize> {
     if !check_cg_version(pi) {
         return Err(2);
     }
-    if !check_cg_timestamp(pi) {
+    if !check_cg_validity(pi) {
         return Err(3);
     }
     if !check_cb_membership(pi) {
@@ -372,8 +341,8 @@ mod tests {
             sum_inputs_sscl: 1_000_000_040,
             sum_outputs_sscl: 1_000_000_000,
             crypto_version: 0x01,
-            entry_timestamp_ms: 1_000_000_000,
-            current_timestamp_ms: 1_000_060_000,
+            current_subepoch_id: 1_000,
+            target_subepoch_id: 1_000,
             utxo_set_root: [0x42u8; 32],
             cb_membership_verified: true,
             nullifier_active_root: [0xAAu8; 32],
@@ -388,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_pi_len_ossified() {
-        assert_eq!(TRANSFER_PI_LEN, 44); // +8 cross-binding fields (A-R9)
+        assert_eq!(TRANSFER_PI_LEN, 41); // G-07b: timestamps[4] -> current_subepoch_id[1]
     }
 
     #[test]
@@ -403,8 +372,10 @@ mod tests {
         // Serialization roundtrip must be lossless.
         let pi = valid_pi();
         let v = pi.to_goldilocks();
-        let pi2 = TransferPublicInputsP3::from_goldilocks(&v).unwrap();
-        assert_eq!(pi, pi2, "roundtrip must be lossless");
+        let mut pi2 = TransferPublicInputsP3::from_goldilocks(&v).unwrap();
+        // target_subepoch_id is a witness, intentionally absent from public values.
+        pi2.target_subepoch_id = pi.target_subepoch_id;
+        assert_eq!(pi, pi2, "public-input roundtrip must be lossless");
     }
 
     #[test]
@@ -414,7 +385,8 @@ mod tests {
         pi.nullifier_active_root = [0u8; 32];
         pi.nullifier_archived_root = [0u8; 32];
         let v = pi.to_goldilocks();
-        let pi2 = TransferPublicInputsP3::from_goldilocks(&v).unwrap();
+        let mut pi2 = TransferPublicInputsP3::from_goldilocks(&v).unwrap();
+        pi2.target_subepoch_id = pi.target_subepoch_id; // witness not serialized
         assert_eq!(pi, pi2);
     }
 
@@ -455,15 +427,15 @@ mod tests {
     }
 
     #[test]
-    fn test_check_cg_timestamp_valid() {
-        assert!(check_cg_timestamp(&valid_pi()));
+    fn test_check_cg_validity_valid() {
+        assert!(check_cg_validity(&valid_pi()));
     }
 
     #[test]
-    fn test_check_cg_timestamp_expired() {
+    fn test_check_cg_validity_invalid() {
         let mut pi = valid_pi();
-        pi.current_timestamp_ms = pi.entry_timestamp_ms + T_MAX_WAIT_MS + 1;
-        assert!(!check_cg_timestamp(&pi));
+        pi.current_subepoch_id = pi.target_subepoch_id + 2; // validity = 2 > 1
+        assert!(!check_cg_validity(&pi));
     }
 
     #[test]
@@ -490,11 +462,6 @@ mod tests {
     fn test_from_goldilocks_too_short() {
         let v = vec![Goldilocks::new(0); 10];
         assert!(TransferPublicInputsP3::from_goldilocks(&v).is_none());
-    }
-
-    #[test]
-    fn test_t_max_wait_ossified() {
-        assert_eq!(T_MAX_WAIT_MS, 1_800_000);
     }
 
     #[test]

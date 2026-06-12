@@ -670,8 +670,8 @@ mod tests {
             sum_inputs_sscl: 1_000_000_040,
             sum_outputs_sscl: 1_000_000_000,
             crypto_version: 0x01,
-            entry_timestamp_ms: 1_000_000_000,
-            current_timestamp_ms: 1_000_060_000,
+            current_subepoch_id: 1_000,
+            target_subepoch_id: 1_000,
             utxo_set_root: [0x42u8; 32],
             cb_membership_verified: true,
             nullifier_active_root: active_root,
@@ -1256,8 +1256,8 @@ mod bench {
             sum_inputs_sscl: 1_000_000_040,
             sum_outputs_sscl: 1_000_000_000,
             crypto_version: 0x01,
-            entry_timestamp_ms: 1_000_000_000,
-            current_timestamp_ms: 1_000_060_000,
+            current_subepoch_id: 1_000,
+            target_subepoch_id: 1_000,
             utxo_set_root: [0x42u8; 32],
             cb_membership_verified: true,
             nullifier_active_root: active_root,
@@ -1480,17 +1480,16 @@ pub fn build_bench_transfer_input(
     };
 
     // ── Derive public claims ──────────────────────────────────────────────────
-    use crate::transfer_public_inputs::{TransferPublicInputsP3, FEE_FLOOR_SSCL, T_MAX_WAIT_MS};
+    use crate::transfer_public_inputs::{TransferPublicInputsP3, FEE_FLOOR_SSCL};
     let fee = FEE_FLOOR_SSCL;
     let sum_inputs: u64 = witnesses.ownership.iter().map(|w| w.value).sum();
-    let now_ms = 1_700_000_000_000u64;
     let pi = TransferPublicInputsP3 {
         fee_total_sscl: fee,
         sum_inputs_sscl: sum_inputs,
         sum_outputs_sscl: sum_inputs - fee,
         crypto_version: 0x01,
-        entry_timestamp_ms: now_ms - T_MAX_WAIT_MS / 2,
-        current_timestamp_ms: now_ms,
+        current_subepoch_id: 1_000,
+        target_subepoch_id: 1_000,
         utxo_set_root: active_root,
         cb_membership_verified: true,
         nullifier_active_root: active_root,

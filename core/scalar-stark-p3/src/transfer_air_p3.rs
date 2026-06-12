@@ -53,10 +53,10 @@ use p3_goldilocks::Goldilocks;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{prove_with_preprocessed, verify};
 
+use crate::cg_arith::cg_validity;
 use crate::config::{build_scalar_config, ScalarStarkConfig};
 use crate::transfer_public_inputs::{
-    check_all_constraints, TransferPublicInputsP3, FEE_FLOOR_SSCL, T_MAX_WAIT_MS,
-    VALID_CRYPTO_VERSION,
+    check_all_constraints, TransferPublicInputsP3, FEE_FLOOR_SSCL, VALID_CRYPTO_VERSION,
 };
 
 // ── Trace layout constants — OSSIFIED ─────────────────────────────────────────
@@ -68,48 +68,45 @@ use crate::transfer_public_inputs::{
 // Bit cols: COL_FEE_BIT_0..51 (52), COL_TS_SLACK_BIT_0..20 (21)
 // Auxiliary cols: COL_FEE_ABOVE_FLOOR, COL_TS_DELTA, COL_TS_SLACK_AUX
 // Total new cols: 52 + 21 + 3 = 76 → width 20 + 76 = 96
-pub const TRANSFER_TRACE_WIDTH: usize = 96; // A-R11: +76 range-proof cols
+pub const TRANSFER_TRACE_WIDTH: usize = 112; // G-07b: 20 base/aux/hash + 52 fee bits + 40 target bits
 
 pub const COL_FEE: usize = 0;
 pub const COL_SUM_IN: usize = 1;
 pub const COL_SUM_OUT: usize = 2;
 pub const COL_VERSION: usize = 3;
-pub const COL_ENTRY_TS_LO: usize = 4;
-pub const COL_ENTRY_TS_HI: usize = 5;
-pub const COL_CURRENT_TS_LO: usize = 6;
-pub const COL_CURRENT_TS_HI: usize = 7;
-pub const COL_CB_VERIFIED: usize = 8;
-pub const COL_CC_VERIFIED: usize = 9;
-pub const COL_OUTPUT_NONZERO: usize = 10;
-pub const COL_SINGLE_SOURCE: usize = 11;
+// CG-ARITH (G-07b): sub-epoch sequential validity — wall-clock amputated.
+pub const COL_CURRENT_SUBEPOCH: usize = 4;
+pub const COL_TARGET_SUBEPOCH: usize = 5;
+pub const COL_CG_VALIDITY: usize = 6;
+pub const COL_CB_VERIFIED: usize = 7;
+pub const COL_CC_VERIFIED: usize = 8;
+pub const COL_OUTPUT_NONZERO: usize = 9;
+pub const COL_SINGLE_SOURCE: usize = 10;
 
 // A-R9 cross-binding columns.
-pub const COL_COMMITMENT_HASH_0: usize = 12;
-pub const COL_COMMITMENT_HASH_1: usize = 13;
-pub const COL_COMMITMENT_HASH_2: usize = 14;
-pub const COL_COMMITMENT_HASH_3: usize = 15;
-pub const COL_NULLIFIER_HASH_0: usize = 16;
-pub const COL_NULLIFIER_HASH_1: usize = 17;
-pub const COL_NULLIFIER_HASH_2: usize = 18;
-pub const COL_NULLIFIER_HASH_3: usize = 19;
+pub const COL_COMMITMENT_HASH_0: usize = 11;
+pub const COL_COMMITMENT_HASH_1: usize = 12;
+pub const COL_COMMITMENT_HASH_2: usize = 13;
+pub const COL_COMMITMENT_HASH_3: usize = 14;
+pub const COL_NULLIFIER_HASH_0: usize = 15;
+pub const COL_NULLIFIER_HASH_1: usize = 16;
+pub const COL_NULLIFIER_HASH_2: usize = 17;
+pub const COL_NULLIFIER_HASH_3: usize = 18;
 
-// A-R11: range-proof auxiliary columns.
+// A-R11: range-proof auxiliary column.
 /// fee_above_floor = fee - FEE_FLOOR_SSCL. Must be in [0, 2^52). Spec §9.1, D-012.
-pub const COL_FEE_ABOVE_FLOOR: usize = 20;
-/// ts_delta = current_ts - entry_ts (ms). Reconstructed from entry/current cols. D-012.
-pub const COL_TS_DELTA: usize = 21;
-/// ts_slack = T_MAX_WAIT_MS - ts_delta. Must be in [0, 2^21). Spec §4.3 CG, D-012.
-pub const COL_TS_SLACK: usize = 22;
+pub const COL_FEE_ABOVE_FLOOR: usize = 19;
 
 // A-R11: fee_above_floor bit decomposition — 52 bits (covers S_MAX ≈ 2^51 sSCL).
-pub const COL_FEE_BIT_START: usize = 23;
+pub const COL_FEE_BIT_START: usize = 20;
 pub const FEE_BIT_COUNT: usize = 52;
-// cols 23..74 inclusive
+// cols 20..71 inclusive
 
-// A-R11: ts_slack bit decomposition — 21 bits (T_MAX_WAIT_MS = 1_800_000 < 2^21).
-pub const COL_TS_SLACK_BIT_START: usize = 75;
-pub const TS_SLACK_BIT_COUNT: usize = 21;
-// cols 75..95 inclusive
+// CG-ARITH (G-07b): target_subepoch_id 40-bit decomposition — OSSIFIED B=40
+// order-guard / Goldilocks-underflow prevention. SCALAR-TECHNICAL §2.9.
+pub const COL_TARGET_BIT_START: usize = 72;
+pub const TARGET_BIT_COUNT: usize = 40;
+// cols 72..111 inclusive
 
 // ── TransferAirP3 ─────────────────────────────────────────────────────────────
 
@@ -137,10 +134,9 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
         let sum_in = local[COL_SUM_IN];
         let sum_out = local[COL_SUM_OUT];
         let version = local[COL_VERSION];
-        let entry_lo = local[COL_ENTRY_TS_LO];
-        let entry_hi = local[COL_ENTRY_TS_HI];
-        let current_lo = local[COL_CURRENT_TS_LO];
-        let current_hi = local[COL_CURRENT_TS_HI];
+        let current_subepoch = local[COL_CURRENT_SUBEPOCH];
+        let target_subepoch = local[COL_TARGET_SUBEPOCH];
+        let validity = local[COL_CG_VALIDITY];
         let cb_ok = local[COL_CB_VERIFIED];
         let cc_ok = local[COL_CC_VERIFIED];
         let out_nz = local[COL_OUTPUT_NONZERO];
@@ -186,42 +182,29 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
         let valid_version = AB::F::from_u64(VALID_CRYPTO_VERSION as u64);
         builder.assert_eq(version.into(), valid_version);
 
-        // ── CG: Timestamp window — in-circuit range proof (A-R11, D-012) ─────
-        // Proves current_ts - entry_ts <= T_MAX_WAIT_MS via bit decomposition
-        // of ts_slack = T_MAX_WAIT_MS - (current_ts - entry_ts).
-        // Constraints:
-        //   (1) ts_delta == current_ts - entry_ts  (from lo/hi cols)
-        //   (2) ts_delta + ts_slack == T_MAX_WAIT_MS  (slack definition)
-        //   (3) each ts_slack bit b_i ∈ {0,1}
-        //   (4) ts_slack == Σ b_i * 2^i
-        //   (5) order guard: ts_delta column must be non-negative.
-        //       Enforced by asserting ts_delta == current_ts_reconstructed - entry_ts_reconstructed
-        //       AND ts_slack reconstruction. If current < entry, slack would exceed 2^21, failing (4).
-        // Spec §4.3 CG, D-012.
-        let two32 = AB::F::from_u64(1u64 << 32);
-        let entry_ts: AB::Expr = entry_lo.into() + entry_hi * two32.clone();
-        let current_ts: AB::Expr = current_lo.into() + current_hi * two32.clone();
-        let ts_delta = local[COL_TS_DELTA];
-        let ts_slack = local[COL_TS_SLACK];
-        let t_max = AB::F::from_u64(T_MAX_WAIT_MS);
-        // (1) ts_delta == current_ts - entry_ts
-        builder.assert_eq(ts_delta.into(), current_ts - entry_ts);
-        // (2) ts_delta + ts_slack == T_MAX_WAIT_MS
-        builder.assert_eq(ts_delta.into() + ts_slack.into(), t_max);
-        // (3+4) bit decomposition of ts_slack
+        // ── CG-ARITH: Sequential sub-epoch validity (G-07b — wall-clock amputated) ──
+        // Spec: SCALAR-TECHNICAL §2.9. B = 40 (OSSIFIED order-guard range width).
+        //   (1) current_subepoch == target_subepoch + validity   (order/definition)
+        //   (2) validity * (validity - 1) == 0                    (validity ∈ {0,1}, i.e. <= 1)
+        //   (3) target_subepoch == Σ b_i * 2^i over 40 bits       (target < 2^40: underflow guard)
+        // (1)
+        builder.assert_eq(
+            current_subepoch.into(),
+            target_subepoch.into() + validity.into(),
+        );
+        // (2)
+        builder.assert_zero(validity * (validity - AB::F::ONE));
+        // (3) 40-bit decomposition of target_subepoch (prevents Goldilocks underflow at target ≈ p)
         {
             let mut reconstructed: AB::Expr = AB::F::ZERO.into();
             let mut power: AB::Expr = AB::F::ONE.into();
-            for i in 0..TS_SLACK_BIT_COUNT {
-                let bit = local[COL_TS_SLACK_BIT_START + i];
-                // b_i ∈ {0,1}
+            for i in 0..TARGET_BIT_COUNT {
+                let bit = local[COL_TARGET_BIT_START + i];
                 builder.assert_zero(bit * (bit - AB::F::ONE));
-                // accumulate
                 reconstructed += bit * power.clone();
                 power *= AB::F::from_u64(2u64);
             }
-            // ts_slack == Σ b_i * 2^i  — proves ts_slack ∈ [0, 2^21)
-            builder.assert_eq(ts_slack.into(), reconstructed);
+            builder.assert_eq(target_subepoch.into(), reconstructed);
         }
 
         // ── CB: Membership verified flag ──────────────────────────────────────
@@ -289,12 +272,10 @@ pub fn build_transfer_trace(
     // A-R11: compute auxiliary witness values for range proof columns.
     // fee_above_floor = fee - FEE_FLOOR_SSCL (must be in [0, 2^52))
     let fee_above_floor = pi.fee_total_sscl.saturating_sub(FEE_FLOOR_SSCL);
-    // ts_delta = current_ts - entry_ts (ms). Order guaranteed by pre-flight.
-    let ts_delta = pi
-        .current_timestamp_ms
-        .saturating_sub(pi.entry_timestamp_ms);
-    // ts_slack = T_MAX_WAIT_MS - ts_delta (must be in [0, 2^21))
-    let ts_slack = T_MAX_WAIT_MS.saturating_sub(ts_delta);
+    // CG-ARITH witness (G-07b): validity = current_subepoch - target_subepoch.
+    // Single source of truth: crate::cg_arith (OSSIFIED). Pre-flight rejects invalid.
+    let cg_validity_val = cg_validity(pi.current_subepoch_id, pi.target_subepoch_id)
+        .expect("CG-ARITH: current < target or validity > 1 — pre-flight must reject first");
 
     // Build 52-bit decomposition of fee_above_floor.
     let mut fee_bits = [0u64; FEE_BIT_COUNT];
@@ -302,10 +283,10 @@ pub fn build_transfer_trace(
         *bit = (fee_above_floor >> i) & 1;
     }
 
-    // Build 21-bit decomposition of ts_slack.
-    let mut ts_slack_bits = [0u64; TS_SLACK_BIT_COUNT];
-    for (i, bit) in ts_slack_bits.iter_mut().enumerate() {
-        *bit = (ts_slack >> i) & 1;
+    // Build 40-bit decomposition of target_subepoch_id (order-guard range proof).
+    let mut target_bits = [0u64; TARGET_BIT_COUNT];
+    for (i, bit) in target_bits.iter_mut().enumerate() {
+        *bit = (pi.target_subepoch_id >> i) & 1;
     }
 
     // Assemble full row [TRANSFER_TRACE_WIDTH = 96].
@@ -315,10 +296,9 @@ pub fn build_transfer_trace(
     row[COL_SUM_IN] = Goldilocks::new(pi.sum_inputs_sscl);
     row[COL_SUM_OUT] = Goldilocks::new(pi.sum_outputs_sscl);
     row[COL_VERSION] = Goldilocks::new(pi.crypto_version as u64);
-    row[COL_ENTRY_TS_LO] = Goldilocks::new(pi.entry_timestamp_ms & 0xFFFF_FFFF);
-    row[COL_ENTRY_TS_HI] = Goldilocks::new(pi.entry_timestamp_ms >> 32);
-    row[COL_CURRENT_TS_LO] = Goldilocks::new(pi.current_timestamp_ms & 0xFFFF_FFFF);
-    row[COL_CURRENT_TS_HI] = Goldilocks::new(pi.current_timestamp_ms >> 32);
+    row[COL_CURRENT_SUBEPOCH] = Goldilocks::new(pi.current_subepoch_id);
+    row[COL_TARGET_SUBEPOCH] = Goldilocks::new(pi.target_subepoch_id);
+    row[COL_CG_VALIDITY] = Goldilocks::new(cg_validity_val);
     row[COL_CB_VERIFIED] = Goldilocks::new(pi.cb_membership_verified as u64);
     row[COL_CC_VERIFIED] = Goldilocks::new(pi.cc_nonmembership_verified as u64);
     row[COL_OUTPUT_NONZERO] = Goldilocks::new(pi.output_nonzero as u64);
@@ -334,15 +314,13 @@ pub fn build_transfer_trace(
     row[COL_NULLIFIER_HASH_3] = Goldilocks::new(pi.nullifier_hash[3]);
     // cols 20..22: A-R11 auxiliary
     row[COL_FEE_ABOVE_FLOOR] = Goldilocks::new(fee_above_floor);
-    row[COL_TS_DELTA] = Goldilocks::new(ts_delta);
-    row[COL_TS_SLACK] = Goldilocks::new(ts_slack);
     // cols 23..74: fee bit decomposition
     for i in 0..FEE_BIT_COUNT {
         row[COL_FEE_BIT_START + i] = Goldilocks::new(fee_bits[i]);
     }
-    // cols 75..95: ts_slack bit decomposition
-    for i in 0..TS_SLACK_BIT_COUNT {
-        row[COL_TS_SLACK_BIT_START + i] = Goldilocks::new(ts_slack_bits[i]);
+    // cols 72..111: target_subepoch_id bit decomposition
+    for i in 0..TARGET_BIT_COUNT {
+        row[COL_TARGET_BIT_START + i] = Goldilocks::new(target_bits[i]);
     }
 
     // Replicate single row across all trace rows (steady-state constraint).
@@ -410,7 +388,6 @@ pub fn verify_transfer_p3(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transfer_public_inputs::T_MAX_WAIT_MS;
     use p3_matrix::Matrix;
 
     fn valid_pi() -> TransferPublicInputsP3 {
@@ -419,8 +396,8 @@ mod tests {
             sum_inputs_sscl: 1_000_000_040,
             sum_outputs_sscl: 1_000_000_000,
             crypto_version: 0x01,
-            entry_timestamp_ms: 1_000_000_000,
-            current_timestamp_ms: 1_000_060_000,
+            current_subepoch_id: 1_000,
+            target_subepoch_id: 1_000,
             utxo_set_root: [0x42u8; 32],
             cb_membership_verified: true,
             nullifier_active_root: [0xAAu8; 32],
@@ -435,7 +412,7 @@ mod tests {
 
     #[test]
     fn test_trace_width_ossified() {
-        assert_eq!(TRANSFER_TRACE_WIDTH, 96); // 20 base + 8 A-R9 + 76 A-R11 range cols
+        assert_eq!(TRANSFER_TRACE_WIDTH, 112); // 20 base/aux/hash + 52 fee bits + 40 target bits
     }
 
     #[test]
@@ -520,7 +497,7 @@ mod tests {
     fn test_transfer_cg_expired_rejected() {
         // CG: expired tx → pre-flight rejects. Spec §4.3 CG.
         let mut pi = valid_pi();
-        pi.current_timestamp_ms = pi.entry_timestamp_ms + T_MAX_WAIT_MS + 1;
+        pi.current_subepoch_id = pi.target_subepoch_id + 2; // validity = 2 > 1 -> rejected
         let result = prove_transfer_p3(&pi);
         assert!(matches!(
             result,
@@ -573,58 +550,36 @@ mod tests {
         );
     }
 
-    /// A-R11 falsifiability: expired timestamp → STARK AIR constraint fails.
-    ///
-    /// ts_delta = current - entry > T_MAX_WAIT_MS → ts_slack saturates to 0,
-    /// but ts_delta + 0 != T_MAX_WAIT_MS → AIR constraint (2) fails → prover panics.
-    /// Spec §4.3 CG, D-012.
+    /// CG-ARITH falsifiability: validity > 1 is rejected at trace build
+    /// (cg_arith reference; pre-flight also returns Err(3)). SCALAR-TECHNICAL §2.9.
     #[test]
-    fn test_ar11_expired_timestamp_stark_rejects() {
+    fn test_cg_arith_validity_too_large_rejected() {
         use std::panic;
-        let air = TransferAirP3;
-
         let mut pi = valid_pi();
-        pi.current_timestamp_ms = pi.entry_timestamp_ms + T_MAX_WAIT_MS + 1_000;
-
-        let trace = build_transfer_trace(&pi, 8);
-        let public_values = pi.to_goldilocks();
-        let config = build_scalar_config();
-
+        pi.current_subepoch_id = pi.target_subepoch_id + 2; // validity = 2 > 1
         let result = panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            p3_uni_stark::prove_with_preprocessed(&config, &air, trace, &public_values, None)
+            build_transfer_trace(&pi, 8)
         }));
         assert!(
             result.is_err(),
-            "STARK AIR must reject trace with expired timestamp (A-R11 D-012)"
+            "trace build must reject validity > 1 (CG-ARITH §2.9)"
         );
     }
 
-    /// A-R11 falsifiability: current_ts < entry_ts (order violation) → STARK rejects.
-    ///
-    /// ts_delta saturates to 0 (u64 underflow guard), ts_slack = T_MAX_WAIT_MS,
-    /// but AIR reconstructs ts_delta from lo/hi cols of current_ts and entry_ts —
-    /// field arithmetic: current_ts_field - entry_ts_field wraps mod p (huge value) ≠ 0 →
-    /// constraint (1) ts_delta == current - entry fails → prover panics.
-    /// Spec §4.3 CG, D-012.
+    /// CG-ARITH falsifiability: current < target (order violation) is rejected at
+    /// trace build (Goldilocks-underflow guard; pre-flight also Err(3)). §2.9.
     #[test]
-    fn test_ar11_timestamp_order_violation_stark_rejects() {
+    fn test_cg_arith_order_violation_rejected() {
         use std::panic;
-        let air = TransferAirP3;
-
         let mut pi = valid_pi();
-        pi.entry_timestamp_ms = 2_000_000_000;
-        pi.current_timestamp_ms = 1_000_000_000; // current < entry
-
-        let trace = build_transfer_trace(&pi, 8);
-        let public_values = pi.to_goldilocks();
-        let config = build_scalar_config();
-
+        pi.current_subepoch_id = 500;
+        pi.target_subepoch_id = 1_000; // current < target
         let result = panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            p3_uni_stark::prove_with_preprocessed(&config, &air, trace, &public_values, None)
+            build_transfer_trace(&pi, 8)
         }));
         assert!(
             result.is_err(),
-            "STARK AIR must reject trace with current_ts < entry_ts (A-R11 D-012)"
+            "trace build must reject current < target (CG-ARITH §2.9)"
         );
     }
 }
