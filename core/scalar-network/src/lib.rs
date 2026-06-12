@@ -10,6 +10,7 @@ pub mod gossip;
 pub mod gss;
 pub mod heartbeat_verifier;
 pub mod hybrid_peer;
+pub mod micro_commit;
 pub mod nmt;
 pub mod nmt_hybrid;
 pub mod node_score;
