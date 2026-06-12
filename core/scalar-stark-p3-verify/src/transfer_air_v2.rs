@@ -8,13 +8,13 @@
 //!   CD  — Fee floor: fee >= 40 sSCL via 52-bit decomposition (D-012)
 //!   CE  — Output non-zero
 //!   CG  — Crypto version == 0x01
-//!   CG  — Timestamp window via 21-bit ts_slack decomposition (D-012)
+//!   CG  — Sequential sub-epoch validity (CG-ARITH, B=40, §2.9)
 //!   CB  — Membership verified flag
 //!   CC  — Non-membership verified flag
 //!   INV-4.6 — Single UTXO source
 //!   A-R9 — Cross-binding commitment/nullifier hashes
 //!
-//! Trace layout MUST match scalar-stark-p3 exactly (OSSIFIED width=96).
+//! Trace layout MUST match scalar-stark-p3 exactly (OSSIFIED width=112).
 
 use p3_air::{Air, AirBuilder, BaseAir, WindowAccess};
 use p3_field::PrimeCharacteristicRing;
@@ -25,34 +25,32 @@ use p3_matrix::dense::RowMajorMatrix;
 // These are re-stated independently (not imported) to verify consistency.
 
 /// Trace width. OSSIFIED — must equal scalar-stark-p3::TRANSFER_TRACE_WIDTH.
-pub const TRANSFER_TRACE_WIDTH_V2: usize = 96;
+pub const TRANSFER_TRACE_WIDTH_V2: usize = 112;
 
-// Column indices — re-stated from spec §4.3 trace layout, not imported.
+// Column indices — re-stated from spec §2.9 trace layout, not imported.
 const COL_FEE: usize = 0;
 const COL_SUM_IN: usize = 1;
 const COL_SUM_OUT: usize = 2;
 const COL_VERSION: usize = 3;
-const COL_ENTRY_TS_LO: usize = 4;
-const COL_ENTRY_TS_HI: usize = 5;
-const COL_CURRENT_TS_LO: usize = 6;
-const COL_CURRENT_TS_HI: usize = 7;
-const COL_CB_VERIFIED: usize = 8;
-const COL_CC_VERIFIED: usize = 9;
-const COL_OUTPUT_NONZERO: usize = 10;
-const COL_SINGLE_SOURCE: usize = 11;
-// 12..19: A-R9 cross-binding (commitment_hash[4] + nullifier_hash[4])
-const COL_FEE_ABOVE_FLOOR: usize = 20;
-const COL_TS_DELTA: usize = 21;
-const COL_TS_SLACK: usize = 22;
-const COL_FEE_BIT_START: usize = 23;
+// CG-ARITH (G-07b): sub-epoch sequential validity — wall-clock amputated.
+const COL_CURRENT_SUBEPOCH: usize = 4;
+const COL_TARGET_SUBEPOCH: usize = 5;
+const COL_CG_VALIDITY: usize = 6;
+const COL_CB_VERIFIED: usize = 7;
+const COL_CC_VERIFIED: usize = 8;
+const COL_OUTPUT_NONZERO: usize = 9;
+const COL_SINGLE_SOURCE: usize = 10;
+// 11..18: A-R9 cross-binding (commitment_hash[4] + nullifier_hash[4])
+const COL_FEE_ABOVE_FLOOR: usize = 19;
+const COL_FEE_BIT_START: usize = 20;
 const FEE_BIT_COUNT: usize = 52;
-const COL_TS_SLACK_BIT_START: usize = 75;
-const TS_SLACK_BIT_COUNT: usize = 21;
+// cols 20..71 inclusive
+const COL_TARGET_BIT_START: usize = 72;
+const TARGET_BIT_COUNT: usize = 40;
+// cols 72..111 inclusive
 
 /// Fee floor in sSCL. OSSIFIED — spec §9.1.
 const FEE_FLOOR_SSCL: u64 = 40;
-/// T_MAX_WAIT in ms. CONSTRAINED — D-026, MAD §21.2 (not OSSIFIED).
-const T_MAX_WAIT_MS: u64 = 30 * 60 * 1_000;
 /// Valid crypto version. OSSIFIED — spec §4.3 CG.
 const VALID_CRYPTO_VERSION: u64 = 0x01;
 
@@ -75,7 +73,7 @@ impl<F: PrimeCharacteristicRing + Sync> BaseAir<F> for TransferAirV2 {
         vec![]
     }
     // num_public_values() intentionally NOT overridden → default = 0.
-    // TransferAirP3 also uses default = 0. Public values (44 elem) are passed
+    // TransferAirP3 also uses default = 0. Public values (41 elem) are passed
     // via transcript, not encoded in AirLayout. Spec §15.3.
 }
 
@@ -88,17 +86,14 @@ impl<AB: AirBuilder> Air<AB> for TransferAirV2 {
         let sum_in = local[COL_SUM_IN];
         let sum_out = local[COL_SUM_OUT];
         let version = local[COL_VERSION];
-        let entry_lo = local[COL_ENTRY_TS_LO];
-        let entry_hi = local[COL_ENTRY_TS_HI];
-        let current_lo = local[COL_CURRENT_TS_LO];
-        let current_hi = local[COL_CURRENT_TS_HI];
+        let current_subepoch = local[COL_CURRENT_SUBEPOCH];
+        let target_subepoch = local[COL_TARGET_SUBEPOCH];
+        let validity = local[COL_CG_VALIDITY];
         let cb_ok = local[COL_CB_VERIFIED];
         let cc_ok = local[COL_CC_VERIFIED];
         let out_nz = local[COL_OUTPUT_NONZERO];
         let single_src = local[COL_SINGLE_SOURCE];
         let fee_above_floor = local[COL_FEE_ABOVE_FLOOR];
-        let ts_delta = local[COL_TS_DELTA];
-        let ts_slack = local[COL_TS_SLACK];
 
         // ── CD: Value conservation ────────────────────────────────────────────
         // sum_inputs == sum_outputs + fee → sum_in - sum_out - fee == 0
@@ -124,28 +119,26 @@ impl<AB: AirBuilder> Air<AB> for TransferAirV2 {
         // ── CG: Crypto version ────────────────────────────────────────────────
         builder.assert_eq(version.into(), AB::F::from_u64(VALID_CRYPTO_VERSION));
 
-        // ── CG: Timestamp window — 21-bit ts_slack range proof (D-012) ───────
-        let two32 = AB::F::from_u64(1u64 << 32);
-        let entry_ts: AB::Expr = entry_lo.into() + entry_hi * two32.clone();
-        let current_ts: AB::Expr = current_lo.into() + current_hi * two32;
-        // ts_delta == current_ts - entry_ts
-        builder.assert_eq(ts_delta.into(), current_ts - entry_ts);
-        // ts_delta + ts_slack == T_MAX_WAIT_MS
+        // ── CG-ARITH: Sequential sub-epoch validity (independent re-impl) ─────
+        // Spec §2.9. B=40 (OSSIFIED). Mirrors scalar-stark-p3 constraints exactly.
+        //   (1) current_subepoch == target_subepoch + validity
+        //   (2) validity * (validity - 1) == 0          (validity <= 1)
+        //   (3) target_subepoch == Σ b_i 2^i over 40 bits (target < 2^40 underflow guard)
         builder.assert_eq(
-            ts_delta.into() + ts_slack.into(),
-            AB::F::from_u64(T_MAX_WAIT_MS),
+            current_subepoch.into(),
+            target_subepoch.into() + validity.into(),
         );
-        // ts_slack bit decomposition (proves ts_slack in [0, 2^21))
+        builder.assert_zero(validity * (validity - AB::F::ONE));
         {
             let mut reconstructed: AB::Expr = AB::F::ZERO.into();
             let mut power: AB::Expr = AB::F::ONE.into();
-            for i in 0..TS_SLACK_BIT_COUNT {
-                let bit = local[COL_TS_SLACK_BIT_START + i];
+            for i in 0..TARGET_BIT_COUNT {
+                let bit = local[COL_TARGET_BIT_START + i];
                 builder.assert_zero(bit * (bit - AB::F::ONE));
                 reconstructed += bit * power.clone();
                 power *= AB::F::from_u64(2u64);
             }
-            builder.assert_eq(ts_slack.into(), reconstructed);
+            builder.assert_eq(target_subepoch.into(), reconstructed);
         }
 
         // ── CB: Membership verified ───────────────────────────────────────────
@@ -176,8 +169,8 @@ pub fn build_transfer_trace_v2(
     sum_in: u64,
     sum_out: u64,
     crypto_version: u8,
-    entry_ts_ms: u64,
-    current_ts_ms: u64,
+    current_subepoch_id: u64,
+    target_subepoch_id: u64,
     cb_ok: bool,
     cc_ok: bool,
     output_nonzero: bool,
@@ -189,16 +182,16 @@ pub fn build_transfer_trace_v2(
     assert!(num_rows.is_power_of_two());
 
     let fee_above_floor = fee.saturating_sub(FEE_FLOOR_SSCL);
-    let ts_delta = current_ts_ms.saturating_sub(entry_ts_ms);
-    let ts_slack = T_MAX_WAIT_MS.saturating_sub(ts_delta);
+    // CG-ARITH (independent): validity = current_subepoch - target_subepoch.
+    let cg_validity = current_subepoch_id.saturating_sub(target_subepoch_id);
 
     let mut fee_bits = [0u64; FEE_BIT_COUNT];
     for (i, b) in fee_bits.iter_mut().enumerate() {
         *b = (fee_above_floor >> i) & 1;
     }
-    let mut ts_bits = [0u64; TS_SLACK_BIT_COUNT];
-    for (i, b) in ts_bits.iter_mut().enumerate() {
-        *b = (ts_slack >> i) & 1;
+    let mut target_bits = [0u64; TARGET_BIT_COUNT];
+    for (i, b) in target_bits.iter_mut().enumerate() {
+        *b = (target_subepoch_id >> i) & 1;
     }
 
     let mut row = [Goldilocks::new(0u64); TRANSFER_TRACE_WIDTH_V2];
@@ -206,30 +199,27 @@ pub fn build_transfer_trace_v2(
     row[COL_SUM_IN] = Goldilocks::new(sum_in);
     row[COL_SUM_OUT] = Goldilocks::new(sum_out);
     row[COL_VERSION] = Goldilocks::new(crypto_version as u64);
-    row[COL_ENTRY_TS_LO] = Goldilocks::new(entry_ts_ms & 0xFFFF_FFFF);
-    row[COL_ENTRY_TS_HI] = Goldilocks::new(entry_ts_ms >> 32);
-    row[COL_CURRENT_TS_LO] = Goldilocks::new(current_ts_ms & 0xFFFF_FFFF);
-    row[COL_CURRENT_TS_HI] = Goldilocks::new(current_ts_ms >> 32);
+    row[COL_CURRENT_SUBEPOCH] = Goldilocks::new(current_subepoch_id);
+    row[COL_TARGET_SUBEPOCH] = Goldilocks::new(target_subepoch_id);
+    row[COL_CG_VALIDITY] = Goldilocks::new(cg_validity);
     row[COL_CB_VERIFIED] = Goldilocks::new(cb_ok as u64);
     row[COL_CC_VERIFIED] = Goldilocks::new(cc_ok as u64);
     row[COL_OUTPUT_NONZERO] = Goldilocks::new(output_nonzero as u64);
     row[COL_SINGLE_SOURCE] = Goldilocks::new(single_source as u64);
-    row[12] = Goldilocks::new(commitment_hash[0]);
-    row[13] = Goldilocks::new(commitment_hash[1]);
-    row[14] = Goldilocks::new(commitment_hash[2]);
-    row[15] = Goldilocks::new(commitment_hash[3]);
-    row[16] = Goldilocks::new(nullifier_hash[0]);
-    row[17] = Goldilocks::new(nullifier_hash[1]);
-    row[18] = Goldilocks::new(nullifier_hash[2]);
-    row[19] = Goldilocks::new(nullifier_hash[3]);
+    row[11] = Goldilocks::new(commitment_hash[0]);
+    row[12] = Goldilocks::new(commitment_hash[1]);
+    row[13] = Goldilocks::new(commitment_hash[2]);
+    row[14] = Goldilocks::new(commitment_hash[3]);
+    row[15] = Goldilocks::new(nullifier_hash[0]);
+    row[16] = Goldilocks::new(nullifier_hash[1]);
+    row[17] = Goldilocks::new(nullifier_hash[2]);
+    row[18] = Goldilocks::new(nullifier_hash[3]);
     row[COL_FEE_ABOVE_FLOOR] = Goldilocks::new(fee_above_floor);
-    row[COL_TS_DELTA] = Goldilocks::new(ts_delta);
-    row[COL_TS_SLACK] = Goldilocks::new(ts_slack);
     for i in 0..FEE_BIT_COUNT {
         row[COL_FEE_BIT_START + i] = Goldilocks::new(fee_bits[i]);
     }
-    for i in 0..TS_SLACK_BIT_COUNT {
-        row[COL_TS_SLACK_BIT_START + i] = Goldilocks::new(ts_bits[i]);
+    for i in 0..TARGET_BIT_COUNT {
+        row[COL_TARGET_BIT_START + i] = Goldilocks::new(target_bits[i]);
     }
 
     let mut vals = vec![Goldilocks::new(0); num_rows * TRANSFER_TRACE_WIDTH_V2];
