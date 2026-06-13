@@ -3061,6 +3061,8 @@ name = "scalar-consensus"
 version = "0.1.0"
 dependencies = [
  "scalar-nullifier",
+ "scalar-stark-p3",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

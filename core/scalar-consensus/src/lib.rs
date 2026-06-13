@@ -1,3 +1,4 @@
+pub mod commit_stark;
 pub mod formal;
 // File: crates/scalar-consensus/src/lib.rs
 //
