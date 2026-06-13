@@ -15,4 +15,5 @@ pub mod nmt_production;
 pub mod node_id;
 pub mod swarm;
 
+pub mod cg_window;
 pub mod keystore;
