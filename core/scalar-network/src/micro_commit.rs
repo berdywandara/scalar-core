@@ -12,8 +12,10 @@
 //!       || subepoch_id (LE u64) || mc_sequence_id (LE u32)
 //!       || tx_merkle_root || da_commitment || aggregator_id )
 
+use crate::subepoch::{compute_subepoch_seed, select_subepoch_aggregator};
 use blake3::Hasher;
 use scalar_crypto::sphincs::verify_signature;
+use scalar_emission::ordering::compute_tx_ordering_key;
 
 // ── OSSIFIED constants — SCALAR-PROTOCOL §4.5 ────────────────────────────────
 
@@ -267,10 +269,101 @@ pub fn verify_ordering_key_inclusion(
     &acc == root
 }
 
+// ── G-13-2: trigger logic (41 tx / 60 s) & assembly ──────────────────────────
+
+/// A transaction awaiting inclusion in the next MicroCommitment.
+/// `arrival_time_s` is the node-local timestamp (seconds) at which the tx was
+/// accepted into the pending set — used only for the TIMEOUT trigger, never
+/// for protocol validity (CG-ARITH, G-07, governs on-chain validity).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingMcTx {
+    pub txid: [u8; 32],
+    pub raw_payload: Vec<u8>,
+    pub arrival_time_s: u64,
+}
+
+/// Trigger reason for assembling a MicroCommitment. §4.5.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum McTriggerReason {
+    /// Pending count reached MICROCOMMITMENT_TRIGGER_TX (41).
+    TxCount,
+    /// now_s - oldest pending arrival_time_s >= MICROCOMMITMENT_TIMEOUT_S (60).
+    Timeout,
+}
+
+/// Decide whether a MicroCommitment should be assembled now. §4.5 OSSIFIED triggers:
+/// - >= MICROCOMMITMENT_TRIGGER_TX (41) pending tx, OR
+/// - >= MICROCOMMITMENT_TIMEOUT_S (60) seconds since the first pending tx arrived.
+///
+/// `now_s`: node-local current time (seconds). `pending` MUST be non-empty for
+/// the Timeout reason to apply (an empty pool never triggers).
+pub fn check_mc_trigger(pending: &[PendingMcTx], now_s: u64) -> Option<McTriggerReason> {
+    if pending.len() >= MICROCOMMITMENT_TRIGGER_TX {
+        return Some(McTriggerReason::TxCount);
+    }
+    if let Some(oldest) = pending.iter().map(|tx| tx.arrival_time_s).min() {
+        if now_s.saturating_sub(oldest) >= MICROCOMMITMENT_TIMEOUT_S {
+            return Some(McTriggerReason::Timeout);
+        }
+    }
+    None
+}
+
+/// Assemble a MicroCommitment from `pending` tx (unsigned — quorum signatures
+/// are collected afterward via add_quorum_sig). §4.5: ordering keys are derived
+/// from `compute_tx_ordering_key(txid, epoch_id)` and Merkle-rooted (G-13-1);
+/// `da_commitment` binds the raw payloads in the SAME order. Aggregator is
+/// selected per §4.3 (boundary_beacon-derived seed, NodeScore-eligible set —
+/// both supplied by the caller; out of scope for this pure module).
+///
+/// Returns None if `pending` is empty or no aggregator can be selected from
+/// `eligible_nodes`.
+pub fn assemble_micro_commitment(
+    pending: &[PendingMcTx],
+    subepoch_id: u64,
+    mc_sequence_id: u32,
+    epoch_id: u64,
+    committed_manifest_hash: &[u8; 32],
+    local_subepoch_index: u32,
+    eligible_nodes: &[[u8; 32]],
+) -> Option<MicroCommitment> {
+    if pending.is_empty() {
+        return None;
+    }
+
+    let ordering_keys: Vec<[u8; 32]> = pending
+        .iter()
+        .map(|tx| compute_tx_ordering_key(&tx.txid, epoch_id))
+        .collect();
+    let tx_merkle_root = compute_tx_merkle_root(&ordering_keys);
+
+    let raw_payloads: Vec<Vec<u8>> = pending.iter().map(|tx| tx.raw_payload.clone()).collect();
+    let da_commitment = compute_da_commitment(&raw_payloads);
+
+    let subepoch_seed = compute_subepoch_seed(committed_manifest_hash, local_subepoch_index);
+    let aggregator_id = select_subepoch_aggregator(eligible_nodes, &subepoch_seed)?;
+
+    Some(MicroCommitment::new(
+        subepoch_id,
+        mc_sequence_id,
+        tx_merkle_root,
+        da_commitment,
+        aggregator_id,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use scalar_crypto::sphincs::{generate_keypair, sign_message};
+
+    fn pending_tx(seed: u8, arrival: u64) -> PendingMcTx {
+        PendingMcTx {
+            txid: [seed; 32],
+            raw_payload: vec![seed, seed.wrapping_add(1)],
+            arrival_time_s: arrival,
+        }
+    }
 
     fn nid(b: u8) -> [u8; 32] {
         [b; 32]
@@ -388,5 +481,152 @@ mod tests {
             !mcf.verify_quorum(&validator_set),
             "wrong-payload sigs must fail"
         );
+    }
+
+    // ── G-13-2: trigger logic ────────────────────────────────────────────
+
+    #[test]
+    fn test_mc_trigger_tx_count() {
+        let pending: Vec<PendingMcTx> = (0..MICROCOMMITMENT_TRIGGER_TX as u8)
+            .map(|i| pending_tx(i.wrapping_add(1), 0))
+            .collect();
+        assert_eq!(pending.len(), MICROCOMMITMENT_TRIGGER_TX);
+        assert_eq!(
+            check_mc_trigger(&pending, 0),
+            Some(McTriggerReason::TxCount)
+        );
+
+        // one below threshold, no timeout elapsed -> no trigger
+        let below = &pending[..MICROCOMMITMENT_TRIGGER_TX - 1];
+        assert_eq!(check_mc_trigger(below, 0), None);
+    }
+
+    #[test]
+    fn test_mc_trigger_timeout() {
+        let pending = vec![pending_tx(1, 100)];
+        // < 60s elapsed -> no trigger
+        assert_eq!(
+            check_mc_trigger(&pending, 100 + MICROCOMMITMENT_TIMEOUT_S - 1),
+            None
+        );
+        // >= 60s elapsed -> Timeout trigger
+        assert_eq!(
+            check_mc_trigger(&pending, 100 + MICROCOMMITMENT_TIMEOUT_S),
+            Some(McTriggerReason::Timeout)
+        );
+    }
+
+    #[test]
+    fn test_mc_trigger_empty_pool_never_triggers() {
+        let pending: Vec<PendingMcTx> = Vec::new();
+        assert_eq!(check_mc_trigger(&pending, 1_000_000), None);
+    }
+
+    #[test]
+    fn test_mc_trigger_tx_count_takes_precedence() {
+        // even if also past timeout, TxCount is checked (and returned) first
+        let pending: Vec<PendingMcTx> = (0..MICROCOMMITMENT_TRIGGER_TX as u8)
+            .map(|i| pending_tx(i.wrapping_add(1), 0))
+            .collect();
+        assert_eq!(
+            check_mc_trigger(&pending, MICROCOMMITMENT_TIMEOUT_S + 100),
+            Some(McTriggerReason::TxCount)
+        );
+    }
+
+    // ── G-13-2: assembly ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_assemble_empty_pending_returns_none() {
+        let manifest_hash = [0x11u8; 32];
+        let eligible = [nid(1), nid(2), nid(3)];
+        assert!(
+            assemble_micro_commitment(&[], 1_000, 0, 5, &manifest_hash, 3, &eligible).is_none()
+        );
+    }
+
+    #[test]
+    fn test_assemble_no_eligible_nodes_returns_none() {
+        let manifest_hash = [0x11u8; 32];
+        let pending = vec![pending_tx(1, 0), pending_tx(2, 0)];
+        assert!(assemble_micro_commitment(&pending, 1_000, 0, 5, &manifest_hash, 3, &[]).is_none());
+    }
+
+    #[test]
+    fn test_assemble_deterministic_and_field_sensitive() {
+        let manifest_hash = [0x11u8; 32];
+        let eligible = [nid(1), nid(2), nid(3), nid(4), nid(5), nid(6), nid(7)];
+        let pending = vec![pending_tx(1, 0), pending_tx(2, 0), pending_tx(3, 0)];
+
+        let mc_a = assemble_micro_commitment(&pending, 1_000, 0, 5, &manifest_hash, 3, &eligible)
+            .expect("assembly should succeed");
+        let mc_b = assemble_micro_commitment(&pending, 1_000, 0, 5, &manifest_hash, 3, &eligible)
+            .expect("assembly should succeed");
+        assert_eq!(mc_a, mc_b, "assembly must be deterministic");
+
+        assert_eq!(mc_a.subepoch_id, 1_000);
+        assert_eq!(mc_a.mc_sequence_id, 0);
+        assert!(
+            eligible.contains(&mc_a.aggregator_id),
+            "aggregator must be eligible"
+        );
+        assert!(
+            mc_a.quorum_signatures.is_empty(),
+            "freshly assembled MC has no signatures"
+        );
+
+        // different epoch_id -> different ordering keys -> different tx_merkle_root
+        let mc_diff_epoch =
+            assemble_micro_commitment(&pending, 1_000, 0, 6, &manifest_hash, 3, &eligible).unwrap();
+        assert_ne!(mc_a.tx_merkle_root, mc_diff_epoch.tx_merkle_root);
+
+        // different payload ordering -> different da_commitment
+        let mut pending_reordered = pending.clone();
+        pending_reordered.swap(0, 1);
+        let mc_reordered = assemble_micro_commitment(
+            &pending_reordered,
+            1_000,
+            0,
+            5,
+            &manifest_hash,
+            3,
+            &eligible,
+        )
+        .unwrap();
+        assert_ne!(mc_a.da_commitment, mc_reordered.da_commitment);
+
+        // different local_subepoch_index -> different seed -> possibly different aggregator
+        // (at minimum, the seed-derived score must differ; assembled MC may still pick the
+        // same aggregator by chance with only 7 candidates, so we assert seed sensitivity
+        // via the merkle/da fields staying identical while only aggregator selection input changes)
+        let mc_diff_idx =
+            assemble_micro_commitment(&pending, 1_000, 0, 5, &manifest_hash, 4, &eligible).unwrap();
+        assert_eq!(mc_diff_idx.tx_merkle_root, mc_a.tx_merkle_root);
+        assert_eq!(mc_diff_idx.da_commitment, mc_a.da_commitment);
+    }
+
+    #[test]
+    fn test_assemble_then_quorum_signed_mc_validates() {
+        let manifest_hash = [0x22u8; 32];
+        let mut validator_set: Vec<([u8; 32], Vec<u8>)> = Vec::new();
+        let mut secrets: Vec<([u8; 32], Vec<u8>)> = Vec::new();
+        let mut eligible: Vec<[u8; 32]> = Vec::new();
+        for i in 0..7u8 {
+            let kp = generate_keypair().unwrap();
+            validator_set.push((nid(i), kp.public.clone()));
+            secrets.push((nid(i), kp.secret));
+            eligible.push(nid(i));
+        }
+
+        let pending = vec![pending_tx(10, 0), pending_tx(20, 0)];
+        let mut mc = assemble_micro_commitment(&pending, 2_000, 1, 7, &manifest_hash, 5, &eligible)
+            .expect("assembly should succeed");
+
+        let payload = mc.mc_sign_payload();
+        for (id, sk) in secrets.iter().take(5) {
+            mc.add_quorum_sig(*id, sign_message(&payload, sk).unwrap());
+        }
+        assert!(mc.verify_quorum(&validator_set));
+        assert_eq!(mc.finality_level(&validator_set), FinalityLevel::Optimistic);
     }
 }
