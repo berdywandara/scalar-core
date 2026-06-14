@@ -11,7 +11,7 @@
 //!   (sama dengan derive_node_key_epoch dari liveness.rs)
 //!
 //! Genesis object harus berisi:
-//!   - node_key_epoch_0_pubkey: [u8;64] — SPHINCS+ pubkey untuk epoch 0
+//!   - node_key_epoch_0_pubkey: [u8;32] — SLH-DSA-SHAKE-128s pubkey for epoch 0
 //!   - genesis_hash: BLAKE3(genesis_object_bytes minus genesis_hash field)
 //!
 //! Ini memungkinkan semua node verifikasi:
@@ -80,14 +80,14 @@ pub fn compute_genesis_prev_hash(genesis_object_bytes: &[u8]) -> [u8; 32] {
 /// Entry node dalam genesis object. Spec §12.10.
 ///
 /// Setiap founding node harus menyertakan NodeKey_epoch_0 pubkey.
-/// Verifikasi: SPHINCS+ pubkey valid (64 bytes untuk SHAKE-256s).
+/// Verification: SLH-DSA-SHAKE-128s pubkey valid (32 bytes). [SCALAR-SECURITY §1.2]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenesisNodeEntry {
     /// Compressed node_id = first 4 bytes BLAKE3(full_node_id). Spec §7.2.
     pub node_id: [u8; 4],
-    /// SPHINCS+ pubkey untuk epoch 0 (64 bytes). Spec §7.2a.
+    /// SLH-DSA-SHAKE-128s public key for epoch 0 (32 bytes). [SCALAR-SECURITY §1.2]
     /// Digunakan untuk verifikasi EpochAnchor epoch 0.
-    pub node_key_epoch_0_pubkey: [u8; 64],
+    pub node_key_epoch_0_pubkey: [u8; 32],
     /// NodeKey_epoch_0 = BLAKE3(NodeKey_0 || 0u64_le). Spec §7.2a.
     /// Digunakan untuk verifikasi MAC heartbeat epoch 0.
     pub node_key_epoch_0_mac_key: [u8; 32],
@@ -95,7 +95,7 @@ pub struct GenesisNodeEntry {
 
 impl GenesisNodeEntry {
     /// Buat GenesisNodeEntry baru. Spec §12.10.
-    pub fn new(node_id: [u8; 4], node_key_epoch_0_pubkey: [u8; 64], node_key_0: &[u8; 32]) -> Self {
+    pub fn new(node_id: [u8; 4], node_key_epoch_0_pubkey: [u8; 32], node_key_0: &[u8; 32]) -> Self {
         let node_key_epoch_0_mac_key = compute_node_key_epoch_0(node_key_0);
         Self {
             node_id,
@@ -294,23 +294,23 @@ mod tests {
     #[test]
     fn test_genesis_node_entry_fields() {
         // Spec §12.10: node entry punya node_id, pubkey, mac_key.
-        let entry = GenesisNodeEntry::new([0x01u8; 4], [0xBBu8; 64], &TEST_NODE_KEY);
+        let entry = GenesisNodeEntry::new([0x01u8; 4], [0xBBu8; 32], &TEST_NODE_KEY);
         assert_eq!(entry.node_id, [0x01u8; 4]);
-        assert_eq!(entry.node_key_epoch_0_pubkey, [0xBBu8; 64]);
+        assert_eq!(entry.node_key_epoch_0_pubkey, [0xBBu8; 32]);
         assert_ne!(entry.node_key_epoch_0_mac_key, [0u8; 32]);
     }
 
     #[test]
     fn test_genesis_node_entry_verify_mac_key() {
         // verify_mac_key harus pass untuk node_key yang benar. Spec §7.2a.
-        let entry = GenesisNodeEntry::new([0x01u8; 4], [0xBBu8; 64], &TEST_NODE_KEY);
+        let entry = GenesisNodeEntry::new([0x01u8; 4], [0xBBu8; 32], &TEST_NODE_KEY);
         assert!(entry.verify_mac_key(&TEST_NODE_KEY));
     }
 
     #[test]
     fn test_genesis_node_entry_verify_wrong_key_fails() {
         // verify_mac_key harus fail untuk node_key yang salah.
-        let entry = GenesisNodeEntry::new([0x01u8; 4], [0xBBu8; 64], &TEST_NODE_KEY);
+        let entry = GenesisNodeEntry::new([0x01u8; 4], [0xBBu8; 32], &TEST_NODE_KEY);
         assert!(!entry.verify_mac_key(&[0xFFu8; 32]));
     }
 
@@ -321,7 +321,7 @@ mod tests {
         // Genesis valid dengan node entries. Spec §12.10.
         let entries = vec![GenesisNodeEntry::new(
             [0x01u8; 4],
-            [0xBBu8; 64],
+            [0xBBu8; 32],
             &TEST_NODE_KEY,
         )];
         let result = validate_genesis(TEST_GENESIS, &entries);
@@ -337,7 +337,7 @@ mod tests {
         let big = vec![0u8; 1024];
         let entries = vec![GenesisNodeEntry::new(
             [0x01u8; 4],
-            [0u8; 64],
+            [0u8; 32],
             &TEST_NODE_KEY,
         )];
         let result = validate_genesis(&big, &entries);
@@ -356,7 +356,7 @@ mod tests {
         // genesis_hash dalam result = BLAKE3(genesis). Spec §12.10.
         let entries = vec![GenesisNodeEntry::new(
             [0x01u8; 4],
-            [0u8; 64],
+            [0u8; 32],
             &TEST_NODE_KEY,
         )];
         let result = validate_genesis(TEST_GENESIS, &entries);
@@ -473,7 +473,7 @@ pub fn compute_genesis_params_hash(params: &GenesisParams) -> [u8; 32] {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RegistrationCommitment {
     /// Participant's SLH-DSA public key (64 bytes for SHAKE-256s).
-    pub pubkey: [u8; 64],
+    pub pubkey: [u8; 32],
     /// BLAKE3(pubkey || genesis_params_hash || nonce). Commitment to nonce.
     pub commitment: [u8; 32],
 }
@@ -485,7 +485,7 @@ pub struct RegistrationCommitment {
 ///
 /// Hash discipline: BLAKE3 out-circuit — spec §2.1.3.
 pub fn register_participant(
-    pubkey: &[u8; 64],
+    pubkey: &[u8; 32],
     genesis_params_hash: &[u8; 32],
     nonce: &[u8; 16],
 ) -> RegistrationCommitment {
@@ -537,7 +537,7 @@ pub struct GenesisObject {
     /// From Phase 1. MAD §3.1.
     pub genesis_commitment_root: [u8; 32],
     /// Participant pubkeys (sorted ascending). MAD §3.1.
-    pub participant_pubkeys: Vec<[u8; 64]>,
+    pub participant_pubkeys: Vec<[u8; 32]>,
     /// Initial UTXO set root (typically IMT empty root). MAD §3.1.
     pub initial_utxo_set_root: [u8; 32],
     /// Genesis timestamp (Unix seconds).
@@ -548,7 +548,7 @@ impl GenesisObject {
     /// Deterministic serialization for genesis_hash. Field order OSSIFIED.
     pub fn serialize(&self) -> Vec<u8> {
         let pubkey_count = self.participant_pubkeys.len() as u64;
-        let mut out = Vec::with_capacity(32 + 32 + 8 + pubkey_count as usize * 64 + 32 + 8);
+        let mut out = Vec::with_capacity(32 + 32 + 8 + pubkey_count as usize * 32 + 32 + 8);
         out.extend_from_slice(&self.genesis_params_hash);
         out.extend_from_slice(&self.genesis_commitment_root);
         out.extend_from_slice(&pubkey_count.to_le_bytes());
@@ -677,8 +677,8 @@ mod two_phase_tests {
         GenesisParams::canonical(1_700_000_000)
     }
 
-    fn make_pubkey(seed: u8) -> [u8; 64] {
-        [seed; 64]
+    fn make_pubkey(seed: u8) -> [u8; 32] {
+        [seed; 32]
     }
 
     fn make_nonce(seed: u8) -> [u8; 16] {

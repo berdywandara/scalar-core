@@ -727,8 +727,8 @@ mod tests {
 /// sig = SPHINCS+(NodeKey_epoch_i, canonical_bytes(EpochAnchor minus sig field)).
 ///
 /// Canonical bytes untuk signing:
-///   node_id(4) || epoch_id_le64(8) || hb_count_le32(4) || chain_head(32) || pubkey(64)
-///   = 112 bytes total (NO sig field).
+///   node_id(4) || epoch_id_le64(8) || hb_count_le32(4) || chain_head(32) || pubkey(32)
+///   = 80 bytes total (NO sig field). [SCALAR-SECURITY §1.2: SHAKE-128s pubkey=32B]
 ///
 /// Bootstrap edge case:
 ///   - Epoch 0: tidak ada EpochAnchor sebelumnya.
@@ -746,25 +746,25 @@ pub struct EpochAnchor {
     /// BLAKE3(last HeartbeatUnit bytes of epoch). Spec §7.2a.
     /// Digunakan sebagai prev_hash untuk HB pertama epoch berikutnya.
     pub chain_head: [u8; 32],
-    /// SPHINCS+ public key node (64 bytes). Spec §7.2a.
-    pub pubkey: [u8; 64],
-    /// SPHINCS+-SHAKE256s signature atas canonical_bytes(EpochAnchor minus sig).
-    /// Vec<u8> karena panjang signature variable. Spec §7.2a.
+    /// SLH-DSA-SHAKE-128s public key (32 bytes). [SCALAR-SECURITY §1.2, FIPS 205]
+    pub pubkey: [u8; 32],
+    /// SLH-DSA-SHAKE-128s signature over canonical_bytes(EpochAnchor minus sig field).
+    /// Signature size: 7856 bytes (OSSIFIED). [SCALAR-PROTOCOL §13.1, SCALAR-SECURITY §1.2]
     pub sig: Vec<u8>,
 }
 
 impl EpochAnchor {
-    /// Canonical bytes untuk SPHINCS+ signing — NO sig field. Spec §7.2a.
+    /// Canonical bytes for SLH-DSA-SHAKE-128s signing — NO sig field. [SCALAR-SECURITY §1.2]
     ///
     /// Layout: node_id(4) || epoch_id_le64(8) || hb_count_le32(4) ||
-    ///         chain_head(32) || pubkey(64) = 112 bytes.
-    pub fn canonical_bytes_to_sign(&self) -> [u8; 112] {
-        let mut out = [0u8; 112];
+    ///         chain_head(32) || pubkey(32) = 80 bytes.
+    pub fn canonical_bytes_to_sign(&self) -> [u8; 80] {
+        let mut out = [0u8; 80];
         out[0..4].copy_from_slice(&self.node_id);
         out[4..12].copy_from_slice(&self.epoch_id.to_le_bytes());
         out[12..16].copy_from_slice(&self.hb_count.to_le_bytes());
         out[16..48].copy_from_slice(&self.chain_head);
-        out[48..112].copy_from_slice(&self.pubkey);
+        out[48..80].copy_from_slice(&self.pubkey);
         out
     }
 
@@ -855,7 +855,7 @@ mod epoch_anchor_tests {
             epoch_id: 1u64,
             hb_count: 4_320u32,
             chain_head: [0xAAu8; 32],
-            pubkey: [0xBBu8; 64],
+            pubkey: [0xBBu8; 32],
             sig: vec![0xCCu8; 16],
         };
         assert_eq!(anchor.node_id, [0x01, 0x02, 0x03, 0x04]);
@@ -871,7 +871,7 @@ mod epoch_anchor_tests {
             epoch_id: 0u64,
             hb_count: 0u32,
             chain_head: [0u8; 32],
-            pubkey: [0u8; 64],
+            pubkey: [0u8; 32],
             sig: Vec::new(),
         };
         // Vec<u8> bisa push — fixed array tidak bisa
@@ -881,30 +881,32 @@ mod epoch_anchor_tests {
     }
 
     #[test]
-    fn test_canonical_bytes_to_sign_length_112() {
-        // Spec §7.2a: canonical bytes = 112 bytes (NO sig field).
+    fn test_canonical_bytes_to_sign_length_80() {
+        // canonical bytes = 80 bytes (NO sig field).
+        // node_id(4) + epoch_id(8) + hb_count(4) + chain_head(32) + pubkey(32) = 80.
+        // [SCALAR-SECURITY §1.2: SLH-DSA-SHAKE-128s pubkey = 32 bytes]
         let anchor = EpochAnchor {
             node_id: [0x01, 0x02, 0x03, 0x04],
             epoch_id: 5u64,
             hb_count: 4_320u32,
             chain_head: [0xAAu8; 32],
-            pubkey: [0xBBu8; 64],
+            pubkey: [0xBBu8; 32],
             sig: vec![],
         };
         let bytes = anchor.canonical_bytes_to_sign();
-        assert_eq!(bytes.len(), 112);
+        assert_eq!(bytes.len(), 80);
     }
 
     #[test]
     fn test_canonical_bytes_layout() {
         // Layout: node_id(4) || epoch_id_le64(8) || hb_count_le32(4) ||
-        //         chain_head(32) || pubkey(64). Spec §7.2a.
+        //         chain_head(32) || pubkey(32). Spec §7.2a.
         let anchor = EpochAnchor {
             node_id: [0x01, 0x02, 0x03, 0x04],
             epoch_id: 0x0102030405060708u64,
             hb_count: 0x0A0B0C0Du32,
             chain_head: [0xAAu8; 32],
-            pubkey: [0xBBu8; 64],
+            pubkey: [0xBBu8; 32],
             sig: vec![],
         };
         let bytes = anchor.canonical_bytes_to_sign();
@@ -916,8 +918,8 @@ mod epoch_anchor_tests {
         assert_eq!(&bytes[12..16], &0x0A0B0C0Du32.to_le_bytes());
         // chain_head di bytes[16..48]
         assert_eq!(&bytes[16..48], &[0xAAu8; 32]);
-        // pubkey di bytes[48..112]
-        assert_eq!(&bytes[48..112], &[0xBBu8; 64]);
+        // pubkey at bytes[48..80] (32 bytes, SLH-DSA-SHAKE-128s)
+        assert_eq!(&bytes[48..80], &[0xBBu8; 32]);
     }
 
     #[test]
@@ -928,7 +930,7 @@ mod epoch_anchor_tests {
             epoch_id: 3u64,
             hb_count: 100u32,
             chain_head: [0x55u8; 32],
-            pubkey: [0x66u8; 64],
+            pubkey: [0x66u8; 32],
             sig: vec![0xFF],
         };
         let b1 = anchor.canonical_bytes_to_sign();
@@ -937,7 +939,7 @@ mod epoch_anchor_tests {
             epoch_id: 3u64,
             hb_count: 100u32,
             chain_head: [0x55u8; 32],
-            pubkey: [0x66u8; 64],
+            pubkey: [0x66u8; 32],
             sig: vec![0xAA], // sig berbeda — tidak masuk canonical
         }
         .canonical_bytes_to_sign();
