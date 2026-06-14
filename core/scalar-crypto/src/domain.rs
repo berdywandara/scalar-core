@@ -53,6 +53,12 @@ pub const DOMAIN_STARK_FS: &[u8] = b"scalar_stark_fs";
 /// STARK Fiat-Shamir transcript (checkpoint). Spec §2.3. 20 bytes.
 pub const DOMAIN_CHECKPOINT_FS: &[u8] = b"scalar_checkpoint_fs";
 
+/// NS_CHECKPOINT archived root hash domain separator. OSSIFIED — SCALAR-PROTOCOL §13.1.
+/// Used in generate_checkpoint_proof to hash (epoch, archived_root, count).
+/// Prevents cross-domain hash collision with EpochSMT, SubEpochIMT, and other trees.
+/// Value confirmed via ESKALASI-02 resolution. 20 bytes.
+pub const DOMAIN_NS_CHECKPOINT: &[u8] = b"scalar_ns_checkpoint";
+
 /// Beacon MAC. Spec §2.3. 13 bytes.
 pub const DOMAIN_BEACON: &[u8] = b"scalar_beacon";
 

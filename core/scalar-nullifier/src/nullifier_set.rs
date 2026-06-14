@@ -22,8 +22,14 @@ use crate::smt::{compute_archived_root, SparseMerkleTree, MAX_NULLIFIERS_PER_CHE
 
 // ── Ossified constants — spec §6, §17 ────────────────────────────────────────
 
-/// Interval checkpoint dalam epoch. OSSIFIED — spec §6, §17.
-pub const CHECKPOINT_INTERVAL_EPOCHS: u64 = 3;
+/// Interval checkpoint dalam epoch.
+/// TESTNET: u64::MAX — semua nullifier stay di NS_ACTIVE, cabang NS_CHECKPOINT
+/// unreachable secara matematis. Resolusi ESKALASI-01: RecursiveVerifierAir
+/// belum diimplementasikan (Phase 0 pending). Saat Phase 0 selesai dan
+/// RecursiveVerifierAir disuntikkan dari scalar-stark-p3, nilai ini dikembalikan
+/// ke nilai protokol (3 epoch). [SCALAR-TECHNICAL §7.3, ESKALASI-01]
+/// MAINNET: dikembalikan ke 3 setelah Phase 0 RecursiveVerifierAir selesai.
+pub const CHECKPOINT_INTERVAL_EPOCHS: u64 = u64::MAX;
 
 /// NS_ACTIVE menyimpan nullifier dari N epoch terakhir. OSSIFIED — spec §6.1.
 pub const NS_ACTIVE_WINDOW_EPOCHS: u64 = 3;
@@ -350,14 +356,19 @@ impl NullifierSet {
         Ok(to_archive.len())
     }
 
-    /// Generate checkpoint proof stub. Pre-mainnet placeholder. Spec §6.3.
-    /// Production: Winterfell recursive STARK proof, timeout 300s.
+    /// Generate NS_CHECKPOINT archived root hash. Pre-mainnet: deterministic
+    /// BLAKE3 commitment over (domain, epoch, archived_root, count).
+    /// Production (post-Phase-0): replaced by RecursiveVerifierAir proof.
+    /// CHECKPOINT_INTERVAL_EPOCHS=u64::MAX for testnet ensures this path is
+    /// unreachable in normal operation (all nullifiers stay in NS_ACTIVE).
+    /// [SCALAR-PROTOCOL §13.1 DOMAIN_NS_CHECKPOINT, ESKALASI-02 resolution]
     fn generate_checkpoint_proof_stub(epoch: u64, archived_root: &[u8; 32], count: u64) -> Vec<u8> {
+        use scalar_crypto::domain::DOMAIN_NS_CHECKPOINT;
         let mut hasher = blake3::Hasher::new();
-        // K9-03 NOTE: b"scalar_checkpoint_stub" is a PLACEHOLDER, NOT in the
-        // OSSIFIED domain registry (§8). The recursive STARK checkpoint proof
-        // (RP §6) is not implemented; this stub stands in until then.
-        hasher.update(b"scalar_checkpoint_stub");
+        // OSSIFIED domain separator — SCALAR-PROTOCOL §13.1.
+        // b"scalar_ns_checkpoint" (20 bytes). Prevents cross-domain hash
+        // collision with EpochSMT, SubEpochIMT, and other Merkle trees.
+        hasher.update(DOMAIN_NS_CHECKPOINT);
         hasher.update(&epoch.to_le_bytes());
         hasher.update(archived_root);
         hasher.update(&count.to_le_bytes());
@@ -482,11 +493,26 @@ mod tests {
 
     #[test]
     fn test_checkpoint_interval_constant() {
-        assert_eq!(CHECKPOINT_INTERVAL_EPOCHS, 3);
+        // TESTNET: CHECKPOINT_INTERVAL_EPOCHS = u64::MAX (ESKALASI-01).
+        // NS_CHECKPOINT cabang unreachable; semua nullifier stay di NS_ACTIVE.
+        // Dikembalikan ke 3 setelah Phase 0 RecursiveVerifierAir selesai.
+        assert_eq!(
+            CHECKPOINT_INTERVAL_EPOCHS,
+            u64::MAX,
+            "TESTNET: checkpoint interval must be u64::MAX (ESKALASI-01 resolution)"
+        );
     }
 
     #[test]
     fn test_checkpoint_archives_old_nullifiers() {
+        // CHECKPOINT_INTERVAL_EPOCHS=u64::MAX prevents automatic scheduler calls,
+        // but manual checkpoint() still archives nullifiers older than
+        // NS_ACTIVE_WINDOW_EPOCHS=3. This test verifies the internal archiving
+        // mechanism remains correct. NS_CHECKPOINT path is only unreachable via
+        // the automatic scheduler in testnet (ESKALASI-01 resolution).
+        //
+        // epoch=7: null(10) and null(11) inserted at epoch 1 -> age=6 > 3 -> archived.
+        // null(12) inserted at epoch 5 -> age=2 <= 3 -> stays in NS_ACTIVE.
         let mut ns = NullifierSet::new();
         ns.insert(&null(10), 1);
         ns.insert(&null(11), 1);
