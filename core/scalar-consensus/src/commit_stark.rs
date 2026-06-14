@@ -13,6 +13,15 @@
 //! having a finalized BatchTransferProof (consumed by G-24b CG-WINDOW-TRIGGER:
 //! validity=1 requires finalization at target_subepoch_id + 1).
 //!
+//! IRREVERSIBLE_ACTION_SET (OSSIFIED) — [SCALAR-PROTOCOL §4.5, §13.1]:
+//!   - CS-UTXO spend / bridge claim (BatchTransferProof)
+//!   - Mint Claim (MintClaimProof)
+//!   - NS_CHECKPOINT nullifier consumption
+//!   - GovernanceID vote commitment (added in final spec)
+//!
+//! All members MUST reach Level-2 finality (CommitStark) before being accepted.
+//! Actions that only reach Level-1 (MicroCommitment) are rejected at protocol layer.
+//!
 //! ── Implementation Constraints ──────────────────────────────────────────────
 //! A. Atomic transactional semantics: pre-flight check ALL nullifiers in the
 //!    batch BEFORE any insert. If any nullifier is already spent, the ENTIRE
@@ -28,6 +37,24 @@ use scalar_stark_p3::batch_transfer_p3::{
 };
 use scalar_stark_p3::transfer_public_inputs::compute_nullifier_hash;
 use std::collections::HashSet;
+
+/// IRREVERSIBLE_ACTION_SET members. OSSIFIED — [SCALAR-PROTOCOL §4.5, §13.1].
+///
+/// All variants MUST reach Level-2 finality (CommitStark) before being accepted.
+/// Actions that only reach Level-1 (MicroCommitment) are rejected at protocol layer.
+/// Adding new members requires COMMIT 75% governance vote.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum IrreversibleAction {
+    /// CS-UTXO spend / bridge claim — BatchTransferProof finalized.
+    CsUtxoSpend,
+    /// Mint Claim — MintClaimProof finalized.
+    MintClaim,
+    /// NS_CHECKPOINT nullifier consumption.
+    NsCheckpointConsumption,
+    /// GovernanceID vote commitment — prevents double-vote race condition.
+    /// [SCALAR-PROTOCOL §13.1, SCALAR-SECURITY §2.1 NoGovernanceDoubleVote]
+    GovernanceVoteCommitment,
+}
 
 /// Finality level emitted on successful Level-2 commit. Mirrors
 /// `scalar_network::micro_commit::FinalityLevel` (G-13) without introducing a
@@ -60,6 +87,11 @@ pub enum CommitStarkError {
     /// Per Constraint A, NO insert is performed — NullifierSet unchanged.
     #[error("double-spend detected: {0} of {1} nullifiers already spent")]
     DoubleSpendDetected(usize, usize),
+    /// GovernanceID vote for this (node_id_full, proposal_id) already finalized
+    /// at Level 2. Prevents double-vote race condition.
+    /// [SCALAR-PROTOCOL §13.1 IRREVERSIBLE_ACTION_SET]
+    #[error("governance vote already finalized at Level 2 for this (node, proposal) pair")]
+    GovernanceVoteAlreadyFinalized,
 }
 
 /// Convert an A-R9 nullifier ([u64;4], LE chunks — same packing as
@@ -79,6 +111,10 @@ pub struct CommitStark {
     /// at Level 2. Consumed by G-24b CG-WINDOW-TRIGGER (target_subepoch_id + 1
     /// lookup).
     finalized_subepochs: HashSet<u64>,
+    /// Finalized governance vote commitments at Level 2.
+    /// Key: (node_id_full, proposal_id) — prevents double-vote per proposal.
+    /// [SCALAR-PROTOCOL §13.1 IRREVERSIBLE_ACTION_SET, SCALAR-SECURITY §2.1]
+    finalized_votes: HashSet<([u8; 32], [u8; 32])>,
 }
 
 impl CommitStark {
@@ -87,6 +123,7 @@ impl CommitStark {
         Self {
             nullifier_set: NullifierSet::new(),
             finalized_subepochs: HashSet::new(),
+            finalized_votes: HashSet::new(),
         }
     }
 
@@ -170,6 +207,38 @@ impl CommitStark {
         self.finalized_subepochs.insert(subepoch_id);
 
         Ok(FinalityLevel::StarkFinal)
+    }
+
+    /// Commit a GovernanceID vote at Level 2 (IRREVERSIBLE_ACTION_SET).
+    ///
+    /// Prevents double-vote race condition within a voting window.
+    /// [SCALAR-PROTOCOL §13.1, SCALAR-SECURITY §2.1 NoGovernanceDoubleVote]
+    ///
+    /// Parameters:
+    ///   node_id_full: the voting node's identity (32 bytes).
+    ///   proposal_id:  BLAKE3(proposal_content) — [u8;32]. [SCALAR-PROTOCOL §9.2]
+    ///
+    /// Returns Err(GovernanceVoteAlreadyFinalized) if this (node, proposal) pair
+    /// has already been committed at Level 2. Caller (scalar-governance) is
+    /// responsible for verifying the SLH-DSA vote_payload signature before calling.
+    pub fn commit_governance_vote(
+        &mut self,
+        node_id_full: [u8; 32],
+        proposal_id: [u8; 32],
+    ) -> Result<FinalityLevel, CommitStarkError> {
+        let key = (node_id_full, proposal_id);
+        if self.finalized_votes.contains(&key) {
+            return Err(CommitStarkError::GovernanceVoteAlreadyFinalized);
+        }
+        self.finalized_votes.insert(key);
+        Ok(FinalityLevel::StarkFinal)
+    }
+
+    /// Returns true if a governance vote for (node_id_full, proposal_id) has
+    /// already been committed at Level 2.
+    pub fn is_vote_finalized(&self, node_id_full: &[u8; 32], proposal_id: &[u8; 32]) -> bool {
+        self.finalized_votes
+            .contains(&(*node_id_full, *proposal_id))
     }
 }
 
@@ -341,6 +410,59 @@ mod tests {
             !cs.nullifier_set().is_spent(&n1_bytes),
             "no insert on proof failure"
         );
+    }
+
+    #[test]
+    fn test_governance_vote_commit_and_query() {
+        let mut cs = CommitStark::new();
+        let node = [0x01u8; 32];
+        let proposal = [0xAAu8; 32];
+
+        // First vote: accepted at Level 2.
+        let result = cs.commit_governance_vote(node, proposal);
+        assert!(matches!(result, Ok(FinalityLevel::StarkFinal)));
+        assert!(cs.is_vote_finalized(&node, &proposal));
+    }
+
+    #[test]
+    fn test_governance_vote_double_vote_rejected() {
+        let mut cs = CommitStark::new();
+        let node = [0x02u8; 32];
+        let proposal = [0xBBu8; 32];
+
+        cs.commit_governance_vote(node, proposal).unwrap();
+        // Second vote for same (node, proposal): must be rejected.
+        let err = cs.commit_governance_vote(node, proposal).unwrap_err();
+        assert!(matches!(
+            err,
+            CommitStarkError::GovernanceVoteAlreadyFinalized
+        ));
+    }
+
+    #[test]
+    fn test_governance_vote_different_proposals_independent() {
+        let mut cs = CommitStark::new();
+        let node = [0x03u8; 32];
+        let proposal_a = [0xAAu8; 32];
+        let proposal_b = [0xBBu8; 32];
+
+        // Same node, different proposals: both accepted.
+        assert!(cs.commit_governance_vote(node, proposal_a).is_ok());
+        assert!(cs.commit_governance_vote(node, proposal_b).is_ok());
+        assert!(cs.is_vote_finalized(&node, &proposal_a));
+        assert!(cs.is_vote_finalized(&node, &proposal_b));
+    }
+
+    #[test]
+    fn test_governance_vote_different_nodes_independent() {
+        let mut cs = CommitStark::new();
+        let node_a = [0x04u8; 32];
+        let node_b = [0x05u8; 32];
+        let proposal = [0xCCu8; 32];
+
+        // Different nodes, same proposal: both accepted.
+        assert!(cs.commit_governance_vote(node_a, proposal).is_ok());
+        assert!(cs.commit_governance_vote(node_b, proposal).is_ok());
     }
 
     #[test]
