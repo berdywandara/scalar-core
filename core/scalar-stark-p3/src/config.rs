@@ -13,7 +13,7 @@
 use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
-use p3_field::extension::BinomialExtensionField;
+use p3_field::extension::CubicTrinomialExtensionField;
 use p3_fri::{FriParameters, HidingFriPcs, TwoAdicFriPcs};
 use p3_goldilocks::{default_goldilocks_poseidon2_8, Goldilocks};
 use p3_merkle_tree::MerkleTreeMmcs;
@@ -29,9 +29,14 @@ use crate::{FRI_LOG_BLOWUP, FRI_NUM_QUERIES, FRI_PROOF_OF_WORK_BITS};
 /// Base field: Goldilocks. OSSIFIED — spec §4.4.
 pub type F = Goldilocks;
 
-/// Extension field: degree-2 extension over Goldilocks.
-/// Used for FRI queries and DEEP-ALI polynomial evaluation.
-pub type EF = BinomialExtensionField<F, 2>;
+/// Extension field: degree-3 CUBIC extension over Goldilocks.
+/// GF(p^3), |F| ≈ 2^192. OSSIFIED — SCALAR-SECURITY §[PROOF-PARAMS].
+/// Polynomial: x^3 - x - 1 (irreducible over Goldilocks, verified via Sage).
+/// Elevating to cubic makes ε_commit ≈ 2^-169.68 (q-independent),
+/// so the query term (Johnson bound, proven) becomes the binding constraint.
+/// Uses CubicTrinomialExtensionField (p3-goldilocks 0.6.1 native cubic type).
+/// DO NOT downgrade to degree-2 without COMMIT 75% + formal soundness re-proof.
+pub type EF = CubicTrinomialExtensionField<F>;
 
 // ── Poseidon2 permutation — Goldilocks width-8 ───────────────────────────────
 //
@@ -198,29 +203,40 @@ mod tests {
 
     #[test]
     fn test_fri_params_ossified() {
-        // Spec §4.4: FRI blowup=8, queries=84, grinding=20. OSSIFIED.
+        // SCALAR-SECURITY §[PROOF-PARAMS]: blowup=8, queries=108, grinding=0. OSSIFIED.
         assert_eq!(FRI_LOG_BLOWUP, 3, "log_blowup must be 3 (blowup=8)");
-        assert_eq!(FRI_NUM_QUERIES, 84);
-        // D-028: grinding changed 20→23 (Scenario B union bound correction)
-        assert_eq!(FRI_PROOF_OF_WORK_BITS, 23);
+        assert_eq!(
+            FRI_NUM_QUERIES, 108,
+            "queries must be 108 [SCALAR-SECURITY §[PROOF-PARAMS]]"
+        );
+        assert_eq!(
+            FRI_PROOF_OF_WORK_BITS, 0,
+            "grinding must be 0 (amputated) [SCALAR-SECURITY §[PROOF-PARAMS]]"
+        );
     }
 
+    /// CI gate (blocking) -- SCALAR-REPO §8.1, §11.2.
+    /// Verifies all three OSSIFIED proof parameters simultaneously.
+    /// Source of truth: SCALAR-SECURITY §[PROOF-PARAMS].
     #[test]
-    fn test_fri_grinding_bits_d028() {
-        // D-028: g=23 required for soundness ε≤2^-120 under Scenario B.
-        // STARKPack uses independent union bound (not RLC batching).
-        // g=20 → ε≈2^-117.68 (FAIL). g=23 → ε≈2^-120.68 (PASS).
+    fn proof_params_match_spec() {
+        // Field extension: cubic (degree-3), GF(p^3), |F|~2^192.
+        // EF = BinomialExtensionField<F, 3>: size is 3 * size_of::<F>().
         assert_eq!(
-            FRI_PROOF_OF_WORK_BITS, 23,
-            "FRI grinding changed without D-level decision — D-028 requires g=23"
+            std::mem::size_of::<EF>(),
+            std::mem::size_of::<F>() * 3,
+            "EF must be degree-3 cubic extension [SCALAR-SECURITY §[PROOF-PARAMS]]"
         );
-        // Verify it's strictly above minimum needed for Scenario B
-        const {
-            assert!(
-                FRI_PROOF_OF_WORK_BITS >= 23,
-                "g<23 breaks 2^-120 soundness target"
-            )
-        };
+        // FRI query count: 108.
+        assert_eq!(
+            FRI_NUM_QUERIES, 108,
+            "FRI_NUM_QUERIES must be 108 [SCALAR-SECURITY §[PROOF-PARAMS]]"
+        );
+        // FRI grinding: 0 (amputated).
+        assert_eq!(
+            FRI_PROOF_OF_WORK_BITS, 0,
+            "FRI grinding must be 0 (amputated) [SCALAR-SECURITY §[PROOF-PARAMS]]"
+        );
     }
 
     #[test]

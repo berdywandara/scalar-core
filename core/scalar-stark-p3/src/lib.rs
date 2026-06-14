@@ -34,37 +34,43 @@ pub const GOLDILOCKS_PRIME: u64 = 0xFFFF_FFFF_0000_0001;
 /// FRI blowup factor. OSSIFIED — spec §4.4.
 pub const FRI_LOG_BLOWUP: usize = 3; // 2^3 = 8
 
-/// FRI queries. OSSIFIED — spec §4.4.
-pub const FRI_NUM_QUERIES: usize = 84;
+/// FRI query count. OSSIFIED — SCALAR-SECURITY §[PROOF-PARAMS].
+/// q=108 meets >160-bit soundness target under Johnson bound (proven) with
+/// cubic extension GF(p^3). ADR-SEC-023 formal confirmation required pre-mainnet.
+/// DO NOT duplicate this value — reference this constant only.
+pub const FRI_NUM_QUERIES: usize = 108;
 
-/// FRI grinding bits. OSSIFIED — spec §4.4.
-/// FRI grinding parameter. OSSIFIED — changed 20→23 via D-028.
-/// STARKPack uses Scenario B (independent union bound, not RLC).
-/// g=20 yields ε≈2^-117.68 (below 2^-120 target by 2.32 bits).
-/// g=23 yields ε≈2^-120.68 (meets target with 0.68 bit margin).
-/// Formal proof requirement per ADR-SEC-023 still applies.
-pub const FRI_PROOF_OF_WORK_BITS: usize = 23;
+/// FRI grinding bits. OSSIFIED — SCALAR-SECURITY §[PROOF-PARAMS].
+/// g=0: grinding AMPUTATED as final architectural decision.
+/// Soundness now relies on cubic field extension (GF(p^3), |F|≈2^192) and
+/// query count — both sampling/proximity bounds, not PoW search bounds.
+/// This eliminates QROM degradation from Grover acceleration entirely.
+/// ADR-SEC-023 formal confirmation required pre-mainnet.
+pub const FRI_PROOF_OF_WORK_BITS: usize = 0;
 
 // ── Compile-time OSSIFIED enforcement ──────────────────────────────────────
 // Aktif di SEMUA build profile (debug, release, test).
 // Perubahan nilai apapun → compile error.
 // Perubahan hanya via COMMIT 75% governance + formal soundness re-proof.
 // Ref: SCALAR-PROTOCOL §13.1, SCALAR-SECURITY §3.4 RISK-02, D-028
+/// Compile-time enforcement of OSSIFIED proof parameters.
+/// Source: SCALAR-SECURITY §[PROOF-PARAMS]. DO NOT change without COMMIT 75%
+/// governance vote AND formal soundness re-proof (ADR-SEC-023).
 const _: () = {
     assert!(
         FRI_LOG_BLOWUP == 3,
-        "OSSIFIED: FRI_LOG_BLOWUP must be 3 (blowup=8). Requires COMMIT 75% + re-proof."
+        "OSSIFIED: FRI_LOG_BLOWUP must be 3 (blowup=8). [SCALAR-SECURITY §[PROOF-PARAMS]]"
     );
     assert!(
-        FRI_NUM_QUERIES == 84,
-        "OSSIFIED: FRI_NUM_QUERIES must be 84. Requires COMMIT 75% + re-proof."
+        FRI_NUM_QUERIES == 108,
+        "OSSIFIED: FRI_NUM_QUERIES must be 108. [SCALAR-SECURITY §[PROOF-PARAMS]]"
     );
     assert!(
-        FRI_PROOF_OF_WORK_BITS == 23,
-        "OSSIFIED: FRI_PROOF_OF_WORK_BITS must be 23 (D-028). Requires COMMIT 75% + re-proof."
+        FRI_PROOF_OF_WORK_BITS == 0,
+        "OSSIFIED: FRI grinding must be 0 (amputated). [SCALAR-SECURITY §[PROOF-PARAMS]]"
     );
     assert!(
         GOLDILOCKS_PRIME == 0xFFFF_FFFF_0000_0001,
-        "OSSIFIED: Goldilocks prime must not change. Requires COMMIT 75% governance."
+        "OSSIFIED: Goldilocks prime must not change. [SCALAR-SECURITY §[PROOF-PARAMS]]"
     );
 };
