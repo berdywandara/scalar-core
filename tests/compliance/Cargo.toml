@@ -1,0 +1,17 @@
+[package]
+name = "scalar-compliance"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+scalar-crypto   = { path = "../../core/scalar-crypto" }
+scalar-emission  = { path = "../../core/scalar-emission" }
+scalar-fees      = { path = "../../core/scalar-fees" }
+scalar-network   = { path = "../../core/scalar-network" }
+scalar-nullifier = { path = "../../core/scalar-nullifier" }
+scalar-wallet-core = { path = "../../client/scalar-wallet-core" }
+scalar-governance = { path = "../../client/scalar-governance" }
+scalar-node = { path = "../../core/scalar-node" }
+libp2p = { workspace = true, features = ["gossipsub", "kad", "macros", "noise", "tcp", "tokio", "yamux"] }

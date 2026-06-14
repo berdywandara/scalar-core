@@ -55,7 +55,7 @@ impl PeerAnchorStore {
     /// `anchor`: EpochAnchor yang sudah diverifikasi.
     ///
     /// node_key_epoch diturunkan dari pubkey anchor:
-    ///   node_key_epoch = BLAKE3(anchor.pubkey[0..32] || epoch_id_le64)
+    ///   node_key_epoch = BLAKE3(anchor.pubkey || epoch_id_le64)
     ///
     /// Ini adalah simplified derivation — production menggunakan SLH-DSA
     /// pubkey material sesuai spec §7.2a.
@@ -63,7 +63,8 @@ impl PeerAnchorStore {
         // Derive node_key_epoch dari pubkey material anchor
         // Spec §7.2a: NodeKey_epoch_i = BLAKE3(NodeKey_i || epoch_id_le64)
         // Dalam handshake: pubkey[0..32] digunakan sebagai NodeKey proxy
-        let pubkey_material: [u8; 32] = anchor.pubkey[..32].try_into().unwrap_or([0u8; 32]);
+        // pubkey is SLH-DSA-SHAKE-128s public key (32 bytes). [SCALAR-SECURITY §1.2]
+        let pubkey_material: [u8; 32] = anchor.pubkey;
         let node_key_epoch = derive_node_key_epoch(&pubkey_material, anchor.epoch_id);
 
         let entry = PeerAnchorEntry {
@@ -128,7 +129,7 @@ pub enum HandshakeResult {
 /// Serialisasi EpochAnchor ke bytes untuk gossipsub broadcast. Spec §7.2a.
 ///
 /// Format: node_id(4) || epoch_id(8) || hb_count(4) || chain_head(32) ||
-///         pubkey(64) || sig_len(4) || sig(var)
+///         pubkey(32) || sig_len(4) || sig(var)
 pub fn serialize_epoch_anchor(anchor: &EpochAnchor) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&anchor.node_id);
@@ -146,8 +147,8 @@ pub fn serialize_epoch_anchor(anchor: &EpochAnchor) -> Vec<u8> {
 ///
 /// Returns None jika format tidak valid.
 pub fn deserialize_epoch_anchor(bytes: &[u8]) -> Option<EpochAnchor> {
-    // Minimum: 4 + 8 + 4 + 32 + 64 + 4 = 116 bytes
-    if bytes.len() < 116 {
+    // Minimum: 4 + 8 + 4 + 32 + 32 + 4 = 84 bytes
+    if bytes.len() < 84 {
         return None;
     }
 
@@ -167,9 +168,9 @@ pub fn deserialize_epoch_anchor(bytes: &[u8]) -> Option<EpochAnchor> {
     chain_head.copy_from_slice(&bytes[offset..offset + 32]);
     offset += 32;
 
-    let mut pubkey = [0u8; 64];
-    pubkey.copy_from_slice(&bytes[offset..offset + 64]);
-    offset += 64;
+    let mut pubkey = [0u8; 32];
+    pubkey.copy_from_slice(&bytes[offset..offset + 32]);
+    offset += 32;
 
     let sig_len = u32::from_le_bytes(bytes[offset..offset + 4].try_into().ok()?) as usize;
     offset += 4;
@@ -210,7 +211,7 @@ pub fn validate_epoch_anchor_basic(anchor: &EpochAnchor) -> HandshakeResult {
     }
 
     // pubkey tidak boleh semua zero
-    if anchor.pubkey == [0u8; 64] {
+    if anchor.pubkey == [0u8; 32] {
         return HandshakeResult::Rejected {
             reason: "pubkey is zero — invalid",
         };
@@ -241,7 +242,7 @@ mod tests {
             epoch_id: epoch,
             hb_count,
             chain_head: [0x42u8; 32],
-            pubkey: [0x33u8; 64],
+            pubkey: [0x33u8; 32],
             sig: vec![0xAAu8; 32],
         }
     }

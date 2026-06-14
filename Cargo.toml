@@ -6,6 +6,7 @@ members = [
     "core/scalar-stark-p3-verify",
     "client/*",
     "tools/*",
+    "tests/compliance",
     "tests/integration",
     "tests/spec-compliance",
     "tools/test-vector-gen",
