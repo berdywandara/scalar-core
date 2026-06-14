@@ -1,5 +1,6 @@
 pub mod commit_stark;
 pub mod formal;
+pub mod governance_binding;
 // File: crates/scalar-consensus/src/lib.rs
 //
 // Consensus Engine — Spec §10
