@@ -102,3 +102,11 @@ jobs:
       - name: Gate — Conviction table monotonicity (scalar-governance)
         # OSSIFIED: Conviction factor monotonic increasing — SCALAR-PROTOCOL §11.2
         run: cargo test -p scalar-governance conviction -- --nocapture
+      - name: Gate — OSSIFIED proof parameters match spec (scalar-stark-p3)
+        # OSSIFIED: field=cubic GF(p^3), queries=108, grinding=0.
+        # Source: SCALAR-SECURITY §[PROOF-PARAMS]. Blocks merge if any value deviates.
+        # This gate is lightweight (compile-time assertions + size_of check, no proving).
+        run: cargo test -p scalar-stark-p3 proof_params_match_spec -- --nocapture
+      - name: Gate — Domain separator uniqueness (scalar-crypto)
+        # OSSIFIED: all domain separators must be unique. SCALAR-PROTOCOL §13.1.
+        run: cargo test -p scalar-crypto test_all_domains_unique -- --nocapture
