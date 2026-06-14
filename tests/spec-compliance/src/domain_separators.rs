@@ -40,8 +40,9 @@ fn ds_anchor() {
 }
 #[test]
 fn ds_vote() {
-    // Spec §2.3: b"scalar_vote" (11 byte). OSSIFIED.
-    assert_eq!(DOMAIN_VOTE, b"scalar_vote");
+    // OSSIFIED — SCALAR-PROTOCOL §13.1. Zero-versioning.
+    assert_eq!(DOMAIN_VOTE, b"scalar.governance.vote");
+    assert_eq!(DOMAIN_REBIND, b"scalar.governance.rebind");
 }
 #[test]
 fn ds_genesis_bootstrap() {

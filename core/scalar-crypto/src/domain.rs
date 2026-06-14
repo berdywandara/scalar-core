@@ -41,8 +41,15 @@ pub const DOMAIN_NODE_SHORT: &[u8] = b"scalar_node_short";
 /// Anchor signature. Spec §2.3. 13 bytes.
 pub const DOMAIN_ANCHOR: &[u8] = b"scalar_anchor";
 
-/// Governance vote. Spec §2.3. 11 bytes.
-pub const DOMAIN_VOTE: &[u8] = b"scalar_vote";
+/// Governance vote payload domain separator. OSSIFIED — SCALAR-PROTOCOL §13.1.
+/// Zero-versioning: no .v1 suffix. 22 bytes.
+/// vote_payload = BLAKE3(DOMAIN_VOTE || chain_id || proposal_id || choice_u8 || node_id_full)
+pub const DOMAIN_VOTE: &[u8] = b"scalar.governance.vote";
+
+/// Governance rebind payload domain separator. OSSIFIED — SCALAR-PROTOCOL §13.1.
+/// Zero-versioning: no .v1 suffix. 24 bytes.
+/// rebind_payload = BLAKE3(DOMAIN_REBIND || chain_id || node_id_full || GovernanceID_pub_new)
+pub const DOMAIN_REBIND: &[u8] = b"scalar.governance.rebind";
 
 /// Genesis bootstrap. Spec §2.3. 24 bytes.
 pub const DOMAIN_GENESIS_BOOTSTRAP: &[u8] = b"scalar_genesis_bootstrap";
@@ -208,8 +215,11 @@ mod tests {
 
     #[test]
     fn test_domain_vote_len() {
-        assert_eq!(DOMAIN_VOTE, b"scalar_vote");
-        assert_eq!(DOMAIN_VOTE.len(), 11);
+        // OSSIFIED — SCALAR-PROTOCOL §13.1. Zero-versioning (no .v1 suffix).
+        assert_eq!(DOMAIN_VOTE, b"scalar.governance.vote");
+        assert_eq!(DOMAIN_VOTE.len(), 22);
+        assert_eq!(DOMAIN_REBIND, b"scalar.governance.rebind");
+        assert_eq!(DOMAIN_REBIND.len(), 24);
     }
 
     #[test]
@@ -371,6 +381,7 @@ mod tests {
             DOMAIN_NODE_SHORT,
             DOMAIN_ANCHOR,
             DOMAIN_VOTE,
+            DOMAIN_REBIND,
             DOMAIN_GENESIS_BOOTSTRAP,
             DOMAIN_STARK_FS,
             DOMAIN_CHECKPOINT_FS,
@@ -403,8 +414,8 @@ mod tests {
         }
         assert_eq!(
             domains.len(),
-            29,
-            "Expected 29 byte-slice domain separators"
+            30,
+            "Expected 30 byte-slice domain separators"
         );
     }
 

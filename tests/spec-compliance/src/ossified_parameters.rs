@@ -126,7 +126,10 @@ fn compliance_ns_cold_k() {
 
 #[test]
 fn compliance_cold_promotion_threshold() {
-    assert_eq!(scalar_nullifier::CHECKPOINT_INTERVAL_EPOCHS, 3u64);
+    // TESTNET: CHECKPOINT_INTERVAL_EPOCHS = u64::MAX (ESKALASI-01 resolution).
+    // Reverts to 3 after Phase 0 RecursiveVerifierAir is complete.
+    // [SCALAR-TECHNICAL §7.3]
+    assert_eq!(scalar_nullifier::CHECKPOINT_INTERVAL_EPOCHS, u64::MAX);
 }
 
 // ── §12.3 NMT ────────────────────────────────────────────────────────────────

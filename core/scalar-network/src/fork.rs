@@ -41,7 +41,7 @@ pub struct ForkSignalMessage {
 
 impl ForkSignalMessage {
     /// Compute canonical vote message untuk signature verification.
-    /// Spec §2.3: domain separator b"scalar_vote" (11 byte).
+    /// Domain separator DOMAIN_VOTE = b"scalar.governance.vote" (22 bytes). OSSIFIED.
     /// Spec §11.1: vote ditandatangani dengan NodeKey.
     pub fn vote_message(&self) -> Vec<u8> {
         let mut msg = Vec::with_capacity(11 + 32 + 8 + 32 + 1);
