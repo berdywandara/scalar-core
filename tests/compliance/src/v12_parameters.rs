@@ -694,7 +694,7 @@ mod tests_v12_p2p_gaps {
             epoch_id: 5,
             hb_count: 4320,
             chain_head: [0x42u8; 32],
-            pubkey: [0x33u8; 64],
+            pubkey: [0x33u8; 32],
             sig: vec![0xAAu8; 32],
         };
         let result = validate_epoch_anchor_basic(&anchor);
@@ -718,7 +718,7 @@ mod tests_v12_p2p_gaps {
             epoch_id: 3,
             hb_count: 100,
             chain_head: [0x42u8; 32],
-            pubkey: [0x33u8; 64],
+            pubkey: [0x33u8; 32],
             sig: vec![0xAAu8; 16],
         };
         let mut store = PeerAnchorStore::new();

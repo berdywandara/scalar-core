@@ -245,7 +245,7 @@ mod tests_v9_l1 {
     #[test]
     fn test_cold_promotion_epoch_threshold() {
         // Spec §6.3: COLD_PROMOTION_EPOCH_THRESHOLD = 12. OSSIFIED.
-        assert_eq!(scalar_nullifier::CHECKPOINT_INTERVAL_EPOCHS, 3u64);
+        assert_eq!(scalar_nullifier::CHECKPOINT_INTERVAL_EPOCHS, u64::MAX, "TESTNET: u64::MAX per ESKALASI-01");
     }
 
     // ── §18.1 Fixed-point basis ───────────────────────────────────────────────
@@ -448,6 +448,6 @@ mod tests_v9_canonical {
     #[test]
     fn test_cold_promotion_epoch_threshold_is_12() {
         // Spec §6.3: COLD_PROMOTION_EPOCH_THRESHOLD = 12. OSSIFIED.
-        assert_eq!(scalar_nullifier::CHECKPOINT_INTERVAL_EPOCHS, 3u64);
+        assert_eq!(scalar_nullifier::CHECKPOINT_INTERVAL_EPOCHS, u64::MAX, "TESTNET: u64::MAX per ESKALASI-01");
     }
 }
