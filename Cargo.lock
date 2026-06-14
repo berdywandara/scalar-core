@@ -3288,6 +3288,7 @@ dependencies = [
 name = "scalar-consensus"
 version = "0.1.0"
 dependencies = [
+ "scalar-crypto",
  "scalar-nullifier",
  "scalar-stark-p3",
  "thiserror 1.0.69",
