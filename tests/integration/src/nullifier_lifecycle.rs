@@ -71,11 +71,17 @@ fn test_ns_active_window_epochs() {
     assert_eq!(NS_ACTIVE_WINDOW_EPOCHS, 3u64, "Spec §6.1: 3 epoch terakhir");
 }
 
-/// Test 8: Checkpoint interval = 3 epoch. OSSIFIED — spec §6, §17.
+/// Test 8: Checkpoint interval. TESTNET: u64::MAX (ESKALASI-01).
+/// Reverts to 3 after Phase 0 RecursiveVerifierAir complete.
+/// [SCALAR-TECHNICAL §7.3]
 #[test]
 fn test_checkpoint_interval_epochs() {
     use scalar_nullifier::CHECKPOINT_INTERVAL_EPOCHS;
-    assert_eq!(CHECKPOINT_INTERVAL_EPOCHS, 3u64, "Spec §6, §17");
+    assert_eq!(
+        CHECKPOINT_INTERVAL_EPOCHS,
+        u64::MAX,
+        "TESTNET: u64::MAX per ESKALASI-01 resolution [SCALAR-TECHNICAL §7.3]"
+    );
 }
 
 /// Test 9: MAX_NULLIFIERS_PER_CHECKPOINT = 200_000. OSSIFIED — spec §6, §17.
