@@ -18,8 +18,8 @@ postcard = { version = "1", features = ["alloc"] }
 serde = { version = "1", features = ["derive"] }
 
 # Plonky3 — same version, independent AIR definitions
-p3-air           = "0.5"
-p3-field         = "0.5"
-p3-goldilocks    = "0.5"
-p3-matrix        = "0.5"
-p3-uni-stark     = "0.5"
+p3-air           = "0.6"
+p3-field         = "0.6"
+p3-goldilocks    = "0.6"
+p3-matrix        = "0.6"
+p3-uni-stark     = "0.6"

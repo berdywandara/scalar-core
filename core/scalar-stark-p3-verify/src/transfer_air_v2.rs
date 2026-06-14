@@ -72,9 +72,12 @@ impl<F: PrimeCharacteristicRing + Sync> BaseAir<F> for TransferAirV2 {
         // Single-row AIR — matches TransferAirP3. Spec §15.3: shape must be identical.
         vec![]
     }
-    // num_public_values() intentionally NOT overridden → default = 0.
-    // TransferAirP3 also uses default = 0. Public values (41 elem) are passed
-    // via transcript, not encoded in AirLayout. Spec §15.3.
+    fn num_public_values(&self) -> usize {
+        // Must match TransferAirP3::num_public_values() = TRANSFER_PI_LEN = 41.
+        // p3-uni-stark 0.6 enforces this: verifier checks air.num_public_values()
+        // against len(public_values) passed to verify(). [SCALAR-TECHNICAL §2.2]
+        scalar_stark_p3::transfer_public_inputs::TRANSFER_PI_LEN
+    }
 }
 
 impl<AB: AirBuilder> Air<AB> for TransferAirV2 {
@@ -156,6 +159,27 @@ impl<AB: AirBuilder> Air<AB> for TransferAirV2 {
         // ── INV-4.6: Single UTXO source ──────────────────────────────────────
         builder.assert_zero(single_src * (single_src - AB::F::ONE));
         builder.assert_one(single_src);
+
+        // ── Public values binding (CX) ────────────────────────────────────────
+        // Bind trace columns to public values so that wrong PI is rejected.
+        // PI layout indices from TransferPublicInputsP3::to_goldilocks():
+        //   [0] fee_total_sscl, [1] sum_inputs_sscl, [2] sum_outputs_sscl,
+        //   [3] crypto_version, [4] current_subepoch_id.
+        // Copy public values first to avoid borrow conflict with builder.
+        // [SCALAR-TECHNICAL §2.2 PI_TOTAL=41, A-R7 cross-verification]
+        let pv: alloc::vec::Vec<AB::PublicVar> = builder.public_values().to_vec();
+        if pv.len() >= 5 {
+            // fee_total_sscl must equal trace fee column
+            builder.assert_eq(fee.into(), pv[0].into());
+            // sum_inputs_sscl must equal trace sum_in column
+            builder.assert_eq(sum_in.into(), pv[1].into());
+            // sum_outputs_sscl must equal trace sum_out column
+            builder.assert_eq(sum_out.into(), pv[2].into());
+            // crypto_version must equal trace version column
+            builder.assert_eq(version.into(), pv[3].into());
+            // current_subepoch_id must equal trace current_subepoch column
+            builder.assert_eq(current_subepoch.into(), pv[4].into());
+        }
     }
 }
 

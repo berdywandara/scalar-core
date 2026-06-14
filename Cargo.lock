@@ -2119,17 +2119,6 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "p3-air"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c824e8d7c7ddf208b742eac8d48e0b2d52d22fa013578a7762bf6931dbab1f46"
-dependencies = [
- "p3-field 0.5.3",
- "p3-matrix 0.5.3",
- "tracing",
-]
-
-[[package]]
-name = "p3-air"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3e18b22bf85451382098e54da526733c7f390f83d4141b3b8b93e98e805df55"
@@ -2165,21 +2154,6 @@ dependencies = [
  "p3-symmetric 0.6.1",
  "p3-util 0.6.1",
  "tracing",
-]
-
-[[package]]
-name = "p3-commit"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5451768a715d8b7a30e64e23f5f78d3d37880ff18aedaa337181acece89b5e4"
-dependencies = [
- "itertools",
- "p3-challenger 0.5.3",
- "p3-dft 0.5.3",
- "p3-field 0.5.3",
- "p3-matrix 0.5.3",
- "p3-util 0.5.3",
- "serde",
 ]
 
 [[package]]
@@ -2268,7 +2242,7 @@ checksum = "32ea6753da59cef42a3f2beedad3e5911171dc02b70f4cc5aa6a22f066654932"
 dependencies = [
  "itertools",
  "p3-challenger 0.6.1",
- "p3-commit 0.6.1",
+ "p3-commit",
  "p3-dft 0.6.1",
  "p3-field 0.6.1",
  "p3-matrix 0.6.1",
@@ -2407,7 +2381,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72553183a32393dda348c1bcfb478657d35f6242e962c378644a9bc062b5798f"
 dependencies = [
  "itertools",
- "p3-commit 0.6.1",
+ "p3-commit",
  "p3-field 0.6.1",
  "p3-matrix 0.6.1",
  "p3-maybe-rayon 0.6.1",
@@ -2539,7 +2513,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb8761b9be7ce2130077c13967f9d14f7b7c6c0b37bf29d2c358f47b752cabcc"
 dependencies = [
- "p3-air 0.6.1",
+ "p3-air",
  "p3-field 0.6.1",
  "p3-matrix 0.6.1",
  "p3-maybe-rayon 0.6.1",
@@ -2574,34 +2548,15 @@ dependencies = [
 
 [[package]]
 name = "p3-uni-stark"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "751bb3d740a7795a0da12ae86749df4bc12bd996d0bfd3c6f7ee62652db0e0c3"
-dependencies = [
- "itertools",
- "p3-air 0.5.3",
- "p3-challenger 0.5.3",
- "p3-commit 0.5.3",
- "p3-field 0.5.3",
- "p3-matrix 0.5.3",
- "p3-maybe-rayon 0.5.3",
- "p3-util 0.5.3",
- "serde",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "p3-uni-stark"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14e2195220ed01aa53e149836b3011c76fe347b54e5eb16beb8de8aac72fff3b"
 dependencies = [
  "itertools",
  "libm",
- "p3-air 0.6.1",
+ "p3-air",
  "p3-challenger 0.6.1",
- "p3-commit 0.6.1",
+ "p3-commit",
  "p3-field 0.6.1",
  "p3-fri",
  "p3-matrix 0.6.1",
@@ -3448,9 +3403,9 @@ name = "scalar-stark-p3"
 version = "0.1.0"
 dependencies = [
  "blake3",
- "p3-air 0.6.1",
+ "p3-air",
  "p3-challenger 0.6.1",
- "p3-commit 0.6.1",
+ "p3-commit",
  "p3-dft 0.6.1",
  "p3-field 0.6.1",
  "p3-fri",
@@ -3461,7 +3416,7 @@ dependencies = [
  "p3-poseidon2 0.6.1",
  "p3-poseidon2-air",
  "p3-symmetric 0.6.1",
- "p3-uni-stark 0.6.1",
+ "p3-uni-stark",
  "postcard",
  "rand 0.9.4",
  "scalar-crypto",
@@ -3475,11 +3430,11 @@ dependencies = [
 name = "scalar-stark-p3-verify"
 version = "0.1.0"
 dependencies = [
- "p3-air 0.5.3",
- "p3-field 0.5.3",
- "p3-goldilocks 0.5.3",
- "p3-matrix 0.5.3",
- "p3-uni-stark 0.5.3",
+ "p3-air",
+ "p3-field 0.6.1",
+ "p3-goldilocks 0.6.1",
+ "p3-matrix 0.6.1",
+ "p3-uni-stark",
  "postcard",
  "scalar-stark-p3",
  "serde",

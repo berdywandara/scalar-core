@@ -120,6 +120,12 @@ impl<F: PrimeCharacteristicRing + Sync> BaseAir<F> for TransferAirP3 {
         // Single-row AIR: no transition constraints access next row.
         vec![]
     }
+
+    fn num_public_values(&self) -> usize {
+        // Must match TRANSFER_PI_LEN = 41. [SCALAR-TECHNICAL §2.2, PI_TOTAL=41]
+        // p3-uni-stark 0.6 enforces this at verification time.
+        crate::transfer_public_inputs::TRANSFER_PI_LEN
+    }
 }
 
 impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
