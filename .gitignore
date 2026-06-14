@@ -29,3 +29,9 @@ apps/
 
 # never commit script backups
 *.bak.*
+
+# TLC Model Checker artifacts
+verification/tla+/**/*_TTrace_*.tla
+verification/tla+/**/*_TTrace_*.bin
+verification/tla+/tools/
+states/
