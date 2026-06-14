@@ -250,4 +250,44 @@ mod tests {
             );
         }
     }
+    /// CI gate (blocking) — SCALAR-TECHNICAL §1.1.
+    /// Poseidon2 Goldilocks t=8 Known-Answer Test vector.
+    /// Input: [0u64; 8]. Output: locked values from SCALAR-TECHNICAL §1.1.
+    /// ANY deviation from these values is a bug — reject immediately.
+    /// Verifies bit-exact compatibility after p3-goldilocks upgrade.
+    #[test]
+    fn test_poseidon2_kat_vector_scalar_technical_s1_1() {
+        use p3_field::PrimeField64;
+        use p3_goldilocks::{default_goldilocks_poseidon2_8, Goldilocks};
+        use p3_symmetric::Permutation;
+
+        let perm = default_goldilocks_poseidon2_8();
+        let mut state: [Goldilocks; 8] = [Goldilocks::new(0); 8];
+        perm.permute_mut(&mut state);
+
+        // KAT vector — SCALAR-TECHNICAL §1.1. DO NOT CHANGE THESE VALUES.
+        // Source: p3-goldilocks poseidon2_rust_params.sage (OSSIFIED).
+        // If this test fails after a dependency upgrade, the upgrade changes
+        // Poseidon2 semantics and MUST be rejected (INV-P4 determinism violation).
+        let expected: [u64; 8] = [
+            4904961330882102773,
+            6914533505831728251,
+            16060085509051262978,
+            161169382960502813,
+            8610401995229161121,
+            6947968519022847962,
+            9668808541865791489,
+            7055543217974479047,
+        ];
+
+        for (i, (got, exp)) in state.iter().zip(expected.iter()).enumerate() {
+            assert_eq!(
+                got.as_canonical_u64(),
+                *exp,
+                "Poseidon2 KAT mismatch at index {i}: got {}, expected {}                  [SCALAR-TECHNICAL §1.1 — dependency upgrade changed hash semantics]",
+                got.as_canonical_u64(),
+                exp
+            );
+        }
+    }
 }

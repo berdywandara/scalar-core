@@ -110,3 +110,7 @@ jobs:
       - name: Gate — Domain separator uniqueness (scalar-crypto)
         # OSSIFIED: all domain separators must be unique. SCALAR-PROTOCOL §13.1.
         run: cargo test -p scalar-crypto test_all_domains_unique -- --nocapture
+      - name: Gate — Poseidon2 KAT vector bit-exact (scalar-stark-p3)
+        # OSSIFIED: Poseidon2 Goldilocks t=8 KAT vector. SCALAR-TECHNICAL §1.1.
+        # Blocks merge if p3-goldilocks upgrade changes hash semantics.
+        run: cargo test -p scalar-stark-p3 test_poseidon2_kat_vector_scalar_technical_s1_1 -- --nocapture
