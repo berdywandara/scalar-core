@@ -109,7 +109,7 @@
   Formula: `storage_mass = C × (Σ 1/value_o − Σ 1/value_i)+`. Witness `inv` dengan
   constraint `value × inv ∈ [SCALE − value, SCALE]`. Bit decomposition untuk overflow guard.
 - **Sub-task GAP-10b**: CF — `BASE_FEE = storage_mass × BASE_PRICE_PER_MASS`, `COMPLEXITY_FEE = constraint_units × PRICE_PER_CU`. Conservation: `fee_total = BASE_FEE + COMPLEXITY_FEE + PREMIUM`.
-- **Sub-task GAP-10c**: CF-PREMIUM — derivasi terikat-nonce:
+- **Sub-task GAP-10c**: CF-PREMIUM — derivasi terikat-nonce ✅ CLOSED:
   `raw = Poseidon2(DOMAIN_FEE_PREMIUM ‖ tx_nonce ‖ FLOOR_BASE)`,
   `PREMIUM = raw − q × (FLOOR_BASE + 1)`.
   Constraint CF-PREMIUM-1: `0 ≤ PREMIUM ≤ FLOOR_BASE` (bit decomposition).
@@ -300,4 +300,6 @@ Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 | 2026-06-15 | GAP-09 CLOSED: compute_commitment_hash + compute_nullifier_hash BLAKE3→Poseidon2_acc (t=8, Rate=4). [SCALAR-TECHNICAL §2.2, §2.7-A CX-2/CX-3] |
 | 2026-06-15 | GAP-10a CLOSED: CfWitnesses + storage_mass reciprocal cols (112-154); TRANSFER_TRACE_WIDTH 112→155. [§2.8] |
 | 2026-06-15 | GAP-10b CLOSED: rem 32-bit decomp (Opsi A P1); BASE_FEE+COMPLEXITY_FEE+FLOOR_BASE in-circuit; TRANSFER_TRACE_WIDTH 155→798. [§2.8] |
+| 2026-06-15 | GAP-10c CLOSED: CF-PREMIUM Poseidon2_t8 terikat-nonce + 52-bit range proof + floor-div; TRANSFER_TRACE_WIDTH 798→857. [§2.8-A P1] |
+| 2026-06-15 | GAP-10 CLOSED: CF/CF-PREMIUM fully in-circuit (10a+10b+10c). INV-FEE satisfied. [P1] |
 | 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |

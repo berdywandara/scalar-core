@@ -55,6 +55,7 @@ use crate::config::{build_scalar_config, ScalarStarkConfig};
 use crate::transfer_public_inputs::{
     check_all_constraints, TransferPublicInputsP3, FEE_FLOOR_SSCL, VALID_CRYPTO_VERSION,
 };
+use scalar_crypto::poseidon2_t8::poseidon2_permute_t8;
 
 // ── Trace layout constants — OSSIFIED ─────────────────────────────────────────
 
@@ -78,7 +79,7 @@ pub const RECIP_SCALE: u64 = 1u64 << 32;
 pub const CF_COL_COUNT: usize = 2 * MAX_IO_CF * 2 + 3; // 43
 
 /// New TRANSFER_TRACE_WIDTH: 112 (existing) + 43 (CF storage_mass) = 155.
-pub const TRANSFER_TRACE_WIDTH: usize = 798; // GAP-10b: 155+320+320+3
+pub const TRANSFER_TRACE_WIDTH: usize = 857; // GAP-10c: 798+59 CF-PREMIUM
 
 // ── CF storage_mass columns (start at 112) ────────────────────────────────────
 /// Input UTXO value columns (witness privat). COL_VALUE_IN_0..9 = 112..121.
@@ -109,6 +110,13 @@ pub const COL_BASE_FEE: usize = COL_REM_OUT_BIT_START + REM_BIT_COUNT * MAX_IO_C
 pub const COL_COMPLEXITY_FEE: usize = COL_BASE_FEE + 1;
 /// FLOOR_BASE = BASE_FEE + COMPLEXITY_FEE. COL_FLOOR_BASE=797.
 pub const COL_FLOOR_BASE: usize = COL_COMPLEXITY_FEE + 1;
+pub const DOMAIN_FEE_PREMIUM_FE: u64 = u64::from_le_bytes(*b"scalar_f");
+pub const PREMIUM_BIT_COUNT: usize = 52;
+pub const COL_TX_NONCE: usize = COL_FLOOR_BASE + 1;
+pub const COL_PREMIUM_RAW_START: usize = COL_TX_NONCE + 1;
+pub const COL_PREMIUM_Q: usize = COL_PREMIUM_RAW_START + 4;
+pub const COL_PREMIUM: usize = COL_PREMIUM_Q + 1;
+pub const COL_PREMIUM_BIT_START: usize = COL_PREMIUM + 1;
 /// BASE_PRICE_PER_MASS: genesis default 1000. CONSTRAINED §13.2.
 pub const BASE_PRICE_PER_MASS: u64 = 1_000;
 /// PRICE_PER_CU: genesis default 1000. CONSTRAINED §13.2.
@@ -345,6 +353,47 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
             // Here: storage_mass column holds the computed value.
             let storage_mass = local[COL_STORAGE_MASS];
             builder.assert_eq(storage_mass.into(), sum_inv_out - sum_inv_in);
+
+            // ── CF BASE_FEE + COMPLEXITY_FEE + FLOOR_BASE (§2.8) ─────────
+            let base_price = AB::F::from_u64(BASE_PRICE_PER_MASS);
+            let price_per_cu = AB::F::from_u64(PRICE_PER_CU);
+            let num_in = local[COL_NUM_INPUTS];
+            let num_out = local[COL_NUM_OUTPUTS];
+            let col_base_fee = local[COL_BASE_FEE];
+            let col_cpx_fee = local[COL_COMPLEXITY_FEE];
+            let col_floor_base = local[COL_FLOOR_BASE];
+            let base_fee_expr: AB::Expr = AB::Expr::from(storage_mass) * AB::Expr::from(base_price);
+            builder.assert_eq(AB::Expr::from(col_base_fee), base_fee_expr);
+            let cu_proxy: AB::Expr = AB::Expr::from(num_in) + AB::Expr::from(num_out);
+            let cpx_fee_expr: AB::Expr = cu_proxy * AB::Expr::from(price_per_cu);
+            builder.assert_eq(AB::Expr::from(col_cpx_fee), cpx_fee_expr);
+            let floor_base_expr: AB::Expr =
+                AB::Expr::from(col_base_fee) + AB::Expr::from(col_cpx_fee);
+            builder.assert_eq(AB::Expr::from(col_floor_base), floor_base_expr);
+
+            // ── CF-PREMIUM-1: 0 <= PREMIUM <= FLOOR_BASE (§2.8-A) ─────────
+            {
+                let premium = local[COL_PREMIUM];
+                let mut recon: AB::Expr = AB::Expr::from(AB::F::ZERO);
+                let mut pow: AB::Expr = AB::Expr::from(AB::F::ONE);
+                for k in 0..PREMIUM_BIT_COUNT {
+                    let bit = local[COL_PREMIUM_BIT_START + k];
+                    builder.assert_zero(bit * (bit - AB::F::ONE));
+                    recon += AB::Expr::from(bit) * pow.clone();
+                    pow *= AB::F::from_u64(2u64);
+                }
+                builder.assert_eq(AB::Expr::from(premium), recon);
+            }
+
+            // ── CF-PREMIUM-2: raw[0] == PREMIUM + q*(FLOOR_BASE+1) (§2.8-A) ─
+            {
+                let raw0 = local[COL_PREMIUM_RAW_START];
+                let q = local[COL_PREMIUM_Q];
+                let premium = local[COL_PREMIUM];
+                let fb1: AB::Expr = AB::Expr::from(col_floor_base) + AB::Expr::from(AB::F::ONE);
+                let rhs: AB::Expr = AB::Expr::from(premium) + AB::Expr::from(q) * fb1;
+                builder.assert_eq(AB::Expr::from(raw0), rhs);
+            }
         }
 
         // ── A-R9: Cross-binding — commitment_hash + nullifier_hash ───────────
@@ -473,7 +522,7 @@ pub fn build_transfer_trace(
         *bit = (pi.target_subepoch_id >> i) & 1;
     }
 
-    // Assemble full row [TRANSFER_TRACE_WIDTH = 798: 155 + 643 GAP-10b cols].
+    // Assemble full row [TRANSFER_TRACE_WIDTH = 857: 798+59 CF-PREMIUM].
     let mut row = [Goldilocks::new(0u64); TRANSFER_TRACE_WIDTH];
     // cols 0..11: main public values
     row[COL_FEE] = Goldilocks::new(pi.fee_total_sscl);
@@ -573,6 +622,36 @@ pub fn build_transfer_trace(
     row[COL_COMPLEXITY_FEE] = Goldilocks::new(complexity_fee_val);
     row[COL_FLOOR_BASE] = Goldilocks::new(floor_base_val);
 
+    // GAP-10c: CF-PREMIUM trace columns [SCALAR-TECHNICAL §2.8-A]
+    let tx_nonce_val = pi.commitment_hash[0] ^ pi.nullifier_hash[0];
+    row[COL_TX_NONCE] = Goldilocks::new(tx_nonce_val);
+    let p2_input: [u64; 8] = [
+        DOMAIN_FEE_PREMIUM_FE,
+        tx_nonce_val,
+        floor_base_val,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ];
+    let p2_out = poseidon2_permute_t8(&p2_input);
+    for j in 0..4 {
+        row[COL_PREMIUM_RAW_START + j] = Goldilocks::new(p2_out[j]);
+    }
+    let raw0 = p2_out[0];
+    let floor_plus_one = floor_base_val.saturating_add(1);
+    let (premium_val, q_val) = if floor_plus_one == 0 {
+        (0u64, 0u64)
+    } else {
+        (raw0 % floor_plus_one, raw0 / floor_plus_one)
+    };
+    row[COL_PREMIUM_Q] = Goldilocks::new(q_val);
+    row[COL_PREMIUM] = Goldilocks::new(premium_val);
+    for k in 0..PREMIUM_BIT_COUNT {
+        row[COL_PREMIUM_BIT_START + k] = Goldilocks::new((premium_val >> k) & 1);
+    }
+
     // Replicate single row across all trace rows (steady-state constraint).
 
     // Reorder: row-major (row0_col0, row0_col1, ..., row1_col0, ...)
@@ -662,7 +741,7 @@ mod tests {
 
     #[test]
     fn test_trace_width_ossified() {
-        assert_eq!(TRANSFER_TRACE_WIDTH, 798); // 155 + 320 rem_in + 320 rem_out + 3 fee [GAP-10b]
+        assert_eq!(TRANSFER_TRACE_WIDTH, 857); // 798+59 CF-PREMIUM [GAP-10c]
     }
 
     #[test]
