@@ -24,9 +24,9 @@
 //!
 //! target_subepoch_id is a PRIVATE WITNESS (user-signed), NOT in public inputs.
 
-use blake3::Hasher;
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
+use scalar_crypto::poseidon2_t8::poseidon2_hash_chained;
 
 /// Total number of public input field elements for Transfer Circuit. OSSIFIED.
 pub const TRANSFER_PI_LEN: usize = 41; // G-07b: timestamps[4] -> current_subepoch_id[1]
@@ -292,40 +292,42 @@ impl TransferPublicInputsP3 {
 
 // ── Cross-binding hash helpers (A-R9) ────────────────────────────────────────
 
-/// Compute commitment_hash = BLAKE3(all commitments concatenated)[0..32] as [u64;4].
-/// Used to bind CD/CE/CG AIR to the same commitments proven by CA/CB sub-AIRs.
-/// Spec §4.3 CB, A-R9.
+/// Compute commitment_hash = Poseidon2_acc(CB.leaf_commitments) as [u64;4].
+///
+/// Poseidon2_acc: sponge Poseidon2 (Goldilocks, t=8, Rate=4) absorbs all
+/// commitment field elements sequentially, output = first 4 u64 of final state.
+/// Each [u8;32] commitment is interpreted as 4 x u64 LE field elements.
+///
+/// This must match the in-circuit CX constraint (§2.7-A CX-2):
+///   commitment_hash (PI[33..36]) == Poseidon2_acc(CB.leaf_commitments)
+/// [SCALAR-TECHNICAL §2.2, §2.7-A; GAP-09]
 pub fn compute_commitment_hash(commitments: &[[u8; 32]]) -> [u64; 4] {
-    let mut hasher = Hasher::new();
-    for c in commitments {
-        hasher.update(c);
-    }
-    let hash = hasher.finalize();
-    let b = hash.as_bytes();
-    [
-        u64::from_le_bytes(b[0..8].try_into().unwrap()),
-        u64::from_le_bytes(b[8..16].try_into().unwrap()),
-        u64::from_le_bytes(b[16..24].try_into().unwrap()),
-        u64::from_le_bytes(b[24..32].try_into().unwrap()),
-    ]
+    // Convert each [u8;32] commitment to 4 x u64 LE field elements.
+    // Concatenate all → absorb into Poseidon2 sponge (t=8, Rate=4).
+    let field_elems: Vec<u64> = commitments
+        .iter()
+        .flat_map(|c| (0..4).map(|i| u64::from_le_bytes(c[i * 8..(i + 1) * 8].try_into().unwrap())))
+        .collect();
+    poseidon2_hash_chained(&field_elems)
 }
 
-/// Compute nullifier_hash = BLAKE3(all nullifiers concatenated)[0..32] as [u64;4].
-/// Used to bind CD/CE/CG AIR to the same nullifiers proven by CA/CC sub-AIRs.
-/// Spec §4.3 CC, A-R9.
+/// Compute nullifier_hash = Poseidon2_acc(CA.expected_nullifiers) as [u64;4].
+///
+/// Poseidon2_acc: sponge Poseidon2 (Goldilocks, t=8, Rate=4) absorbs all
+/// nullifier field elements sequentially, output = first 4 u64 of final state.
+/// Each [u8;32] nullifier is interpreted as 4 x u64 LE field elements.
+///
+/// This must match the in-circuit CX constraint (§2.7-A CX-3):
+///   nullifier_hash (PI[37..40]) == Poseidon2_acc(CA.expected_nullifiers)
+/// [SCALAR-TECHNICAL §2.2, §2.7-A; GAP-09]
 pub fn compute_nullifier_hash(nullifiers: &[[u8; 32]]) -> [u64; 4] {
-    let mut hasher = Hasher::new();
-    for n in nullifiers {
-        hasher.update(n);
-    }
-    let hash = hasher.finalize();
-    let b = hash.as_bytes();
-    [
-        u64::from_le_bytes(b[0..8].try_into().unwrap()),
-        u64::from_le_bytes(b[8..16].try_into().unwrap()),
-        u64::from_le_bytes(b[16..24].try_into().unwrap()),
-        u64::from_le_bytes(b[24..32].try_into().unwrap()),
-    ]
+    // Convert each [u8;32] nullifier to 4 x u64 LE field elements.
+    // Concatenate all → absorb into Poseidon2 sponge (t=8, Rate=4).
+    let field_elems: Vec<u64> = nullifiers
+        .iter()
+        .flat_map(|n| (0..4).map(|i| u64::from_le_bytes(n[i * 8..(i + 1) * 8].try_into().unwrap())))
+        .collect();
+    poseidon2_hash_chained(&field_elems)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
