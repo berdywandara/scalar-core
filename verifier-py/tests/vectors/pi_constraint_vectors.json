@@ -1,0 +1,253 @@
+{
+  "source": "scalar impl#1 (Rust)",
+  "vectors": [
+    {
+      "expected_valid": true,
+      "fail_constraint_idx": null,
+      "got_valid": true,
+      "note": "valid: baseline",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 1000,
+        "fee_total_sscl": 40,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 1000000040,
+        "sum_outputs_sscl": 1000000000,
+        "target_subepoch_id": 1000
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": true,
+      "fail_constraint_idx": null,
+      "got_valid": true,
+      "note": "valid: fee=floor exact",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 5,
+        "fee_total_sscl": 40,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 40,
+        "sum_outputs_sscl": 0,
+        "target_subepoch_id": 5
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": true,
+      "fail_constraint_idx": null,
+      "got_valid": true,
+      "note": "valid: validity=1 (boundary spillover)",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 101,
+        "fee_total_sscl": 40,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 1040,
+        "sum_outputs_sscl": 1000,
+        "target_subepoch_id": 100
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": true,
+      "fail_constraint_idx": null,
+      "got_valid": true,
+      "note": "valid: large values",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 999,
+        "fee_total_sscl": 100,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 2000000100,
+        "sum_outputs_sscl": 2000000000,
+        "target_subepoch_id": 999
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": false,
+      "fail_constraint_idx": 0,
+      "got_valid": false,
+      "note": "invalid: CD conservation violated",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 1000,
+        "fee_total_sscl": 40,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 1000000000,
+        "sum_outputs_sscl": 1000000000,
+        "target_subepoch_id": 1000
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": false,
+      "fail_constraint_idx": 1,
+      "got_valid": false,
+      "note": "invalid: fee below floor",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 1000,
+        "fee_total_sscl": 39,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 1039,
+        "sum_outputs_sscl": 1000,
+        "target_subepoch_id": 1000
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": false,
+      "fail_constraint_idx": 2,
+      "got_valid": false,
+      "note": "invalid: wrong crypto_version",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 2,
+        "current_subepoch_id": 1000,
+        "fee_total_sscl": 40,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 1040,
+        "sum_outputs_sscl": 1000,
+        "target_subepoch_id": 1000
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": false,
+      "fail_constraint_idx": 3,
+      "got_valid": false,
+      "note": "invalid: CG-ARITH stale (validity=2)",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 102,
+        "fee_total_sscl": 40,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 1040,
+        "sum_outputs_sscl": 1000,
+        "target_subepoch_id": 100
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": false,
+      "fail_constraint_idx": 3,
+      "got_valid": false,
+      "note": "invalid: CG-ARITH order violation (current < target)",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 99,
+        "fee_total_sscl": 40,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 1040,
+        "sum_outputs_sscl": 1000,
+        "target_subepoch_id": 100
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": false,
+      "fail_constraint_idx": 4,
+      "got_valid": false,
+      "note": "invalid: CB not verified",
+      "pi": {
+        "cb_membership_verified": false,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 1000,
+        "fee_total_sscl": 40,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 1040,
+        "sum_outputs_sscl": 1000,
+        "target_subepoch_id": 1000
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": false,
+      "fail_constraint_idx": 5,
+      "got_valid": false,
+      "note": "invalid: CC not verified",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": false,
+        "crypto_version": 1,
+        "current_subepoch_id": 1000,
+        "fee_total_sscl": 40,
+        "output_nonzero": true,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 1040,
+        "sum_outputs_sscl": 1000,
+        "target_subepoch_id": 1000
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": false,
+      "fail_constraint_idx": 6,
+      "got_valid": false,
+      "note": "invalid: output is zero",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 1000,
+        "fee_total_sscl": 40,
+        "output_nonzero": false,
+        "single_utxo_source": true,
+        "sum_inputs_sscl": 1040,
+        "sum_outputs_sscl": 1000,
+        "target_subepoch_id": 1000
+      },
+      "primitive": "pi_check_all_constraints"
+    },
+    {
+      "expected_valid": false,
+      "fail_constraint_idx": 7,
+      "got_valid": false,
+      "note": "invalid: dual UTXO source",
+      "pi": {
+        "cb_membership_verified": true,
+        "cc_nonmembership_verified": true,
+        "crypto_version": 1,
+        "current_subepoch_id": 1000,
+        "fee_total_sscl": 40,
+        "output_nonzero": true,
+        "single_utxo_source": false,
+        "sum_inputs_sscl": 1040,
+        "sum_outputs_sscl": 1000,
+        "target_subepoch_id": 1000
+      },
+      "primitive": "pi_check_all_constraints"
+    }
+  ],
+  "version": "2.0"
+}

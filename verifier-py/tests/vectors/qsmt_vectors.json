@@ -19,27 +19,27 @@
         "0000000000000000000000000000000000000000000000000000000000000000",
         "0000000000000000000000000000000000000000000000000000000000000000"
       ],
-      "note": "one non-zero child at index 0",
+      "note": "one non-zero child",
       "output_hex": "97fdec3ff9cf57bee5d510774817d1907a5a063027096b71364cfa7b70533a6c",
       "primitive": "qsmt_node_hash"
     },
     {
       "epoch_id": 0,
-      "note": "leaf 0x11*32 epoch=0",
+      "note": "leaf 0x11 epoch=0",
       "nullifier_hex": "1111111111111111111111111111111111111111111111111111111111111111",
       "output_hex": "27263579d15efc064f2b5a9b42d0c25d7768082e9de82abaa339d92496cb4d47",
       "primitive": "qsmt_leaf_hash"
     },
     {
       "epoch_id": 42,
-      "note": "leaf 0x11*32 epoch=42",
+      "note": "leaf 0x11 epoch=42",
       "nullifier_hex": "1111111111111111111111111111111111111111111111111111111111111111",
       "output_hex": "2cb96a52efdfea882eed1b61b11e517e9fede344c0479db0ddb6cc3299cfa5b7",
       "primitive": "qsmt_leaf_hash"
     },
     {
       "epoch_id": 1,
-      "note": "leaf 0xAA*32 epoch=1",
+      "note": "leaf 0xAA epoch=1",
       "nullifier_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "output_hex": "9e13a0958cf744edb157c86a2d07353f7c1eeef920c583bca2052e6262859cff",
       "primitive": "qsmt_leaf_hash"

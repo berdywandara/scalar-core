@@ -16,3 +16,4 @@ scalar-nullifier = { path = "../../core/scalar-nullifier" }
 blake3 = "1.5"
 hex = "0.4"
 serde_json = "1"
+scalar-stark-p3 = { path = "../../core/scalar-stark-p3" }
