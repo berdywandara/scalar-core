@@ -21,3 +21,10 @@ serde = { version = "1.0.228", features = ["derive"] }
 tokio-socks = "0.5.2"
 serde_json = "1.0.149"
 blake3 = "1.5"
+
+[features]
+# Dev-only: faster sub-epoch timing for local Codespace benchmarks.
+# DEFAULT OFF. MUST NOT be enabled in release builds.
+# Source: BENCHMARK_RESULTS.md (Codespace artefact, not a protocol parameter).
+# Ref: SCALAR-PROTOCOL §4.2 T-6, §13.1.
+dev-fast-subepoch = []

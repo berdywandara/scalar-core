@@ -26,18 +26,25 @@ use scalar_crypto::domain::{
 use std::collections::HashMap;
 
 // ── Constants — OSSIFIED ──────────────────────────────────────────────────────
-
-/// Sub-epochs per epoch (720 × 1 hour = 30 days). Research Package §3.2.1.
+// Mainnet OSSIFIED (SCALAR-PROTOCOL §13.1) — default, tidak boleh di release build dengan dev values.
+/// Sub-epochs per epoch. OSSIFIED: 24. [SCALAR-PROTOCOL §13.1]
+#[cfg(not(feature = "dev-fast-subepoch"))]
+pub const SUBEPOCHS_PER_EPOCH: u32 = 24;
+/// Sub-epoch duration in seconds. OSSIFIED: 1_900s. [SCALAR-PROTOCOL §13.1]
+#[cfg(not(feature = "dev-fast-subepoch"))]
+pub const SUBEPOCH_DURATION_S: u64 = 1_900;
+/// Dev-only: sub-epochs per epoch for local Codespace benchmarks. NOT for release.
+#[cfg(feature = "dev-fast-subepoch")]
 pub const SUBEPOCHS_PER_EPOCH: u32 = 720;
-
-/// Sub-epoch duration in seconds (~1 hour). Research Package §3.2.1.
-pub const SUBEPOCH_DURATION_S: u64 = 3600;
+/// Dev-only: sub-epoch duration for local Codespace benchmarks. NOT for release.
+#[cfg(feature = "dev-fast-subepoch")]
+pub const SUBEPOCH_DURATION_S: u64 = 3_640;
 
 /// Collection phase duration (0-45 min). Research Package §3.2.3.
-pub const SUBEPOCH_COLLECT_S: u64 = 2700;
+pub const SUBEPOCH_COLLECT_S: u64 = SUBEPOCH_DURATION_S * 3 / 4;
 
 /// Quorum phase duration (45-60 min). Research Package §3.2.3.
-pub const SUBEPOCH_QUORUM_S: u64 = 3600;
+pub const SUBEPOCH_QUORUM_S: u64 = SUBEPOCH_DURATION_S;
 
 /// Quorum threshold: 5 out of 7 validators. Research Package §3.2.3.
 pub const SUBEPOCH_QUORUM_THRESHOLD: usize = 5;
@@ -469,14 +476,20 @@ mod tests {
 
     #[test]
     fn test_subepochs_per_epoch() {
-        // 720 sub-epochs per 30-day epoch. Research Package §3.2.1.
+        // OSSIFIED: 24 sub-epochs per epoch. [SCALAR-PROTOCOL §13.1]
+        #[cfg(not(feature = "dev-fast-subepoch"))]
+        assert_eq!(SUBEPOCHS_PER_EPOCH, 24);
+        #[cfg(feature = "dev-fast-subepoch")]
         assert_eq!(SUBEPOCHS_PER_EPOCH, 720);
     }
 
     #[test]
     fn test_subepoch_duration_1_hour() {
-        // 1 sub-epoch = 3600 seconds = 1 hour. Research Package §3.2.1.
-        assert_eq!(SUBEPOCH_DURATION_S, 3600);
+        // OSSIFIED: 1900s per sub-epoch. [SCALAR-PROTOCOL §13.1]
+        #[cfg(not(feature = "dev-fast-subepoch"))]
+        assert_eq!(SUBEPOCH_DURATION_S, 1_900);
+        #[cfg(feature = "dev-fast-subepoch")]
+        assert_eq!(SUBEPOCH_DURATION_S, 3_640);
     }
 
     #[test]
