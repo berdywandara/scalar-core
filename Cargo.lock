@@ -3733,6 +3733,8 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "hex",
+ "p3-field 0.6.1",
+ "p3-goldilocks 0.6.1",
  "scalar-crypto",
  "scalar-emission",
  "scalar-nullifier",
