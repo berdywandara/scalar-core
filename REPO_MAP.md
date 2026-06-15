@@ -306,4 +306,5 @@ Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 | 2026-06-15 | GAP-10c CLOSED: CF-PREMIUM Poseidon2_t8 terikat-nonce + 52-bit range proof + floor-div; TRANSFER_TRACE_WIDTH 798→857. [§2.8-A P1] |
 | 2026-06-15 | GAP-10 CLOSED: CF/CF-PREMIUM fully in-circuit (10a+10b+10c). INV-FEE satisfied. [P1] |
 | 2026-06-15 | GAP-12 CLOSED: SUBEPOCHS_PER_EPOCH 720→24 OSSIFIED; SUBEPOCH_DURATION_S 3600→1900; dev-fast-subepoch feature flag (default OFF). [§13.1] |
+| 2026-06-15 | GAP-13 CLOSED: WalStatus::Pending→Preparing; nullifier WAL 2-fase (Preparing|Committed) distinct dari node WAL 3-fase. [§6.2] |
 | 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |

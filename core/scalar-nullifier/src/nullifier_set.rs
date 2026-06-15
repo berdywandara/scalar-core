@@ -13,7 +13,7 @@
 //! Operasi fundamental (spec §6.3):
 //!   is_spent()   — periksa NS_ACTIVE, jika tidak ada periksa NS_CHECKPOINT.
 //!   insert()     — atomik, idempoten.
-//!   checkpoint() — dijalankan setiap 3 epoch, dengan WAL.
+//!   checkpoint() — dijalankan setiap CHECKPOINT_INTERVAL_EPOCHS, dengan WAL.
 //!
 //! Zero-Gap Property (spec §6.3):
 //!   Tidak ada window di mana nullifier bisa hilang antara NS_ACTIVE
@@ -91,7 +91,7 @@ impl WalBackend for InMemoryWal {
     fn load_pending(&self) -> Option<WalEntry> {
         self.entry
             .as_ref()
-            .filter(|e| e.status == WalStatus::Pending)
+            .filter(|e| e.status == WalStatus::Preparing)
             .cloned()
     }
 }
@@ -159,12 +159,17 @@ pub struct WalEntry {
     pub nullifiers_to_archive: Vec<[u8; 32]>,
 }
 
-/// Status Write-Ahead Log. Spec §6.3.
+/// Status Write-Ahead Log. Spec §6.3. [SCALAR-TECHNICAL §6.2]
+///
+/// Nullifier archival WAL uses two phases (no Inserted phase — SMT insert
+/// and commit are atomic for nullifier archival, unlike node checkpoint WAL):
+///   Preparing  — WAL recorded, SMT insert pending.
+///   Committed  — SMT insert complete, WAL may be pruned.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WalStatus {
-    /// WAL ditulis, checkpoint belum selesai.
-    Pending,
-    /// Checkpoint selesai — WAL bisa dihapus.
+    /// WAL recorded, SMT insert pending. [SCALAR-TECHNICAL §6.2]
+    Preparing,
+    /// SMT insert complete — WAL can be pruned. [SCALAR-TECHNICAL §6.2]
     Committed,
 }
 
@@ -181,7 +186,7 @@ pub struct NullifierSet {
     pub active: SparseMerkleTree,
     /// Epoch sejak NS_ACTIVE mulai (epoch pertama yang dicakup). Spec §6.2.
     pub active_since_epoch: u64,
-    /// Layer 2: NS_CHECKPOINT — accumulative SMT, root = nullifier_archived_root. [K-1]
+    /// Layer 2: NS_CHECKPOINT — accumulative Sparse Merkle Tree (depth-32). [K-1, SCALAR-TECHNICAL §6.1]
     pub checkpoint_proof: CheckpointProof,
     /// Epoch terakhir yang dicakup NS_CHECKPOINT. Spec §6.2.
     pub checkpoint_epoch: u64,
@@ -278,7 +283,7 @@ impl NullifierSet {
         // Step 1: Tulis WAL entry — persistent di production (spec erratum #7)
         let wal_entry = WalEntry {
             epoch: current_epoch,
-            status: WalStatus::Pending,
+            status: WalStatus::Preparing,
             nullifiers_to_archive: to_archive.clone(),
         };
         self.wal.write(&wal_entry)?;
@@ -541,13 +546,13 @@ mod tests {
         assert!(wal.load_pending().is_none());
         let entry = WalEntry {
             epoch: 5,
-            status: WalStatus::Pending,
+            status: WalStatus::Preparing,
             nullifiers_to_archive: vec![[0xAAu8; 32]],
         };
         wal.write(&entry).unwrap();
         let loaded = wal.load_pending().unwrap();
         assert_eq!(loaded.epoch, 5);
-        assert_eq!(loaded.status, WalStatus::Pending);
+        assert_eq!(loaded.status, WalStatus::Preparing);
     }
 
     #[test]
@@ -555,7 +560,7 @@ mod tests {
         let mut wal = InMemoryWal::new();
         let entry = WalEntry {
             epoch: 3,
-            status: WalStatus::Pending,
+            status: WalStatus::Preparing,
             nullifiers_to_archive: vec![[0x01u8; 32]],
         };
         wal.write(&entry).unwrap();
