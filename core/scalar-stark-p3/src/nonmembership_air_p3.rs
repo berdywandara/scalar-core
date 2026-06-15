@@ -341,6 +341,13 @@ impl BaseAir<Goldilocks> for NonMembershipAir {
     fn width(&self) -> usize {
         NONMEMB_TRACE_WIDTH
     }
+
+    fn num_public_values(&self) -> usize {
+        // 4 (active_root) + 4 (archived_root) + 4 (nullifier) = 12
+        // Matches build_nonmembership_public_values output length.
+        // SCALAR-TECHNICAL §2.5, §2.2 PI[14..29], [30]. [GAP-08]
+        12
+    }
 }
 
 impl<AB: AirBuilder<F = Goldilocks>> Air<AB> for NonMembershipAir {

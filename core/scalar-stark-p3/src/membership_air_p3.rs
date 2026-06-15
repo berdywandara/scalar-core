@@ -26,7 +26,8 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
-use p3_field::PrimeField64;
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use p3_poseidon2_air::generate_trace_rows;
 use p3_symmetric::Permutation;
@@ -241,6 +242,43 @@ pub fn validate_membership_roots(
     Ok(())
 }
 
+/// MembershipAir: ScalarPoseidon2Air wrapper that declares num_public_values.
+///
+/// Public values layout: [root[0..4], per_input: commitment_as_4_u64 + leaf_index]
+/// Total: 4 + N_INPUTS * 5 field elements.
+/// This binding ensures the Fiat-Shamir transcript commits to the expected root
+/// and all leaf commitments — wrong values produce verifier rejection.
+/// Spec §4.3 CB, SCALAR-TECHNICAL §2.4. [GAP-08]
+pub struct MembershipAir {
+    pub inner: crate::poseidon2_p3::ScalarPoseidon2Air,
+    /// Number of real inputs. Determines public values length.
+    pub n_inputs: usize,
+}
+
+impl<F: PrimeCharacteristicRing + Sync> BaseAir<F> for MembershipAir {
+    fn width(&self) -> usize {
+        self.inner.width()
+    }
+
+    fn main_next_row_columns(&self) -> alloc::vec::Vec<usize> {
+        self.inner.main_next_row_columns()
+    }
+
+    fn num_public_values(&self) -> usize {
+        // 4 (root) + n_inputs * 5 (4 commitment chunks + 1 leaf_index)
+        4 + self.n_inputs * 5
+    }
+}
+
+impl<AB: AirBuilder<F = Goldilocks>> Air<AB> for MembershipAir
+where
+    crate::poseidon2_p3::ScalarPoseidon2Air: Air<AB>,
+{
+    fn eval(&self, builder: &mut AB) {
+        self.inner.eval(builder);
+    }
+}
+
 /// Build public values for the membership proof.
 ///
 /// Layout: [root[0..4], per_input: commitment_as_4_u64, leaf_index]
@@ -312,7 +350,11 @@ pub fn prove_membership_p3(
     validate_membership_roots(&computed_roots, &claim.expected_root)?;
 
     let config = build_scalar_config();
-    let air = build_poseidon2_air();
+    let n_inputs = witnesses.len();
+    let air = MembershipAir {
+        inner: build_poseidon2_air(),
+        n_inputs,
+    };
     let trace = inputs_to_trace(inputs);
     let public_values = build_membership_public_values(claim);
 
@@ -331,7 +373,11 @@ pub fn verify_membership_p3(
         .map_err(|e| MembershipP3Error::SerializationFailed(e.to_string()))?;
 
     let config = build_scalar_config();
-    let air = build_poseidon2_air();
+    let n_inputs = claim.leaf_commitments.len();
+    let air = MembershipAir {
+        inner: build_poseidon2_air(),
+        n_inputs,
+    };
     let public_values = build_membership_public_values(claim);
 
     verify(&config, &air, &proof, &public_values).map_err(|_| MembershipP3Error::VerificationFailed)
