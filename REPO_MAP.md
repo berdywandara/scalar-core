@@ -296,4 +296,5 @@ Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 | 2026-06-15 | GAP-GOSSIP CLOSED: RelayDecision + verify_transfer_p3; return true dihapus. [§4.1 P1] |
 | 2026-06-15 | GAP-AUDIT-CLAIMS CLOSED: Unverifiable variant; zero-root placeholder dihapus. [P1] |
 | 2026-06-15 | WAL tests fixed: Preparing→Inserted→Committed enforced in all tests. [§6.2] |
+| 2026-06-15 | GAP-11 CLOSED: crypto_version u8→u64, VALID_CRYPTO_VERSION u8→u64. [SCALAR-TECHNICAL §2.2] |
 | 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |

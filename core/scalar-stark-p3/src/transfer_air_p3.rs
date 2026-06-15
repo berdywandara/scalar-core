@@ -196,7 +196,7 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
 
         // ── CG: Crypto version ────────────────────────────────────────────────
         // version == VALID_CRYPTO_VERSION (0x01). Spec §4.3 CG.
-        let valid_version = AB::F::from_u64(VALID_CRYPTO_VERSION as u64);
+        let valid_version = AB::F::from_u64(VALID_CRYPTO_VERSION);
         builder.assert_eq(version.into(), valid_version);
 
         // ── CG-ARITH: Sequential sub-epoch validity (G-07b — wall-clock amputated) ──
@@ -326,7 +326,7 @@ pub fn build_transfer_trace(
     row[COL_FEE] = Goldilocks::new(pi.fee_total_sscl);
     row[COL_SUM_IN] = Goldilocks::new(pi.sum_inputs_sscl);
     row[COL_SUM_OUT] = Goldilocks::new(pi.sum_outputs_sscl);
-    row[COL_VERSION] = Goldilocks::new(pi.crypto_version as u64);
+    row[COL_VERSION] = Goldilocks::new(pi.crypto_version);
     row[COL_CURRENT_SUBEPOCH] = Goldilocks::new(pi.current_subepoch_id);
     row[COL_TARGET_SUBEPOCH] = Goldilocks::new(pi.target_subepoch_id);
     row[COL_CG_VALIDITY] = Goldilocks::new(cg_validity_val);

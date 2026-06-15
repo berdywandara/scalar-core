@@ -35,7 +35,7 @@ pub const TRANSFER_PI_LEN: usize = 41; // G-07b: timestamps[4] -> current_subepo
 // over sub-epoch ids (CG-ARITH) — see crate::cg_arith. SCALAR-TECHNICAL §2.9.
 
 /// Valid crypto versions. OSSIFIED — spec §4.3 CG.
-pub const VALID_CRYPTO_VERSION: u8 = 0x01;
+pub const VALID_CRYPTO_VERSION: u64 = 0x01;
 
 /// Fee floor in sSCL. OSSIFIED — spec §9.1.
 pub const FEE_FLOOR_SSCL: u64 = 40;
@@ -53,7 +53,7 @@ pub struct TransferPublicInputsP3 {
     /// CD: sum of output values. Spec §4.3 CD.
     pub sum_outputs_sscl: u64,
     /// CG: crypto version. Spec §4.2.
-    pub crypto_version: u8,
+    pub crypto_version: u64,
     /// CG: current sub-epoch id (PI[4], consensus-bound). SCALAR-TECHNICAL §2.9.
     pub current_subepoch_id: u64,
     /// CG: target sub-epoch id — PRIVATE WITNESS (user-signed), NOT serialized to
@@ -95,7 +95,7 @@ impl TransferPublicInputsP3 {
         v.push(Goldilocks::new(self.sum_outputs_sscl));
 
         // [3] CG: crypto version
-        v.push(Goldilocks::new(self.crypto_version as u64));
+        v.push(Goldilocks::new(self.crypto_version));
 
         // [4] CG: current_subepoch_id (consensus-bound). target_subepoch_id is a
         // private witness and is NOT serialized into public_values.
@@ -146,7 +146,7 @@ impl TransferPublicInputsP3 {
             fee_total_sscl: v[0].as_canonical_u64(),
             sum_inputs_sscl: v[1].as_canonical_u64(),
             sum_outputs_sscl: v[2].as_canonical_u64(),
-            crypto_version: v[3].as_canonical_u64() as u8,
+            crypto_version: v[3].as_canonical_u64(),
             current_subepoch_id: v[4].as_canonical_u64(),
             // target_subepoch_id is a private witness, absent from public values.
             target_subepoch_id: 0,
