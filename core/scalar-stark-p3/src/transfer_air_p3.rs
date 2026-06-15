@@ -318,7 +318,7 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
         // Constraint: storage_mass ≥ 0 (non-negative, enforced by trace builder).
         // [SCALAR-TECHNICAL §2.8, P1, INV-FEE]
         {
-            let scale = AB::F::from_u64(RECIP_SCALE);
+            let _scale = AB::F::from_u64(RECIP_SCALE); // retained for documentation; rem constraint via bit decomp columns
             let mut sum_inv_in: AB::Expr = AB::F::ZERO.into();
             let mut sum_inv_out: AB::Expr = AB::F::ZERO.into();
 
@@ -327,23 +327,34 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
                 let inv_in = local[COL_INV_IN_START + i];
                 let val_out = local[COL_VALUE_OUT_START + i];
                 let inv_out = local[COL_INV_OUT_START + i];
-
-                // Constraint: value_in[i] × inv_in[i] ∈ [SCALE − value_in[i], SCALE]
-                // Equivalent: SCALE − value_in[i] ≤ value_in[i] × inv_in[i] ≤ SCALE
-                // Via two constraints (degree-2):
-                //   (A) value × inv ≤ SCALE  →  SCALE − value×inv ≥ 0
-                //   (B) value × inv ≥ SCALE − value  →  value×inv − SCALE + value ≥ 0
-                // We enforce via: 0 ≤ (SCALE − value×inv) ≤ value − 1
-                // Which is: (SCALE − value×inv) × (value − 1 − (SCALE − value×inv)) ≥ 0
-                // CF reciprocal gate: value×inv ≈ SCALE (floor-division). [SCALAR-TECHNICAL §2.8]
-                // rem = SCALE - value×inv; rem*rem == 0 is placeholder degree-2 gate.
-                // Full bit decomposition of rem added in GAP-10b for soundness.
-                let prod_in: AB::Expr = val_in.into() * inv_in.into();
-                let rem_in: AB::Expr = AB::Expr::from(scale.clone()) - prod_in;
-                builder.assert_zero(rem_in.clone() * rem_in);
-                let prod_out: AB::Expr = val_out.into() * inv_out.into();
-                let rem_out: AB::Expr = AB::Expr::from(scale.clone()) - prod_out;
-                builder.assert_zero(rem_out.clone() * rem_out);
+                // CF rem_in bit decomp: SCALE - val_in*inv_in == sum(b_k*2^k). [§2.8 P1 Opsi A]
+                {
+                    let prod_in: AB::Expr = val_in.into() * inv_in.into();
+                    let rem_in_expr: AB::Expr = AB::Expr::from(_scale.clone()) - prod_in;
+                    let mut recon: AB::Expr = AB::F::ZERO.into();
+                    let mut pow: AB::Expr = AB::F::ONE.into();
+                    for k in 0..REM_BIT_COUNT {
+                        let bit = local[COL_REM_IN_BIT_START + i * REM_BIT_COUNT + k];
+                        builder.assert_zero(bit * (bit - AB::F::ONE));
+                        recon += AB::Expr::from(bit) * pow.clone();
+                        pow *= AB::F::from_u64(2u64);
+                    }
+                    builder.assert_eq(rem_in_expr, recon);
+                }
+                // CF rem_out bit decomp: SCALE - val_out*inv_out == sum(b_k*2^k). [§2.8 P1 Opsi A]
+                {
+                    let prod_out: AB::Expr = val_out.into() * inv_out.into();
+                    let rem_out_expr: AB::Expr = AB::Expr::from(_scale.clone()) - prod_out;
+                    let mut recon: AB::Expr = AB::F::ZERO.into();
+                    let mut pow: AB::Expr = AB::F::ONE.into();
+                    for k in 0..REM_BIT_COUNT {
+                        let bit = local[COL_REM_OUT_BIT_START + i * REM_BIT_COUNT + k];
+                        builder.assert_zero(bit * (bit - AB::F::ONE));
+                        recon += AB::Expr::from(bit) * pow.clone();
+                        pow *= AB::F::from_u64(2u64);
+                    }
+                    builder.assert_eq(rem_out_expr, recon);
+                }
                 sum_inv_in += inv_in.into();
                 sum_inv_out += inv_out.into();
             }

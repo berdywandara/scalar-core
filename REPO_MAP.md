@@ -310,4 +310,5 @@ Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 | 2026-06-15 | GAP-15 CLOSED: ADR-SEC-023 framing diganti Tier 1/2 internal + QROM managed residual. [K-4, §1.7] |
 | 2026-06-15 | GAP-SYNC-NAMING CLOSED: NsArchVerifyResult/NsArchProof→NsCheckpoint*; NS_CHECKPOINT_ROOT_MAX_BYTES+VERIFY_MAX_MS fixed. [K-1] |
 | 2026-06-15 | GAP-FIXTURE-CD CLOSED: build_proof_input_bench sum_inputs derived from witness values (not hardcoded). [§2.6 CD] |
+| 2026-06-15 | FIX P1: rem*rem==0 placeholder dihapus dari eval(); rem bit decomp 32-bit dipindah ke eval() loop CF. [§2.8 P1 Opsi A] |
 | 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |
