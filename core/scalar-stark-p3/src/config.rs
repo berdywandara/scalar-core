@@ -2,13 +2,12 @@
 //!
 //! Field:   Goldilocks (p = 2^64 - 2^32 + 1). OSSIFIED.
 //! Hash:    Poseidon2 t=8, width-8, Goldilocks-optimized. OSSIFIED per spec §2.1, D-008.
-//! FRI:     blowup=8, queries=84, grinding=20 (split: commit=20, query=0). OSSIFIED.
+//! FRI:     blowup=8, queries=108, grinding=0 (amputated). OSSIFIED [SCALAR-SECURITY §[PROOF-PARAMS]].
 //!
 //! Key difference from POC: POC used Keccak. This uses Poseidon2 per spec §2.1.
 //! p3-goldilocks provides default_goldilocks_poseidon2_8() with OSSIFIED round constants.
 //!
-//! Soundness classical: epsilon ~ 2^-128.
-//! DEEP-FRI conjecture:  epsilon ~ 2^-256.
+//! Soundness per-proof: 2^-162 (Johnson bound, proven). Post-batch N=256: 2^-154 [SCALAR-SECURITY §1.4].
 
 use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
@@ -103,11 +102,11 @@ pub fn build_val_mmcs() -> ValMmcs {
 
 /// Build the OSSIFIED ScalarStarkConfig.
 ///
-/// FRI params: blowup=8, queries=84, grinding=23. OSSIFIED — spec §4.4, D-028.
+/// FRI params: blowup=8, queries=108, grinding=0 (amputated). OSSIFIED [SCALAR-SECURITY §[PROOF-PARAMS]].
 /// Hash: Poseidon2 t=8. OSSIFIED — spec §2.1, D-008.
 ///
-/// grinding=23 split: commit_proof_of_work_bits=23, query_proof_of_work_bits=0. D-028.
-/// This matches the soundness security target of spec §4.4.
+/// g=0: grinding amputated as final architectural decision [SCALAR-SECURITY §[PROOF-PARAMS]].
+/// Soundness per-proof: 2^-162 (Johnson bound, proven). Post-batch N=256: 2^-154 [SCALAR-SECURITY §1.4].
 pub fn build_scalar_config() -> ScalarStarkConfig {
     let val_mmcs = build_val_mmcs();
     let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
@@ -116,8 +115,8 @@ pub fn build_scalar_config() -> ScalarStarkConfig {
         log_blowup: FRI_LOG_BLOWUP, // 2^3 = 8x blowup. OSSIFIED.
         log_final_poly_len: 0,
         max_log_arity: 4,             // folding factor 4. OSSIFIED spec §4.4.
-        num_queries: FRI_NUM_QUERIES, // 84 queries. OSSIFIED.
-        commit_proof_of_work_bits: FRI_PROOF_OF_WORK_BITS, // 23 bits grinding. OSSIFIED (D-028).
+        num_queries: FRI_NUM_QUERIES, // 108 queries. OSSIFIED [SCALAR-SECURITY §[PROOF-PARAMS]].
+        commit_proof_of_work_bits: FRI_PROOF_OF_WORK_BITS, // 0 bits (grinding amputated). OSSIFIED [SCALAR-SECURITY §[PROOF-PARAMS]].
         query_proof_of_work_bits: 0,
         mmcs: challenge_mmcs,
     };

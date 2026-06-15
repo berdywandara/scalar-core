@@ -1243,7 +1243,7 @@ mod bench {
     /// + CC (dual SMT non-membership) + CD/CE/CG (transfer constraints).
     ///
     /// Spec §15.6: result is empirical reference, not a pass/fail gate.
-    /// FRI params OSSIFIED: blowup=8, queries=84, grinding=23 (D-028).
+    /// FRI params OSSIFIED: blowup=8, queries=108, grinding=0 [SCALAR-SECURITY §[PROOF-PARAMS]].
     ///
     /// Run with: cargo test -p scalar-stark-p3 --features bench-hardware \
     ///           -- bench::bench_batch_transfer_2in2out --nocapture --ignored
@@ -1297,7 +1297,7 @@ mod bench {
             batch_proof.cdcecg_proof.len(),
             batch_proof.total_bytes()
         );
-        println!("[P3-R9] FRI: blowup=8, queries=84, grinding=23 (OSSIFIED §4.4, D-028)");
+        println!("[P3-R9] FRI: blowup=8, queries=108, grinding=0 (OSSIFIED [SCALAR-SECURITY §[PROOF-PARAMS]])");
         println!("[P3-R9] Spec §15.6: no hard time limit — empirical reference only");
         println!(
             "[P3-R9] Spec §15.6: all tiers (A/B/C) must prove without GPU — verified by CPU-only Codespace"
