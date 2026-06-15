@@ -1,71 +1,296 @@
 # SCALAR CORE — REPOSITORY MAP
 
-Generated: 2026-06-15 | Phase Review — Static analysis
+> **Dokumen ini adalah sumber kebenaran tunggal untuk status implementasi.**
+> Setiap tim / sesi koding baru WAJIB membaca ini sebelum menyentuh kode.
+> Update dokumen ini setiap gap ditutup.
+
+**Generated:** 2026-06-15 (post-eskalasi resolved)
+**Spec refs:** SCALAR-PROTOCOL / SCALAR-TECHNICAL / SCALAR-SECURITY — 2026-07-15
+**Hierarki konflik:** SCALAR-SECURITY > SCALAR-PROTOCOL > SCALAR-TECHNICAL > kode
 
 ---
 
 ## State Saat Ini
 
-- Build: UNKNOWN (perlu `cargo build` untuk konfirmasi)
-- Test: UNKNOWN (perlu `cargo test` untuk konfirmasi)
-- Clippy: UNKNOWN
-- Placeholder kripto teridentifikasi: 2 confirmed (nullifier_set.rs `is_valid()` + CB/CC boolean flag in circuit)
+| Indikator | Status |
+|-----------|--------|
+| Build | Jalankan `cargo build --all-features --workspace` untuk konfirmasi |
+| Test | 127/128 pass (1 P3 fixture: GAP-FIXTURE-CD) |
+| Clippy | Harus 0 warnings sebelum setiap commit |
+| Placeholder kripto aktif | **2 confirmed P0** — lihat GAP-GOSSIP, GAP-AUDIT-CLAIMS |
+| K-1 NS_CHECKPOINT SMT | ✅ RESOLVED (struct level) — sisa P3 naming legacy |
+| K-2 proof-params terpusat | ✅ OK — `FRI_NUM_QUERIES=108`, `FRI_PROOF_OF_WORK_BITS=0` di lib.rs |
+| K-3 ε post-batch 2⁻¹⁵⁴ | ✅ OK — starkpack_p3.rs, config.rs, domain.rs sudah benar |
+| K-4 verifikasi multi-tier | ⚠️ PARTIAL — lib.rs framing "ADR-SEC-023" masih ada (GAP-15 P3) |
 
 ---
 
 ## Kepatuhan Arsitektur (K-1..K-4)
 
-- K-1 NS_CHECKPOINT SMT akumulatif: **VIOLATION** — `CheckpointProof.proof_bytes`, "recursive Winterfell STARK" di nullifier_set.rs; `proof_bytes`+`proving_key_version` di wal.rs; `SyncState::VerifyingNsArch` di sync.rs
-- K-2 proof-params terpusat: **PARTIAL VIOLATION** — lib.rs sudah benar (108/0), tapi genesis_ceremony.rs (84/20) dan batch_transfer_p3.rs/config.rs (comments 84/23) masih stale
-- K-3 epsilon post-batch 2^-154: **VIOLATION** — starkpack_p3.rs menulis 2^-120; config.rs + domain.rs menulis ~2^-128/~2^-120
-- K-4 verifikasi internal multi-tier: **PARTIAL** — lib.rs masih framing "ADR-SEC-023 formal confirmation required pre-mainnet"
+### K-1 — NS_CHECKPOINT adalah Sparse Merkle Tree Akumulatif (BUKAN Recursive STARK)
+- `nullifier_set.rs` → `CheckpointProof` berisi `archived_smt_root: [u8;32]`, `smt_depth: 32`. ✅
+- `wal.rs` → `CheckpointWalEntry` berisi `smt_root: [u8;32]`, `smt_data_path: String`. ✅
+- `wal.rs` → `WalPhase::Preparing | Inserted | Committed`. ✅
+- `sync.rs` → `SyncState::VerifyingNsCheckpoint`. ✅
+- Sisa: `SyncFailReason::NsArchProofInvalid` (naming legacy) → **GAP-SYNC-NAMING P3**.
+
+### K-2 — Parameter proof system bersumber tunggal dari §[PROOF-PARAMS]
+- `scalar-stark-p3/lib.rs` → `FRI_NUM_QUERIES=108`, `FRI_PROOF_OF_WORK_BITS=0`, compile-time assert. ✅
+- `genesis_ceremony.rs` → sudah 108/0 (GAP-04 CLOSED). ✅
+- **Larangan**: jangan tulis literal `108` atau `0` (grinding) di luar konstanta terpusat ini.
+
+### K-3 — Soundness ε post-batch = 2⁻¹⁵⁴
+- `starkpack_p3.rs`, `config.rs`, `domain.rs` → sudah 2⁻¹⁵⁴ post-batch / 2⁻¹⁶² per-proof. ✅
+- **Larangan**: jangan tulis ~2⁻¹⁶⁰ (ambigu), ~2⁻¹²⁰, ~2⁻¹²⁸. Nilai pengikat adalah 2⁻¹⁵⁴.
+
+### K-4 — Verifikasi adalah internal multi-tier, bukan gate audit eksternal
+- ⚠️ `lib.rs` masih framing "ADR-SEC-023 formal confirmation required pre-mainnet" → GAP-15 P3.
+- Gate: Tier 1 (SageMath/KAT), Tier 2 (Prusti/TLA+/fuzzing/multi-client verifier). QROM = residual terkelola.
 
 ---
 
-## Gap Teridentifikasi
+## Gap Teridentifikasi & Prioritas Kerja
 
-- [GAP-01] [P0] scalar-nullifier/nullifier_set.rs — CheckpointProof mengandung proof_bytes + Recursive STARK anti-pattern — OPEN
-- [GAP-02] [P0] scalar-node/wal.rs — CheckpointWalEntry mengandung proof_bytes, proving_key_version; fasa WAL salah — OPEN
-- [GAP-03] [P0] scalar-network/sync.rs — SyncState::VerifyingNsArch, NS_ARCH constants — Recursive STARK di sync layer — OPEN
-- [GAP-04] [P0] scalar-emission/genesis_ceremony.rs — fri_queries=84, fri_grinding=20 (seharusnya 108, 0) — OPEN
-- [GAP-05] [P0] scalar-stark-p3/batch_transfer_p3.rs + config.rs — stale comments queries=84, grinding=23 — OPEN
-- [GAP-06] [P0→DONE] scalar-stark-p3/starkpack_p3.rs — soundness 2^-154 post-batch, 2^-162 per-proof — CLOSED
-- [GAP-07] [P0→DONE] scalar-stark-p3/config.rs + scalar-crypto/domain.rs — soundness dikoreksi ke 2^-154/2^-162 — CLOSED
-- [GAP-08] [P0→DONE] scalar-stark-p3: MembershipAir wrapper, NonMembershipAir num_public_values, A-R9 PI binding [0..4]+[33..40] — CLOSED (4 commits)
-- [GAP-09] [P1] scalar-stark-p3/transfer_public_inputs.rs — commitment_hash/nullifier_hash menggunakan BLAKE3 bukan Poseidon2_acc — OPEN
-- [GAP-10] [P1] Fee circuit CF/CF-PREMIUM — storage_mass, FLOOR_BASE, PREMIUM terikat-nonce tidak ada di AIR — OPEN [ESKALASI]
-- [GAP-11] [P1] scalar-stark-p3/transfer_public_inputs.rs — PI[3] crypto_version:u8 vs suite_id:u64 — OPEN
-- [GAP-12] [P2] scalar-network/subepoch.rs — SUBEPOCH_DURATION_S=3600, SUBEPOCHS_PER_EPOCH=720 vs OSSIFIED 1900s/24 — OPEN [ESKALASI]
-- [GAP-13] [P2] scalar-node/wal.rs — fasa naming Prepared/Committed/Aborted vs PREPARING/INSERTED/COMMITTED; tidak ada smt_data_path — OPEN
-- [GAP-14] [P2] scalar-nullifier/nullifier_set.rs — is_valid() bergantung proof_bytes (harus diganti SMT root check) — OPEN (blokir GAP-01)
-- [GAP-15] [P3] scalar-stark-p3/lib.rs — framing "ADR-SEC-023 formal confirmation required pre-mainnet" menyiratkan gate eksternal — OPEN
-- [GAP-16] [P3] Multi-client verifier impl#2 (Python) belum ada — OPEN
+### ═══ P0 — BLOKIR SEMUA MERGE KE MAIN ═══
+
+#### [GAP-GOSSIP] `core/scalar-node/src/gossip.rs` — Verifier Palsu Aktif
+- **Status**: OPEN
+- **Masalah**: `validate_and_relay()` melakukan deserialisasi `BatchTransferProof` lalu
+  `let _ = proof; return true` — tidak pernah memanggil `verify_batch_transfer`.
+  Seluruh gossip message diterima tanpa kriptografi. Melanggar P1 dan Larangan Mutlak.
+- **Bukti**: grep `return true` di `gossip.rs` → ada di path setelah deserialisasi sukses.
+- **Keputusan eskalasi (RESOLVED)**: Boleh meneruskan berdasarkan PI dari proof itu sendiri
+  (self-referential extraction), DENGAN SYARAT:
+  - `verify_batch_transfer(&proof, &claims)` HARUS dipanggil dan hasilnya dievaluasi.
+  - Return type diubah dari `bool` menjadi `RelayDecision` dengan dua varian:
+    `ProofWellFormed` (STARK verify pass, roots belum divalidasi terhadap EpochState) vs
+    `StateValidated` (roots tervalidasi, FASE B).
+  - Komentar eksplisit: "FASE B: integrasi EpochState untuk VIR-001 provenance quorum."
+  - Validasi root terhadap EpochState adalah CONSENSUS RULE (VIR-001), bukan circuit.
+- **Target file**: `core/scalar-node/src/gossip.rs`
+- **Dokumen**: SCALAR-TECHNICAL §4.1, P1; SCALAR-PROTOCOL §7.4 VIR-001.
+- **Dependensi**: Tidak ada (bisa langsung dikerjakan).
+
+#### [GAP-AUDIT-CLAIMS] `client/scalar-audit/src/proof_verifier.rs` — Placeholder Zeros
+- **Status**: OPEN
+- **Masalah**: `batch_proof_to_claims(_proof)` mengembalikan `TransferPublicClaims` dengan
+  semua roots `[0u8;32]`, `ownership_claims: vec![]`, `leaf_commitments: vec![]`.
+  Proof verify berjalan terhadap zero-roots → hasilnya tidak soundness-preserving.
+- **Keputusan eskalasi (RESOLVED)**: `scalar-audit` TIDAK BOLEH mengembalikan `true`
+  atau `Valid` saat EpochState belum tersambung. Kembalikan:
+  `ProofVerificationResult::Unverifiable { reason: "EpochState not available — FASE B" }`.
+  Ini membedakan "belum bisa diverifikasi" dari "terverifikasi valid". P1 tetap utuh.
+- **Target file**: `client/scalar-audit/src/proof_verifier.rs`
+- **Dokumen**: P1; Larangan Mutlak "verifier return true/Ok(true) tanpa kriptografi nyata".
+- **Dependensi**: Tidak ada (paralel dengan GAP-GOSSIP).
 
 ---
 
-- [GAP-FIXTURE-CD] [P3] scalar-stark-p3/starkpack_p3.rs bench_starkpack_aggregation — test helper tidak menyertakan fee_total di witness_sum (ConservationViolated selisih 40) — OPEN
+### ═══ P1 — Constraint Inti Circuit ═══
+
+#### [GAP-09] `core/scalar-stark-p3/src/transfer_public_inputs.rs` — Poseidon2_acc vs BLAKE3
+- **Status**: OPEN
+- **Masalah**: `commitment_hash` dan `nullifier_hash` menggunakan BLAKE3 out-of-circuit.
+  Spec §2.7-A CX mensyaratkan in-circuit: `commitment_hash == Poseidon2_acc(CB.leaf_commitments)`
+  dan `nullifier_hash == Poseidon2_acc(CA.expected_nullifiers)`.
+- **Aksi**: Ganti derivasi di `derive_public_claims()` ke Poseidon2_acc (sponge atas
+  Goldilocks field elements). Tambahkan constraint CX di `transfer_air_p3.rs` yang mengikat
+  PI[33..36] = commitment_hash dan PI[37..40] = nullifier_hash ke hasil Poseidon2_acc.
+- **Dokumen**: SCALAR-TECHNICAL §2.7-A, §2.2 PI layout (PI[33..40]).
+- **Dependensi**: Blokir GAP-10 (CF-PREMIUM butuh Poseidon2_acc sudah ada).
+
+#### [GAP-10] Fee Circuit CF/CF-PREMIUM — Belum In-Circuit
+- **Status**: OPEN [PALING KOMPLEKS — pecah jadi sub-task]
+- **Keputusan eskalasi (RESOLVED)**:
+  - `floor.rs` (out-of-circuit) boleh tetap ada sebagai **pre-flight optimisasi** saja.
+    Tambahkan komentar eksplisit: `// PRE-FLIGHT ONLY — bukan enforcement (P1). In-circuit enforcement ada di CF/CF-PREMIUM AIR.`
+  - Enforcement nyata WAJIB in-circuit. Jangan bridging out-of-circuit sebagai "fase 1 diterima".
+- **Sub-task GAP-10a**: CF — `storage_mass` via resiprokal fixed-point in-circuit.
+  Formula: `storage_mass = C × (Σ 1/value_o − Σ 1/value_i)+`. Witness `inv` dengan
+  constraint `value × inv ∈ [SCALE − value, SCALE]`. Bit decomposition untuk overflow guard.
+- **Sub-task GAP-10b**: CF — `BASE_FEE = storage_mass × BASE_PRICE_PER_MASS`, `COMPLEXITY_FEE = constraint_units × PRICE_PER_CU`. Conservation: `fee_total = BASE_FEE + COMPLEXITY_FEE + PREMIUM`.
+- **Sub-task GAP-10c**: CF-PREMIUM — derivasi terikat-nonce:
+  `raw = Poseidon2(DOMAIN_FEE_PREMIUM ‖ tx_nonce ‖ FLOOR_BASE)`,
+  `PREMIUM = raw − q × (FLOOR_BASE + 1)`.
+  Constraint CF-PREMIUM-1: `0 ≤ PREMIUM ≤ FLOOR_BASE` (bit decomposition).
+  Constraint CF-PREMIUM-2: `PREMIUM == raw − q×(FLOOR_BASE+1)` (floor-division terbukti).
+  `FLOOR_BASE = BASE_FEE + COMPLEXITY_FEE`.
+- **Dokumen**: SCALAR-TECHNICAL §2.8, §2.8-A (CF-PREMIUM OSSIFIED); P1.
+- **Dependensi**: GAP-09 harus CLOSED dulu.
+
+#### [GAP-11] `transfer_public_inputs.rs` — PI[3] `crypto_version: u8` vs `u64`
+- **Status**: OPEN
+- **Masalah**: Struct field bertipe `u8` tapi AIR menggunakan `from_u64(version as u64)`.
+  OSSIFIED PI layout §2.2 menggunakan Goldilocks field element (u64). Inkonsistensi tipe.
+- **Aksi**: Ubah `crypto_version: u8` → `crypto_version: u64` di struct
+  `TransferPublicInputsP3`. Update semua call site. Pastikan test tetap hijau.
+- **Dokumen**: SCALAR-TECHNICAL §2.2 PI_TOTAL=41 OSSIFIED layout.
+- **Dependensi**: Tidak ada.
+
+---
+
+### ═══ P2 — Struktur Data & State Machine ═══
+
+#### [GAP-12] `core/scalar-network/src/subepoch.rs` — Konstanta Salah
+- **Status**: OPEN [ESKALASI RESOLVED]
+- **Masalah**: `SUBEPOCH_DURATION_S = 3600`, `SUBEPOCHS_PER_EPOCH = 720` (artefak
+  benchmark Codespace dari `BENCHMARK_RESULTS.md`).
+  OSSIFIED: `SUBEPOCH_DURATION_S = 1_900`, `SUBEPOCHS_PER_EPOCH = 24` (SCALAR-PROTOCOL §1, §13.1).
+- **Keputusan eskalasi (RESOLVED)**:
+  - Nilai mainnet OSSIFIED = 1900s / 24. Ini TIDAK BOLEH berubah tanpa hard fork.
+  - Nilai Codespace (3640s / 720) adalah artefak benchmark, BUKAN parameter protokol (§4.2 T-6).
+  - Implementasi: nilai mainnet sebagai default; nilai dev via feature flag `dev-fast-subepoch`
+    yang DEFAULT OFF. Nilai dev TIDAK BOLEH masuk build rilis.
+  ```rust
+  // Mainnet OSSIFIED — SCALAR-PROTOCOL §13.1
+  #[cfg(not(feature = "dev-fast-subepoch"))]
+  pub const SUBEPOCH_DURATION_S: u64 = 1_900;
+  #[cfg(not(feature = "dev-fast-subepoch"))]
+  pub const SUBEPOCHS_PER_EPOCH: u64 = 24;
+
+  // Dev-only (Codespace benchmark) — DEFAULT OFF, TIDAK BOLEH di build rilis
+  #[cfg(feature = "dev-fast-subepoch")]
+  pub const SUBEPOCH_DURATION_S: u64 = 3_640;
+  #[cfg(feature = "dev-fast-subepoch")]
+  pub const SUBEPOCHS_PER_EPOCH: u64 = 720;
+  ```
+- **Dokumen**: SCALAR-PROTOCOL §1 (Glossary), §13.1 (Parameter OSSIFIED).
+- **Dependensi**: Tidak ada.
+
+#### [GAP-13] WAL Dual Naming Scheme
+- **Status**: OPEN (perlu verifikasi)
+- **Masalah**: `scalar-node/wal.rs` menggunakan `WalPhase::Preparing/Inserted/Committed` (benar).
+  `scalar-nullifier/nullifier_set.rs` menggunakan `WalStatus::Pending/Committed` (skema berbeda).
+  Dua skema WAL untuk konsep yang sama melanggar P4 (determinisme).
+- **Aksi**: Unifikasi ke satu skema. `WalPhase::Preparing | Inserted | Committed` adalah
+  final (sesuai SCALAR-TECHNICAL §6.2). Hapus `WalStatus::Pending` dari nullifier_set.rs
+  dan arahkan ke `WalPhase` dari wal.rs (atau extrak ke `scalar-nullifier` yang diimpor wal.rs).
+- **Dokumen**: SCALAR-TECHNICAL §6.2.
+- **Dependensi**: Tidak ada.
+
+---
+
+### ═══ P3 — API, Tooling, Polish ═══
+
+#### [GAP-15] `core/scalar-stark-p3/src/lib.rs` — Framing Gate Eksternal
+- **Status**: OPEN
+- **Masalah**: "ADR-SEC-023 formal confirmation required pre-mainnet" menyiratkan
+  menunggu audit eksternal sebagai syarat soundness. Melanggar K-4.
+- **Aksi**: Ganti ke framing Tier 1/2 internal: "Soundness validated via internal
+  multi-tier framework (Tier 1: SageMath/KAT; Tier 2: Prusti/TLA+/multi-client).
+  QROM adalah residual terkelola yang dipantau — bukan blocker. [SCALAR-SECURITY §1.7]"
+- **Dokumen**: SCALAR-SECURITY §1.7, K-4.
+
+#### [GAP-SYNC-NAMING] `core/scalar-network/src/sync.rs` — Terminologi Legacy
+- **Status**: OPEN
+- **Masalah**: `SyncFailReason::NsArchProofInvalid`, `NsArchProofTooLarge`, `NsArchVerifyTooSlow`
+  menggunakan "Arch" (sisa terminologi Recursive STARK Archiver yang sudah dihapus).
+- **Aksi**: Rename ke `NsCheckpointProofInvalid`, `NsCheckpointProofTooLarge`,
+  `NsCheckpointVerifyTooSlow`. Update semua match arm.
+- **Dokumen**: K-1; SCALAR-TECHNICAL §6.1.
+
+#### [GAP-FIXTURE-CD] `core/scalar-stark-p3/src/starkpack_p3.rs` — Test Fixture Salah
+- **Status**: OPEN
+- **Masalah**: `bench_starkpack_aggregation` test helper tidak menyertakan `fee_total`
+  di `witness_sum`, menyebabkan `ConservationViolated` dengan selisih 40 sSCL.
+- **Aksi**: Fix witness: `sum_inputs_sscl = sum_outputs_sscl + fee_total_sscl`.
+  Fee floor 40 sSCL harus termasuk dalam `sum_inputs`.
+- **Dokumen**: SCALAR-TECHNICAL §2.6 CD (conservation), §9.1 fee floor.
+
+#### [GAP-16] Multi-Client Verifier impl#2 (Python) — Belum Ada
+- **Status**: OPEN
+- **Scope**: Sebelum mainnet, harus ada re-implementasi AIR verifier dari codebase berbeda.
+  impl#1 = scalar-stark-p3 (Rust/Plonky3). impl#2 = Python (target).
+  Poseidon2 primitif sudah 7/7 test vectors PASS. Full FRI proof verify masih pending.
+- **Dokumen**: SCALAR-SECURITY §5.3 (Tier 2).
+- **Catatan**: Scope sangat besar; dikerjakan tersendiri sebagai proyek parallel.
+
+---
+
+## Urutan Implementasi yang Direkomendasikan
+
+```
+Sekarang → FASE A (sebelum FASE B EpochState integration):
+
+  [P0] GAP-GOSSIP          ─── 1 patch, medium
+  [P0] GAP-AUDIT-CLAIMS    ─── 1 patch, kecil (paralel GAP-GOSSIP)
+
+  [P1] GAP-11              ─── 1 patch, kecil (tidak ada dependensi)
+  [P1] GAP-09              ─── 1 patch, medium (Poseidon2_acc CX)
+  [P1] GAP-10a             ─── storage_mass reciprocal in-circuit
+  [P1] GAP-10b             ─── BASE_FEE + COMPLEXITY_FEE in-circuit
+  [P1] GAP-10c             ─── CF-PREMIUM derivasi + range proof
+
+  [P2] GAP-12              ─── subepoch feature flag
+  [P2] GAP-13              ─── WAL naming unifikasi
+
+  [P3] GAP-15              ─── framing 1 komentar
+  [P3] GAP-SYNC-NAMING     ─── rename 3 enum variant
+  [P3] GAP-FIXTURE-CD      ─── fix 1 test
+
+FASE B (EpochState tersambung — future):
+  GAP-GOSSIP: upgrade ke StateValidated dengan EpochState context
+  GAP-AUDIT-CLAIMS: upgrade dari Unverifiable ke ValidatedAgainstState
+  GAP-16: Python verifier (parallel)
+```
+
+---
 
 ## Ketergantungan Kunci
 
-- GAP-01 → GAP-14 (is_valid logic baru bisa difix setelah CheckpointProof dibenahi)
-- GAP-02 → GAP-13 (WAL phase naming koordinat dengan WalEntry struct)
-- GAP-03 → GAP-01 (sync VerifyingNsArch harus ganti setelah NS_CHECKPOINT jelas)
-- GAP-09 → sebelum GAP-08 (commitment_hash harus Poseidon2_acc sebelum CB/CC dibuktikan)
+```
+GAP-GOSSIP ──────────────────────────────► FASE B: EpochState context
+GAP-AUDIT-CLAIMS ────────────────────────► FASE B: EpochState context
+GAP-09 (Poseidon2_acc) ──────────────────► blokir GAP-10 (CF-PREMIUM butuh Poseidon2_acc)
+GAP-11 ──────────────────────────────────► independent, mulai kapan saja
+GAP-10c ─────────────────────────────────► setelah GAP-10a + GAP-10b + GAP-09
+GAP-12 ──────────────────────────────────► independent, verifikasi dulu Cargo.toml features
+GAP-13 ──────────────────────────────────► independent
+```
 
-## Item Eskalasi (menunggu keputusan sebelum implementasi)
+---
 
-- GAP-08: CB/CC full in-circuit Merkle/SMT — apakah membership_air_p3 + nonmembership_air_p3 sudah wired ke batch_transfer?
-- GAP-10: Model fee §B.4 vs §2.8/§2.8-A — mana yang berlaku sebagai final?
-- GAP-12: subepoch.rs "Research Package §3.2.1" (3600s/720) vs OSSIFIED dokumen final (1900s/24) — mana yang digunakan?
+## Larangan Mutlak (ringkasan cepat untuk coder baru)
+
+| ❌ Larangan | Alasan |
+|-------------|--------|
+| `return true` / `Ok(true)` di jalur verify tanpa kriptografi nyata | P1, verifier palsu |
+| Constraint tidak dievaluasi di AIR/circuit (boolean flag saja) | P1, teater kriptografis |
+| `proof_bytes` / `proving_key_version` / status `PROVEN` di checkpoint | K-1 |
+| Literal `108` (queries) atau grinding term di luar konstanta terpusat | K-2 |
+| Nilai soundness post-batch selain `2⁻¹⁵⁴` | K-3 |
+| Term grinding apa pun (`g` harus tetap 0) | K-2 |
+| Nilai OSSIFIED baru tanpa eskalasi ke spec | Semua |
+| "menunggu audit eksternal" sebagai syarat soundness | K-4 |
+| `git push --force` atau manipulasi sejarah | Protokol git |
+| Nilai `dev-fast-subepoch` masuk build rilis | GAP-12 |
+
+---
+
+## Gate Wajib Sebelum Setiap Commit
+
+```bash
+cargo fmt --all
+cargo clippy --all-targets --all-features -- -D warnings
+cargo build --all-features --workspace
+cargo test --all-features --workspace
+```
+
+Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 
 ---
 
 ## Riwayat Perubahan
 
-- 2026-06-15 | Phase Review selesai, REPO_MAP.md dibuat. 16 gap diidentifikasi (7×P0, 4×P1, 3×P2, 2×P3).
-- 2026-06-15 | GAP-04 CLOSED: fri_queries=108, fri_grinding=0 di genesis_ceremony.rs.
-- 2026-06-15 | GAP-05 CLOSED: stale comments queries=84/grinding=23 di batch_transfer_p3 + config.rs.
-- 2026-06-15 | GAP-08 CLOSED: MembershipAir num_public_values, NonMembershipAir num_public_values, A-R9 PI[0..4]+[33..40] explicit binding. 127/128 tests pass (1 remaining: GAP-FIXTURE-CD P3).
-- 2026-06-15 | GAP-FIXTURE-CD ditambahkan (P3): bench_starkpack_aggregation test helper salah, bukan constraint bug.
-- 2026-06-15 | GAP-06 CLOSED: starkpack_p3.rs soundness 2^-154 post-batch, 2^-162 per-proof [SCALAR-SECURITY §1.4].
-- 2026-06-15 | GAP-07 CLOSED: config.rs + domain.rs soundness dikoreksi, ~2^-120/~2^-128 dihapus.
+| Tanggal | Event |
+|---------|-------|
+| 2026-06-15 | Phase Review awal selesai. REPO_MAP v1 dibuat. 16+ gap diidentifikasi. |
+| 2026-06-15 | GAP-04 CLOSED: fri_queries=108, fri_grinding=0 di genesis_ceremony.rs. |
+| 2026-06-15 | GAP-05 CLOSED: stale comments queries=84/grinding=23 di batch_transfer_p3 + config.rs. |
+| 2026-06-15 | GAP-06 CLOSED: starkpack_p3.rs soundness 2⁻¹⁵⁴ post-batch / 2⁻¹⁶² per-proof. |
+| 2026-06-15 | GAP-07 CLOSED: config.rs + domain.rs soundness values dikoreksi. |
+| 2026-06-15 | GAP-08 CLOSED: MembershipAir, NonMembershipAir, A-R9 PI binding [0..4]+[33..40]. (4 commits) |
+| 2026-06-15 | GAP-01 CLOSED: CheckpointProof K-1 anti-pattern dihapus dari nullifier_set.rs. |
+| 2026-06-15 | GAP-02 CLOSED: CheckpointWalEntry smt_root/smt_data_path + WalPhase benar di wal.rs. |
+| 2026-06-15 | GAP-03 CLOSED: SyncState VerifyingNsArch → VerifyingNsCheckpoint di sync.rs. |
+| 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |
