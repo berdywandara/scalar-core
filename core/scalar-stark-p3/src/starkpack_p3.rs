@@ -925,10 +925,15 @@ mod bench {
             .map(|w| nm_build(w, SparseTree::Archived))
             .collect();
 
+        // Conservation CD: sum_inputs == sum_outputs + fee_total [SCALAR-TECHNICAL §2.6]
+        // Derive sum_inputs from actual witness values to avoid mismatch. GAP-FIXTURE-CD fix.
+        let fee_bench: u64 = 40;
+        let sum_inputs_bench: u64 = ow.iter().map(|w| w.value).sum();
+        let sum_outputs_bench: u64 = sum_inputs_bench.saturating_sub(fee_bench);
         let pi = TransferPublicInputsP3 {
-            fee_total_sscl: 40,
-            sum_inputs_sscl: 1_000_000_040,
-            sum_outputs_sscl: 1_000_000_000,
+            fee_total_sscl: fee_bench,
+            sum_inputs_sscl: sum_inputs_bench,
+            sum_outputs_sscl: sum_outputs_bench,
             crypto_version: 0x01,
             current_subepoch_id: 1_000,
             target_subepoch_id: 1_000,
@@ -939,8 +944,8 @@ mod bench {
             cc_nonmembership_verified: true,
             output_nonzero: true,
             single_utxo_source: true,
-            commitment_hash: [0u64; 4], // A-R9: placeholder
-            nullifier_hash: [0u64; 4],  // A-R9: placeholder
+            commitment_hash: [0u64; 4], // A-R9: set by derive_public_claims
+            nullifier_hash: [0u64; 4],  // A-R9: set by derive_public_claims
         };
 
         let witnesses = TransferWitnesses {
