@@ -253,12 +253,26 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
         let nh2 = local[COL_NULLIFIER_HASH_2];
         let nh3 = local[COL_NULLIFIER_HASH_3];
 
-        // Each cross-binding column must be boolean-bounded: value is a u64
-        // hash chunk, so we just assert it equals the public value via binding.
-        // The Fiat-Shamir transcript enforces ch_i == pv[36+i] and nh_i == pv[40+i].
-        // Additional explicit equality: assert trace col == itself (structural).
-        // The real enforcement is public_values binding in prove/verify calls.
-        let _ = (ch0, ch1, ch2, ch3, nh0, nh1, nh2, nh3); // bound via pv binding
+        // A-R9: Explicit in-circuit binding of commitment_hash and nullifier_hash
+        // trace columns to their corresponding public values slots.
+        // PI layout (OSSIFIED, SCALAR-TECHNICAL §2.2):
+        //   pv[33..36] = commitment_hash[0..3]  (COL_COMMITMENT_HASH_0..3 → PI[33..36])
+        //   pv[37..40] = nullifier_hash[0..3]   (COL_NULLIFIER_HASH_0..3 → PI[37..40])
+        //
+        // builder.assert_eq(trace_col, pv[i]) enforces that the trace column value
+        // committed during proving exactly equals the public value absorbed into the
+        // Fiat-Shamir transcript. Wrong PI → verifier rejects. [GAP-08, P1, §2.7-A CX]
+        let pv = builder.public_values();
+        // commitment_hash[0..3] at PI[33..36]
+        builder.assert_eq(ch0.into(), pv[33].into());
+        builder.assert_eq(ch1.into(), pv[34].into());
+        builder.assert_eq(ch2.into(), pv[35].into());
+        builder.assert_eq(ch3.into(), pv[36].into());
+        // nullifier_hash[0..3] at PI[37..40]
+        builder.assert_eq(nh0.into(), pv[37].into());
+        builder.assert_eq(nh1.into(), pv[38].into());
+        builder.assert_eq(nh2.into(), pv[39].into());
+        builder.assert_eq(nh3.into(), pv[40].into());
     }
 }
 
