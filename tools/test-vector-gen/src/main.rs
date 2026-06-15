@@ -1,6 +1,10 @@
 //! Test vector generator for GAP-16 Python verifier cross-check.
 //! [SCALAR-SECURITY §5.3 Tier 2]
 
+use p3_field::extension::{CubicTrinomialExtensionField, HasFrobenius};
+use p3_field::RawDataSerializable;
+use p3_field::Field;
+use p3_goldilocks::Goldilocks as GL;
 use scalar_crypto::{
     imt::IncrementalMerkleTree,
     poseidon2_t8::{poseidon2_hash_chained, poseidon2_permute_t8, Poseidon2T8Hasher},
@@ -8,6 +12,16 @@ use scalar_crypto::{
 use scalar_nullifier::smt_quaternary::{
     hash_qsmt_leaf, hash_qsmt_node, QuaternarySparseMerkleTree, QSMT_ARITY,
 };
+type EF = CubicTrinomialExtensionField<GL>;
+fn ef(a0: u64, a1: u64, a2: u64) -> EF {
+    EF::new([GL::new(a0), GL::new(a1), GL::new(a2)])
+}
+fn ef_u(e: EF) -> [u64; 3] {
+    // Extract via into_bytes then reinterpret as u64 LE
+    use p3_field::RawDataSerializable;
+    let bytes: Vec<u8> = e.into_bytes().into_iter().collect();
+    core::array::from_fn(|i| u64::from_le_bytes(bytes[i*8..(i+1)*8].try_into().unwrap()))
+}
 use scalar_stark_p3::transfer_public_inputs::{
     check_all_constraints, TransferPublicInputsP3, FEE_FLOOR_SSCL, VALID_CRYPTO_VERSION,
 };
@@ -400,6 +414,42 @@ fn main() {
         &pi_vecs,
     );
 
+    // ── GF(p^3) extension field vectors (M4a) ──────────────────────────────
+    let mut ef_vecs: Vec<serde_json::Value> = Vec::new();
+    let p: u64 = 0xFFFF_FFFF;
+    for (note, a, b) in [
+        &("mul [1,2,3]x[4,5,6]", [1u64, 2, 3], [4u64, 5, 6]),
+        &("mul [1,2,3]x[7,0,0]", [1u64, 2, 3], [7u64, 0, 0]),
+        &("square [1,2,3]", [1u64, 2, 3], [1u64, 2, 3]),
+        &("mul [p,p-1,p-2]x[3,7,11]", [p, p - 1, p - 2], [3u64, 7, 11]),
+        &("mul [0,0,1]x[0,0,1]", [0u64, 0, 1], [0u64, 0, 1]),
+        &("mul identity", [1u64, 0, 0], [4u64, 5, 6]),
+    ] {
+        let ea = ef(a[0], a[1], a[2]);
+        let eb = ef(b[0], b[1], b[2]);
+        ef_vecs.push(
+            serde_json::json!({"primitive":"ef_mul","a":a,"b":b,"result":ef_u(ea*eb),"note":note}),
+        );
+    }
+    ef_vecs.push(serde_json::json!({"primitive":"ef_add","a":[1u64,2,3],"b":[4u64,5,6],"result":ef_u(ef(1,2,3)+ef(4,5,6)),"note":"add [1,2,3]+[4,5,6]"}));
+    ef_vecs.push(serde_json::json!({"primitive":"ef_add","a":[p,p,p],"b":[1u64,1,1],"result":ef_u(ef(p,p,p)+ef(1,1,1)),"note":"add [p,p,p]+[1,1,1]"}));
+    for (note, a) in [
+        ("inv [1,2,3]", [1u64, 2, 3]),
+        ("inv [7,0,0]", [7u64, 0, 0]),
+        ("inv [p,p-1,p-2]", [p, p - 1, p - 2]),
+    ] {
+        let ea = ef(a[0], a[1], a[2]);
+        let inv = ea.inverse();
+        ef_vecs.push(serde_json::json!({"primitive":"ef_inv","a":a,"result":ef_u(inv),"verify":ef_u(ea*inv),"note":note}));
+    }
+    for (note, a) in [
+        ("frobenius [1,2,3]", [1u64, 2, 3]),
+        ("frobenius [0,1,0]", [0u64, 1, 0]),
+    ] {
+        let ea = ef(a[0], a[1], a[2]);
+        ef_vecs.push(serde_json::json!({"primitive":"ef_frobenius","a":a,"result":ef_u(ea.frobenius()),"note":note}));
+    }
+    write_json("verifier-py/tests/vectors/ef_vectors.json", &ef_vecs);
     println!(
         "Done: {} p2, {} imt, {} qsmt, {} pi vectors",
         p2_vecs.len(),
@@ -416,3 +466,4 @@ fn write_json(path: &str, vecs: &[serde_json::Value]) {
         .unwrap();
     println!("Written: {path} ({} vectors)", vecs.len());
 }
+// Note: perlu tambah ke main() — tulis ulang

@@ -315,4 +315,5 @@ Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 | 2026-06-15 | GAP-16 IN PROGRESS: verifier-py/ created; M1 Poseidon2 9/9 PASS (bit-exact vs impl#1). [§5.3 Tier 2] |
 | 2026-06-15 | GAP-16 M2: IMT membership + QSMT hash functions 15/15 PASS bit-exact. [§5.3] |
 | 2026-06-15 | GAP-16 M3: PI constraint checker 13/13 PASS bit-exact. [§5.3] |
+| 2026-06-15 | GAP-16 M4a: GF(p^3) trinomial x^3-x-1 arithmetic 19/19 PASS. [§[PROOF-PARAMS] K-2] |
 | 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |
