@@ -1,28 +1,28 @@
 //! Write-Ahead Log (WAL) — Three-Phase Checkpoint Commit. ADR-SEC-002 revised.
 //!
 //! Three-phase protocol:
-//!   PREPARE — intent recorded before proof generation starts (snapshot stored).
-//!   COMMIT  — success recorded after proof verified. Terminal success.
-//!   ABORT   — failure recorded. Terminal failure, allows retry via new PREPARE.
+//!   PREPARING  — intent recorded before SMT insert starts (snapshot stored).
+//!   INSERTED   — SMT insert complete, root persisted. Terminal on success path.
+//!   COMMITTED  — nullifier_archived_root state updated, NS_ACTIVE pruned.
 //!
 //! Idempotency: re-applying any phase to an already-matching state is a no-op.
-//! Snapshot: full state stored at PREPARE (not just boundary). ADR-SEC-002.
-//! proving_key_version: tracks which proving key was used. ADR-SEC-002.
+//! Snapshot: full state stored at PREPARING (not just boundary).
+//! [SCALAR-TECHNICAL §6.2, K-1]
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // ── Phase ─────────────────────────────────────────────────────────────────────
 
-/// WAL entry phase. ADR-SEC-002 revised.
+/// WAL entry phase. [SCALAR-TECHNICAL §6.2, K-1]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WalPhase {
-    /// Intent recorded before proof generation. Recoverable.
-    Prepared,
-    /// Proof generated and verified. Terminal success — idempotent on re-commit.
+    /// Intent recorded; snapshot written. SMT insert not yet started.
+    Preparing,
+    /// SMT insert complete; smt_root persisted to disk. Idempotent on re-insert.
+    Inserted,
+    /// nullifier_archived_root updated; NS_ACTIVE pruned. Terminal success.
     Committed,
-    /// Proof generation failed. Terminal failure — allows fresh PREPARE retry.
-    Aborted,
 }
 
 // ── Snapshot ──────────────────────────────────────────────────────────────────
@@ -48,21 +48,21 @@ pub struct CheckpointSnapshot {
 
 // ── WAL Entry ─────────────────────────────────────────────────────────────────
 
-/// WAL entry for a checkpoint. ADR-SEC-002 revised.
+/// WAL entry for a checkpoint. [SCALAR-TECHNICAL §6.2, K-1]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckpointWalEntry {
     /// Checkpoint ID = epoch_id being committed.
     pub checkpoint_id: u64,
     /// Current phase.
     pub phase: WalPhase,
-    /// Proving key version used. ADR-SEC-002.
-    pub proving_key_version: u32,
-    /// Full snapshot at PREPARE time. ADR-SEC-002: stored, not boundary.
+    /// Full snapshot at PREPARING time.
     pub snapshot: CheckpointSnapshot,
     /// Unix timestamp (ms) of last phase write.
     pub written_at_ms: u64,
-    /// Proof bytes — populated at COMMIT, empty at PREPARE/ABORT.
-    pub proof_bytes: Vec<u8>,
+    /// Accumulative SMT root after insert — populated at INSERTED. [K-1]
+    pub smt_root: [u8; 32],
+    /// Path to persistent SMT data on disk — populated at INSERTED. [K-1]
+    pub smt_data_path: String,
 }
 
 // ── Idempotency result ────────────────────────────────────────────────────────
@@ -121,19 +121,16 @@ impl CheckpointWal {
     pub fn prepare(
         &mut self,
         checkpoint_id: u64,
-        proving_key_version: u32,
         snapshot: CheckpointSnapshot,
         now_ms: u64,
     ) -> Result<WalResult, WalError> {
         if let Some(existing) = self.entries.get(&checkpoint_id) {
             return match existing.phase {
-                // Idempotent: same prepare, same key version — no-op.
-                WalPhase::Prepared => Ok(WalResult::AlreadyInState),
-                // Terminal states: cannot re-prepare a committed/aborted checkpoint.
-                WalPhase::Committed | WalPhase::Aborted => Err(WalError::InvalidTransition {
+                WalPhase::Preparing => Ok(WalResult::AlreadyInState),
+                WalPhase::Inserted | WalPhase::Committed => Err(WalError::InvalidTransition {
                     checkpoint_id,
                     from: existing.phase.clone(),
-                    to: WalPhase::Prepared,
+                    to: WalPhase::Preparing,
                 }),
             };
         }
@@ -142,25 +139,25 @@ impl CheckpointWal {
             checkpoint_id,
             CheckpointWalEntry {
                 checkpoint_id,
-                phase: WalPhase::Prepared,
-                proving_key_version,
+                phase: WalPhase::Preparing,
                 snapshot,
                 written_at_ms: now_ms,
-                proof_bytes: Vec::new(),
+                smt_root: [0u8; 32],
+                smt_data_path: String::new(),
             },
         );
         Ok(WalResult::Applied)
     }
 
-    /// Phase 2 — COMMIT: record success after proof verified.
+    /// Phase 2 — INSERTED: SMT insert complete, root persisted.
     ///
-    /// Idempotent: calling COMMIT on an already-COMMITTED checkpoint is a no-op.
-    /// Requires PREPARE to have been called first.
-    /// Error: ABORT → COMMIT transition is invalid.
-    pub fn commit(
+    /// Idempotent: calling INSERTED on an already-INSERTED checkpoint is a no-op.
+    /// Requires PREPARING to have been called first. [SCALAR-TECHNICAL §6.2, K-1]
+    pub fn inserted(
         &mut self,
         checkpoint_id: u64,
-        proof_bytes: Vec<u8>,
+        smt_root: [u8; 32],
+        smt_data_path: String,
         now_ms: u64,
     ) -> Result<WalResult, WalError> {
         let entry = self
@@ -169,52 +166,52 @@ impl CheckpointWal {
             .ok_or(WalError::MissingPrepare { checkpoint_id })?;
 
         match entry.phase {
-            WalPhase::Committed => return Ok(WalResult::AlreadyInState),
-            WalPhase::Aborted => {
+            WalPhase::Inserted => return Ok(WalResult::AlreadyInState),
+            WalPhase::Committed => {
                 return Err(WalError::InvalidTransition {
                     checkpoint_id,
-                    from: WalPhase::Aborted,
-                    to: WalPhase::Committed,
+                    from: WalPhase::Committed,
+                    to: WalPhase::Inserted,
                 })
             }
-            WalPhase::Prepared => {}
+            WalPhase::Preparing => {}
         }
 
-        entry.phase = WalPhase::Committed;
-        entry.proof_bytes = proof_bytes;
+        entry.phase = WalPhase::Inserted;
+        entry.smt_root = smt_root;
+        entry.smt_data_path = smt_data_path;
         entry.written_at_ms = now_ms;
         Ok(WalResult::Applied)
     }
 
-    /// Phase 3 — ABORT: record failure. Allows fresh PREPARE retry.
+    /// Phase 3 — COMMITTED: nullifier_archived_root updated, NS_ACTIVE pruned.
     ///
-    /// Idempotent: calling ABORT on an already-ABORTED checkpoint is a no-op.
-    /// Requires PREPARE to have been called first.
-    /// Error: COMMIT → ABORT transition is invalid.
-    pub fn abort(&mut self, checkpoint_id: u64, now_ms: u64) -> Result<WalResult, WalError> {
+    /// Idempotent: calling COMMITTED on an already-COMMITTED checkpoint is a no-op.
+    /// Requires INSERTED to have been called first. [SCALAR-TECHNICAL §6.2, K-1]
+    pub fn commit(&mut self, checkpoint_id: u64, now_ms: u64) -> Result<WalResult, WalError> {
         let entry = self
             .entries
             .get_mut(&checkpoint_id)
             .ok_or(WalError::MissingPrepare { checkpoint_id })?;
 
         match entry.phase {
-            WalPhase::Aborted => return Ok(WalResult::AlreadyInState),
-            WalPhase::Committed => {
+            WalPhase::Committed => return Ok(WalResult::AlreadyInState),
+            WalPhase::Preparing => {
                 return Err(WalError::InvalidTransition {
                     checkpoint_id,
-                    from: WalPhase::Committed,
-                    to: WalPhase::Aborted,
+                    from: WalPhase::Preparing,
+                    to: WalPhase::Committed,
                 })
             }
-            WalPhase::Prepared => {}
+            WalPhase::Inserted => {}
         }
 
-        entry.phase = WalPhase::Aborted;
+        entry.phase = WalPhase::Committed;
         entry.written_at_ms = now_ms;
         Ok(WalResult::Applied)
     }
 
-    /// Check if checkpoint is already committed (idempotency guard for callers).
+    /// Returns true if checkpoint reached COMMITTED phase (idempotency guard).
     pub fn is_committed(&self, checkpoint_id: u64) -> bool {
         self.entries
             .get(&checkpoint_id)
@@ -721,7 +718,7 @@ impl FileCheckpointWal {
         Ok(())
     }
 
-    /// Jumlah entries yang COMMITTED. ADR-SEC-002.
+    /// Count entries by phase.
     pub fn count_by_phase(&self, phase: &WalPhase) -> usize {
         self.inner.count_by_phase(phase)
     }
