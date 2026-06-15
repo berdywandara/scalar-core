@@ -20,10 +20,10 @@
 pub const CHECKPOINT_INTERVAL_DAYS: u64 = 90;
 
 /// Maximum NS_CHECKPOINT SMT root data size (bytes). [K-1]
-pub const NS_CHECKPOINT_ROOT_MAX_BYTES: usize = 32;
+pub const NS_CHECKPOINT_ROOT_MAX_BYTES: usize = 150 * 1024; // 150 KB [K-1, SCALAR-TECHNICAL §6.1]
 
 /// Maximum NS_CHECKPOINT SMT root verification time (ms). [K-1]
-pub const NS_CHECKPOINT_VERIFY_MAX_MS: u64 = 1;
+pub const NS_CHECKPOINT_VERIFY_MAX_MS: u64 = 100; // 100ms max verify time [K-1, SCALAR-TECHNICAL §6.1]
 
 /// Jumlah bootstrap peers hardcoded. Spec §12.8: 50 peers.
 pub const BOOTSTRAP_PEER_COUNT: usize = 50;
@@ -76,11 +76,11 @@ pub enum SyncFailReason {
     /// Genesis hash tidak cocok dengan hardcoded hash.
     GenesisHashMismatch,
     /// NS_CHECKPOINT SMT root tidak valid.
-    NsArchProofInvalid,
+    NsCheckpointProofInvalid,
     /// NS_CHECKPOINT SMT root terlalu besar (> 150 KB).
-    NsArchProofTooLarge,
+    NsCheckpointProofTooLarge,
     /// NS_ARCH verification terlalu lambat (> 100ms).
-    NsArchVerifyTooSlow,
+    NsCheckpointVerifyTooSlow,
     /// Tidak ada checkpoint tersedia.
     NoCheckpointAvailable,
     /// Delta sync gagal karena tidak ada peer.
@@ -208,7 +208,7 @@ pub fn latest_checkpoint_epoch(current_epoch: u64) -> Option<u64> {
 
 /// Hasil verifikasi NS_CHECKPOINT SMT root. Spec §6.5.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NsArchVerifyResult {
+pub enum NsCheckpointVerifyResult {
     /// Proof valid — node bisa trust seluruh history.
     Valid,
     /// Proof terlalu besar.
@@ -225,18 +225,18 @@ pub enum NsArchVerifyResult {
 pub fn validate_ns_checkpoint_constraints(
     proof_size_bytes: usize,
     verify_elapsed_ms: u64,
-) -> NsArchVerifyResult {
+) -> NsCheckpointVerifyResult {
     if proof_size_bytes > NS_CHECKPOINT_ROOT_MAX_BYTES {
-        return NsArchVerifyResult::TooLarge {
+        return NsCheckpointVerifyResult::TooLarge {
             size: proof_size_bytes,
         };
     }
     if verify_elapsed_ms > NS_CHECKPOINT_VERIFY_MAX_MS {
-        return NsArchVerifyResult::TooSlow {
+        return NsCheckpointVerifyResult::TooSlow {
             elapsed_ms: verify_elapsed_ms,
         };
     }
-    NsArchVerifyResult::Valid
+    NsCheckpointVerifyResult::Valid
 }
 
 // ── Bootstrap Peer Diversity ──────────────────────────────────────────
@@ -545,20 +545,20 @@ mod tests {
     fn test_ns_arch_valid() {
         assert_eq!(
             validate_ns_checkpoint_constraints(100 * 1024, 50),
-            NsArchVerifyResult::Valid
+            NsCheckpointVerifyResult::Valid
         );
     }
 
     #[test]
     fn test_ns_arch_proof_too_large() {
         let result = validate_ns_checkpoint_constraints(NS_CHECKPOINT_ROOT_MAX_BYTES + 1, 50);
-        assert!(matches!(result, NsArchVerifyResult::TooLarge { .. }));
+        assert!(matches!(result, NsCheckpointVerifyResult::TooLarge { .. }));
     }
 
     #[test]
     fn test_ns_arch_verify_too_slow() {
         let result = validate_ns_checkpoint_constraints(1024, NS_CHECKPOINT_VERIFY_MAX_MS + 1);
-        assert!(matches!(result, NsArchVerifyResult::TooSlow { .. }));
+        assert!(matches!(result, NsCheckpointVerifyResult::TooSlow { .. }));
     }
 
     #[test]
@@ -568,7 +568,7 @@ mod tests {
                 NS_CHECKPOINT_ROOT_MAX_BYTES,
                 NS_CHECKPOINT_VERIFY_MAX_MS
             ),
-            NsArchVerifyResult::Valid
+            NsCheckpointVerifyResult::Valid
         );
     }
 
