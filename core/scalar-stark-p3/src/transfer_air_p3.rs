@@ -78,7 +78,7 @@ pub const RECIP_SCALE: u64 = 1u64 << 32;
 pub const CF_COL_COUNT: usize = 2 * MAX_IO_CF * 2 + 3; // 43
 
 /// New TRANSFER_TRACE_WIDTH: 112 (existing) + 43 (CF storage_mass) = 155.
-pub const TRANSFER_TRACE_WIDTH: usize = 155; // GAP-10a: +43 CF storage_mass cols
+pub const TRANSFER_TRACE_WIDTH: usize = 798; // GAP-10b: 155+320+320+3
 
 // ── CF storage_mass columns (start at 112) ────────────────────────────────────
 /// Input UTXO value columns (witness privat). COL_VALUE_IN_0..9 = 112..121.
@@ -95,6 +95,24 @@ pub const COL_STORAGE_MASS: usize = COL_INV_OUT_START + MAX_IO_CF;
 pub const COL_NUM_INPUTS: usize = COL_STORAGE_MASS + 1;
 /// Number of active outputs. COL_NUM_OUTPUTS = 154.
 pub const COL_NUM_OUTPUTS: usize = COL_NUM_INPUTS + 1;
+
+// ── GAP-10b: remainder bit decomposition + fee components ────────────────────
+/// Bits per remainder witness (RECIP_SCALE = 2^32). §2.8.
+pub const REM_BIT_COUNT: usize = 32;
+/// rem_in bits: 32 x MAX_IO_CF cols = 320. COL_REM_IN_BIT_START=155.
+pub const COL_REM_IN_BIT_START: usize = COL_NUM_OUTPUTS + 1;
+/// rem_out bits: 32 x MAX_IO_CF cols = 320. COL_REM_OUT_BIT_START=475.
+pub const COL_REM_OUT_BIT_START: usize = COL_REM_IN_BIT_START + REM_BIT_COUNT * MAX_IO_CF;
+/// BASE_FEE = storage_mass x BASE_PRICE_PER_MASS. COL_BASE_FEE=795.
+pub const COL_BASE_FEE: usize = COL_REM_OUT_BIT_START + REM_BIT_COUNT * MAX_IO_CF;
+/// COMPLEXITY_FEE = constraint_units x PRICE_PER_CU. COL_COMPLEXITY_FEE=796.
+pub const COL_COMPLEXITY_FEE: usize = COL_BASE_FEE + 1;
+/// FLOOR_BASE = BASE_FEE + COMPLEXITY_FEE. COL_FLOOR_BASE=797.
+pub const COL_FLOOR_BASE: usize = COL_COMPLEXITY_FEE + 1;
+/// BASE_PRICE_PER_MASS: genesis default 1000. CONSTRAINED §13.2.
+pub const BASE_PRICE_PER_MASS: u64 = 1_000;
+/// PRICE_PER_CU: genesis default 1000. CONSTRAINED §13.2.
+pub const PRICE_PER_CU: u64 = 1_000;
 
 pub const COL_FEE: usize = 0;
 pub const COL_SUM_IN: usize = 1;
@@ -405,6 +423,22 @@ impl CfWitnesses {
             .sum();
         sum_inv_out.saturating_sub(sum_inv_in)
     }
+
+    /// Compute BASE_FEE = storage_mass x BASE_PRICE_PER_MASS. [§2.8, §13.2]
+    pub fn base_fee(&self) -> u64 {
+        self.storage_mass().saturating_mul(BASE_PRICE_PER_MASS)
+    }
+
+    /// Compute COMPLEXITY_FEE = (n_in + n_out) x PRICE_PER_CU. [§2.8, §13.2]
+    pub fn complexity_fee(&self) -> u64 {
+        let cu = (self.input_values.len() + self.output_values.len()) as u64;
+        cu.saturating_mul(PRICE_PER_CU)
+    }
+
+    /// Compute FLOOR_BASE = BASE_FEE + COMPLEXITY_FEE. [§2.8-A]
+    pub fn floor_base(&self) -> u64 {
+        self.base_fee().saturating_add(self.complexity_fee())
+    }
 }
 
 /// Build a single-row trace from TransferPublicInputsP3 and CfWitnesses.
@@ -439,7 +473,7 @@ pub fn build_transfer_trace(
         *bit = (pi.target_subepoch_id >> i) & 1;
     }
 
-    // Assemble full row [TRANSFER_TRACE_WIDTH = 155: 112 existing + 43 CF cols].
+    // Assemble full row [TRANSFER_TRACE_WIDTH = 798: 155 + 643 GAP-10b cols].
     let mut row = [Goldilocks::new(0u64); TRANSFER_TRACE_WIDTH];
     // cols 0..11: main public values
     row[COL_FEE] = Goldilocks::new(pi.fee_total_sscl);
@@ -500,6 +534,44 @@ pub fn build_transfer_trace(
     row[COL_STORAGE_MASS] = Goldilocks::new(cf.storage_mass());
     row[COL_NUM_INPUTS] = Goldilocks::new(cf.input_values.len() as u64);
     row[COL_NUM_OUTPUTS] = Goldilocks::new(cf.output_values.len() as u64);
+
+    // GAP-10b: remainder bit decomposition columns. [SCALAR-TECHNICAL §2.8]
+    // rem_in[i] = RECIP_SCALE - value_in[i] x inv_in[i]  (32-bit decomposition)
+    for i in 0..MAX_IO_CF {
+        let (val, inv) = if i < cf.input_values.len() {
+            let v = cf.input_values[i];
+            (v, CfWitnesses::compute_inv(v))
+        } else {
+            (1u64, RECIP_SCALE)
+        };
+        let prod = val.wrapping_mul(inv);
+        let rem = RECIP_SCALE.wrapping_sub(prod) & 0xFFFF_FFFF;
+        for k in 0..REM_BIT_COUNT {
+            row[COL_REM_IN_BIT_START + i * REM_BIT_COUNT + k] = Goldilocks::new((rem >> k) & 1);
+        }
+    }
+    for i in 0..MAX_IO_CF {
+        let (val, inv) = if i < cf.output_values.len() {
+            let v = cf.output_values[i];
+            (v, CfWitnesses::compute_inv(v))
+        } else {
+            (1u64, RECIP_SCALE)
+        };
+        let prod = val.wrapping_mul(inv);
+        let rem = RECIP_SCALE.wrapping_sub(prod) & 0xFFFF_FFFF;
+        for k in 0..REM_BIT_COUNT {
+            row[COL_REM_OUT_BIT_START + i * REM_BIT_COUNT + k] = Goldilocks::new((rem >> k) & 1);
+        }
+    }
+    let storage_mass_val = cf.storage_mass();
+    let base_fee_val = storage_mass_val.saturating_mul(BASE_PRICE_PER_MASS);
+    let n_in = cf.input_values.len() as u64;
+    let n_out = cf.output_values.len() as u64;
+    let complexity_fee_val = (n_in + n_out).saturating_mul(PRICE_PER_CU);
+    let floor_base_val = base_fee_val.saturating_add(complexity_fee_val);
+    row[COL_BASE_FEE] = Goldilocks::new(base_fee_val);
+    row[COL_COMPLEXITY_FEE] = Goldilocks::new(complexity_fee_val);
+    row[COL_FLOOR_BASE] = Goldilocks::new(floor_base_val);
 
     // Replicate single row across all trace rows (steady-state constraint).
 
@@ -590,7 +662,7 @@ mod tests {
 
     #[test]
     fn test_trace_width_ossified() {
-        assert_eq!(TRANSFER_TRACE_WIDTH, 155); // 112 existing + 43 CF storage_mass cols [GAP-10a]
+        assert_eq!(TRANSFER_TRACE_WIDTH, 798); // 155 + 320 rem_in + 320 rem_out + 3 fee [GAP-10b]
     }
 
     #[test]
