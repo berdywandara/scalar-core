@@ -427,8 +427,8 @@ impl GenesisParams {
             s_e_sscl: 1_890_000_000_000_000,
             s_r_sscl: 210_000_000_000_000,
             fri_blowup: 8,
-            fri_queries: 84,
-            fri_grinding: 20,
+            fri_queries: 108, // OSSIFIED [SCALAR-SECURITY §[PROOF-PARAMS]]
+            fri_grinding: 0,  // grinding amputated [SCALAR-SECURITY §[PROOF-PARAMS]]
             crypto_version: 0x01,
             genesis_timestamp,
             genesis_version,
@@ -718,8 +718,8 @@ mod two_phase_tests {
         assert_eq!(p.s_e_sscl, 1_890_000_000_000_000);
         assert_eq!(p.s_r_sscl, 210_000_000_000_000);
         assert_eq!(p.fri_blowup, 8);
-        assert_eq!(p.fri_queries, 84);
-        assert_eq!(p.fri_grinding, 20);
+        assert_eq!(p.fri_queries, 108); // OSSIFIED [SCALAR-SECURITY §[PROOF-PARAMS]]
+        assert_eq!(p.fri_grinding, 0); // grinding amputated [SCALAR-SECURITY §[PROOF-PARAMS]]
         assert_eq!(p.crypto_version, 0x01);
         let ver = b"scalar-genesis-1.0";
         assert_eq!(&p.genesis_version[..ver.len()], ver);
