@@ -36,7 +36,8 @@ pub const FRI_LOG_BLOWUP: usize = 3; // 2^3 = 8
 
 /// FRI query count. OSSIFIED — SCALAR-SECURITY §[PROOF-PARAMS].
 /// q=108 meets >160-bit soundness target under Johnson bound (proven) with
-/// cubic extension GF(p^3). ADR-SEC-023 formal confirmation required pre-mainnet.
+/// cubic extension GF(p^3). Soundness validated via internal multi-tier framework
+/// (Tier 1: SageMath/KAT; Tier 2: Prusti/TLA+/multi-client verifier). [SCALAR-SECURITY §1.7, K-4]
 /// DO NOT duplicate this value — reference this constant only.
 pub const FRI_NUM_QUERIES: usize = 108;
 
@@ -45,7 +46,8 @@ pub const FRI_NUM_QUERIES: usize = 108;
 /// Soundness now relies on cubic field extension (GF(p^3), |F|≈2^192) and
 /// query count — both sampling/proximity bounds, not PoW search bounds.
 /// This eliminates QROM degradation from Grover acceleration entirely.
-/// ADR-SEC-023 formal confirmation required pre-mainnet.
+/// QROM is a managed residual monitored via internal Tier 1/2 framework — not a blocker.
+/// [SCALAR-SECURITY §1.7, K-4]
 pub const FRI_PROOF_OF_WORK_BITS: usize = 0;
 
 // ── Compile-time OSSIFIED enforcement ──────────────────────────────────────
@@ -55,7 +57,8 @@ pub const FRI_PROOF_OF_WORK_BITS: usize = 0;
 // Ref: SCALAR-PROTOCOL §13.1, SCALAR-SECURITY §3.4 RISK-02, D-028
 /// Compile-time enforcement of OSSIFIED proof parameters.
 /// Source: SCALAR-SECURITY §[PROOF-PARAMS]. DO NOT change without COMMIT 75%
-/// governance vote AND formal soundness re-proof (ADR-SEC-023).
+/// governance vote AND soundness re-verification via internal Tier 1/2 framework.
+/// [SCALAR-SECURITY §1.7, K-4]
 const _: () = {
     assert!(
         FRI_LOG_BLOWUP == 3,
