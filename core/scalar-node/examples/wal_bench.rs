@@ -58,7 +58,7 @@ fn main() {
     let mut commit_ns: Vec<u64> = Vec::with_capacity(CHECKPOINT_RUNS);
     for i in 0..CHECKPOINT_RUNS {
         let t = Instant::now();
-        wal.inserted(i as u64, [0u8;32], String::new(), i as u64 * 1000 + 500)
+        wal.inserted(i as u64, [0u8; 32], String::new(), i as u64 * 1000 + 500)
             .expect("commit failed");
         commit_ns.push(t.elapsed().as_nanos() as u64);
     }

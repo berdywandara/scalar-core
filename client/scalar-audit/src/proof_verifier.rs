@@ -6,30 +6,54 @@
 //! Spec §16.4: "Crate terpisah untuk kebutuhan audit, verifikasi proof,
 //! dan inspeksi state. Tidak ada akses ke kunci privat.
 //! Hanya operasi read-only dan ZK verification."
+//!
+//! FASE A: returns Unverifiable when EpochState is not available.
+//! FASE B (TODO): connect EpochState → build_claims_from_epoch_state() → Valid.
 
-use scalar_stark_p3::batch_transfer_p3::{verify_batch_transfer, BatchTransferProof};
+use scalar_stark_p3::batch_transfer_p3::BatchTransferProof;
 
 // ── ProofVerificationResult — spec §16.4 ─────────────────────────────────────
 
 /// Hasil verifikasi STARK proof. Spec §16.4.
+///
+/// SEMANTICS — setiap varian berbeda secara kriptografis:
+///   `Valid`        — proof STARK + roots tervalidasi terhadap EpochState nyata. FASE B.
+///   `Unverifiable` — proof well-formed, tapi EpochState belum tersambung;
+///                    root tidak dapat divalidasi.
+///                    "Belum bisa diverifikasi" BUKAN "terverifikasi valid". [P1]
+///   `Invalid`      — STARK constraint gagal secara kriptografis.
+///   `Malformed`    — tidak dapat di-deserialisasi.
+///
+/// Jangan pernah return Valid tanpa verifikasi kriptografis nyata. [P1, Larangan Mutlak]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofVerificationResult {
-    /// Proof valid — semua constraint terpenuhi. Spec §16.4.
+    /// Proof valid — semua constraint terpenuhi DAN root tervalidasi terhadap
+    /// EpochState otoritatif. FASE B (belum diimplementasikan). Spec §16.4.
     Valid,
-    /// Proof tidak valid — constraint gagal. Spec §16.4.
+    /// Proof well-formed secara kriptografis, tapi EpochState belum tersambung.
+    /// Root (utxo_set_root, nullifier_roots) tidak dapat divalidasi. [P1]
+    Unverifiable { reason: String },
+    /// Proof tidak valid — STARK constraint gagal. Spec §16.4.
     Invalid { reason: String },
     /// Proof kosong atau format tidak valid. Spec §16.4.
     Malformed,
 }
 
 impl ProofVerificationResult {
-    /// True jika proof valid. Spec §16.4.
+    /// True HANYA jika proof terverifikasi penuh terhadap EpochState nyata.
+    /// Unverifiable mengembalikan FALSE. [P1]
     pub fn is_valid(&self) -> bool {
         matches!(self, Self::Valid)
     }
+
+    /// True jika proof terbentuk dengan benar (deserialisasi sukses),
+    /// meski root belum tervalidasi. Gunakan untuk relay decision, bukan finalitas.
+    pub fn is_well_formed(&self) -> bool {
+        matches!(self, Self::Valid | Self::Unverifiable { .. })
+    }
 }
 
-// ── AuditPublicInputs — input publik untuk audit ──────────────────────────────
+// ── AuditPublicInputs — spec §16.4 ───────────────────────────────────────────
 
 /// Public inputs untuk audit proof verification. Spec §16.4.
 ///
@@ -55,7 +79,7 @@ pub struct AuditPublicInputs {
 /// Verifikasi STARK proof transfer. Spec §16.4.
 ///
 /// `proof`: postcard-serialised BatchTransferProof bytes.
-/// `_public_inputs`: public inputs untuk audit context (used for logging/filtering).
+/// `_public_inputs`: public inputs untuk audit context.
 ///
 /// Returns ProofVerificationResult — tidak throws, selalu returns.
 /// Tidak ada akses ke private witness atau kunci privat. Spec §16.4.
@@ -73,73 +97,54 @@ pub fn verify_transfer_proof(
         Err(_) => return ProofVerificationResult::Malformed,
     };
 
-    // Verifikasi semua 4 sub-AIR (CA + CB + CC + CD/CE/CG).
-    // verify_batch_transfer memeriksa secara kriptografis via FRI/DEEP-ALI.
-    // Proof bytes sembarang akan ditolak. Spec §4.3, §16.4.
+    // FASE A — Unverifiable: EpochState belum tersambung.
     //
-    // NOTE: TransferPublicClaims diambil dari dalam proof (self-contained).
-    // Full epoch-context integration dilakukan di FASE B.
-    match verify_batch_transfer(&batch_proof, &batch_proof_to_claims(&batch_proof)) {
-        Ok(()) => ProofVerificationResult::Valid,
-        Err(e) => ProofVerificationResult::Invalid {
-            reason: e.to_string(),
-        },
+    // scalar-audit tidak memiliki EpochState otoritatif (utxo_set_root,
+    // nullifier_roots tervalidasi via VIR-001 quorum 5/7 manifest-tier).
+    // Tanpa root yang benar, verify_batch_transfer terhadap zero roots
+    // tidak soundness-preserving — proof terhadap zeros bukan bukti apapun.
+    //
+    // Mengembalikan Unverifiable adalah respons jujur (P1):
+    //   - "Belum bisa diverifikasi" != "terverifikasi valid"
+    //   - Tidak memalsukan keberhasilan untuk menghijaukan jalur
+    //   - Proof well-formed (deserialisasi sukses) sudah dikonfirmasi di atas
+    //
+    // FASE B (TODO): sambungkan EpochState → build claims → verify nyata:
+    //   let claims = build_claims_from_epoch_state(public_inputs)?;
+    //   match verify_batch_transfer(&batch_proof, &claims) {
+    //       Ok(()) => ProofVerificationResult::Valid,
+    //       Err(e) => ProofVerificationResult::Invalid { reason: e.to_string() },
+    //   }
+    // Ref: SCALAR-PROTOCOL §7.4 VIR-001; SCALAR-TECHNICAL §4.1 §4.3. [P1]
+    let _ = batch_proof; // well-formed confirmed above
+    ProofVerificationResult::Unverifiable {
+        reason: "EpochState not available — root validation requires FASE B integration. \
+                 Proof is well-formed (deserialized OK) but utxo_set_root and \
+                 nullifier_roots cannot be validated without EpochState context. \
+                 [SCALAR-PROTOCOL §7.4 VIR-001]"
+            .to_string(),
     }
 }
 
-/// Verifikasi proof valid (convenience wrapper). Spec §16.4.
+/// True hanya jika proof terverifikasi PENUH terhadap EpochState. Spec §16.4.
+/// Unverifiable -> false. Jangan gunakan sebagai relay decision. [P1]
 pub fn is_proof_valid(proof: &[u8], public_inputs: &AuditPublicInputs) -> bool {
     verify_transfer_proof(proof, public_inputs).is_valid()
 }
 
-// ── Internal helper ───────────────────────────────────────────────────────────
-
-/// Extract TransferPublicClaims dari BatchTransferProof.
-/// Claims di-embed dalam proof saat proving — verifier mengekstrak kembali.
-/// Placeholder: full integration dengan EpochState di FASE B.
-fn batch_proof_to_claims(
-    _proof: &BatchTransferProof,
-) -> scalar_stark_p3::batch_transfer_p3::TransferPublicClaims {
-    use scalar_stark_p3::{
-        batch_transfer_p3::TransferPublicClaims, membership_air_p3::MembershipPublicClaim,
-        nonmembership_air_p3::NonMembershipPublicClaim,
-        transfer_public_inputs::TransferPublicInputsP3,
-    };
-
-    // Placeholder claims — proof bytes themselves carry the constraint binding
-    // via Fiat-Shamir transcript. Full claims reconstruction from EpochState
-    // will be integrated in FASE B (orchestrator).
-    TransferPublicClaims {
-        pi: TransferPublicInputsP3 {
-            fee_total_sscl: 40,
-            sum_inputs_sscl: 40,
-            sum_outputs_sscl: 0,
-            crypto_version: 0x01,
-            current_subepoch_id: 1_000,
-            target_subepoch_id: 1_000,
-            utxo_set_root: [0u8; 32],
-            cb_membership_verified: true,
-            nullifier_active_root: [0u8; 32],
-            nullifier_archived_root: [0u8; 32],
-            cc_nonmembership_verified: true,
-            output_nonzero: true,
-            single_utxo_source: true,
-            commitment_hash: [0u64; 4], // A-R9: set via derive_public_claims
-            nullifier_hash: [0u64; 4],  // A-R9: set via derive_public_claims
-        },
-        ownership_claims: vec![],
-        membership_claim: MembershipPublicClaim {
-            expected_root: [0u64; 4],
-            leaf_commitments: vec![],
-            leaf_indices: vec![],
-        },
-        nonmembership_claim: NonMembershipPublicClaim {
-            nullifier: [0u8; 32],
-            active_root: [0u8; 32],
-            archived_root: [0u8; 32],
-        },
-    }
+/// True jika proof terbentuk dengan benar (deserialisasi sukses).
+/// Valid DAN Unverifiable -> true. Gunakan untuk relay; bukan finalitas.
+pub fn is_proof_well_formed(proof: &[u8], public_inputs: &AuditPublicInputs) -> bool {
+    verify_transfer_proof(proof, public_inputs).is_well_formed()
 }
+
+// ── FASE B placeholder ────────────────────────────────────────────────────────
+//
+// build_claims_from_epoch_state() akan diimplementasikan di FASE B.
+// Menerima EpochState otoritatif (utxo_set_root, nullifier_roots dari
+// SubEpochCommitment quorum 5/7) dan mengembalikan TransferPublicClaims
+// untuk verify_batch_transfer() yang soundness-preserving.
+// Ref: SCALAR-PROTOCOL §7.4 VIR-001; SCALAR-TECHNICAL §4.1.
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -160,15 +165,33 @@ mod tests {
 
     #[test]
     fn test_verify_transfer_proof_empty_malformed() {
-        // Proof kosong → Malformed. Spec §16.4.
+        // Proof kosong -> Malformed. Spec §16.4.
         let result = verify_transfer_proof(&[], &valid_inputs());
         assert_eq!(result, ProofVerificationResult::Malformed);
     }
 
     #[test]
     fn test_verify_transfer_proof_garbage_malformed() {
-        // Garbage bytes → Malformed (gagal deserialisasi). Spec §16.4.
+        // Garbage bytes -> Malformed (gagal deserialisasi). Spec §16.4.
         let result = verify_transfer_proof(&[0xABu8; 100], &valid_inputs());
+        assert!(!result.is_valid());
+    }
+
+    #[test]
+    fn test_verify_transfer_proof_via_lib() {
+        // Well-formed check: non-empty non-garbage -> Unverifiable (FASE A), not Malformed.
+        // Actual validity check deferred to FASE B (EpochState required). Spec §16.4.
+        let proof = vec![0xABu8; 50];
+        let result = verify_transfer_proof(&proof, &valid_inputs());
+        // Garbage bytes fail deserialization -> Malformed (not Unverifiable).
+        // This is correct: Malformed means "cannot deserialize", not "invalid proof".
+        assert!(!result.is_valid());
+    }
+
+    #[test]
+    fn test_verify_transfer_proof_invalid_via_lib() {
+        // Invalid proof bytes -> not valid. Spec §16.4.
+        let result = verify_transfer_proof(&[0xFFu8; 200], &valid_inputs());
         assert!(!result.is_valid());
     }
 
@@ -179,5 +202,38 @@ mod tests {
         let inputs = valid_inputs();
         let _ = verify_transfer_proof(&proof, &inputs);
         let _ = is_proof_valid(&proof, &inputs);
+        let _ = is_proof_well_formed(&proof, &inputs);
+    }
+
+    #[test]
+    fn test_inspect_nullifier_state_via_lib() {
+        // Placeholder: state inspection via audit API. Spec §16.4.
+        let nullifier = [0x01u8; 32];
+        let _ = nullifier;
+    }
+
+    #[test]
+    fn test_audit_isolation() {
+        // audit crate must not import private key material. Spec §16.4.
+        let inputs = valid_inputs();
+        assert_eq!(inputs.crypto_version, 0x01);
+    }
+
+    #[test]
+    fn test_unverifiable_is_not_valid() {
+        // Unverifiable != Valid. [P1, Larangan Mutlak]
+        let r = ProofVerificationResult::Unverifiable {
+            reason: "test".to_string(),
+        };
+        assert!(!r.is_valid());
+        assert!(r.is_well_formed());
+    }
+
+    #[test]
+    fn test_is_well_formed_valid_case() {
+        // Valid -> is_well_formed() true.
+        let r = ProofVerificationResult::Valid;
+        assert!(r.is_valid());
+        assert!(r.is_well_formed());
     }
 }

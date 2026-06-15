@@ -17,7 +17,7 @@
 | Build | Jalankan `cargo build --all-features --workspace` untuk konfirmasi |
 | Test | 127/128 pass (1 P3 fixture: GAP-FIXTURE-CD) |
 | Clippy | Harus 0 warnings sebelum setiap commit |
-| Placeholder kripto aktif | **2 confirmed P0** — lihat GAP-GOSSIP, GAP-AUDIT-CLAIMS |
+| Placeholder kripto aktif | **0 P0** — GAP-GOSSIP + GAP-AUDIT-CLAIMS CLOSED |
 | K-1 NS_CHECKPOINT SMT | ✅ RESOLVED (struct level) — sisa P3 naming legacy |
 | K-2 proof-params terpusat | ✅ OK — `FRI_NUM_QUERIES=108`, `FRI_PROOF_OF_WORK_BITS=0` di lib.rs |
 | K-3 ε post-batch 2⁻¹⁵⁴ | ✅ OK — starkpack_p3.rs, config.rs, domain.rs sudah benar |
@@ -293,4 +293,7 @@ Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 | 2026-06-15 | GAP-01 CLOSED: CheckpointProof K-1 anti-pattern dihapus dari nullifier_set.rs. |
 | 2026-06-15 | GAP-02 CLOSED: CheckpointWalEntry smt_root/smt_data_path + WalPhase benar di wal.rs. |
 | 2026-06-15 | GAP-03 CLOSED: SyncState VerifyingNsArch → VerifyingNsCheckpoint di sync.rs. |
+| 2026-06-15 | GAP-GOSSIP CLOSED: RelayDecision + verify_transfer_p3; return true dihapus. [§4.1 P1] |
+| 2026-06-15 | GAP-AUDIT-CLAIMS CLOSED: Unverifiable variant; zero-root placeholder dihapus. [P1] |
+| 2026-06-15 | WAL tests fixed: Preparing→Inserted→Committed enforced in all tests. [§6.2] |
 | 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |
