@@ -125,7 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let wal_dir = format!("testnet-wal/node-{}", port);
     let mut wal = FileCheckpointWal::open(&wal_dir)
         .unwrap_or_else(|e| panic!("[WAL] Failed to open {}: {}", wal_dir, e));
-    let prepared_count = wal.count_by_phase(&WalPhase::Prepared);
+    let prepared_count = wal.count_by_phase(&WalPhase::Preparing);
     if prepared_count > 0 {
         println!(
             "[WAL] ⚠️  CRASH RECOVERY: {} PREPARED entries found — node crashed during proving",
@@ -322,7 +322,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             total_supply_sscl: 0,
                         };
 
-                        match wal.prepare(current_epoch, 1, snap, now_ms) {
+                        match wal.prepare(current_epoch, snap, now_ms) {
                             Ok(r) => println!("[WAL] PREPARE epoch {}: {:?}", current_epoch, r),
                             Err(e) => println!("[WAL] PREPARE error: {}", e),
                         }
@@ -337,8 +337,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         // Simulate proof generation
                         let proof_delay = if crash_mode { 100 } else if fast_mode { 200 } else { 500 };
                         tokio::time::sleep(Duration::from_millis(proof_delay)).await;
-
-                        match wal.commit(current_epoch, vec![0xCAu8; 32], now_ms + proof_delay) {
+                        wal.inserted(current_epoch, [0u8;32], String::new(), now_ms + proof_delay).ok();
+                        match wal.commit(current_epoch, now_ms + proof_delay) {
                             Ok(r) => println!("[WAL] COMMIT epoch {}: {:?}", current_epoch, r),
                             Err(e) => println!("[WAL] COMMIT error: {}", e),
                         }

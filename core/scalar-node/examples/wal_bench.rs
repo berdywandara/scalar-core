@@ -41,7 +41,6 @@ fn main() {
     println!();
 
     let mut wal = CheckpointWal::new();
-    let proof_bytes = vec![0xFFu8; 689 * 1024]; // 689KB — B1.1 typical
 
     // ── PREPARE throughput ────────────────────────────────────────────────────
     println!("Benchmarking PREPARE ({} ops)...", CHECKPOINT_RUNS);
@@ -49,7 +48,7 @@ fn main() {
     for i in 0..CHECKPOINT_RUNS {
         let snap = make_snapshot(i as u64);
         let t = Instant::now();
-        wal.prepare(i as u64, 1, snap, i as u64 * 1000)
+        wal.prepare(i as u64, snap, i as u64 * 1000)
             .expect("prepare failed");
         prepare_ns.push(t.elapsed().as_nanos() as u64);
     }
@@ -59,7 +58,7 @@ fn main() {
     let mut commit_ns: Vec<u64> = Vec::with_capacity(CHECKPOINT_RUNS);
     for i in 0..CHECKPOINT_RUNS {
         let t = Instant::now();
-        wal.commit(i as u64, proof_bytes.clone(), i as u64 * 1000 + 500)
+        wal.inserted(i as u64, [0u8;32], String::new(), i as u64 * 1000 + 500)
             .expect("commit failed");
         commit_ns.push(t.elapsed().as_nanos() as u64);
     }
@@ -68,7 +67,7 @@ fn main() {
     println!("Checking idempotency (re-commit 1000 entries)...");
     let mut idempotent_ok = true;
     for i in 0..1000usize {
-        let r = wal.commit(i as u64, proof_bytes.clone(), 999_999);
+        let r = wal.commit(i as u64, 999_999);
         match r {
             Ok(scalar_node::wal::WalResult::AlreadyInState) => {}
             _ => {

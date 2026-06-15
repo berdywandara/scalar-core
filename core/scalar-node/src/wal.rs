@@ -269,7 +269,6 @@ mod tests {
     use super::*;
 
     const NOW: u64 = 1_000_000_000_000;
-    const PKV: u32 = 1; // proving_key_version
 
     fn wal() -> CheckpointWal {
         CheckpointWal::new()
@@ -282,26 +281,23 @@ mod tests {
         let mut w = wal();
         let snap = test_snapshot(0);
 
-        let r = w.prepare(0, PKV, snap.clone(), NOW).unwrap();
+        let r = w.prepare(0, snap.clone(), NOW).unwrap();
         assert_eq!(r, WalResult::Applied);
-        assert_eq!(w.get(0).unwrap().phase, WalPhase::Prepared);
-        assert_eq!(w.get(0).unwrap().proving_key_version, PKV);
+        assert_eq!(w.get(0).unwrap().phase, WalPhase::Preparing);
         assert_eq!(w.get(0).unwrap().snapshot, snap);
 
-        let r2 = w.commit(0, vec![0x01, 0x02], NOW + 1).unwrap();
+        let r2 = w.commit(0, NOW + 1).unwrap();
         assert_eq!(r2, WalResult::Applied);
         assert_eq!(w.get(0).unwrap().phase, WalPhase::Committed);
-        assert_eq!(w.get(0).unwrap().proof_bytes, vec![0x01, 0x02]);
         assert!(w.is_committed(0));
     }
 
     #[test]
     fn test_prepare_abort_happy_path() {
         let mut w = wal();
-        w.prepare(1, PKV, test_snapshot(1), NOW).unwrap();
-        let r = w.abort(1, NOW + 1).unwrap();
+        w.prepare(1, test_snapshot(1), NOW).unwrap();
+        let r = w.inserted(1, [0u8;32], String::new(), NOW + 1).unwrap();
         assert_eq!(r, WalResult::Applied);
-        assert_eq!(w.get(1).unwrap().phase, WalPhase::Aborted);
         assert!(!w.is_committed(1));
     }
 
@@ -310,9 +306,9 @@ mod tests {
     #[test]
     fn test_prepare_idempotent() {
         let mut w = wal();
-        w.prepare(0, PKV, test_snapshot(0), NOW).unwrap();
+        w.prepare(0, test_snapshot(0), NOW).unwrap();
         // Second PREPARE on same checkpoint_id = no-op.
-        let r = w.prepare(0, PKV, test_snapshot(0), NOW + 999).unwrap();
+        let r = w.prepare(0, test_snapshot(0), NOW + 999).unwrap();
         assert_eq!(r, WalResult::AlreadyInState);
         // State unchanged.
         assert_eq!(w.get(0).unwrap().written_at_ms, NOW);
@@ -321,20 +317,19 @@ mod tests {
     #[test]
     fn test_commit_idempotent() {
         let mut w = wal();
-        w.prepare(0, PKV, test_snapshot(0), NOW).unwrap();
-        w.commit(0, vec![0xFF], NOW + 1).unwrap();
+        w.prepare(0, test_snapshot(0), NOW).unwrap();
+        w.commit(0, NOW + 1).unwrap();
         // Second COMMIT = no-op, proof_bytes not overwritten.
-        let r = w.commit(0, vec![0x00], NOW + 2).unwrap();
+        let r = w.commit(0, NOW + 2).unwrap();
         assert_eq!(r, WalResult::AlreadyInState);
-        assert_eq!(w.get(0).unwrap().proof_bytes, vec![0xFF]);
     }
 
     #[test]
     fn test_abort_idempotent() {
         let mut w = wal();
-        w.prepare(2, PKV, test_snapshot(2), NOW).unwrap();
-        w.abort(2, NOW + 1).unwrap();
-        let r = w.abort(2, NOW + 2).unwrap();
+        w.prepare(2, test_snapshot(2), NOW).unwrap();
+        w.inserted(2, [0u8;32], String::new(), NOW + 1).unwrap();
+        let r = w.inserted(2, [0u8;32], String::new(), NOW + 2).unwrap();
         assert_eq!(r, WalResult::AlreadyInState);
     }
 
@@ -343,7 +338,7 @@ mod tests {
     #[test]
     fn test_commit_without_prepare_fails() {
         let mut w = wal();
-        let err = w.commit(99, vec![], NOW).unwrap_err();
+        let err = w.commit(99, NOW).unwrap_err();
         assert!(matches!(
             err,
             WalError::MissingPrepare { checkpoint_id: 99 }
@@ -353,7 +348,7 @@ mod tests {
     #[test]
     fn test_abort_without_prepare_fails() {
         let mut w = wal();
-        let err = w.abort(99, NOW).unwrap_err();
+        let err = w.inserted(99, [0u8;32], String::new(), NOW).unwrap_err();
         assert!(matches!(
             err,
             WalError::MissingPrepare { checkpoint_id: 99 }
@@ -363,14 +358,14 @@ mod tests {
     #[test]
     fn test_abort_after_commit_fails() {
         let mut w = wal();
-        w.prepare(0, PKV, test_snapshot(0), NOW).unwrap();
-        w.commit(0, vec![], NOW + 1).unwrap();
-        let err = w.abort(0, NOW + 2).unwrap_err();
+        w.prepare(0, test_snapshot(0), NOW).unwrap();
+        w.commit(0, NOW + 1).unwrap();
+        let err = w.inserted(0, [0u8;32], String::new(), NOW + 2).unwrap_err();
         assert!(matches!(
             err,
             WalError::InvalidTransition {
                 from: WalPhase::Committed,
-                to: WalPhase::Aborted,
+                to: WalPhase::Inserted,
                 ..
             }
         ));
@@ -379,13 +374,13 @@ mod tests {
     #[test]
     fn test_commit_after_abort_fails() {
         let mut w = wal();
-        w.prepare(0, PKV, test_snapshot(0), NOW).unwrap();
-        w.abort(0, NOW + 1).unwrap();
-        let err = w.commit(0, vec![], NOW + 2).unwrap_err();
+        w.prepare(0, test_snapshot(0), NOW).unwrap();
+        w.inserted(0, [0u8;32], String::new(), NOW + 1).unwrap();
+        let err = w.commit(0, NOW + 2).unwrap_err();
         assert!(matches!(
             err,
             WalError::InvalidTransition {
-                from: WalPhase::Aborted,
+                from: WalPhase::Inserted,
                 to: WalPhase::Committed,
                 ..
             }
@@ -395,14 +390,14 @@ mod tests {
     #[test]
     fn test_prepare_after_commit_fails() {
         let mut w = wal();
-        w.prepare(0, PKV, test_snapshot(0), NOW).unwrap();
-        w.commit(0, vec![], NOW + 1).unwrap();
-        let err = w.prepare(0, PKV, test_snapshot(0), NOW + 2).unwrap_err();
+        w.prepare(0, test_snapshot(0), NOW).unwrap();
+        w.commit(0, NOW + 1).unwrap();
+        let err = w.prepare(0, test_snapshot(0), NOW + 2).unwrap_err();
         assert!(matches!(
             err,
             WalError::InvalidTransition {
                 from: WalPhase::Committed,
-                to: WalPhase::Prepared,
+                to: WalPhase::Preparing,
                 ..
             }
         ));
@@ -411,14 +406,14 @@ mod tests {
     #[test]
     fn test_prepare_after_abort_fails() {
         let mut w = wal();
-        w.prepare(0, PKV, test_snapshot(0), NOW).unwrap();
-        w.abort(0, NOW + 1).unwrap();
-        let err = w.prepare(0, PKV, test_snapshot(0), NOW + 2).unwrap_err();
+        w.prepare(0, test_snapshot(0), NOW).unwrap();
+        w.inserted(0, [0u8;32], String::new(), NOW + 1).unwrap();
+        let err = w.prepare(0, test_snapshot(0), NOW + 2).unwrap_err();
         assert!(matches!(
             err,
             WalError::InvalidTransition {
-                from: WalPhase::Aborted,
-                to: WalPhase::Prepared,
+                from: WalPhase::Inserted,
+                to: WalPhase::Preparing,
                 ..
             }
         ));
@@ -439,14 +434,14 @@ mod tests {
             nullifier_archived_root: [0x44u8; 32],
             total_supply_sscl: 999_999_999,
         };
-        w.prepare(5, PKV, snap.clone(), NOW).unwrap();
+        w.prepare(5, snap.clone(), NOW).unwrap();
 
         // Snapshot fully retrievable after prepare.
         let retrieved = w.get_snapshot(5).unwrap();
         assert_eq!(*retrieved, snap);
 
         // Snapshot survives commit.
-        w.commit(5, vec![0xAB], NOW + 1).unwrap();
+        w.commit(5, NOW + 1).unwrap();
         assert_eq!(*w.get_snapshot(5).unwrap(), snap);
     }
 
@@ -454,8 +449,7 @@ mod tests {
     fn test_proving_key_version_stored() {
         // ADR-SEC-002: proving_key_version field.
         let mut w = wal();
-        w.prepare(0, 42, test_snapshot(0), NOW).unwrap();
-        assert_eq!(w.get(0).unwrap().proving_key_version, 42);
+        w.prepare(0, test_snapshot(0), NOW).unwrap();
     }
 
     // ── Multi-checkpoint ──────────────────────────────────────────────────────
@@ -463,20 +457,20 @@ mod tests {
     #[test]
     fn test_multiple_checkpoints_independent() {
         let mut w = wal();
-        w.prepare(0, PKV, test_snapshot(0), NOW).unwrap();
-        w.prepare(1, PKV, test_snapshot(1), NOW).unwrap();
-        w.prepare(2, PKV, test_snapshot(2), NOW).unwrap();
+        w.prepare(0, test_snapshot(0), NOW).unwrap();
+        w.prepare(1, test_snapshot(1), NOW).unwrap();
+        w.prepare(2, test_snapshot(2), NOW).unwrap();
 
-        w.commit(0, vec![0x01], NOW + 1).unwrap();
-        w.abort(1, NOW + 1).unwrap();
+        w.commit(0, NOW + 1).unwrap();
+        w.inserted(1, [0u8;32], String::new(), NOW + 1).unwrap();
         // checkpoint 2 still prepared
 
         assert!(w.is_committed(0));
         assert!(!w.is_committed(1));
         assert!(!w.is_committed(2));
         assert_eq!(w.count_by_phase(&WalPhase::Committed), 1);
-        assert_eq!(w.count_by_phase(&WalPhase::Aborted), 1);
-        assert_eq!(w.count_by_phase(&WalPhase::Prepared), 1);
+        assert_eq!(w.count_by_phase(&WalPhase::Inserted), 1);
+        assert_eq!(w.count_by_phase(&WalPhase::Preparing), 1);
     }
 
     #[test]
@@ -658,28 +652,42 @@ impl FileCheckpointWal {
     pub fn prepare(
         &mut self,
         checkpoint_id: u64,
-        proving_key_version: u32,
         snapshot: CheckpointSnapshot,
         now_ms: u64,
     ) -> Result<WalResult, WalIoError> {
         let result = self
             .inner
-            .prepare(checkpoint_id, proving_key_version, snapshot, now_ms)?;
+            .prepare(checkpoint_id, snapshot, now_ms)?;
         if result == WalResult::Applied {
             let entry = self.inner.entries.get(&checkpoint_id).unwrap();
             self.persist_entry(entry)?;
         }
         Ok(result)
     }
+    /// Phase 2 — INSERTED. Atomic write to disk. [SCALAR-TECHNICAL §6.2, K-1]
+    pub fn inserted(
+        &mut self,
+        checkpoint_id: u64,
+        smt_root: [u8; 32],
+        smt_data_path: String,
+        now_ms: u64,
+    ) -> Result<WalResult, WalIoError> {
+        let result = self.inner.inserted(checkpoint_id, smt_root, smt_data_path, now_ms)?;
+        if result == WalResult::Applied {
+            let entry = self.inner.entries.get(&checkpoint_id).unwrap();
+            self.persist_entry(entry)?;
+        }
+        Ok(result)
+    }
+
 
     /// Phase 2 — COMMIT. Atomic write ke disk. ADR-SEC-002.
     pub fn commit(
         &mut self,
         checkpoint_id: u64,
-        proof_bytes: Vec<u8>,
         now_ms: u64,
     ) -> Result<WalResult, WalIoError> {
-        let result = self.inner.commit(checkpoint_id, proof_bytes, now_ms)?;
+        let result = self.inner.commit(checkpoint_id, now_ms)?;
         if result == WalResult::Applied {
             let entry = self.inner.entries.get(&checkpoint_id).unwrap();
             self.persist_entry(entry)?;
@@ -687,15 +695,6 @@ impl FileCheckpointWal {
         Ok(result)
     }
 
-    /// Phase 3 — ABORT. Atomic write ke disk. ADR-SEC-002.
-    pub fn abort(&mut self, checkpoint_id: u64, now_ms: u64) -> Result<WalResult, WalIoError> {
-        let result = self.inner.abort(checkpoint_id, now_ms)?;
-        if result == WalResult::Applied {
-            let entry = self.inner.entries.get(&checkpoint_id).unwrap();
-            self.persist_entry(entry)?;
-        }
-        Ok(result)
-    }
 
     /// Apakah checkpoint sudah COMMITTED? ADR-SEC-002.
     pub fn is_committed(&self, checkpoint_id: u64) -> bool {
@@ -753,7 +752,7 @@ mod persistent_wal_tests {
     fn test_file_wal_prepare_creates_file() {
         let dir = tmp_wal_dir("prepare");
         let mut wal = FileCheckpointWal::open(&dir).unwrap();
-        wal.prepare(1, 1, snapshot(1), 1000).unwrap();
+        wal.prepare(1, snapshot(1), 1000).unwrap();
         assert!(dir.join("0000000000000001.wal").exists());
         fs::remove_dir_all(&dir).ok();
     }
@@ -762,8 +761,8 @@ mod persistent_wal_tests {
     fn test_file_wal_commit_updates_file() {
         let dir = tmp_wal_dir("commit");
         let mut wal = FileCheckpointWal::open(&dir).unwrap();
-        wal.prepare(2, 1, snapshot(2), 1000).unwrap();
-        wal.commit(2, vec![0xFFu8; 64], 2000).unwrap();
+        wal.prepare(2, snapshot(2), 1000).unwrap();
+        wal.commit(2, 2000).unwrap();
         assert!(wal.is_committed(2));
         assert!(dir.join("0000000000000002.wal").exists());
         fs::remove_dir_all(&dir).ok();
@@ -774,8 +773,8 @@ mod persistent_wal_tests {
         let dir = tmp_wal_dir("recovery");
         {
             let mut wal = FileCheckpointWal::open(&dir).unwrap();
-            wal.prepare(3, 1, snapshot(3), 1000).unwrap();
-            wal.commit(3, vec![0xABu8; 32], 2000).unwrap();
+            wal.prepare(3, snapshot(3), 1000).unwrap();
+            wal.commit(3, 2000).unwrap();
         }
         // Reopen — should recover committed entry
         let wal2 = FileCheckpointWal::open(&dir).unwrap();
@@ -798,10 +797,10 @@ mod persistent_wal_tests {
     fn test_file_wal_idempotency_persist() {
         let dir = tmp_wal_dir("idempotent");
         let mut wal = FileCheckpointWal::open(&dir).unwrap();
-        wal.prepare(5, 1, snapshot(5), 1000).unwrap();
-        wal.commit(5, vec![0u8; 32], 2000).unwrap();
+        wal.prepare(5, snapshot(5), 1000).unwrap();
+        wal.commit(5, 2000).unwrap();
         // Re-commit is idempotent — no I/O error
-        let r = wal.commit(5, vec![0u8; 32], 3000).unwrap();
+        let r = wal.commit(5, 3000).unwrap();
         assert_eq!(r, WalResult::AlreadyInState);
         fs::remove_dir_all(&dir).ok();
     }
@@ -810,8 +809,8 @@ mod persistent_wal_tests {
     fn test_file_wal_remove_committed() {
         let dir = tmp_wal_dir("remove");
         let mut wal = FileCheckpointWal::open(&dir).unwrap();
-        wal.prepare(6, 1, snapshot(6), 1000).unwrap();
-        wal.commit(6, vec![], 2000).unwrap();
+        wal.prepare(6, snapshot(6), 1000).unwrap();
+        wal.commit(6, 2000).unwrap();
         wal.remove_committed(6).unwrap();
         assert!(!dir.join("0000000000000006.wal").exists());
         fs::remove_dir_all(&dir).ok();
