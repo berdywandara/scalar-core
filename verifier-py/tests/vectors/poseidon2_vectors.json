@@ -1,6 +1,5 @@
 {
-  "source": "scalar-stark-p3 impl#1 (Rust/Plonky3)",
-  "spec": "SCALAR-SECURITY §[PROOF-PARAMS], §5.3",
+  "source": "scalar impl#1 (Rust)",
   "vectors": [
     {
       "input": [
@@ -61,7 +60,7 @@
         4294967289,
         4294967288
       ],
-      "note": "near-max Goldilocks values",
+      "note": "near-max",
       "output": [
         10373918168532180321,
         17612100366613223395,
@@ -85,7 +84,7 @@
         0,
         0
       ],
-      "note": "CF-PREMIUM domain separator input",
+      "note": "CF-PREMIUM",
       "output": [
         17504998740489198758,
         16580224321454430794,
@@ -102,7 +101,7 @@
       "input": [
         42
       ],
-      "note": "single element",
+      "note": "single",
       "output": [
         16442079126653464077,
         291428228530674101,
@@ -118,7 +117,7 @@
         3,
         4
       ],
-      "note": "one rate block (RATE=4)",
+      "note": "rate-4",
       "output": [
         18162392761909129451,
         2451407354515150385,
@@ -138,7 +137,7 @@
         70,
         80
       ],
-      "note": "two rate blocks",
+      "note": "two-block",
       "output": [
         6575126024932712051,
         10087179197596642653,
@@ -158,7 +157,7 @@
         8608480567731124087,
         9838263505978427528
       ],
-      "note": "commitment_hash simulation (2 commitments)",
+      "note": "commit-sim",
       "output": [
         15246632538582342025,
         2278111526634761472,
@@ -185,5 +184,5 @@
       "primitive": "poseidon2_hash_to_4"
     }
   ],
-  "version": "1.0"
+  "version": "2.0"
 }

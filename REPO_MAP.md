@@ -313,4 +313,5 @@ Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 | 2026-06-15 | FIX P1: rem*rem==0 placeholder dihapus dari eval(); rem bit decomp 32-bit dipindah ke eval() loop CF. [§2.8 P1 Opsi A] |
 | 2026-06-15 | GAP-16 IN PROGRESS: verifier-py/ created; M1 Poseidon2 9/9 PASS (bit-exact vs impl#1). [§5.3 Tier 2] |
 | 2026-06-15 | GAP-16 IN PROGRESS: verifier-py/ created; M1 Poseidon2 9/9 PASS (bit-exact vs impl#1). [§5.3 Tier 2] |
+| 2026-06-15 | GAP-16 M2: IMT membership + QSMT hash functions 15/15 PASS bit-exact. [§5.3] |
 | 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |
