@@ -318,3 +318,26 @@ Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 | 2026-06-15 | GAP-16 M4a: GF(p^3) trinomial x^3-x-1 arithmetic 19/19 PASS. [§[PROOF-PARAMS] K-2] |
 | 2026-06-15 | Sesi selesai. GAP-16 M1-M4a CLOSED. M4b FRI commit phase = next. REPO_MAP diupdate. |
 | 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |
+
+## GAP-16 M4b — FRI Commit Phase (Python impl#2) ✅ CLOSED 2026-06-15
+
+**Status**: 42/42 test PASS, 13/13 vectors self-consistent, OSSIFIED params verified.
+
+| Parameter        | Nilai          |
+|------------------|----------------|
+| Grinding (g)     | 0 (amputated)  |
+| Num queries (q)  | 108            |
+| Blowup           | 2^3 = 8        |
+| Max arity        | 4 (log=2)      |
+| Soundness/proof  | 2^-162         |
+| Soundness/batch  | 2^-154         |
+
+**File baru**:
+- `verifier-py/scalar_verifier/fri.py` – implementasi utama commit phase (Merkle, folding, challenger)
+- `verifier-py/tests/test_fri.py` – 42 test suite
+- `verifier-py/tests/generate_fri_vectors.py` – generator vektor uji (13 vektor)
+- `verifier-py/tests/vectors/fri_commit_vectors.json` – output vektor siap cross‑check
+
+**Kepatuhan**:
+- Tidak ada placeholder, `Unverifiable` diangkat untuk query phase (M4c)
+- Deterministis (P4), semua pengecekan kriptografis dijalankan sungguhan

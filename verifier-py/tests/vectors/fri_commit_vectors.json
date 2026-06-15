@@ -1,0 +1,524 @@
+{
+  "version": "M4b-1.0",
+  "source": "scalar impl#2 (Python) \u2014 GAP-16 M4b",
+  "spec_refs": [
+    "SCALAR-SECURITY \u00a7[PROOF-PARAMS]",
+    "SCALAR-SECURITY \u00a71.4",
+    "SCALAR-SECURITY \u00a75.3",
+    "SCALAR-TECHNICAL \u00a74.4",
+    "K-2 (proof params single source)",
+    "K-3 (soundness 2^-154 post-batch)"
+  ],
+  "ossified_params": {
+    "FRI_NUM_QUERIES": 108,
+    "FRI_GRINDING_BITS": 0,
+    "FRI_LOG_BLOWUP": 3,
+    "FRI_MAX_LOG_ARITY": 2,
+    "SOUNDNESS_PER_PROOF_LOG2": -162,
+    "SOUNDNESS_POST_BATCH_LOG2": -154,
+    "COSET_SHIFT": 7
+  },
+  "merkle_unit_vectors": [
+    {
+      "id": "TV-M1",
+      "description": "single EF element, trivial Merkle tree",
+      "input_ef": [
+        1,
+        2,
+        3
+      ],
+      "root_hex": "fd4aa364b7ff047b298bce3b49a2bb931871487716eb44700d06ed53deee2ef2",
+      "leaf_digest_hex": "fd4aa364b7ff047b298bce3b49a2bb931871487716eb44700d06ed53deee2ef2"
+    },
+    {
+      "id": "TV-M2",
+      "description": "2-row Merkle commitment with opening proofs",
+      "input_efs": [
+        [
+          7,
+          0,
+          0
+        ],
+        [
+          0,
+          7,
+          0
+        ]
+      ],
+      "root_hex": "7d6e787077d3668db7208a64422427922c0bd6fae97f113977a5dc17fe4f3413",
+      "leaf_0_digest_hex": "ac19cbe48beb5617478a590abdfb4082b464b8d0e65341695f06fdd351a4bcfa",
+      "leaf_1_digest_hex": "b682c480c5488e867bb690d57cdcf74fae059d2f1529d3e32bb3bbe900dbcac5",
+      "open_0_sibling_hex": [
+        "b682c480c5488e867bb690d57cdcf74fae059d2f1529d3e32bb3bbe900dbcac5"
+      ],
+      "open_1_sibling_hex": [
+        "ac19cbe48beb5617478a590abdfb4082b464b8d0e65341695f06fdd351a4bcfa"
+      ],
+      "verify_0": true,
+      "verify_1": true
+    },
+    {
+      "id": "TV-M3",
+      "description": "4-row Merkle commitment",
+      "input_efs": [
+        [
+          0,
+          1,
+          2
+        ],
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          2,
+          3,
+          4
+        ],
+        [
+          3,
+          4,
+          5
+        ]
+      ],
+      "root_hex": "dc52084872d1c37d578bc04951ff900c6efe6238c5713d91501c4eb00cb1f520"
+    },
+    {
+      "id": "TV-M4",
+      "description": "2-row arity-4 Merkle commitment",
+      "matrix_rows": [
+        [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            1,
+            1,
+            1
+          ]
+        ],
+        [
+          [
+            2,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            2,
+            2,
+            2
+          ]
+        ]
+      ],
+      "root_hex": "1bb7c29814f1521dbf4175af31d44bb2cc827b69120d622be0fb3d31c710d0f9"
+    }
+  ],
+  "fold_unit_vectors": [
+    {
+      "id": "TV-F1",
+      "description": "single arity-2 fold with beta=[1,0,0]",
+      "v_plus": [
+        3,
+        0,
+        0
+      ],
+      "v_minus": [
+        5,
+        0,
+        0
+      ],
+      "beta": [
+        1,
+        0,
+        0
+      ],
+      "x0": 7,
+      "x0_inv2_ef": [
+        1317624576386756023,
+        0,
+        0
+      ],
+      "result": [
+        17129119493027828302,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "TV-F2",
+      "description": "arity-2 fold on f(x)=1+2x, 4 evaluations",
+      "coeffs": [
+        1,
+        2
+      ],
+      "evals_ef": [
+        [
+          15,
+          0,
+          0
+        ],
+        [
+          18446744069414584308,
+          0,
+          0
+        ],
+        [
+          3940649673949185,
+          0,
+          0
+        ],
+        [
+          18442803419740635138,
+          0,
+          0
+        ]
+      ],
+      "beta": [
+        42,
+        0,
+        0
+      ],
+      "log_domain": 2,
+      "folded": [
+        [
+          43,
+          0,
+          0
+        ],
+        [
+          43,
+          0,
+          0
+        ]
+      ],
+      "fold_consistent": true
+    },
+    {
+      "id": "TV-F3",
+      "description": "arity-4 fold on f(x)=1+3x^2, 8 evaluations",
+      "coeffs": [
+        1,
+        0,
+        3,
+        0
+      ],
+      "evals_ef": [
+        [
+          148,
+          0,
+          0
+        ],
+        [
+          148,
+          0,
+          0
+        ],
+        [
+          18446744069414584175,
+          0,
+          0
+        ],
+        [
+          18446744069414584175,
+          0,
+          0
+        ],
+        [
+          41376821576466433,
+          0,
+          0
+        ],
+        [
+          41376821576466433,
+          0,
+          0
+        ],
+        [
+          18405367247838117890,
+          0,
+          0
+        ],
+        [
+          18405367247838117890,
+          0,
+          0
+        ]
+      ],
+      "beta": [
+        7,
+        0,
+        0
+      ],
+      "log_domain": 3,
+      "folded": [
+        [
+          9223372034707292235,
+          0,
+          0
+        ],
+        [
+          9223372034707292235,
+          0,
+          0
+        ]
+      ],
+      "fold_consistent": true
+    }
+  ],
+  "commit_phase_vectors": [
+    {
+      "label": "constant poly f=7 (padded to 2 coeffs)",
+      "input_poly_coeffs": [
+        7,
+        0
+      ],
+      "num_coeffs": 2,
+      "log_blowup": 3,
+      "log_trace_height": 1,
+      "lde_domain_size": 16,
+      "num_rounds": 1,
+      "commit_roots": [
+        "23fc4186956c6f2783cfc9469a473960b0b3f3a1be09361c6cc3b84ff9b432be"
+      ],
+      "final_poly": [
+        "070000000000000000000000000000000000000000000000"
+      ],
+      "steps": [
+        {
+          "round": 0,
+          "commitment_root_hex": "23fc4186956c6f2783cfc9469a473960b0b3f3a1be09361c6cc3b84ff9b432be",
+          "log_arity": 1,
+          "num_rows": 8,
+          "beta_ef_hex": "8c674c4600e8f0b91e241a03014c20c026103e58b72d0043"
+        }
+      ],
+      "self_consistent": true,
+      "determinism_verified": true,
+      "fold_consistency_verified": true,
+      "commitment_verified": true
+    },
+    {
+      "label": "linear f=1+2x, 2 coeffs",
+      "input_poly_coeffs": [
+        1,
+        2
+      ],
+      "num_coeffs": 2,
+      "log_blowup": 3,
+      "log_trace_height": 1,
+      "lde_domain_size": 16,
+      "num_rounds": 1,
+      "commit_roots": [
+        "9176ccc84a630da81c857687576a276ee7c9de0e485bcc8406d33c8ca832ffc8"
+      ],
+      "final_poly": [
+        "70d16c964a04929d649b4ddd7600256a76a9b2c4afbf040b"
+      ],
+      "steps": [
+        {
+          "round": 0,
+          "commitment_root_hex": "9176ccc84a630da81c857687576a276ee7c9de0e485bcc8406d33c8ca832ffc8",
+          "log_arity": 1,
+          "num_rows": 8,
+          "beta_ef_hex": "6fd16c964a04929d649b4ddd7600256a76a9b2c4afbf040b"
+        }
+      ],
+      "self_consistent": true,
+      "determinism_verified": true,
+      "fold_consistency_verified": true,
+      "commitment_verified": true
+    },
+    {
+      "label": "quadratic f=3+0x+5x^2, 4 coeffs (padded)",
+      "input_poly_coeffs": [
+        3,
+        0,
+        5,
+        0
+      ],
+      "num_coeffs": 4,
+      "log_blowup": 3,
+      "log_trace_height": 2,
+      "lde_domain_size": 32,
+      "num_rounds": 1,
+      "commit_roots": [
+        "80f6425a9d79a27d1f0867cbfd6a839ef525fe5bc2108015327c4eb6984d5c1a"
+      ],
+      "final_poly": [
+        "fec366073273328a5fa99669c200f17af16925bcec18249e"
+      ],
+      "steps": [
+        {
+          "round": 0,
+          "commitment_root_hex": "80f6425a9d79a27d1f0867cbfd6a839ef525fe5bc2108015327c4eb6984d5c1a",
+          "log_arity": 2,
+          "num_rows": 8,
+          "beta_ef_hex": "4fb67bed03d81017ef3b4874e0c2d85e1277036032e937d2"
+        }
+      ],
+      "self_consistent": true,
+      "determinism_verified": true,
+      "fold_consistency_verified": true,
+      "commitment_verified": true
+    },
+    {
+      "label": "degree-3 f=1+x+x^2+x^3, 4 coeffs",
+      "input_poly_coeffs": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "num_coeffs": 4,
+      "log_blowup": 3,
+      "log_trace_height": 2,
+      "lde_domain_size": 32,
+      "num_rounds": 1,
+      "commit_roots": [
+        "f4107ea964623d934a1766b2fca5fd5577abbff2ec823ca03cc77e500a38060e"
+      ],
+      "final_poly": [
+        "449f3f73fb10c665bd10aa52ff031d2fe00fa6da6b4f51ef"
+      ],
+      "steps": [
+        {
+          "round": 0,
+          "commitment_root_hex": "f4107ea964623d934a1766b2fca5fd5577abbff2ec823ca03cc77e500a38060e",
+          "log_arity": 2,
+          "num_rows": 8,
+          "beta_ef_hex": "fbe018ee83f1eb5ec3c8f490dfabc14e2c8a14210c07d218"
+        }
+      ],
+      "self_consistent": true,
+      "determinism_verified": true,
+      "fold_consistency_verified": true,
+      "commitment_verified": true
+    },
+    {
+      "label": "degree-7 poly (8 coeffs)",
+      "input_poly_coeffs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "num_coeffs": 8,
+      "log_blowup": 3,
+      "log_trace_height": 3,
+      "lde_domain_size": 64,
+      "num_rounds": 2,
+      "commit_roots": [
+        "703fddeb4df69fe30706959dfcdc6b36b7d71d95d7a8fb1e5eba48449a66d348",
+        "fea36aaa91d7084bf809327aa6ea9853e0ab1e30c10c1645ccae299c70fac2f7"
+      ],
+      "final_poly": [
+        "7c6aea4de60fa1fd66eb89e301c0af5d47c3bb1f3681cbe5"
+      ],
+      "steps": [
+        {
+          "round": 0,
+          "commitment_root_hex": "703fddeb4df69fe30706959dfcdc6b36b7d71d95d7a8fb1e5eba48449a66d348",
+          "log_arity": 2,
+          "num_rows": 16,
+          "beta_ef_hex": "1fa3f11b92956a18b83092a76c5e701e8f4960d078d5cb1f"
+        },
+        {
+          "round": 1,
+          "commitment_root_hex": "fea36aaa91d7084bf809327aa6ea9853e0ab1e30c10c1645ccae299c70fac2f7",
+          "log_arity": 1,
+          "num_rows": 8,
+          "beta_ef_hex": "e612eff403b38fe453b15415c3b99dc0bf53d6e6ec30023d"
+        }
+      ],
+      "self_consistent": true,
+      "determinism_verified": true,
+      "fold_consistency_verified": true,
+      "commitment_verified": true
+    },
+    {
+      "label": "degree-15 poly (16 coeffs)",
+      "input_poly_coeffs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
+      "num_coeffs": 16,
+      "log_blowup": 3,
+      "log_trace_height": 4,
+      "lde_domain_size": 128,
+      "num_rounds": 2,
+      "commit_roots": [
+        "f0a94a09ba2dd6b883baa634b1b3e73e531eae0a000abfb90378df680e136b90",
+        "f1a711ccdce59b8283267598451b40e0139dd03273c7f414974cb1a84ddf1ec0"
+      ],
+      "final_poly": [
+        "b13fcad39f95722fd1c1fb1d58cde099aa5cb105510cfcac"
+      ],
+      "steps": [
+        {
+          "round": 0,
+          "commitment_root_hex": "f0a94a09ba2dd6b883baa634b1b3e73e531eae0a000abfb90378df680e136b90",
+          "log_arity": 2,
+          "num_rows": 32,
+          "beta_ef_hex": "c1cfe6e53f96e0f82b886bf0d89c80e0fd692b8e7ed80c21"
+        },
+        {
+          "round": 1,
+          "commitment_root_hex": "f1a711ccdce59b8283267598451b40e0139dd03273c7f414974cb1a84ddf1ec0",
+          "log_arity": 2,
+          "num_rows": 8,
+          "beta_ef_hex": "85f137ddaf6b0b928758e593e10b246ccabe1945082a1ff2"
+        }
+      ],
+      "self_consistent": true,
+      "determinism_verified": true,
+      "fold_consistency_verified": true,
+      "commitment_verified": true
+    }
+  ],
+  "summary": {
+    "total_passed": 13,
+    "total_failed": 0,
+    "status": "PASS"
+  }
+}
