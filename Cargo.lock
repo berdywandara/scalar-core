@@ -3736,6 +3736,7 @@ dependencies = [
  "scalar-crypto",
  "scalar-emission",
  "scalar-nullifier",
+ "scalar-stark-p3",
  "serde_json",
 ]
 
