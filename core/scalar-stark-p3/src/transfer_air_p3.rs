@@ -145,6 +145,20 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
         let out_nz = local[COL_OUTPUT_NONZERO];
         let single_src = local[COL_SINGLE_SOURCE];
 
+        // ── PI binding: trace columns → public values PI[0..4] ──────────────
+        // Binds the primary numeric fields in the trace to their public value slots.
+        // Without this, an attacker can prove with one fee/sum and verify with another
+        // (conservation would still hold but PI values would differ).
+        // Spec §4.3 CD, SCALAR-TECHNICAL §2.2 PI[0..4]. [GAP-08, P1]
+        {
+            let pv_early: alloc::vec::Vec<AB::PublicVar> = builder.public_values().to_vec();
+            builder.assert_eq(fee.into(), pv_early[0].into()); // PI[0] fee_total_sscl
+            builder.assert_eq(sum_in.into(), pv_early[1].into()); // PI[1] sum_inputs_sscl
+            builder.assert_eq(sum_out.into(), pv_early[2].into()); // PI[2] sum_outputs_sscl
+            builder.assert_eq(version.into(), pv_early[3].into()); // PI[3] suite_id/crypto_version
+            builder.assert_eq(current_subepoch.into(), pv_early[4].into()); // PI[4] current_subepoch_id
+        }
+
         // ── CD: Value conservation ────────────────────────────────────────────
         // sum_inputs == sum_outputs + fee  →  sum_in - sum_out - fee == 0
         // Spec §4.3 CD.
