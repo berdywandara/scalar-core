@@ -259,10 +259,10 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
         //   pv[33..36] = commitment_hash[0..3]  (COL_COMMITMENT_HASH_0..3 → PI[33..36])
         //   pv[37..40] = nullifier_hash[0..3]   (COL_NULLIFIER_HASH_0..3 → PI[37..40])
         //
-        // builder.assert_eq(trace_col, pv[i]) enforces that the trace column value
-        // committed during proving exactly equals the public value absorbed into the
-        // Fiat-Shamir transcript. Wrong PI → verifier rejects. [GAP-08, P1, §2.7-A CX]
-        let pv = builder.public_values();
+        // Copy public_values to an owned Vec first to release the immutable borrow
+        // on builder before calling assert_eq (mutable borrow). Standard p3 pattern.
+        // [GAP-08, P1, SCALAR-TECHNICAL §2.7-A CX]
+        let pv: alloc::vec::Vec<AB::PublicVar> = builder.public_values().to_vec();
         // commitment_hash[0..3] at PI[33..36]
         builder.assert_eq(ch0.into(), pv[33].into());
         builder.assert_eq(ch1.into(), pv[34].into());
