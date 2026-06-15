@@ -91,7 +91,7 @@ fn test_max_nullifiers_per_checkpoint() {
     assert_eq!(MAX_NULLIFIERS_PER_CHECKPOINT, 200_000usize, "Spec §6, §17");
 }
 
-/// Test 10: CheckpointProof struct fields sesuai spec §6.2
+/// Test 10: CheckpointProof struct fields match spec §6.2 (accumulative SMT, no proof_bytes) [K-1]
 #[test]
 fn test_checkpoint_proof_struct_spec() {
     use scalar_nullifier::CheckpointProof;

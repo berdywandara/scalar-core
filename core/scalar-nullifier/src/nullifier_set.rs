@@ -4,10 +4,11 @@
 //!   Menyimpan nullifier dari 3 epoch terakhir.
 //!   Lookup deterministik O(log n). Root digunakan dalam CC constraint.
 //!
-//! Layer 2 – NS_CHECKPOINT: Recursive STARK proof (stub pre-mainnet).
-//!   Mencakup seluruh nullifier sebelum NS_ACTIVE.
-//!   Storage ~150 KB. archived_smt_root diverifikasi via STARK proof.
-//!   Research Package §3.5.4: supports quaternary SMT (depth-16, Poseidon2 t=8).
+//! Layer 2 – NS_CHECKPOINT: Persistent accumulative Sparse Merkle Tree depth-32.
+//!   Covers all nullifiers before NS_ACTIVE.
+//!   nullifier_archived_root is a standard SMT root (Poseidon2-hashed).
+//!   Verified directly by constraint CC via conventional SMT_NonMembershipVerify.
+//!   [SCALAR-TECHNICAL §6.1, K-1]
 //!
 //! Operasi fundamental (spec §6.3):
 //!   is_spent()   — periksa NS_ACTIVE, jika tidak ada periksa NS_CHECKPOINT.
@@ -23,12 +24,9 @@ use crate::smt::{compute_archived_root, SparseMerkleTree, MAX_NULLIFIERS_PER_CHE
 // ── Ossified constants — spec §6, §17 ────────────────────────────────────────
 
 /// Interval checkpoint dalam epoch.
-/// TESTNET: u64::MAX — semua nullifier stay di NS_ACTIVE, cabang NS_CHECKPOINT
-/// unreachable secara matematis. Resolusi ESKALASI-01: RecursiveVerifierAir
-/// belum diimplementasikan (Phase 0 pending). Saat Phase 0 selesai dan
-/// RecursiveVerifierAir disuntikkan dari scalar-stark-p3, nilai ini dikembalikan
-/// ke nilai protokol (3 epoch). [SCALAR-TECHNICAL §7.3, ESKALASI-01]
-/// MAINNET: dikembalikan ke 3 setelah Phase 0 RecursiveVerifierAir selesai.
+/// TESTNET: u64::MAX — all nullifiers stay in NS_ACTIVE during testnet.
+/// MAINNET: restore to 3 (OSSIFIED, SCALAR-PROTOCOL §13.1).
+/// [SCALAR-TECHNICAL §6.1, SCALAR-PROTOCOL §13.1]
 pub const CHECKPOINT_INTERVAL_EPOCHS: u64 = u64::MAX;
 
 /// NS_ACTIVE menyimpan nullifier dari N epoch terakhir. OSSIFIED — spec §6.1.
@@ -100,26 +98,25 @@ impl WalBackend for InMemoryWal {
 
 // ── CheckpointProof — spec §6.2 ──────────────────────────────────────────────
 
-/// Recursive STARK proof untuk NS_CHECKPOINT. Spec §6.2.
+/// NS_CHECKPOINT state — persistent accumulative Sparse Merkle Tree depth-32.
 ///
-/// Mencakup seluruh nullifier sebelum NS_ACTIVE.
-/// Storage ~150 KB. archived_smt_root diverifikasi via STARK proof.
-///
-/// Pre-mainnet: proof_bytes adalah stub. Wajib diisi implementasi
-/// Winterfell recursive sebelum mainnet (spec §15.3).
+/// Holds the SMT root over all historically archived nullifiers.
+/// nullifier_archived_root is a standard SMT root verified directly by
+/// constraint CC via conventional SMT_NonMembershipVerify.
+/// No proof_bytes or recursive STARK — security relies on SMT + Poseidon2.
+/// [SCALAR-TECHNICAL §6.1, K-1]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CheckpointProof {
-    /// Bytes recursive STARK proof. ~150 KB production. Spec §6.2.
-    pub proof_bytes: Vec<u8>,
-    /// SMT root dari seluruh nullifier yang diarsipkan. Spec §6.2.
+    /// SMT root over all archived nullifiers (nullifier_archived_root).
+    /// Verified directly by CC via SMT_NonMembershipVerify. [K-1]
     pub archived_smt_root: [u8; 32],
-    /// SMT depth yang digunakan. Spec §6.2.
+    /// SMT depth (always 32). OSSIFIED — SCALAR-TECHNICAL §6.1.
     pub smt_depth: u8,
-    /// Epoch awal yang dicakup proof ini. Spec §6.2.
+    /// First epoch covered by this checkpoint.
     pub from_epoch: u64,
-    /// Epoch akhir yang dicakup proof ini. Spec §6.2.
+    /// Last epoch covered by this checkpoint.
     pub to_epoch: u64,
-    /// Total nullifier yang diarsipkan. Spec §6.2.
+    /// Total archived nullifier count.
     pub total_archived_count: u64,
 }
 
@@ -127,7 +124,6 @@ impl CheckpointProof {
     /// Buat checkpoint proof kosong (genesis state). Spec §6.2.
     pub fn genesis() -> Self {
         Self {
-            proof_bytes: vec![],
             archived_smt_root: [0u8; 32],
             smt_depth: 32,
             from_epoch: 0,
@@ -136,32 +132,14 @@ impl CheckpointProof {
         }
     }
 
-    /// Buat checkpoint proof dengan quaternary SMT (depth-16). Research Package §3.5.4.
-    ///
-    /// Digunakan ketika NS_CHECKPOINT menggunakan Poseidon2 t=8 quaternary SMT.
-    /// smt_depth = 16 (4^16 = 2^32, same capacity as binary depth-32).
-    pub fn genesis_quaternary() -> Self {
-        Self {
-            proof_bytes: vec![],
-            archived_smt_root: [0u8; 32],
-            smt_depth: 16, // quaternary depth — Research Package §3.5.4
-            from_epoch: 0,
-            to_epoch: 0,
-            total_archived_count: 0,
-        }
-    }
-
-    /// Returns true if this checkpoint uses quaternary SMT. Research Package §3.5.4.
-    pub fn is_quaternary(&self) -> bool {
-        self.smt_depth == 16
-    }
-
-    /// Cek apakah proof valid (non-empty untuk non-genesis). Spec §6.2.
+    /// Returns true if the checkpoint state is valid.
+    /// Genesis (count==0) is always valid. Non-genesis is valid when SMT root is non-zero.
+    /// [K-1: no proof_bytes — validity determined by SMT root, not recursive proof]
     pub fn is_valid(&self) -> bool {
         if self.total_archived_count == 0 {
-            return true;
+            return true; // genesis state
         }
-        !self.proof_bytes.is_empty()
+        self.archived_smt_root != [0u8; 32]
     }
 }
 
@@ -203,7 +181,7 @@ pub struct NullifierSet {
     pub active: SparseMerkleTree,
     /// Epoch sejak NS_ACTIVE mulai (epoch pertama yang dicakup). Spec §6.2.
     pub active_since_epoch: u64,
-    /// Layer 2: NS_CHECKPOINT — recursive STARK proof. Spec §6.2.
+    /// Layer 2: NS_CHECKPOINT — accumulative SMT, root = nullifier_archived_root. [K-1]
     pub checkpoint_proof: CheckpointProof,
     /// Epoch terakhir yang dicakup NS_CHECKPOINT. Spec §6.2.
     pub checkpoint_epoch: u64,
@@ -271,14 +249,14 @@ impl NullifierSet {
     /// Dijalankan setiap CHECKPOINT_INTERVAL_EPOCHS (3 epoch).
     ///
     /// Algoritma dengan WAL (Zero-Gap Property) — temuan #16 diperbaiki:
-    ///   1. Tulis WAL entry ke backend (persistent di production).
-    ///   2. Kumpulkan nullifier >3 epoch (maks MAX_NULLIFIERS_PER_CHECKPOINT).
-    ///   3. Generate recursive STARK proof (stub pre-mainnet).
-    ///   4. Dalam satu pass atomik:
-    ///      a. Insert ke archived SET DULU (Zero-Gap: nullifier tidak hilang).
-    ///      b. Perbarui checkpoint_proof.
-    ///      c. Hapus dari NS_ACTIVE dalam pass yang sama.
-    ///   5. Tandai WAL committed.
+    ///   1. Write WAL entry to backend (fsync in production).
+    ///   2. Collect nullifiers older than 3 epochs (up to MAX_NULLIFIERS_PER_CHECKPOINT).
+    ///   3. Compute new accumulative SMT root (new_archived_root). [K-1]
+    ///   4. Single atomic pass:
+    ///      a. Insert into archived set FIRST (Zero-Gap: no nullifier lost).
+    ///      b. Update checkpoint_proof with new SMT root.
+    ///      c. Remove from NS_ACTIVE in the same pass.
+    ///   5. Mark WAL committed.
     ///
     /// Returns: jumlah nullifier yang diarsipkan.
     pub fn checkpoint(&mut self, current_epoch: u64) -> Result<usize, CheckpointError> {
@@ -309,33 +287,22 @@ impl NullifierSet {
         let new_archived_root =
             compute_archived_root(&self.checkpoint_proof.archived_smt_root, &to_archive);
 
-        // Step 3: Generate proof stub
-        let proof_bytes = Self::generate_checkpoint_proof_stub(
-            current_epoch,
-            &new_archived_root,
-            to_archive.len() as u64,
-        );
+        // Step 3: SMT root already computed above — no proof generation needed.
+        // NS_CHECKPOINT is an accumulative SMT; root = new_archived_root. [K-1]
 
-        if proof_bytes.is_empty() {
-            return Err(CheckpointError::ProofGenerationFailed);
-        }
-
-        // Step 4: Satu pass atomik — temuan #16
-        // 4a. Insert ke archived DULU (Zero-Gap: sebelum hapus dari active)
-        //     Temuan #17: assert_zero_gap_property dipanggil SEBELUM remove
+        // Step 4: Single atomic pass
+        // 4a. Insert into archived FIRST (Zero-Gap: before removing from active)
         for n in &to_archive {
             self.archived.insert(*n);
-            // Formal assertion: nullifier sudah di archived sebelum dihapus dari active
             debug_assert!(
                 self.archived.contains(n),
-                "Zero-Gap violation: nullifier harus ada di archived sebelum remove dari active"
+                "Zero-Gap violation: nullifier must be in archived before remove from active"
             );
         }
 
-        // 4b. Perbarui checkpoint_proof
+        // 4b. Update checkpoint_proof with new accumulative SMT root
         let archived_count = self.archived.len() as u64;
         self.checkpoint_proof = CheckpointProof {
-            proof_bytes,
             archived_smt_root: new_archived_root,
             smt_depth: 32,
             from_epoch: self.checkpoint_epoch,
@@ -345,37 +312,18 @@ impl NullifierSet {
         self.checkpoint_epoch = current_epoch;
         self.active_since_epoch = current_epoch;
 
-        // 4c. Hapus dari NS_ACTIVE — setelah archived sudah terupdate
+        // 4c. Remove from NS_ACTIVE — after archived is already updated
         for n in &to_archive {
             self.active.remove(n);
         }
 
-        // Step 5: Tandai WAL committed
+        // Step 5: Mark WAL committed
         self.wal.commit(current_epoch)?;
 
         Ok(to_archive.len())
     }
 
-    /// Generate NS_CHECKPOINT archived root hash. Pre-mainnet: deterministic
-    /// BLAKE3 commitment over (domain, epoch, archived_root, count).
-    /// Production (post-Phase-0): replaced by RecursiveVerifierAir proof.
-    /// CHECKPOINT_INTERVAL_EPOCHS=u64::MAX for testnet ensures this path is
-    /// unreachable in normal operation (all nullifiers stay in NS_ACTIVE).
-    /// [SCALAR-PROTOCOL §13.1 DOMAIN_NS_CHECKPOINT, ESKALASI-02 resolution]
-    fn generate_checkpoint_proof_stub(epoch: u64, archived_root: &[u8; 32], count: u64) -> Vec<u8> {
-        use scalar_crypto::domain::DOMAIN_NS_CHECKPOINT;
-        let mut hasher = blake3::Hasher::new();
-        // OSSIFIED domain separator — SCALAR-PROTOCOL §13.1.
-        // b"scalar_ns_checkpoint" (20 bytes). Prevents cross-domain hash
-        // collision with EpochSMT, SubEpochIMT, and other Merkle trees.
-        hasher.update(DOMAIN_NS_CHECKPOINT);
-        hasher.update(&epoch.to_le_bytes());
-        hasher.update(archived_root);
-        hasher.update(&count.to_le_bytes());
-        hasher.finalize().as_bytes().to_vec()
-    }
-
-    /// Status WAL saat ini (untuk inspeksi/testing).
+    /// Current WAL status (for inspection/testing).
     pub fn wal_pending(&self) -> Option<WalEntry> {
         self.wal.load_pending()
     }
