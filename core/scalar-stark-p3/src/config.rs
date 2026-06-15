@@ -220,7 +220,8 @@ mod tests {
     #[test]
     fn proof_params_match_spec() {
         // Field extension: cubic (degree-3), GF(p^3), |F|~2^192.
-        // EF = BinomialExtensionField<F, 3>: size is 3 * size_of::<F>().
+        // EF = CubicTrinomialExtensionField<F>: size is 3 * size_of::<F>().
+        // Modulus: x^3 - x - 1 (OSSIFIED §[PROOF-PARAMS]). NOT BinomialExtensionField.
         assert_eq!(
             std::mem::size_of::<EF>(),
             std::mem::size_of::<F>() * 3,
