@@ -243,16 +243,14 @@ fn test_quaternary_smt_non_membership_consistent() {
 }
 
 #[test]
-fn test_checkpoint_proof_quaternary_flag() {
+fn test_checkpoint_proof_smt_root_no_proof_bytes() {
+    // K-1: CheckpointProof has no proof_bytes — validity via SMT root. [SCALAR-TECHNICAL §6.1]
     use scalar_nullifier::nullifier_set::CheckpointProof;
 
-    let binary = CheckpointProof::genesis();
-    assert_eq!(binary.smt_depth, 32);
-    assert!(!binary.is_quaternary());
-
-    let quaternary = CheckpointProof::genesis_quaternary();
-    assert_eq!(quaternary.smt_depth, 16);
-    assert!(quaternary.is_quaternary());
+    let genesis = CheckpointProof::genesis();
+    // genesis: count=0, is_valid() must be true (SMT root check waived for genesis)
+    assert!(genesis.is_valid(), "genesis checkpoint must be valid");
+    assert_eq!(genesis.smt_depth, 32, "SMT depth must be 32 (OSSIFIED)");
 }
 
 // ── 5. Transfer Circuit dual UTXOSource fields ────────────────────────────────
