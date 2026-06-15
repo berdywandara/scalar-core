@@ -5,7 +5,7 @@
 //! global_fri_root binding all proofs.
 //!
 //! Spec §3.4 requires:
-//!   - Batch size N=256 optimal (OSSIFIED). Soundness 2^-120.
+//!   - Batch size N=256 optimal (OSSIFIED). Soundness 2^-154 post-batch [SCALAR-SECURITY §1.4].
 //!   - Domain separator b"scalar_stark_batch" (18 byte) for Phase 3.
 //!   - Domain separator b"scalar_subepoch_fs" (18 byte) for Phase 1.
 //!   - Deterministic Fiat-Shamir transcript: proof order matters.
@@ -29,9 +29,9 @@
 //!     transcript.absorb(xi_seed)               // 32 bytes
 //!     global_fri_root = BLAKE3(transcript)
 //!
-//! Soundness (spec §3.4.4):
-//!   Degradation = log2(N) bits from Schwartz-Zippel + Proximity Gaps.
-//!   N=256 → 8-bit degradation → soundness 2^-128 → 2^-120. OSSIFIED.
+//! Soundness (SCALAR-SECURITY §1.4):
+//!   Per-proof: 2^-162 (Johnson bound, proven, q=108, cubic field).
+//!   Post-batch N=256: union bound N × ε_per_proof = 2^8 × 2^-162 = 2^-154. OSSIFIED.
 //!
 //! Falsifiability (spec §4 DoD pt7, TV5.15):
 //!   - Tampered proof bytes → individual verify fails before aggregation.
@@ -53,7 +53,8 @@ use p3_field::PrimeField64;
 // ── Constants — OSSIFIED ──────────────────────────────────────────────────────
 
 /// STARKPack optimal batch size. OSSIFIED — spec §3.4, D-002.
-/// Soundness: 2^-128 baseline → 2^-120 after log2(256)=8 bit degradation.
+/// Soundness post-batch: 2^-154 (union bound N=256 over 2^-162 per-proof Johnson bound).
+/// Source: SCALAR-SECURITY §1.4. [GAP-06]
 pub const STARK_MAX_BATCH_SIZE: usize = 256;
 
 // Domain separators imported from OSSIFIED registry. Spec §3.4.3, §8.3, §8.4.
@@ -1010,7 +1011,7 @@ mod bench {
             ms4,
             r4.proof_hashes.len()
         );
-        println!("[P3-R9] STARKPack N=256 optimal batch — soundness 2^-120 (spec D-002, §3.4.4)");
+        println!("[P3-R9] STARKPack N=256 optimal batch — soundness 2^-154 post-batch (SCALAR-SECURITY §1.4)");
         println!(
             "[P3-R9] global_fri_root: {}",
             hex::encode_short(&r4.global_fri_root)

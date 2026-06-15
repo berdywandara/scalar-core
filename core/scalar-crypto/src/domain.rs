@@ -155,7 +155,7 @@ pub const DOMAIN_SUBEPOCH_FS: &[u8] = b"scalar_subepoch_fs";
 
 /// STARKPack batch Fiat-Shamir. Research Package Bagian 8. 18 bytes.
 /// Used in: STARKPack Fiat-Shamir transcript Phase 3 (global DEEP-FRI commitment).
-/// Decision D-002: batch size N=256, soundness 2^-120.
+/// Decision D-002: batch size N=256, soundness 2^-154 post-batch [SCALAR-SECURITY §1.4].
 pub const DOMAIN_STARK_BATCH: &[u8] = b"scalar_stark_batch";
 
 /// UTXO Set accumulator root domain. Spec §2.3, §8.5, §4.3 CB. 15 bytes. OSSIFIED.
