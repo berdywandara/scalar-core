@@ -29,8 +29,8 @@ Generated: 2026-06-15 | Phase Review — Static analysis
 - [GAP-03] [P0] scalar-network/sync.rs — SyncState::VerifyingNsArch, NS_ARCH constants — Recursive STARK di sync layer — OPEN
 - [GAP-04] [P0] scalar-emission/genesis_ceremony.rs — fri_queries=84, fri_grinding=20 (seharusnya 108, 0) — OPEN
 - [GAP-05] [P0] scalar-stark-p3/batch_transfer_p3.rs + config.rs — stale comments queries=84, grinding=23 — OPEN
-- [GAP-06] [P0] scalar-stark-p3/starkpack_p3.rs — soundness post-batch ditulis 2^-120 (seharusnya 2^-154) — OPEN
-- [GAP-07] [P0] scalar-stark-p3/config.rs + scalar-crypto/domain.rs — soundness ambigu ~2^-128/~2^-120 — OPEN
+- [GAP-06] [P0→DONE] scalar-stark-p3/starkpack_p3.rs — soundness 2^-154 post-batch, 2^-162 per-proof — CLOSED
+- [GAP-07] [P0→DONE] scalar-stark-p3/config.rs + scalar-crypto/domain.rs — soundness dikoreksi ke 2^-154/2^-162 — CLOSED
 - [GAP-08] [P0→DONE] scalar-stark-p3: MembershipAir wrapper, NonMembershipAir num_public_values, A-R9 PI binding [0..4]+[33..40] — CLOSED (4 commits)
 - [GAP-09] [P1] scalar-stark-p3/transfer_public_inputs.rs — commitment_hash/nullifier_hash menggunakan BLAKE3 bukan Poseidon2_acc — OPEN
 - [GAP-10] [P1] Fee circuit CF/CF-PREMIUM — storage_mass, FLOOR_BASE, PREMIUM terikat-nonce tidak ada di AIR — OPEN [ESKALASI]
@@ -67,3 +67,5 @@ Generated: 2026-06-15 | Phase Review — Static analysis
 - 2026-06-15 | GAP-05 CLOSED: stale comments queries=84/grinding=23 di batch_transfer_p3 + config.rs.
 - 2026-06-15 | GAP-08 CLOSED: MembershipAir num_public_values, NonMembershipAir num_public_values, A-R9 PI[0..4]+[33..40] explicit binding. 127/128 tests pass (1 remaining: GAP-FIXTURE-CD P3).
 - 2026-06-15 | GAP-FIXTURE-CD ditambahkan (P3): bench_starkpack_aggregation test helper salah, bukan constraint bug.
+- 2026-06-15 | GAP-06 CLOSED: starkpack_p3.rs soundness 2^-154 post-batch, 2^-162 per-proof [SCALAR-SECURITY §1.4].
+- 2026-06-15 | GAP-07 CLOSED: config.rs + domain.rs soundness dikoreksi, ~2^-120/~2^-128 dihapus.
