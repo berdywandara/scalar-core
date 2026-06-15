@@ -5,7 +5,7 @@
 // Flow node baru bergabung:
 //   1. Download genesis object → verify BLAKE3 hash
 //   2. Download checkpoint snapshot (setiap 90 hari)
-//   3. Verify NS_ARCH recursive STARK proof (<100ms, ~150KB)
+//   3. Verify NS_CHECKPOINT SMT root (<100ms, ~150KB)
 //   4. Delta sync dari checkpoint ke tip (gossip delta)
 //   5. Node siap berpartisipasi
 //
@@ -19,11 +19,11 @@
 /// Checkpoint interval dalam hari. Spec §6.5: 90 hari.
 pub const CHECKPOINT_INTERVAL_DAYS: u64 = 90;
 
-/// NS_ARCH proof size maksimum (bytes). Spec §6.5: ~150 KB.
-pub const NS_ARCH_PROOF_MAX_BYTES: usize = 150 * 1024;
+/// Maximum NS_CHECKPOINT SMT root data size (bytes). [K-1]
+pub const NS_CHECKPOINT_ROOT_MAX_BYTES: usize = 32;
 
-/// NS_ARCH verification time maksimum (ms). Spec §6.5: <100ms.
-pub const NS_ARCH_VERIFY_MAX_MS: u64 = 100;
+/// Maximum NS_CHECKPOINT SMT root verification time (ms). [K-1]
+pub const NS_CHECKPOINT_VERIFY_MAX_MS: u64 = 1;
 
 /// Jumlah bootstrap peers hardcoded. Spec §12.8: 50 peers.
 pub const BOOTSTRAP_PEER_COUNT: usize = 50;
@@ -57,8 +57,8 @@ pub enum SyncState {
     VerifyingGenesis,
     /// Step 2: Download checkpoint snapshot.
     DownloadingCheckpoint { checkpoint_epoch: u64 },
-    /// Step 3: Verifikasi NS_ARCH recursive STARK proof.
-    VerifyingNsArch { checkpoint_epoch: u64 },
+    /// Step 3: Verifikasi NS_CHECKPOINT SMT root.
+    VerifyingNsCheckpoint { checkpoint_epoch: u64 },
     /// Step 4: Delta sync dari checkpoint ke tip.
     DeltaSyncing {
         checkpoint_epoch: u64,
@@ -75,9 +75,9 @@ pub enum SyncState {
 pub enum SyncFailReason {
     /// Genesis hash tidak cocok dengan hardcoded hash.
     GenesisHashMismatch,
-    /// NS_ARCH proof tidak valid.
+    /// NS_CHECKPOINT SMT root tidak valid.
     NsArchProofInvalid,
-    /// NS_ARCH proof terlalu besar (> 150 KB).
+    /// NS_CHECKPOINT SMT root terlalu besar (> 150 KB).
     NsArchProofTooLarge,
     /// NS_ARCH verification terlalu lambat (> 100ms).
     NsArchVerifyTooSlow,
@@ -154,10 +154,10 @@ pub struct CheckpointMetadata {
     pub epoch: u64,
     /// Hash NullifierSet root saat checkpoint.
     pub nullifier_set_root: [u8; 32],
-    /// Hash NS_ARCH recursive STARK proof.
-    pub ns_arch_proof_hash: [u8; 32],
-    /// Ukuran NS_ARCH proof (bytes).
-    pub ns_arch_proof_size: usize,
+    /// Hash NS_CHECKPOINT SMT root.
+    pub ns_checkpoint_smt_root: [u8; 32],
+    /// Ukuran NS_CHECKPOINT SMT root (bytes).
+    pub ns_checkpoint_root_size: usize,
     /// Timestamp checkpoint (Unix).
     pub timestamp: u64,
 }
@@ -179,9 +179,9 @@ pub fn validate_checkpoint_metadata(meta: &CheckpointMetadata) -> CheckpointVali
     if meta.epoch == 0 {
         return CheckpointValidation::InvalidEpoch;
     }
-    if meta.ns_arch_proof_size > NS_ARCH_PROOF_MAX_BYTES {
+    if meta.ns_checkpoint_root_size > NS_CHECKPOINT_ROOT_MAX_BYTES {
         return CheckpointValidation::ProofTooLarge {
-            size: meta.ns_arch_proof_size,
+            size: meta.ns_checkpoint_root_size,
         };
     }
     CheckpointValidation::Valid
@@ -206,7 +206,7 @@ pub fn latest_checkpoint_epoch(current_epoch: u64) -> Option<u64> {
 
 // ── NS_ARCH Proof Verification ────────────────────────────────────────
 
-/// Hasil verifikasi NS_ARCH proof. Spec §6.5.
+/// Hasil verifikasi NS_CHECKPOINT SMT root. Spec §6.5.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NsArchVerifyResult {
     /// Proof valid — node bisa trust seluruh history.
@@ -219,19 +219,19 @@ pub enum NsArchVerifyResult {
     InvalidProof,
 }
 
-/// Validasi ukuran dan waktu verifikasi NS_ARCH proof. Spec §6.5.
+/// Validasi ukuran dan waktu verifikasi NS_CHECKPOINT SMT root. Spec §6.5.
 /// Catatan: verifikasi kriptografi sebenarnya dilakukan oleh scalar-stark crate.
 /// Fungsi ini memvalidasi constraints ukuran dan timing.
-pub fn validate_ns_arch_constraints(
+pub fn validate_ns_checkpoint_constraints(
     proof_size_bytes: usize,
     verify_elapsed_ms: u64,
 ) -> NsArchVerifyResult {
-    if proof_size_bytes > NS_ARCH_PROOF_MAX_BYTES {
+    if proof_size_bytes > NS_CHECKPOINT_ROOT_MAX_BYTES {
         return NsArchVerifyResult::TooLarge {
             size: proof_size_bytes,
         };
     }
-    if verify_elapsed_ms > NS_ARCH_VERIFY_MAX_MS {
+    if verify_elapsed_ms > NS_CHECKPOINT_VERIFY_MAX_MS {
         return NsArchVerifyResult::TooSlow {
             elapsed_ms: verify_elapsed_ms,
         };
@@ -499,8 +499,8 @@ mod tests {
         let meta = CheckpointMetadata {
             epoch: 3,
             nullifier_set_root: [0u8; 32],
-            ns_arch_proof_hash: [0u8; 32],
-            ns_arch_proof_size: 100 * 1024, // 100 KB
+            ns_checkpoint_smt_root: [0u8; 32],
+            ns_checkpoint_root_size: 100 * 1024, // 100 KB
             timestamp: 1_000_000,
         };
         assert_eq!(
@@ -514,8 +514,8 @@ mod tests {
         let meta = CheckpointMetadata {
             epoch: 3,
             nullifier_set_root: [0u8; 32],
-            ns_arch_proof_hash: [0u8; 32],
-            ns_arch_proof_size: NS_ARCH_PROOF_MAX_BYTES + 1,
+            ns_checkpoint_smt_root: [0u8; 32],
+            ns_checkpoint_root_size: NS_CHECKPOINT_ROOT_MAX_BYTES + 1,
             timestamp: 1_000_000,
         };
         assert!(matches!(
@@ -529,8 +529,8 @@ mod tests {
         let meta = CheckpointMetadata {
             epoch: 0,
             nullifier_set_root: [0u8; 32],
-            ns_arch_proof_hash: [0u8; 32],
-            ns_arch_proof_size: 1024,
+            ns_checkpoint_smt_root: [0u8; 32],
+            ns_checkpoint_root_size: 1024,
             timestamp: 0,
         };
         assert_eq!(
@@ -544,27 +544,30 @@ mod tests {
     #[test]
     fn test_ns_arch_valid() {
         assert_eq!(
-            validate_ns_arch_constraints(100 * 1024, 50),
+            validate_ns_checkpoint_constraints(100 * 1024, 50),
             NsArchVerifyResult::Valid
         );
     }
 
     #[test]
     fn test_ns_arch_proof_too_large() {
-        let result = validate_ns_arch_constraints(NS_ARCH_PROOF_MAX_BYTES + 1, 50);
+        let result = validate_ns_checkpoint_constraints(NS_CHECKPOINT_ROOT_MAX_BYTES + 1, 50);
         assert!(matches!(result, NsArchVerifyResult::TooLarge { .. }));
     }
 
     #[test]
     fn test_ns_arch_verify_too_slow() {
-        let result = validate_ns_arch_constraints(1024, NS_ARCH_VERIFY_MAX_MS + 1);
+        let result = validate_ns_checkpoint_constraints(1024, NS_CHECKPOINT_VERIFY_MAX_MS + 1);
         assert!(matches!(result, NsArchVerifyResult::TooSlow { .. }));
     }
 
     #[test]
     fn test_ns_arch_at_exact_limits() {
         assert_eq!(
-            validate_ns_arch_constraints(NS_ARCH_PROOF_MAX_BYTES, NS_ARCH_VERIFY_MAX_MS),
+            validate_ns_checkpoint_constraints(
+                NS_CHECKPOINT_ROOT_MAX_BYTES,
+                NS_CHECKPOINT_VERIFY_MAX_MS
+            ),
             NsArchVerifyResult::Valid
         );
     }
@@ -692,8 +695,8 @@ mod tests {
     fn test_constants_match_spec() {
         // Spec §6.5
         assert_eq!(CHECKPOINT_INTERVAL_DAYS, 90);
-        assert_eq!(NS_ARCH_PROOF_MAX_BYTES, 150 * 1024);
-        assert_eq!(NS_ARCH_VERIFY_MAX_MS, 100);
+        assert_eq!(NS_CHECKPOINT_ROOT_MAX_BYTES, 150 * 1024);
+        assert_eq!(NS_CHECKPOINT_VERIFY_MAX_MS, 100);
         assert_eq!(CHECKPOINT_INTERVAL_MIN_DAYS, 30);
         assert_eq!(CHECKPOINT_INTERVAL_MAX_DAYS, 180);
         // Spec §12.8
