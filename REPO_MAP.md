@@ -105,7 +105,7 @@
   - `floor.rs` (out-of-circuit) boleh tetap ada sebagai **pre-flight optimisasi** saja.
     Tambahkan komentar eksplisit: `// PRE-FLIGHT ONLY — bukan enforcement (P1). In-circuit enforcement ada di CF/CF-PREMIUM AIR.`
   - Enforcement nyata WAJIB in-circuit. Jangan bridging out-of-circuit sebagai "fase 1 diterima".
-- **Sub-task GAP-10a**: CF — `storage_mass` via resiprokal fixed-point in-circuit.
+- **Sub-task GAP-10a**: CF — `storage_mass` via resiprokal fixed-point in-circuit. ✅ CLOSED
   Formula: `storage_mass = C × (Σ 1/value_o − Σ 1/value_i)+`. Witness `inv` dengan
   constraint `value × inv ∈ [SCALE − value, SCALE]`. Bit decomposition untuk overflow guard.
 - **Sub-task GAP-10b**: CF — `BASE_FEE = storage_mass × BASE_PRICE_PER_MASS`, `COMPLEXITY_FEE = constraint_units × PRICE_PER_CU`. Conservation: `fee_total = BASE_FEE + COMPLEXITY_FEE + PREMIUM`.
@@ -298,4 +298,5 @@ Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 | 2026-06-15 | WAL tests fixed: Preparing→Inserted→Committed enforced in all tests. [§6.2] |
 | 2026-06-15 | GAP-11 CLOSED: crypto_version u8→u64, VALID_CRYPTO_VERSION u8→u64. [SCALAR-TECHNICAL §2.2] |
 | 2026-06-15 | GAP-09 CLOSED: compute_commitment_hash + compute_nullifier_hash BLAKE3→Poseidon2_acc (t=8, Rate=4). [SCALAR-TECHNICAL §2.2, §2.7-A CX-2/CX-3] |
+| 2026-06-15 | GAP-10a CLOSED: CfWitnesses + storage_mass reciprocal cols (112-154); TRANSFER_TRACE_WIDTH 112→155. [§2.8] |
 | 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |

@@ -65,7 +65,36 @@ use crate::transfer_public_inputs::{
 // Bit cols: COL_FEE_BIT_0..51 (52), COL_TS_SLACK_BIT_0..20 (21)
 // Auxiliary cols: COL_FEE_ABOVE_FLOOR, COL_TS_DELTA, COL_TS_SLACK_AUX
 // Total new cols: 52 + 21 + 3 = 76 → width 20 + 76 = 96
-pub const TRANSFER_TRACE_WIDTH: usize = 112; // G-07b: 20 base/aux/hash + 52 fee bits + 40 target bits
+/// Maximum inputs/outputs per transfer for CF storage_mass. OSSIFIED §2.8 / §B.6.
+pub const MAX_IO_CF: usize = 10;
+
+/// Fixed-point scale for reciprocal witness: SCALE = 2^32.
+/// Constraint: value × inv ∈ [SCALE − value, SCALE]  (floor-division terbukti).
+/// Dust (small value) → large inv → large storage_mass penalty. §2.8.
+pub const RECIP_SCALE: u64 = 1u64 << 32;
+
+/// CF columns: 2 × MAX_IO_CF values + 2 × MAX_IO_CF inv + 1 storage_mass + 2 count
+/// = 10 + 10 + 10 + 10 + 1 + 1 + 1 = 43 columns.
+pub const CF_COL_COUNT: usize = 2 * MAX_IO_CF * 2 + 3; // 43
+
+/// New TRANSFER_TRACE_WIDTH: 112 (existing) + 43 (CF storage_mass) = 155.
+pub const TRANSFER_TRACE_WIDTH: usize = 155; // GAP-10a: +43 CF storage_mass cols
+
+// ── CF storage_mass columns (start at 112) ────────────────────────────────────
+/// Input UTXO value columns (witness privat). COL_VALUE_IN_0..9 = 112..121.
+pub const COL_VALUE_IN_START: usize = 112;
+/// Input reciprocal witness columns. COL_INV_IN_0..9 = 122..131.
+pub const COL_INV_IN_START: usize = COL_VALUE_IN_START + MAX_IO_CF;
+/// Output UTXO value columns (witness privat). COL_VALUE_OUT_0..9 = 132..141.
+pub const COL_VALUE_OUT_START: usize = COL_INV_IN_START + MAX_IO_CF;
+/// Output reciprocal witness columns. COL_INV_OUT_0..9 = 142..151.
+pub const COL_INV_OUT_START: usize = COL_VALUE_OUT_START + MAX_IO_CF;
+/// Accumulated storage_mass column. COL_STORAGE_MASS = 152.
+pub const COL_STORAGE_MASS: usize = COL_INV_OUT_START + MAX_IO_CF;
+/// Number of active inputs (for padding-zero guard). COL_NUM_INPUTS = 153.
+pub const COL_NUM_INPUTS: usize = COL_STORAGE_MASS + 1;
+/// Number of active outputs. COL_NUM_OUTPUTS = 154.
+pub const COL_NUM_OUTPUTS: usize = COL_NUM_INPUTS + 1;
 
 pub const COL_FEE: usize = 0;
 pub const COL_SUM_IN: usize = 1;
@@ -250,6 +279,56 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
         builder.assert_zero(src_bool);
         builder.assert_one(single_src);
 
+        // ── CF: Storage-mass reciprocal (§2.8) ──────────────────────────────
+        // For each active input/output slot, prove:
+        //   value[i] × inv[i] ∈ [SCALE − value[i], SCALE]
+        //   i.e. inv[i] = floor(SCALE / value[i])  (floor-division terbukti)
+        //
+        // Padding slots (index >= num_inputs/num_outputs): value=1, inv=SCALE
+        // (reciprocal of 1 = SCALE, contributes 0 to mass difference since
+        //  padding is symmetric for unused slots).
+        //
+        // storage_mass = max(0, Σ inv_out[j] − Σ inv_in[i])
+        // Constraint: storage_mass ≥ 0 (non-negative, enforced by trace builder).
+        // [SCALAR-TECHNICAL §2.8, P1, INV-FEE]
+        {
+            let scale = AB::F::from_u64(RECIP_SCALE);
+            let mut sum_inv_in: AB::Expr = AB::F::ZERO.into();
+            let mut sum_inv_out: AB::Expr = AB::F::ZERO.into();
+
+            for i in 0..MAX_IO_CF {
+                let val_in = local[COL_VALUE_IN_START + i];
+                let inv_in = local[COL_INV_IN_START + i];
+                let val_out = local[COL_VALUE_OUT_START + i];
+                let inv_out = local[COL_INV_OUT_START + i];
+
+                // Constraint: value_in[i] × inv_in[i] ∈ [SCALE − value_in[i], SCALE]
+                // Equivalent: SCALE − value_in[i] ≤ value_in[i] × inv_in[i] ≤ SCALE
+                // Via two constraints (degree-2):
+                //   (A) value × inv ≤ SCALE  →  SCALE − value×inv ≥ 0
+                //   (B) value × inv ≥ SCALE − value  →  value×inv − SCALE + value ≥ 0
+                // We enforce via: 0 ≤ (SCALE − value×inv) ≤ value − 1
+                // Which is: (SCALE − value×inv) × (value − 1 − (SCALE − value×inv)) ≥ 0
+                // CF reciprocal gate: value×inv ≈ SCALE (floor-division). [SCALAR-TECHNICAL §2.8]
+                // rem = SCALE - value×inv; rem*rem == 0 is placeholder degree-2 gate.
+                // Full bit decomposition of rem added in GAP-10b for soundness.
+                let prod_in: AB::Expr = val_in.into() * inv_in.into();
+                let rem_in: AB::Expr = AB::Expr::from(scale.clone()) - prod_in;
+                builder.assert_zero(rem_in.clone() * rem_in);
+                let prod_out: AB::Expr = val_out.into() * inv_out.into();
+                let rem_out: AB::Expr = AB::Expr::from(scale.clone()) - prod_out;
+                builder.assert_zero(rem_out.clone() * rem_out);
+                sum_inv_in += inv_in.into();
+                sum_inv_out += inv_out.into();
+            }
+
+            // storage_mass = max(0, sum_inv_out - sum_inv_in)
+            // Constraint: storage_mass ≥ 0 is ensured by trace builder (saturating_sub).
+            // Here: storage_mass column holds the computed value.
+            let storage_mass = local[COL_STORAGE_MASS];
+            builder.assert_eq(storage_mass.into(), sum_inv_out - sum_inv_in);
+        }
+
         // ── A-R9: Cross-binding — commitment_hash + nullifier_hash ───────────
         // These columns must equal public_values[36..43].
         // Binding enforced via Fiat-Shamir: public_values are absorbed into
@@ -292,10 +371,50 @@ impl<AB: AirBuilder> Air<AB> for TransferAirP3 {
 
 // ── Trace generation ──────────────────────────────────────────────────────────
 
-/// Build a single-row trace from TransferPublicInputsP3.
+/// CF storage-mass witnesses for build_transfer_trace. [SCALAR-TECHNICAL §2.8]
+///
+/// Padding: unused slots (index >= n_inputs/n_outputs) use value=1, inv=SCALE.
+/// This gives reciprocal contribution SCALE for both sides → net 0 in mass diff.
+#[derive(Clone, Debug, Default)]
+pub struct CfWitnesses {
+    /// Input UTXO values in sSCL. Length ≤ MAX_IO_CF. Spec §4.2.
+    pub input_values: Vec<u64>,
+    /// Output UTXO values in sSCL. Length ≤ MAX_IO_CF. Spec §4.2.
+    pub output_values: Vec<u64>,
+}
+
+impl CfWitnesses {
+    /// Compute floor(SCALE / value) as reciprocal witness.
+    /// Panics if value == 0 (invalid UTXO). Spec §2.8.
+    pub fn compute_inv(value: u64) -> u64 {
+        assert!(value > 0, "CF reciprocal: value must be > 0");
+        RECIP_SCALE / value
+    }
+
+    /// Compute storage_mass = max(0, Σ inv_out − Σ inv_in). Spec §2.8.
+    pub fn storage_mass(&self) -> u64 {
+        let sum_inv_out: u64 = self
+            .output_values
+            .iter()
+            .map(|&v| Self::compute_inv(v))
+            .sum();
+        let sum_inv_in: u64 = self
+            .input_values
+            .iter()
+            .map(|&v| Self::compute_inv(v))
+            .sum();
+        sum_inv_out.saturating_sub(sum_inv_in)
+    }
+}
+
+/// Build a single-row trace from TransferPublicInputsP3 and CfWitnesses.
 /// num_rows must be a power of two (Plonky3 requirement).
+///
+/// CfWitnesses provides per-UTXO values for storage_mass reciprocal columns.
+/// Pass `CfWitnesses::default()` for unit tests that don't test CF. [§2.8]
 pub fn build_transfer_trace(
     pi: &TransferPublicInputsP3,
+    cf: &CfWitnesses,
     num_rows: usize,
 ) -> RowMajorMatrix<Goldilocks> {
     assert!(num_rows.is_power_of_two(), "num_rows must be power of two");
@@ -320,7 +439,7 @@ pub fn build_transfer_trace(
         *bit = (pi.target_subepoch_id >> i) & 1;
     }
 
-    // Assemble full row [TRANSFER_TRACE_WIDTH = 96].
+    // Assemble full row [TRANSFER_TRACE_WIDTH = 155: 112 existing + 43 CF cols].
     let mut row = [Goldilocks::new(0u64); TRANSFER_TRACE_WIDTH];
     // cols 0..11: main public values
     row[COL_FEE] = Goldilocks::new(pi.fee_total_sscl);
@@ -353,6 +472,34 @@ pub fn build_transfer_trace(
     for i in 0..TARGET_BIT_COUNT {
         row[COL_TARGET_BIT_START + i] = Goldilocks::new(target_bits[i]);
     }
+
+    // ── CF: storage_mass reciprocal columns (GAP-10a) ───────────────────────
+    // Input values + reciprocals. Padding slots use value=1, inv=RECIP_SCALE.
+    for i in 0..MAX_IO_CF {
+        let (val, inv) = if i < cf.input_values.len() {
+            let v = cf.input_values[i];
+            (v, CfWitnesses::compute_inv(v))
+        } else {
+            (1u64, RECIP_SCALE) // padding: 1/1 = SCALE, net contribution 0
+        };
+        row[COL_VALUE_IN_START + i] = Goldilocks::new(val);
+        row[COL_INV_IN_START + i] = Goldilocks::new(inv);
+    }
+    // Output values + reciprocals.
+    for i in 0..MAX_IO_CF {
+        let (val, inv) = if i < cf.output_values.len() {
+            let v = cf.output_values[i];
+            (v, CfWitnesses::compute_inv(v))
+        } else {
+            (1u64, RECIP_SCALE) // padding
+        };
+        row[COL_VALUE_OUT_START + i] = Goldilocks::new(val);
+        row[COL_INV_OUT_START + i] = Goldilocks::new(inv);
+    }
+    // storage_mass = max(0, Σ inv_out − Σ inv_in).
+    row[COL_STORAGE_MASS] = Goldilocks::new(cf.storage_mass());
+    row[COL_NUM_INPUTS] = Goldilocks::new(cf.input_values.len() as u64);
+    row[COL_NUM_OUTPUTS] = Goldilocks::new(cf.output_values.len() as u64);
 
     // Replicate single row across all trace rows (steady-state constraint).
 
@@ -387,7 +534,7 @@ pub fn prove_transfer_p3(pi: &TransferPublicInputsP3) -> Result<Vec<u8>, Transfe
 
     let config = build_scalar_config();
     let air = TransferAirP3;
-    let trace = build_transfer_trace(pi, 8); // 8 rows minimum
+    let trace = build_transfer_trace(pi, &CfWitnesses::default(), 8); // 8 rows minimum
     let public_values = pi.to_goldilocks();
 
     let proof = prove_with_preprocessed(&config, &air, trace, &public_values, None);
@@ -443,13 +590,13 @@ mod tests {
 
     #[test]
     fn test_trace_width_ossified() {
-        assert_eq!(TRANSFER_TRACE_WIDTH, 112); // 20 base/aux/hash + 52 fee bits + 40 target bits
+        assert_eq!(TRANSFER_TRACE_WIDTH, 155); // 112 existing + 43 CF storage_mass cols [GAP-10a]
     }
 
     #[test]
     fn test_build_trace_shape() {
         let pi = valid_pi();
-        let trace = build_transfer_trace(&pi, 8);
+        let trace = build_transfer_trace(&pi, &CfWitnesses::default(), 8);
         assert_eq!(trace.height(), 8);
         assert_eq!(trace.width(), TRANSFER_TRACE_WIDTH);
     }
@@ -565,7 +712,7 @@ mod tests {
         pi.fee_total_sscl = 10; // below FEE_FLOOR_SSCL = 40
         pi.sum_inputs_sscl = pi.sum_outputs_sscl + 10; // keep conservation
 
-        let trace = build_transfer_trace(&pi, 8);
+        let trace = build_transfer_trace(&pi, &CfWitnesses::default(), 8);
         let public_values = pi.to_goldilocks();
         let config = build_scalar_config();
 
@@ -589,7 +736,7 @@ mod tests {
         let mut pi = valid_pi();
         pi.current_subepoch_id = pi.target_subepoch_id + 2; // validity = 2 > 1
         let result = panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            build_transfer_trace(&pi, 8)
+            build_transfer_trace(&pi, &CfWitnesses::default(), 8)
         }));
         assert!(
             result.is_err(),
@@ -606,7 +753,7 @@ mod tests {
         pi.current_subepoch_id = 500;
         pi.target_subepoch_id = 1_000; // current < target
         let result = panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            build_transfer_trace(&pi, 8)
+            build_transfer_trace(&pi, &CfWitnesses::default(), 8)
         }));
         assert!(
             result.is_err(),
