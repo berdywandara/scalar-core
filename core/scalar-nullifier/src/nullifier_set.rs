@@ -23,7 +23,7 @@ use crate::smt::{compute_archived_root, SparseMerkleTree, MAX_NULLIFIERS_PER_CHE
 
 // ── Ossified constants — spec §6, §17 ────────────────────────────────────────
 
-/// Interval checkpoint dalam epoch.
+/// Checkpoint interval in epochs.
 /// TESTNET: u64::MAX — all nullifiers stay in NS_ACTIVE during testnet.
 /// MAINNET: restore to 3 (OSSIFIED, SCALAR-PROTOCOL §13.1).
 /// [SCALAR-TECHNICAL §6.1, SCALAR-PROTOCOL §13.1]
@@ -442,8 +442,8 @@ mod tests {
     #[test]
     fn test_checkpoint_interval_constant() {
         // TESTNET: CHECKPOINT_INTERVAL_EPOCHS = u64::MAX (ESKALASI-01).
-        // NS_CHECKPOINT cabang unreachable; semua nullifier stay di NS_ACTIVE.
-        // Dikembalikan ke 3 setelah Phase 0 RecursiveVerifierAir selesai.
+        // All nullifiers stay in NS_ACTIVE; NS_CHECKPOINT branch unreachable.
+        // Restore to 3 on mainnet (OSSIFIED, SCALAR-PROTOCOL §13.1).
         assert_eq!(
             CHECKPOINT_INTERVAL_EPOCHS,
             u64::MAX,
