@@ -31,7 +31,7 @@ Generated: 2026-06-15 | Phase Review — Static analysis
 - [GAP-05] [P0] scalar-stark-p3/batch_transfer_p3.rs + config.rs — stale comments queries=84, grinding=23 — OPEN
 - [GAP-06] [P0] scalar-stark-p3/starkpack_p3.rs — soundness post-batch ditulis 2^-120 (seharusnya 2^-154) — OPEN
 - [GAP-07] [P0] scalar-stark-p3/config.rs + scalar-crypto/domain.rs — soundness ambigu ~2^-128/~2^-120 — OPEN
-- [GAP-08] [P1] scalar-stark-p3/transfer_air_p3.rs — CB/CC boolean flag (bukan Merkle/SMT in-circuit) — OPEN [ESKALASI]
+- [GAP-08] [P0→DONE] scalar-stark-p3: MembershipAir wrapper, NonMembershipAir num_public_values, A-R9 PI binding [0..4]+[33..40] — CLOSED (4 commits)
 - [GAP-09] [P1] scalar-stark-p3/transfer_public_inputs.rs — commitment_hash/nullifier_hash menggunakan BLAKE3 bukan Poseidon2_acc — OPEN
 - [GAP-10] [P1] Fee circuit CF/CF-PREMIUM — storage_mass, FLOOR_BASE, PREMIUM terikat-nonce tidak ada di AIR — OPEN [ESKALASI]
 - [GAP-11] [P1] scalar-stark-p3/transfer_public_inputs.rs — PI[3] crypto_version:u8 vs suite_id:u64 — OPEN
@@ -42,6 +42,8 @@ Generated: 2026-06-15 | Phase Review — Static analysis
 - [GAP-16] [P3] Multi-client verifier impl#2 (Python) belum ada — OPEN
 
 ---
+
+- [GAP-FIXTURE-CD] [P3] scalar-stark-p3/starkpack_p3.rs bench_starkpack_aggregation — test helper tidak menyertakan fee_total di witness_sum (ConservationViolated selisih 40) — OPEN
 
 ## Ketergantungan Kunci
 
@@ -61,3 +63,7 @@ Generated: 2026-06-15 | Phase Review — Static analysis
 ## Riwayat Perubahan
 
 - 2026-06-15 | Phase Review selesai, REPO_MAP.md dibuat. 16 gap diidentifikasi (7×P0, 4×P1, 3×P2, 2×P3).
+- 2026-06-15 | GAP-04 CLOSED: fri_queries=108, fri_grinding=0 di genesis_ceremony.rs.
+- 2026-06-15 | GAP-05 CLOSED: stale comments queries=84/grinding=23 di batch_transfer_p3 + config.rs.
+- 2026-06-15 | GAP-08 CLOSED: MembershipAir num_public_values, NonMembershipAir num_public_values, A-R9 PI[0..4]+[33..40] explicit binding. 127/128 tests pass (1 remaining: GAP-FIXTURE-CD P3).
+- 2026-06-15 | GAP-FIXTURE-CD ditambahkan (P3): bench_starkpack_aggregation test helper salah, bukan constraint bug.
