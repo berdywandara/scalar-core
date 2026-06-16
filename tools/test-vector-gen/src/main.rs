@@ -2,7 +2,6 @@
 //! [SCALAR-SECURITY §5.3 Tier 2]
 
 use p3_field::extension::{CubicTrinomialExtensionField, HasFrobenius};
-use p3_field::RawDataSerializable;
 use p3_field::Field;
 use p3_goldilocks::Goldilocks as GL;
 use scalar_crypto::{
@@ -20,13 +19,14 @@ fn ef_u(e: EF) -> [u64; 3] {
     // Extract via into_bytes then reinterpret as u64 LE
     use p3_field::RawDataSerializable;
     let bytes: Vec<u8> = e.into_bytes().into_iter().collect();
-    core::array::from_fn(|i| u64::from_le_bytes(bytes[i*8..(i+1)*8].try_into().unwrap()))
+    core::array::from_fn(|i| u64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap()))
 }
 use scalar_stark_p3::transfer_public_inputs::{
     check_all_constraints, TransferPublicInputsP3, FEE_FLOOR_SSCL, VALID_CRYPTO_VERSION,
 };
 use std::io::Write;
 
+#[allow(clippy::too_many_arguments)]
 fn pi(
     fee: u64,
     sum_in: u64,
