@@ -318,6 +318,8 @@ Jika ada warning/error → perbaiki kode, bukan suppress, bukan longgarkan test.
 | 2026-06-15 | GAP-16 M4a: GF(p^3) trinomial x^3-x-1 arithmetic 19/19 PASS. [§[PROOF-PARAMS] K-2] |
 | 2026-06-15 | Sesi selesai. GAP-16 M1-M4a CLOSED. M4b FRI commit phase = next. REPO_MAP diupdate. |
 | 2026-06-16 | GAP-16 M4b CLOSED: FRI commit phase Python impl#2. fri.py: LDE/domain/Merkle/fold/challenger/commit_phase. test_fri.py 42/42 PASS. fri_commit_vectors.json 13/13 PASS. g=0/q=108/eps=-154 enforced. Unverifiable for query phase (M4c). [SCALAR-SECURITY §5.3, §[PROOF-PARAMS], K-2, K-3] |
+| 2026-06-16 | FIX: test-vector-gen clippy gate — removed duplicate RawDataSerializable import, added #[allow(too_many_arguments)] on fn pi(), fixed i*8 spacing. fmt+clippy+build+targeted-test all PASS. |
+| 2026-06-16 | GAP-16 M4b CLOSED: FRI commit phase Python impl#2. fri.py: LDE/domain/Merkle/fold/challenger/commit_phase. test_fri.py 42/42 PASS. fri_commit_vectors.json 13/13 PASS. g=0/q=108/eps=-154 enforced. Unverifiable for query phase (M4c). [SCALAR-SECURITY §5.3, §[PROOF-PARAMS], K-2, K-3] |
 | 2026-06-16 | FIX: tools/test-vector-gen clippy — removed duplicate RawDataSerializable import, added #[allow(too_many_arguments)], fixed i*8 spacing. Gates: fmt+clippy+build+test all PASS. |
 | 2026-06-15 | REPO_MAP v2: eskalasi keempat RESOLVED. GAP-GOSSIP + GAP-AUDIT-CLAIMS ditambahkan sebagai P0 baru. Keputusan eskalasi didokumentasikan per gap. |
 
