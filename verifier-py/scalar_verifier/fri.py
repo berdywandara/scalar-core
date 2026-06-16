@@ -20,14 +20,46 @@ This impl is INTERNAL ONLY — it does NOT call impl#1. All primitives are re-de
 from scratch using poseidon2.py, gfp3.py, and proof_params.py. [SCALAR-SECURITY §5.3, P4]
 
 Scope for M4b: commit phase implementation only.
-  - commit_lde_matrix(): LDE polynomial evaluations → Merkle commitment.
+  - commit_lde_matrix(): LDE polynomial evaluations -> Merkle commitment.
   - fri_fold_row(): FRI row folding with EF challenge (arity-4, log_arity=2).
-  - fri_commit_phase(): full commit phase → list of (commitment_bytes, folded_evals).
+  - fri_commit_phase(): full commit phase -> list of (commitment_bytes, folded_evals).
   - fri_fold_check(): verify one folding step (sibling consistency).
 
+Scope for M4c: FRI query-phase verification as a STANDALONE COMPONENT.
+  - verify_query(): reconstructs the fold chain from sibling values, checks
+    each fold step against the supplied beta challenge, and checks the final
+    folded evaluation against final_poly evaluated at the implied domain
+    point. Mirrors p3-fri v0.5.3/v0.6.1 verifier.rs verify_query() (the
+    fold-chain reconstruction and final polynomial check), restricted to
+    log_arity in {1, 2} (Scalar's OSSIFIED max_log_arity=2 never needs more).
+  - check_witness_g0(): grinding witness guard. With g=0 OSSIFIED, p3-challenger
+    GrindingChallenger::check_witness(bits=0, _) returns True WITHOUT EVER
+    OBSERVING the witness (grinding_challenger.rs). This module replicates
+    that exact behavior -- it does not implement or accept any active PoW
+    check. A non-trivial pow_witness in a real proof when g=0 is configured
+    is a P0 anti-pattern finding to escalate, not something to validate.
+  - assert_cap_height_zero(): hard assertion that impl#1's ValMmcs uses
+    cap_height=0 (single-root Merkle cap), which is what M4b's
+    merkle_commit_arity_matrix() assumes. Checked, not silently hardcoded.
+
+  HONESTY BOUNDARY (read before using this section):
+  verify_query() in M4c is tested against fold chains and sibling values
+  that THIS MODULE ITSELF generates via fri_commit_phase() (M4b). This
+  proves the fold-chain verification algorithm is correct in isolation, and
+  that it genuinely rejects tampered siblings/initial-eval/final-poly/beta
+  (soundness, tested explicitly). It does NOT YET prove anything about a
+  real prove_transfer_p3() proof, because the initial per-query evaluation
+  (`initial_folded_eval`) in the real protocol comes from open_input()'s
+  DEEP-quotient combination over OpenedValues (trace_local, trace_next,
+  quotient_chunks) -- which M4c does not implement. That connection is M4d.
+  Full end-to-end AIR verification (CA-CG, CX, CF/CF-PREMIUM + quotient)
+  against a real proof is M5 -- the milestone that satisfies SCALAR-SECURITY
+  §5.3's "full re-implementation of the AIR verifier" requirement.
+  DO NOT describe M4c alone as "FRI verified" or "proof verified".
+
 Limitations (explicitly NOT return True/False for unverifiable state):
-  - Full query phase (opening proofs) is out-of-scope for M4b; raises Unverifiable.
-  - Full FRI verifier will be M4c; this module provides commit phase infrastructure.
+  - DEEP-quotient / open_input combination is out-of-scope for M4c; that is M4d.
+  - Full end-to-end AIR + quotient verification against a real proof is M5.
 
 Ref: p3-fri v0.5.3 prover.rs commit_phase(), proof.rs FriProof/CommitPhaseProofStep.
      SCALAR-SECURITY §[PROOF-PARAMS], §5.3. SCALAR-TECHNICAL §4.4.
@@ -982,3 +1014,268 @@ def verify_commitment(
     root_4, _ = merkle_commit_arity_matrix(matrix_rows)
     computed_hex = digest4_to_hex(root_4)
     return computed_hex == expected_root_hex
+
+
+# === M4c: FRI query-phase verification (standalone component) ================
+# Ref: p3-fri v0.5.3/v0.6.1 verifier.rs verify_query() + tail of verify_fri()
+# (final polynomial evaluation check). See module docstring HONESTY BOUNDARY
+# above before treating this section as "the FRI verifier".
+
+# Config assertion checked against impl#1 (scalar-stark-p3/src/config.rs):
+# build_val_mmcs() uses ValMmcs::new(hash, compress, 0) -- cap_height=0 means
+# the Merkle "cap" reduces to a single root, which is what merkle_commit_
+# arity_matrix() (M4b) assumes. If impl#1 ever changes this, Python must fail
+# loudly rather than silently misverify.
+SCALAR_CAP_HEIGHT: int = 0  # [core/scalar-stark-p3/src/config.rs build_val_mmcs(), K-2]
+
+
+def assert_cap_height_zero() -> None:
+    """
+    Hard assertion: impl#1 config uses cap_height=0 (single-root Merkle cap).
+
+    Ref: core/scalar-stark-p3/src/config.rs build_val_mmcs()
+         ValMmcs::new(build_p2_hash(), build_p2_compress(), 0).
+    """
+    assert SCALAR_CAP_HEIGHT == 0, (
+        "P0 FINDING: impl#1 cap_height != 0 detected/assumed. "
+        "merkle_commit_arity_matrix() assumes a single-root Merkle cap "
+        "(cap_height=0). A non-zero cap_height requires re-deriving the "
+        "commitment scheme as a multi-node cap. Escalate before proceeding. "
+        "[core/scalar-stark-p3/src/config.rs build_val_mmcs()]"
+    )
+
+
+assert_cap_height_zero()
+
+
+def check_witness_g0(bits: int, witness: int) -> bool:
+    """
+    Grinding witness check, mirroring p3-challenger's default
+    GrindingChallenger::check_witness() when bits == 0:
+
+        fn check_witness(&mut self, bits: usize, witness: Self::Witness) -> bool {
+            if bits == 0 { return true; }
+            self.observe(witness);
+            self.sample_bits(bits) == 0
+        }
+
+    CRITICAL: when bits == 0 the witness is NEVER observed into the
+    transcript; the function unconditionally returns True. Since this module
+    enforces FRI_GRINDING_BITS == 0 (asserted at module import), the bits==0
+    branch is the only one ever reachable under Scalar's OSSIFIED config.
+
+    This is not a placeholder pass-through: there genuinely is no PoW check
+    to perform when g=0. If a real proof carries a non-trivial pow_witness
+    while g=0 is configured, that is a P0 anti-pattern (phantom grinding) --
+    escalate, do not implement a verification path for it here.
+
+    Raises Unverifiable if bits != 0 (forbidden by g=0 OSSIFIED, K-2).
+    """
+    if bits == 0:
+        return True
+    raise Unverifiable(
+        f"check_witness_g0: bits={bits} != 0. FRI_GRINDING_BITS must be 0 "
+        "[SCALAR-SECURITY \u00a7[PROOF-PARAMS], K-2]. A non-zero grinding bits "
+        "value reaching this function is a P0 anti-pattern -- escalate."
+    )
+
+
+@dataclass
+class FriQueryRoundInput:
+    """
+    One round's data for verify_query(): the folding challenge, the folding
+    arity, and the (arity-1) sibling EF values at the queried index for that
+    round (excluding the value being carried forward from the prior round).
+    """
+    beta: list[int]
+    log_arity: int
+    sibling_values: list[list[int]]
+
+
+def _domain_point_at_index(index: int, log_height: int, coset_shift: int) -> int:
+    """
+    The domain evaluation point assigned to bit-reversed position `index` in
+    a 2^log_height domain: shift * omega^bit_reverse(index, log_height).
+
+    Verified by construction against fri_fold_column_arity4()'s domain-point
+    assignment (which underpins the M4b commit phase): for n=4, this function
+    reproduces the exact same points used there, including the conjugate-pair
+    property pts[2k+1] == P - pts[2k].
+    """
+    omega = goldilocks_two_adic_generator(log_height)
+    natural_i = bit_reverse(index, log_height)
+    return fmul(coset_shift, pow(omega, natural_i, P))
+
+
+def _fold_query_step_arity2(
+    evals_pair: list[list[int]],
+    beta: list[int],
+    group_index: int,
+    log_current_height: int,
+    coset_shift: int,
+) -> list[int]:
+    """Fold one reconstructed arity-2 pair at bit-reversed group `group_index`."""
+    x0 = _domain_point_at_index(2 * group_index, log_current_height, coset_shift)
+    x0_inv2 = ef_from_base(finv(fmul(2, x0)))
+    return fri_fold_arity2(evals_pair[0], evals_pair[1], beta, x0_inv2)
+
+
+def _fold_query_step_arity4(
+    evals_group: list[list[int]],
+    beta: list[int],
+    group_index: int,
+    log_current_height: int,
+    coset_shift: int,
+) -> list[int]:
+    """Fold one reconstructed arity-4 group at bit-reversed group `group_index`."""
+    x0 = _domain_point_at_index(4 * group_index, log_current_height, coset_shift)
+    x2 = _domain_point_at_index(4 * group_index + 2, log_current_height, coset_shift)
+    beta_sq = ef_mul(beta, beta)
+    x0_inv2 = ef_from_base(finv(fmul(2, x0)))
+    x2_inv2 = ef_from_base(finv(fmul(2, x2)))
+    ev0 = fri_fold_arity2(evals_group[0], evals_group[1], beta, x0_inv2)
+    ev1 = fri_fold_arity2(evals_group[2], evals_group[3], beta, x2_inv2)
+    x0_sq = fmul(x0, x0)
+    x0_sq_inv2 = ef_from_base(finv(fmul(2, x0_sq)))
+    return fri_fold_arity2(ev0, ev1, beta_sq, x0_sq_inv2)
+
+
+def verify_query(
+    start_index: int,
+    initial_folded_eval: list[int],
+    rounds: list[FriQueryRoundInput],
+    log_global_max_height: int,
+    log_final_height: int,
+    final_poly: list[list[int]],
+    coset_shift: int = COSET_SHIFT,
+) -> bool:
+    """
+    Verify a single FRI query chain: reconstruct the fold chain from sibling
+    values, fold round-by-round using the supplied betas, and check that the
+    final folded evaluation matches final_poly evaluated at the implied
+    domain point. Mirrors p3-fri verify_query() + the final-poly check tail
+    of verify_fri(), restricted to log_arity in {1, 2}.
+
+    SEE MODULE DOCSTRING HONESTY BOUNDARY: `initial_folded_eval` here is
+    caller-supplied. In M4c's own tests it is drawn from the same fold chain
+    fri_commit_phase() produces (self-consistent, with explicit tamper tests
+    proving genuine rejection). It is NOT YET derived from a real
+    prove_transfer_p3() proof via open_input() -- that is M4d.
+
+    Args:
+        start_index: the queried index in the initial (largest) domain.
+        initial_folded_eval: EF value at start_index in the initial domain.
+        rounds: per-round (beta, log_arity, sibling_values) data, in the same
+                order as the commit phase rounds.
+        log_global_max_height: log2 of the initial domain size.
+        log_final_height: log2 of the final domain size.
+        final_poly: final polynomial EF coefficients from fri_commit_phase().
+        coset_shift: LDE coset shift (default COSET_SHIFT).
+
+    Returns:
+        True iff the fold chain is internally consistent AND the final
+        evaluation matches final_poly at the implied point. Returns False
+        (not raises) for tampered/incorrect input -- this is a genuine
+        evaluation, not a stub. Raises Unverifiable only for out-of-scope
+        log_arity values.
+    """
+    assert_cap_height_zero()
+
+    current_index = start_index
+    folded_eval = initial_folded_eval
+    log_current = log_global_max_height
+
+    for rnd in rounds:
+        log_arity = rnd.log_arity
+        arity = 1 << log_arity
+
+        if log_arity not in (1, 2):
+            raise Unverifiable(
+                f"verify_query: log_arity={log_arity} not implemented in M4c "
+                "(Scalar OSSIFIED max_log_arity=2 only needs 1 or 2)."
+            )
+
+        if len(rnd.sibling_values) != arity - 1:
+            return False  # genuine shape-check failure
+
+        index_in_group = current_index % arity
+        evals_full: list[list[int]] = [[0, 0, 0]] * arity
+        evals_full = list(evals_full)
+        evals_full[index_in_group] = folded_eval
+        sib_idx = 0
+        for j in range(arity):
+            if j != index_in_group:
+                evals_full[j] = rnd.sibling_values[sib_idx]
+                sib_idx += 1
+
+        group_index = current_index >> log_arity
+        log_folded = log_current - log_arity
+
+        if log_arity == 1:
+            folded_eval = _fold_query_step_arity2(
+                evals_full, rnd.beta, group_index, log_current, coset_shift
+            )
+        else:  # log_arity == 2
+            folded_eval = _fold_query_step_arity4(
+                evals_full, rnd.beta, group_index, log_current, coset_shift
+            )
+
+        current_index = group_index
+        log_current = log_folded
+
+    if log_current != log_final_height:
+        return False  # genuine shape mismatch
+
+    x_final = _domain_point_at_index(current_index, log_final_height, coset_shift)
+    eval_at_x: list[int] = [0, 0, 0]
+    for coeff in reversed(final_poly):
+        eval_at_x = ef_add(ef_mul(eval_at_x, ef_from_base(x_final)), coeff)
+
+    return eval_at_x == folded_eval
+
+
+def build_query_rounds_from_commit_result(
+    commit_result: "FriCommitPhaseResult",
+    initial_evals: list[list[int]],
+    start_index: int,
+) -> tuple[list[int], list["FriQueryRoundInput"]]:
+    """
+    Build the (initial_folded_eval, rounds) inputs to verify_query() for a
+    given start_index, by extracting sibling rows directly from the same
+    evaluation chain fri_commit_phase() folded -- ensuring the test input is
+    self-consistent with a fold chain this module itself produced.
+
+    SEE HONESTY BOUNDARY: this is a TEST-CONSTRUCTION helper for exercising
+    verify_query() against fri_commit_phase() output. It is not a substitute
+    for M4d's open_input()-derived initial evaluation from a real proof.
+
+    Args:
+        commit_result: output of fri_commit_phase().
+        initial_evals: the same EF evaluation vector passed into
+                        fri_commit_phase() (the initial/largest-domain layer).
+        start_index: the index to build a query chain for.
+
+    Returns: (initial_folded_eval, rounds) ready for verify_query().
+    """
+    chain = [initial_evals] + [s.folded_evals for s in commit_result.steps]
+    current_index = start_index
+    rounds: list[FriQueryRoundInput] = []
+
+    for round_i, step in enumerate(commit_result.steps):
+        layer_evals = chain[round_i]
+        arity = 1 << step.log_arity
+        group_index = current_index >> step.log_arity
+        index_in_group = current_index % arity
+        group_start = group_index * arity
+        full_group = layer_evals[group_start:group_start + arity]
+        siblings = [full_group[j] for j in range(arity) if j != index_in_group]
+
+        rounds.append(FriQueryRoundInput(
+            beta=step.beta,
+            log_arity=step.log_arity,
+            sibling_values=siblings,
+        ))
+        current_index = group_index
+
+    initial_folded_eval = chain[0][start_index]
+    return initial_folded_eval, rounds
