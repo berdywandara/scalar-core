@@ -21,6 +21,7 @@
 | Placeholder kripto aktif | **0 P0** — GAP-GOSSIP + GAP-AUDIT-CLAIMS CLOSED |
 | K-1 NS_CHECKPOINT SMT | RESOLVED (struct level) — sisa P3 naming legacy CLOSED |
 | K-2 proof-params terpusat | OK — `FRI_NUM_QUERIES=108`, `FRI_PROOF_OF_WORK_BITS=0` di lib.rs |
+| GAP-FRI-ARITY | CLOSED 2026-06-16 — max_log_arity 4->2, enforced log_arity<=2 per round, vektor di-regenerate |
 | K-3 epsilon post-batch 2^-154 | OK — starkpack_p3.rs, config.rs, domain.rs sudah benar |
 | K-4 verifikasi multi-tier | OK — GAP-15 CLOSED (framing ADR-SEC-023 sudah diganti) |
 
@@ -214,6 +215,56 @@ independensi multi-client verifier.
   ini diperiksa via `assert_cap_height_zero()`, bukan di-hardcode diam-diam.
 
 - **Dokumen**: SCALAR-SECURITY §5.3 (Tier 2), §[PROOF-PARAMS].
+
+---
+
+#### [GAP-FRI-ARITY] `core/scalar-stark-p3/src/config.rs` — FRI Folding Factor Menyimpang dari OSSIFIED
+- **Status**: CLOSED (2026-06-16)
+- **Ditemukan saat**: GAP-16 M4d-1, ketika proof asli dari `prove_transfer_p3()` diemit sebagai
+  JSON dan dibaca silang oleh Python (multi-client verifier membuktikan nilainya secara langsung).
+- **Masalah**: `build_scalar_config()` dan `build_scalar_zk_config()` menggunakan
+  `max_log_arity: 4` di `FriParameters`, dengan komentar yang salah membaca notasi spec:
+  `// folding factor 4. OSSIFIED spec §4.4.` menyamakan "folding factor 4" dengan
+  `max_log_arity` literal 4. Berdasarkan dokumentasi p3-fri sendiri ("max_log_arity=1 ->
+  binary folding", yaitu `max_log_arity` ITU SENDIRI adalah `log_arity`), folding factor 4
+  (arity-4) seharusnya `max_log_arity: 2` (log2(4)=2), bukan 4. Tidak ada wrapper Scalar yang
+  membatasi; `max_log_arity:4` diteruskan langsung ke `p3-fri`, yang bebas memilih `log_arity`
+  dinamis hingga nilai itu (`compute_log_arity_for_round`). Rujukan `§4.4` juga salah — section
+  itu tidak eksis di SCALAR-TECHNICAL untuk parameter ini; sumber benar adalah
+  SCALAR-PROTOCOL §13.1 ("FRI folding factor: 4") dan SCALAR-SECURITY §1.4 (`FRI rounds =
+  ceil(19/2)`, yang membuktikan `d=2` sebagai pembagi/batas atas).
+- **Bukti konkret**: Proof asli dari `prove_transfer_p3()` (PI sederhana, trace 8 baris)
+  menghasilkan `commit_phase_commits` 1 round dengan `log_arity=3` (arity-8) — secara nyata
+  melebihi folding factor OSSIFIED, bukan potensi risiko teoretis.
+- **Definisi penegakan (presisi penting)**: `log_arity <= 2` di SETIAP round — BUKAN `== 2`
+  ketat. Bukti dari SCALAR-SECURITY §1.4 sendiri: `FRI rounds = ceil(19/2) = 10` — operator
+  `ceil` mengantisipasi round terakhir sebagai fold parsial (remainder), bukan pembagian eksak.
+  `log_arity > 2` di round mana pun adalah penyimpangan; `log_arity < 2` di round TERAKHIR
+  adalah perilaku normal (remainder fold).
+- **Resolusi**: `max_log_arity: 4` -> `2` di kedua `build_scalar_config()` dan
+  `build_scalar_zk_config()`. Komentar diperbaiki dengan rujukan yang benar
+  (SCALAR-PROTOCOL §13.1, SCALAR-SECURITY §1.4), bukan §4.4 yang salah.
+  Test penegak `test_fri_folding_factor_enforced_max_log_arity_2` ditambahkan: memanggil
+  `prove_transfer_p3()` sungguhan, memeriksa SEMUA round di SEMUA 108 query proof, hard-fail
+  jika ada `log_arity > 2` di mana pun.
+- **Hasil setelah patch** (proof asli, PI sama): `commit_phase_commits` 2 round
+  (round 0: `log_arity=2`, round 1: `log_arity=1` remainder) — semua `<= 2`, tidak ada
+  penyimpangan lagi. `commit_pow_witnesses=[0,0]`, `query_pow_witness=0` tetap konsisten
+  g=0 OSSIFIED (guard P0 grinding tidak terdampak, tetap lolos).
+- **Dampak ke M4b/M4c Python**: TIDAK PERLU generalisasi arity. Asumsi awal M4b
+  (`fri_fold_column_arity4`, `log_arity=2` tetap) ternyata SESUAI dokumen — config Rust yang
+  menyimpang, bukan Python yang kurang cakupan. M4c yang `raise Unverifiable` untuk
+  `log_arity=3` adalah deteksi yang BENAR (multi-client verifier bekerja sesuai tujuannya) —
+  proof yang sesuai spec sekarang tidak akan pernah memicu raise itu.
+- **Komentar M4b/M4c dikoreksi**: hapus klaim "OSSIFIED max_log_arity=2" (notasi lama, ambigu)
+  dan TIDAK ditulis "max_log_arity=4" (config Rust yang sempat menyimpang) sebagai fakta.
+  Nilai yang benar: folding factor 4 (d=2, log_arity<=2 per round, remainder di round
+  terakhir boleh <2), merujuk SCALAR-PROTOCOL §13.1 + SCALAR-SECURITY §1.4 ceil(19/2).
+- **Vektor di-regenerate**: `verifier-py/tests/vectors/m4d_real_proof.json` ditimpa dari
+  proof yang sudah benar (config setelah patch). Vektor lama (dari proof menyimpang,
+  log_arity=3) TIDAK dipakai lagi.
+- **Dokumen**: SCALAR-PROTOCOL §13.1 (FRI folding factor: 4), SCALAR-SECURITY §1.4
+  (FRI rounds = ceil(19/2), pembuktian d=2).
 
 ---
 

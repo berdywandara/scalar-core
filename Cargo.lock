@@ -3735,10 +3735,13 @@ dependencies = [
  "hex",
  "p3-field 0.6.1",
  "p3-goldilocks 0.6.1",
+ "p3-uni-stark",
+ "postcard",
  "scalar-crypto",
  "scalar-emission",
  "scalar-nullifier",
  "scalar-stark-p3",
+ "serde",
  "serde_json",
 ]
 

@@ -16,6 +16,9 @@ scalar-nullifier = { path = "../../core/scalar-nullifier" }
 blake3 = "1.5"
 hex = "0.4"
 serde_json = "1"
+serde = { version = "1", features = ["derive"] }
 scalar-stark-p3 = { path = "../../core/scalar-stark-p3" }
 p3-field = "0.6"
 p3-goldilocks = "0.6"
+p3-uni-stark = "0.6"
+postcard = { version = "1", features = ["alloc"] }

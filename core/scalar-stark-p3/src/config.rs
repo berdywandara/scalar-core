@@ -114,7 +114,18 @@ pub fn build_scalar_config() -> ScalarStarkConfig {
     let fri_params = FriParameters {
         log_blowup: FRI_LOG_BLOWUP, // 2^3 = 8x blowup. OSSIFIED.
         log_final_poly_len: 0,
-        max_log_arity: 4,             // folding factor 4. OSSIFIED spec §4.4.
+        max_log_arity: 2, // Folding factor 4 (arity-4) -> max_log_arity = log2(4) = 2.
+        // OSSIFIED [SCALAR-PROTOCOL §13.1 "FRI folding factor: 4";
+        // SCALAR-SECURITY §1.4 derivation "FRI rounds = ceil(19/2)"
+        // confirms d=2 as the divisor, i.e. max log_arity per round].
+        // NOTE: this caps log_arity <= 2 per round; the LAST round
+        // may fold by less than 2 (remainder), per the ceil() in the
+        // spec's own round-count formula -- that is expected, not a
+        // deviation. log_arity > 2 in ANY round IS a deviation
+        // (see GAP-FRI-ARITY P0, closed by this patch; previously
+        // max_log_arity=4 allowed up to arity-16 folds, and a real
+        // prove_transfer_p3() proof was observed producing
+        // log_arity=3, exceeding the OSSIFIED folding factor).
         num_queries: FRI_NUM_QUERIES, // 108 queries. OSSIFIED [SCALAR-SECURITY §[PROOF-PARAMS]].
         commit_proof_of_work_bits: FRI_PROOF_OF_WORK_BITS, // 0 bits (grinding amputated). OSSIFIED [SCALAR-SECURITY §[PROOF-PARAMS]].
         query_proof_of_work_bits: 0,
@@ -165,7 +176,7 @@ pub fn build_scalar_zk_config() -> ScalarZkStarkConfig {
     let fri_params = FriParameters {
         log_blowup: FRI_LOG_BLOWUP,
         log_final_poly_len: 0,
-        max_log_arity: 4,
+        max_log_arity: 2, // Folding factor 4 (d=2). OSSIFIED [SCALAR-PROTOCOL §13.1, SCALAR-SECURITY §1.4]. See build_scalar_config() for full rationale.
         num_queries: FRI_NUM_QUERIES,
         commit_proof_of_work_bits: FRI_PROOF_OF_WORK_BITS,
         query_proof_of_work_bits: 0,
@@ -199,6 +210,80 @@ pub const fn is_zk_enabled() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Enforces SCALAR-PROTOCOL §13.1 "FRI folding factor: 4" as log_arity <= 2
+    /// per round, for EVERY round of EVERY query in a real prove_transfer_p3()
+    /// proof. The LAST round of a fold chain may have log_arity < 2 (remainder
+    /// fold) -- this is expected per SCALAR-SECURITY §1.4's own round-count
+    /// formula (ceil(19/2) = 10), which presupposes a possible partial final
+    /// fold. log_arity > 2 in ANY round (first, middle, or last) is a hard
+    /// failure: it means the folding factor OSSIFIED constraint is violated.
+    /// [GAP-FRI-ARITY, SCALAR-PROTOCOL §13.1, SCALAR-SECURITY §1.4]
+    #[test]
+    fn test_fri_folding_factor_enforced_max_log_arity_2() {
+        use crate::transfer_air_p3::prove_transfer_p3;
+        use crate::transfer_public_inputs::TransferPublicInputsP3;
+        use p3_uni_stark::Proof;
+
+        let pi = TransferPublicInputsP3 {
+            fee_total_sscl: 40,
+            sum_inputs_sscl: 1_000_000_040,
+            sum_outputs_sscl: 1_000_000_000,
+            crypto_version: 0x01,
+            current_subepoch_id: 1_000,
+            target_subepoch_id: 1_000,
+            utxo_set_root: [0x42u8; 32],
+            cb_membership_verified: true,
+            nullifier_active_root: [0xAAu8; 32],
+            nullifier_archived_root: [0xBBu8; 32],
+            cc_nonmembership_verified: true,
+            output_nonzero: true,
+            single_utxo_source: true,
+            commitment_hash: [0u64; 4],
+            nullifier_hash: [0u64; 4],
+        };
+
+        let proof_bytes = prove_transfer_p3(&pi).expect("prove must succeed");
+        let proof: Proof<ScalarStarkConfig> =
+            postcard::from_bytes(&proof_bytes).expect("deserialize must succeed");
+
+        let mut max_log_arity_seen = 0usize;
+        let mut violations: Vec<(usize, usize, u8)> = Vec::new(); // (query_idx, round_idx, log_arity)
+
+        for (qi, qp) in proof.opening_proof.query_proofs.iter().enumerate() {
+            let num_rounds = qp.commit_phase_openings.len();
+            for (ri, step) in qp.commit_phase_openings.iter().enumerate() {
+                let la = step.log_arity;
+                max_log_arity_seen = max_log_arity_seen.max(la as usize);
+                let is_last_round = ri == num_rounds.saturating_sub(1);
+                // Hard rule: log_arity must NEVER exceed 2 (folding factor 4).
+                if la > 2 {
+                    violations.push((qi, ri, la));
+                }
+                // Informational: non-last rounds are expected to be exactly 2
+                // under normal circumstances (remainder only applies to the
+                // last round), but we do not hard-fail on < 2 mid-chain since
+                // domain-size edge cases could legitimately produce it. The
+                // ONLY hard constraint from the spec is the upper bound.
+                let _ = is_last_round;
+            }
+        }
+
+        assert!(
+            violations.is_empty(),
+            "GAP-FRI-ARITY violation: found log_arity > 2 at (query_idx, round_idx, log_arity) = {:?}. \
+             SCALAR-PROTOCOL §13.1 folding factor 4 requires max_log_arity <= 2 per round. \
+             max_log_arity seen overall: {}",
+            violations,
+            max_log_arity_seen
+        );
+
+        assert!(
+            max_log_arity_seen <= 2,
+            "max_log_arity_seen={} exceeds OSSIFIED folding factor 4 (log_arity<=2) [SCALAR-PROTOCOL §13.1]",
+            max_log_arity_seen
+        );
+    }
 
     #[test]
     fn test_fri_params_ossified() {
